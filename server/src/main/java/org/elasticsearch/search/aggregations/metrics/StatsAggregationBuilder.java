@@ -35,8 +35,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
         MetricAggregatorSupplier.class
     );
 
-    public static final ObjectParser<StatsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, StatsAggregationBuilder::new);
+    public static final ObjectParser<StatsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, StatsAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
@@ -45,8 +44,11 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
         super(name);
     }
 
-    protected StatsAggregationBuilder(StatsAggregationBuilder clone,
-                                      AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected StatsAggregationBuilder(
+        StatsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -77,11 +79,13 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     @Override
-    protected StatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        MetricAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected StatsAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new StatsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 

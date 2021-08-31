@@ -25,8 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
-        extends ValuesSourceAggregationBuilder<AB> {
+public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range> extends ValuesSourceAggregationBuilder<
+    AB> {
 
     protected final InternalRange.Factory<?, ?> rangeFactory;
     protected List<R> ranges = new ArrayList<>();
@@ -37,8 +37,11 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         this.rangeFactory = rangeFactory;
     }
 
-    protected AbstractRangeBuilder(AbstractRangeBuilder<AB, R> clone,
-                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AbstractRangeBuilder(
+        AbstractRangeBuilder<AB, R> clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.rangeFactory = clone.rangeFactory;
         this.ranges = new ArrayList<>(clone.ranges);
@@ -49,7 +52,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      * Read from a stream.
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
-            throws IOException {
+        throws IOException {
         super(in);
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
@@ -58,7 +61,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // Copied over from the old targetValueType setting.  Not sure what cases this is still relevant for. --Tozzi 2020-01-13
+        // Copied over from the old targetValueType setting. Not sure what cases this is still relevant for. --Tozzi 2020-01-13
         return rangeFactory.getValueSourceType();
     }
 
@@ -105,6 +108,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         out.writeBoolean(keyed);
     }
 
+    @SuppressWarnings("unchecked")
     public AB addRange(R range) {
         if (range == null) {
             throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
@@ -117,6 +121,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
+    @SuppressWarnings("unchecked")
     public AB keyed(boolean keyed) {
         this.keyed = keyed;
         return (AB) this;
@@ -144,12 +149,12 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         AbstractRangeBuilder<AB, R> other = (AbstractRangeBuilder<AB, R>) obj;
-        return Objects.equals(ranges, other.ranges)
-                && Objects.equals(keyed, other.keyed);
+        return Objects.equals(ranges, other.ranges) && Objects.equals(keyed, other.keyed);
     }
 }

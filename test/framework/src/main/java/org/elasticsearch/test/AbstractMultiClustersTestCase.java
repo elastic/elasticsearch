@@ -57,6 +57,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
+    }
+
     protected final Client client() {
         return client(LOCAL_CLUSTER);
     }
@@ -92,8 +96,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final List<Class<? extends Plugin>> mockPlugins =
                 List.of(MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class, MockNioTransportPlugin.class);
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
-            final Settings nodeSettings = Settings.EMPTY;
-            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings, nodePlugins);
+
+            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
             final InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodes,
                 numberOfNodes, clusterName, nodeConfigurationSource, 0, clusterName + "-", mockPlugins, Function.identity());
             cluster.beforeTest(random());

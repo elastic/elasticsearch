@@ -1240,7 +1240,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Aggregate plan) {
             if (plan.groupings().isEmpty() && plan.child() instanceof EsRelation && plan.aggregates().stream().allMatch(this::foldable)) {
-                return plan.replaceChildrenSameSize(singletonList(new LocalRelation(plan.source(), new SingletonExecutable())));
+                return plan.replaceChild(new LocalRelation(plan.source(), new SingletonExecutable()));
             }
 
             return plan;

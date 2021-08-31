@@ -1269,10 +1269,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), equalTo(
+        assertThat(
+            exception.getMessage(),
+            equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, "
-                + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
-                + "or check the breaking changes documentation for removed settings]"));
+                    + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins "
+                    + "are installed, or check the breaking changes documentation for removed settings]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

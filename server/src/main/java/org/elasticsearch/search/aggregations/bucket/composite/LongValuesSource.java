@@ -20,11 +20,11 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -48,9 +48,16 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private long currentValue;
     private boolean missingCurrentValue;
 
-    LongValuesSource(BigArrays bigArrays,
-                     MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
-                     LongUnaryOperator rounding, DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+    LongValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+        LongUnaryOperator rounding,
+        DocValueFormat format,
+        boolean missingBucket,
+        int size,
+        int reverseMul
+    ) {
         super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
@@ -61,7 +68,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
@@ -132,14 +139,16 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
-            afterValue = format.parseLong(value.toString(), false, () -> {
-                throw new IllegalArgumentException("now() is not supported in [after] key");
-            });
+            afterValue = format.parseLong(
+                value.toString(),
+                false,
+                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
+            );
         }
     }
 
@@ -173,7 +182,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable<Long> value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Long.class) {
             throw new IllegalArgumentException("Expected Long, got " + value.getClass());
         }
@@ -191,7 +200,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return extractQuery(((BoostQuery) query).getQuery());
         } else if (query instanceof IndexOrDocValuesQuery) {
             return extractQuery(((IndexOrDocValuesQuery) query).getIndexQuery());
-        } else if (query instanceof ConstantScoreQuery){
+        } else if (query instanceof ConstantScoreQuery) {
             return extractQuery(((ConstantScoreQuery) query).getQuery());
         } else {
             return query;
@@ -220,8 +229,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

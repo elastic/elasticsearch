@@ -26,6 +26,7 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -42,7 +44,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -373,13 +374,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             Path key = resolvePath(options, caKeyPathSpec);
             String password = caPasswordSpec.value(options);
 
-            final String resolvedCaCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedCaCertPath + "] but found [" +
-                    certificates.length + "]");
-            }
-            X509Certificate caCert = (X509Certificate) certificates[0];
+            X509Certificate caCert = CertParsingUtils.readX509Certificate(cert);
             PrivateKey privateKey = readPrivateKey(key, getChars(password), terminal);
             return new CAInfo(caCert, privateKey);
         }
@@ -1053,8 +1048,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      * @param terminal the terminal to use for user interaction
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal)
-        throws Exception {
+    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(path, () -> {

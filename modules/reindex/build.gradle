@@ -14,7 +14,7 @@ import org.elasticsearch.gradle.internal.test.AntFixture
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -84,8 +84,8 @@ dependencies {
 
 jdks {
   legacy {
-    vendor = 'adoptopenjdk'
-    version = '8u242+b08'
+    vendor = 'adoptium'
+    version = '8u302+b08'
     platform = OS.current().name().toLowerCase()
     architecture = Architecture.current().name().toLowerCase()
   }
@@ -159,15 +159,11 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
 
-def v7compatibilityNotSupportedTests = {
-  return [
-    'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
-    'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
-  ]
-}
-
 tasks.named("yamlRestCompatTest").configure {
-      systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
+      systemProperty 'tests.rest.blacklist', [
+          'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
+          'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
+        ].join(',')
 }
 
 tasks.named('splitPackagesAudit').configure {

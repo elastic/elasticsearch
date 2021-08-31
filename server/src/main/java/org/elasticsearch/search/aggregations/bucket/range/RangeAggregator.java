@@ -207,9 +207,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         });
 
         static {
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> p.text(),
-                KEY_FIELD, ValueType.DOUBLE); // DOUBLE supports string and number
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), KEY_FIELD, ValueType.DOUBLE); // DOUBLE supports string and
+                                                                                                            // number
             ContextParser<Void, Object> fromToParser = (p, c) -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return p.text();
@@ -239,10 +238,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
             }
             Range other = (Range) obj;
             return Objects.equals(key, other.key)
-                    && Objects.equals(from, other.from)
-                    && Objects.equals(fromAsStr, other.fromAsStr)
-                    && Objects.equals(to, other.to)
-                    && Objects.equals(toAsStr, other.toAsStr);
+                && Objects.equals(from, other.from)
+                && Objects.equals(fromAsStr, other.fromAsStr)
+                && Objects.equals(to, other.to)
+                && Objects.equals(toAsStr, other.toAsStr);
         }
     }
 
@@ -434,6 +433,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     private final DocValueFormat format;
     protected final Range[] ranges;
     private final boolean keyed;
+    @SuppressWarnings("rawtypes")
     private final InternalRange.Factory rangeFactory;
     private final double averageDocsPerRange;
 
@@ -442,7 +442,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         AggregatorFactories factories,
         ValuesSource valuesSource,
         DocValueFormat format,
-        InternalRange.Factory rangeFactory,
+        @SuppressWarnings("rawtypes") InternalRange.Factory rangeFactory,
         Range[] ranges,
         double averageDocsPerRange,
         boolean keyed,
@@ -474,22 +474,35 @@ public abstract class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(owningBucketOrds, ranges.length,
+        return buildAggregationsForFixedBucketCount(
+            owningBucketOrds,
+            ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
                 return rangeFactory.createBucket(range.key, range.from, range.to, docCount, subAggregationResults, keyed, format);
-            }, buckets -> rangeFactory.create(name, buckets, format, keyed, metadata()));
+            },
+            buckets -> rangeFactory.create(name, buckets, format, keyed, metadata())
+        );
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
-            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format);
+            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket = rangeFactory.createBucket(
+                range.key,
+                range.from,
+                range.to,
+                0,
+                subAggs,
+                keyed,
+                format
+            );
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -507,6 +520,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         private final R[] ranges;
         private final boolean keyed;
+        @SuppressWarnings("rawtypes")
         private final InternalRange.Factory factory;
         private final DocValueFormat format;
 
@@ -518,7 +532,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             DocValueFormat format,
             AggregationContext context,
             Aggregator parent,
-            InternalRange.Factory factory,
+            @SuppressWarnings("rawtypes") InternalRange.Factory factory,
             Map<String, Object> metadata
         ) throws IOException {
             super(name, context, parent, factories, metadata);
@@ -529,6 +543,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
@@ -573,7 +588,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric)this.valuesSource).doubleValues(ctx);
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -599,7 +614,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             AggregatorFactories factories,
             Numeric valuesSource,
             DocValueFormat format,
-            Factory rangeFactory,
+            @SuppressWarnings("rawtypes") Factory rangeFactory,
             Range[] ranges,
             double averageDocsPerRange,
             boolean keyed,
@@ -771,15 +786,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 Range r = ranges[i];
                 InternalFilters.InternalBucket b = filters.getBuckets().get(i);
                 buckets.add(
-                    rangeFactory.createBucket(
-                        r.getKey(),
-                        r.getFrom(),
-                        r.getTo(),
-                        b.getDocCount(),
-                        (InternalAggregations) b.getAggregations(),
-                        keyed,
-                        format
-                    )
+                    rangeFactory.createBucket(r.getKey(), r.getFrom(), r.getTo(), b.getDocCount(), b.getAggregations(), keyed, format)
                 );
             }
             return rangeFactory.create(name(), buckets, format, keyed, filters.getMetadata());

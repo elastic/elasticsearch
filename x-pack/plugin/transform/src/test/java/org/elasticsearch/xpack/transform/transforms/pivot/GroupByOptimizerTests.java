@@ -43,13 +43,13 @@ public class GroupByOptimizerTests extends ESTestCase {
     public void testOrderByType() {
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
-        groups.put("terms1", randomTermsGroupSourceNoScript());
-        groups.put("date1", randomDateHistogramGroupSourceNoScript());
-        groups.put("terms2", randomTermsGroupSourceNoScript());
-        groups.put("date2", randomDateHistogramGroupSourceNoScript());
-        groups.put("hist1", randomHistogramGroupSourceNoScript());
+        groups.put("terms1", randomTermsGroupSourceNoScript("t1"));
+        groups.put("date1", randomDateHistogramGroupSourceNoScript("d1"));
+        groups.put("terms2", randomTermsGroupSourceNoScript("t2"));
+        groups.put("date2", randomDateHistogramGroupSourceNoScript("d2"));
+        groups.put("hist1", randomHistogramGroupSourceNoScript("h1"));
         groups.put("geo1", randomGeoTileGroupSource());
-        groups.put("hist2", randomHistogramGroupSourceNoScript());
+        groups.put("hist2", randomHistogramGroupSourceNoScript("h1"));
 
         List<String> groupNames = GroupByOptimizer.reorderGroups(Collections.unmodifiableMap(groups), Collections.emptySet())
             .stream()

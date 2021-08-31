@@ -15,6 +15,7 @@ import org.gradle.api.Action;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
@@ -65,11 +66,14 @@ public class BwcSetupExtension {
             loggedExec.usesService(bwcTaskThrottleProvider);
             loggedExec.setSpoolOutput(true);
             loggedExec.setWorkingDir(checkoutDir.get());
-            loggedExec.doFirst(t -> {
-                // Execution time so that the checkouts are available
-                String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version);
-                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
-                loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
+            loggedExec.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task t) {
+                    // Execution time so that the checkouts are available
+                    String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version);
+                    String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
+                    loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
+                }
             });
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {

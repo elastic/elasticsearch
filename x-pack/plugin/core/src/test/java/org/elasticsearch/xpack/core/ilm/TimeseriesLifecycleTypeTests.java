@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private static final AllocateAction TEST_ALLOCATE_ACTION =
-        new AllocateAction(2, Collections.singletonMap("node", "node1"),null, null);
+        new AllocateAction(2, 20, Collections.singletonMap("node", "node1"),null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
@@ -634,7 +634,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         {
             // the allocate action only specifies the number of replicas
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, null, null, null));
+            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, 20, null, null, null));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
         }
@@ -801,10 +801,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
-            assertThat(err,
-                containsString("Your policy is configured to run the frozen phase "+
-                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
-                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+            assertThat(
+                err,
+                containsString(
+                    "Your policy is configured to run the frozen phase "
+                        + "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the"
+                        + " hot phase (min_age: 3d). You should change the phase timing so that the phases will execute"
+                        + " in the order of hot, warm, then cold."
+                )
+            );
         }
 
         {
@@ -817,10 +822,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
-            assertThat(err,
-                containsString("Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "+
-                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
-                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+            assertThat(
+                err,
+                containsString(
+                    "Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "
+                        + "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the"
+                        + " hot phase (min_age: 3d). You should change the phase timing so that the phases will execute"
+                        + " in the order of hot, warm, then cold."
+                )
+            );
         }
     }
 
@@ -862,7 +872,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         return Arrays.asList(availableActionNames).stream().map(n -> {
             switch (n) {
             case AllocateAction.NAME:
-                return new AllocateAction(null, Collections.singletonMap("foo", "bar"), Collections.emptyMap(), Collections.emptyMap());
+                return new AllocateAction(null, null, Collections.singletonMap("foo", "bar"), Collections.emptyMap(),
+                    Collections.emptyMap());
             case DeleteAction.NAME:
                 return new DeleteAction();
             case ForceMergeAction.NAME:

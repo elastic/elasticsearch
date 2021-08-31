@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
@@ -719,7 +719,7 @@ public class HttpExporter extends Exporter {
      * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService, SSLService)}
      * to prevent invalid usage of secure settings in the SSL strategy.
      * @param sslSettings The exporter's SSL settings
-     * @param concreteSetting Settings to use for {@link SSLConfiguration} if secure settings are used
+     * @param concreteSetting Settings to use for {@link SslConfiguration} if secure settings are used
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
      * @return Appropriately configured instance of {@link SSLIOSessionStrategy}
      */
@@ -734,7 +734,7 @@ public class HttpExporter extends Exporter {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
-            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
+            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
             sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         }
         return sslStrategy;

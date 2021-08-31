@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
@@ -66,7 +65,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                 entry(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService)),
                 entry(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService)),
                 entry(SortProcessor.TYPE, new SortProcessor.Factory()),
-                entry(GrokProcessor.TYPE, new GrokProcessor.Factory(Grok.BUILTIN_PATTERNS, createGrokThreadWatchdog(parameters))),
+                entry(GrokProcessor.TYPE, new GrokProcessor.Factory(createGrokThreadWatchdog(parameters))),
                 entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
                 entry(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory()),
                 entry(JsonProcessor.TYPE, new JsonProcessor.Factory()),

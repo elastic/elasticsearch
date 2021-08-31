@@ -26,7 +26,7 @@ group = 'org.elasticsearch.gradle'
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'), project.getProviders())
 version = props.getProperty("elasticsearch")
 
 gradlePlugin {
@@ -159,8 +159,8 @@ gradlePlugin {
       implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
     }
     yamlRestTest {
-      id = 'elasticsearch.yaml-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin'
+      id = 'elasticsearch.internal-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
   }
 }

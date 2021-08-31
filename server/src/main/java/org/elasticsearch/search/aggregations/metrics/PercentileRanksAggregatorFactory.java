@@ -35,19 +35,22 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> percentilesConfig
                 .createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata),
-                true);
+            true
+        );
     }
 
-    PercentileRanksAggregatorFactory(String name,
-                                     ValuesSourceConfig config,
-                                     double[] percents,
-                                     PercentilesConfig percentilesConfig,
-                                     boolean keyed,
-                                     AggregationContext context,
-                                     AggregatorFactory parent,
-                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                     Map<String, Object> metadata,
-                                     PercentilesAggregatorSupplier aggregatorSupplier) throws IOException {
+    PercentileRanksAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double[] percents,
+        PercentilesConfig percentilesConfig,
+        boolean keyed,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        PercentilesAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
@@ -57,18 +60,22 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return percentilesConfig.createPercentileRanksAggregator(name, null, context, parent, percents, keyed,
-                config.format(), metadata);
+        return percentilesConfig.createPercentileRanksAggregator(name, null, context, parent, percents, keyed, config.format(), metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(name, config.getValuesSource(), context, parent,
-                   percents, percentilesConfig, keyed, config.format(), metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound bucketCardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(
+            name,
+            config.getValuesSource(),
+            context,
+            parent,
+            percents,
+            percentilesConfig,
+            keyed,
+            config.format(),
+            metadata
+        );
     }
 }

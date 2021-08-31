@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.index;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -15,9 +16,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
@@ -145,6 +146,22 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
+
+        if (ctx.simulateAction(actionId)) {
+            try (XContentBuilder builder = jsonBuilder().startArray()) {
+                for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                    builder.startObject();
+                    builder.field("_id", request.id());
+                    builder.field("_index", request.index());
+                    builder.endObject();
+                }
+                builder.endArray();
+
+                return new IndexAction.Simulated("", "",
+                    action.refreshPolicy, new XContentSource(BytesReference.bytes(builder), XContentType.JSON));
+            }
+        }
+
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         BulkResponse bulkResponse = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout));

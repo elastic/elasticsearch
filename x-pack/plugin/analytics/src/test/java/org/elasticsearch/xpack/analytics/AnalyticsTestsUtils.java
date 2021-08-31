@@ -5,10 +5,10 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.analytics;
 
-import java.io.IOException;
+import com.tdunning.math.stats.Centroid;
+import com.tdunning.math.stats.TDigest;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
@@ -16,8 +16,7 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
+import java.io.IOException;
 
 public final class AnalyticsTestsUtils {
 
@@ -25,7 +24,7 @@ public final class AnalyticsTestsUtils {
      * Generates an index fields for histogram fields. Used in tests of aggregations that work on histogram fields.
      */
     public static BinaryDocValuesField histogramFieldDocValues(String fieldName, double[] values) throws IOException {
-        TDigest histogram = new TDigestState(100.0); //default
+        TDigest histogram = new TDigestState(100.0); // default
         for (double value : values) {
             histogram.add(value);
         }
@@ -41,12 +40,12 @@ public final class AnalyticsTestsUtils {
     public static BinaryDocValuesField hdrHistogramFieldDocValues(String fieldName, double[] values) throws IOException {
         DoubleHistogram histogram = new DoubleHistogram(3);
         histogram.setAutoResize(true);
-        for (double value: values) {
+        for (double value : values) {
             histogram.recordValue(value);
         }
         BytesStreamOutput streamOutput = new BytesStreamOutput();
-        for(DoubleHistogramIterationValue value : histogram.recordedValues()) {
-            streamOutput.writeVInt((int)value.getCountAtValueIteratedTo());
+        for (DoubleHistogramIterationValue value : histogram.recordedValues()) {
+            streamOutput.writeVInt((int) value.getCountAtValueIteratedTo());
             streamOutput.writeDouble(value.getValueIteratedTo());
         }
         return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());

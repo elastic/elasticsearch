@@ -400,6 +400,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        List<String> backingIndexNames = null;
         try {
             // Create auto follow pattern
             createAutoFollowPattern(client(), autoFollowPatternName, "logs-tomcat-*", "leader_cluster");
@@ -468,27 +469,44 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 // Try again and now the rollover should be successful because local data stream is now :
                 var rolloverRequest3 = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(client().performRequest(rolloverRequest3));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2),
-                    backingIndexName(dataStreamName, 3));
+                backingIndexNames = verifyDataStream(
+                    client(),
+                    dataStreamName,
+                    backingIndexName(dataStreamName, 1),
+                    backingIndexName(dataStreamName, 2),
+                    backingIndexName(dataStreamName, 3)
+                );
 
                 // TODO: verify that following a backing index for logs-tomcat-prod data stream in remote cluster fails,
                 // because local data stream isn't a replicated data stream anymore.
 
                 // Unfollow .ds-logs-tomcat-prod-000002,
                 // which is now possible because this index can now be closed as it is no longer the write index.
-                pauseFollow(backingIndexName(dataStreamName, 2));
-                closeIndex(backingIndexName(dataStreamName, 2));
-                unfollow(backingIndexName(dataStreamName, 2));
+                // use the backing index name returned from the verify call so we are guaranteed to use the correct index name even if the
+                // date rolled over
+                final String backingIndexNameGen2 = backingIndexNames.get(1);
+                pauseFollow(backingIndexNameGen2);
+                closeIndex(backingIndexNameGen2);
+                unfollow(backingIndexNameGen2);
             }
 
         } finally {
+            if (backingIndexNames == null) {
+                // we failed to compute the actual backing index names in the test because we failed earlier on, guessing them on a
+                // best-effort basis
+                backingIndexNames = List.of(
+                    backingIndexName(dataStreamName, 1),
+                    backingIndexName(dataStreamName, 2),
+                    backingIndexName(dataStreamName, 3)
+                );
+            }
             cleanUpFollower(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                backingIndexNames,
                 List.of(dataStreamName),
                 List.of(autoFollowPatternName)
             );
             cleanUpLeader(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                backingIndexNames.subList(0, 2),
                 List.of(dataStreamName),
                 List.of()
             );

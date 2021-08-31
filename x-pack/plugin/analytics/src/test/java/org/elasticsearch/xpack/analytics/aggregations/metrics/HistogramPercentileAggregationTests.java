@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-
 import com.tdunning.math.stats.Centroid;
 
 import org.HdrHistogram.DoubleHistogram;
@@ -37,40 +36,37 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-
 public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
     public void testHDRHistogram() throws Exception {
 
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-              .startObject("_doc")
-                .startObject("properties")
-                  .startObject("data")
-                     .field("type", "double")
-                  .endObject()
-                .endObject()
-              .endObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("data")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
         createIndex("raw");
         PutMappingRequest request = new PutMappingRequest("raw").source(xContentBuilder);
         client().admin().indices().putMapping(request).actionGet();
 
-
         XContentBuilder xContentBuilder2 = XContentFactory.jsonBuilder()
             .startObject()
-              .startObject("_doc")
-                .startObject("properties")
-                  .startObject("data")
-                    .field("type", "histogram")
-                  .endObject()
-                .endObject()
-              .endObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("data")
+            .field("type", "histogram")
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
         createIndex("pre_agg");
         PutMappingRequest request2 = new PutMappingRequest("pre_agg").source(xContentBuilder2);
         client().admin().indices().putMapping(request2).actionGet();
-
 
         int numberOfSignificantValueDigits = TestUtil.nextInt(random(), 1, 5);
         DoubleHistogram histogram = new DoubleHistogram(numberOfSignificantValueDigits);
@@ -79,12 +75,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         int numDocs = 10000;
         int frq = 1000;
 
-        for (int i =0; i < numDocs; i ++) {
-            double value  = random().nextDouble();
-            XContentBuilder doc = XContentFactory.jsonBuilder()
-                .startObject()
-                  .field("data", value)
-                .endObject();
+        for (int i = 0; i < numDocs; i++) {
+            double value = random().nextDouble();
+            XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("data", value).endObject();
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.recordValue(value);
             if ((i + 1) % frq == 0) {
@@ -100,10 +93,10 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                 }
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
-                      .startObject("data")
-                        .field("values", values.toArray(new Double[values.size()]))
-                        .field("counts", counts.toArray(new Integer[counts.size()]))
-                      .endObject()
+                    .startObject("data")
+                    .field("values", values.toArray(new Double[values.size()]))
+                    .field("counts", counts.toArray(new Integer[counts.size()]))
+                    .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram.reset();
@@ -117,17 +110,19 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         response = client().prepareSearch("pre_agg").get();
         assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
 
-        PercentilesAggregationBuilder builder =
-            AggregationBuilders.percentiles("agg").field("data").method(PercentilesMethod.HDR)
-                .numberOfSignificantValueDigits(numberOfSignificantValueDigits).percentiles(10);
+        PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
+            .field("data")
+            .method(PercentilesMethod.HDR)
+            .numberOfSignificantValueDigits(numberOfSignificantValueDigits)
+            .percentiles(10);
 
         SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
         SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();
         SearchResponse responseBoth = client().prepareSearch("pre_agg", "raw").addAggregation(builder).get();
 
-        InternalHDRPercentiles percentilesRaw =  responseRaw.getAggregations().get("agg");
-        InternalHDRPercentiles percentilesPreAgg =  responsePreAgg.getAggregations().get("agg");
-        InternalHDRPercentiles percentilesBoth =  responseBoth.getAggregations().get("agg");
+        InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
+        InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
+        InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
         for (int i = 1; i < 100; i++) {
             assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
             assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
@@ -137,36 +132,35 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
     private void setupTDigestHistogram(int compression) throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-              .startObject("_doc")
-                .startObject("properties")
-                  .startObject("inner")
-                     .startObject("properties")
-                        .startObject("data")
-                        .field("type", "double")
-                      .endObject()
-                    .endObject()
-                  .endObject()
-                .endObject()
-              .endObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("inner")
+            .startObject("properties")
+            .startObject("data")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
         createIndex("raw");
         PutMappingRequest request = new PutMappingRequest("raw").source(xContentBuilder);
         client().admin().indices().putMapping(request).actionGet();
 
-
         XContentBuilder xContentBuilder2 = XContentFactory.jsonBuilder()
             .startObject()
-              .startObject("_doc")
-                .startObject("properties")
-                  .startObject("inner")
-                    .startObject("properties")
-                        .startObject("data")
-                           .field("type", "histogram")
-                        .endObject()
-                     .endObject()
-                  .endObject()
-                .endObject()
-              .endObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("inner")
+            .startObject("properties")
+            .startObject("data")
+            .field("type", "histogram")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
         createIndex("pre_agg");
         PutMappingRequest request2 = new PutMappingRequest("pre_agg").source(xContentBuilder2);
@@ -178,13 +172,13 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         int numDocs = 10000;
         int frq = 1000;
 
-        for (int i =0; i < numDocs; i ++) {
-            double value  = random().nextDouble();
+        for (int i = 0; i < numDocs; i++) {
+            double value = random().nextDouble();
             XContentBuilder doc = XContentFactory.jsonBuilder()
                 .startObject()
-                  .startObject("inner")
-                    .field("data", value)
-                  .endObject()
+                .startObject("inner")
+                .field("data", value)
+                .endObject()
                 .endObject();
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.add(value);
@@ -200,12 +194,12 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                 }
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
-                      .startObject("inner")
-                        .startObject("data")
-                          .field("values", values.toArray(new Double[values.size()]))
-                          .field("counts", counts.toArray(new Integer[counts.size()]))
-                        .endObject()
-                       .endObject()
+                    .startObject("inner")
+                    .startObject("data")
+                    .field("values", values.toArray(new Double[values.size()]))
+                    .field("counts", counts.toArray(new Integer[counts.size()]))
+                    .endObject()
+                    .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram = new TDigestState(compression);
@@ -224,9 +218,11 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         int compression = TestUtil.nextInt(random(), 200, 300);
         setupTDigestHistogram(compression);
 
-        PercentilesAggregationBuilder builder =
-            AggregationBuilders.percentiles("agg").field("inner.data").method(PercentilesMethod.TDIGEST)
-                .compression(compression).percentiles(10, 25, 50, 75);
+        PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
+            .field("inner.data")
+            .method(PercentilesMethod.TDIGEST)
+            .compression(compression)
+            .percentiles(10, 25, 50, 75);
 
         SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
         SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();

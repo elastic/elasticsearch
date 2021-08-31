@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,15 +36,22 @@ import static org.hamcrest.Matchers.hasSize;
 public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCase<TopMetricsAggregationBuilder> {
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Arrays.asList(
-                new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new)));
+        return new NamedWriteableRegistry(
+            Arrays.asList(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new))
+        );
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, new ParseField(TopMetricsAggregationBuilder.NAME),
-                        (p, c) -> TopMetricsAggregationBuilder.PARSER.parse(p, (String) c))));
+        return new NamedXContentRegistry(
+            Arrays.asList(
+                new NamedXContentRegistry.Entry(
+                    BaseAggregationBuilder.class,
+                    new ParseField(TopMetricsAggregationBuilder.NAME),
+                    (p, c) -> TopMetricsAggregationBuilder.PARSER.parse(p, (String) c)
+                )
+            )
+        );
     }
 
     @Override
@@ -69,27 +76,24 @@ public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCa
     @Override
     protected TopMetricsAggregationBuilder createTestInstance() {
         List<SortBuilder<?>> sortBuilders = singletonList(
-                new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values())));
-        List<MultiValuesSourceFieldConfig> metricFields = InternalTopMetricsTests.randomMetricNames(between(1, 5)).stream()
-                .map(name -> {
-                    MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
-                    metricField.setFieldName(randomAlphaOfLength(5)).setMissing(1.0);
-                    return metricField.build();
-                })
-                .collect(toList());
+            new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values()))
+        );
+        List<MultiValuesSourceFieldConfig> metricFields = InternalTopMetricsTests.randomMetricNames(between(1, 5)).stream().map(name -> {
+            MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
+            metricField.setFieldName(randomAlphaOfLength(5)).setMissing(1.0);
+            return metricField.build();
+        }).collect(toList());
         return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, between(1, 100), metricFields);
     }
 
     public void testClientBuilder() throws IOException {
-        AbstractXContentTestCase.xContentTester(
-                this::createParser, this::createTestInstance, this::toXContentThroughClientBuilder,
-                p -> {
-                    p.nextToken();
-                    AggregatorFactories.Builder b = AggregatorFactories.parseAggregators(p);
-                    assertThat(b.getAggregatorFactories(), hasSize(1));
-                    assertThat(b.getPipelineAggregatorFactories(), empty());
-                    return (TopMetricsAggregationBuilder) b.getAggregatorFactories().iterator().next();
-                } ).test();
+        AbstractXContentTestCase.xContentTester(this::createParser, this::createTestInstance, this::toXContentThroughClientBuilder, p -> {
+            p.nextToken();
+            AggregatorFactories.Builder b = AggregatorFactories.parseAggregators(p);
+            assertThat(b.getAggregatorFactories(), hasSize(1));
+            assertThat(b.getPipelineAggregatorFactories(), empty());
+            return (TopMetricsAggregationBuilder) b.getAggregatorFactories().iterator().next();
+        }).test();
     }
 
     private void toXContentThroughClientBuilder(TopMetricsAggregationBuilder serverBuilder, XContentBuilder builder) throws IOException {
@@ -99,12 +103,14 @@ public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCa
     }
 
     private org.elasticsearch.client.analytics.TopMetricsAggregationBuilder createClientBuilder(
-            TopMetricsAggregationBuilder serverBuilder) {
+        TopMetricsAggregationBuilder serverBuilder
+    ) {
         assertThat(serverBuilder.getSortBuilders(), hasSize(1));
         return new org.elasticsearch.client.analytics.TopMetricsAggregationBuilder(
-                        serverBuilder.getName(),
-                        serverBuilder.getSortBuilders().get(0),
-                        serverBuilder.getSize(),
-                        serverBuilder.getMetricFields().stream().map(MultiValuesSourceFieldConfig::getFieldName).toArray(String[]::new));
+            serverBuilder.getName(),
+            serverBuilder.getSortBuilders().get(0),
+            serverBuilder.getSize(),
+            serverBuilder.getMetricFields().stream().map(MultiValuesSourceFieldConfig::getFieldName).toArray(String[]::new)
+        );
     }
 }

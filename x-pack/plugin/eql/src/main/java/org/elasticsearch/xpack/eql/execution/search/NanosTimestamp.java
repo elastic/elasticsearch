@@ -14,7 +14,7 @@ public class NanosTimestamp extends Timestamp {
     // NB: doubles are not accurate enough to hold six digit micros with granularity for current dates.
     private final Instant timestamp;
 
-    public NanosTimestamp(long millis, long micros) {
+    NanosTimestamp(long millis, long micros) {
         timestamp = Instant.ofEpochMilli(millis).plusNanos(micros);
     }
 

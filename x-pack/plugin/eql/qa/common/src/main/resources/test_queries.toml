@@ -860,6 +860,7 @@ expected_event_ids  = [67, 68, 69, 70,
 
 [[queries]]
 name = "sequencesOnDifferentEventTypes7"
+# query matches with a timespan of over 5000ms for millis and over 50ms for nano test
 query = '''
 sequence with maxspan=50ms
   [file where event_subtype_full : "file_create_event"] by file_path

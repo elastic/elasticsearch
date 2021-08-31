@@ -42,14 +42,9 @@ public abstract class Timestamp {
         return timestamp;
     }
 
-    // time delta in nanos from other to instance
+    // time delta in nanos between this and other instance
     public long diff(Timestamp other) {
-        return diff(other, this);
-    }
-
-    // time span in nanos from ts1 to ts2
-    static long diff(Timestamp ts1, Timestamp ts2) {
-        Instant diff = ts2.timestamp().minusNanos(ts1.timestamp().getNano()).minusSeconds(ts1.timestamp().getEpochSecond());
+        Instant diff = timestamp().minusNanos(other.timestamp().getNano()).minusSeconds(other.timestamp().getEpochSecond());
         return diff.getEpochSecond() * NANOS_PER_SECOND + diff.getNano();
     }
 

@@ -12,33 +12,31 @@ import java.time.Instant;
 // Timestamp implementation able to hold a timestamp with millisecond accuracy.
 public class MillisTimestamp extends Timestamp {
     private final long timestamp;
+    private Instant instant = null;
 
-    public MillisTimestamp(long millis) {
+    MillisTimestamp(long millis) {
         timestamp = millis;
     }
 
     @Override
     public int compareTo(Timestamp other) {
-        return other instanceof MillisTimestamp ? Long.compare(timestamp, ((MillisTimestamp) other).millisTimestamp()) :
-            super.compareTo(other);
+        return other instanceof MillisTimestamp ? Long.compare(timestamp, ((MillisTimestamp) other).timestamp) : -other.compareTo(this);
     }
 
     @Override
     public long diff(Timestamp other) {
-        return other instanceof MillisTimestamp ? (timestamp - ((MillisTimestamp) other).millisTimestamp()) * NANOS_PER_MILLI :
-            diff(other, this);
+        return other instanceof MillisTimestamp ? (timestamp - ((MillisTimestamp) other).timestamp) * NANOS_PER_MILLI : -other.diff(this);
     }
 
     @Override
     public Instant timestamp() {
-        return Instant.ofEpochMilli(timestamp);
+        if (instant == null) {
+            instant = Instant.ofEpochMilli(timestamp);
+        }
+        return instant;
     }
 
     public String asString() {
         return String.valueOf(timestamp);
-    }
-
-    private long millisTimestamp() {
-        return timestamp;
     }
 }

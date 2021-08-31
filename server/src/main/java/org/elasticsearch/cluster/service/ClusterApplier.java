@@ -35,9 +35,10 @@ public interface ClusterApplier {
         /**
          * Called on successful cluster state application.
          *
-         * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the cluster applier service
-         * at {@code ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so
-         * themselves, typically using a more specific logger and at a less dramatic log level.
+         * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the cluster applier service at
+         * {@code ERROR} level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the
+         * right behaviour then implementations must do so themselves, typically using a more specific logger and at a less dramatic log
+         * level.
          */
         default void onSuccess() {
         }
@@ -45,9 +46,10 @@ public interface ClusterApplier {
         /**
          * Called on failure during cluster state application.
          *
-         * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the cluster applier service
-         * at {@code ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so
-         * themselves, typically using a more specific logger and at a less dramatic log level.
+         * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the cluster applier service at
+         * {@code ERROR} level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the
+         * right behaviour then implementations must do so themselves, typically using a more specific logger and at a less dramatic log
+         * level.
          *
          * @param e exception that occurred
          */

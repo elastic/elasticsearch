@@ -46,7 +46,7 @@ latest Gradle releases as possible. In certain cases an update is blocked by a b
 in Gradle. We're usually in contact with the gradle team here or working on a fix
 in our build logic to resolve this.
 
-<b>The elasticsearch build fails the build if there's any deprecated gradle api used.</b>
+**The Elasticsearch build will fail if any deprecated Gradle API is used.**
 
 ### Make a change in the build
 

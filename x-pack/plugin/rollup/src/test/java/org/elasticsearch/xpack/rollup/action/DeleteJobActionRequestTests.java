@@ -22,5 +22,3 @@ public class DeleteJobActionRequestTests extends AbstractWireSerializingTestCase
         return Request::new;
     }
 }
-
-

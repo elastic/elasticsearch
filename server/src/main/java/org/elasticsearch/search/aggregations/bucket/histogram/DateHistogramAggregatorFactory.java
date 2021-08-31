@@ -34,7 +34,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             DateHistogramAggregator::build,
-                true);
+            true
+        );
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
 
@@ -118,11 +119,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(
             name,
             factories,
@@ -142,7 +140,21 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
-            config, context, parent, CardinalityUpperBound.NONE, metadata);
+        return new DateHistogramAggregator(
+            name,
+            factories,
+            rounding,
+            null,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            context,
+            parent,
+            CardinalityUpperBound.NONE,
+            metadata
+        );
     }
 }

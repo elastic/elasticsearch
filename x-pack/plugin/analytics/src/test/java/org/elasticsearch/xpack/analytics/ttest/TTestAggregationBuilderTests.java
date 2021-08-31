@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -70,9 +70,7 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
         if (tTestType != TTestType.PAIRED && randomBoolean()) {
             bConfig.setFilter(QueryBuilders.queryStringQuery(randomAlphaOfLength(10)));
         }
-        TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder(aggregationName)
-            .a(aConfig.build())
-            .b(bConfig.build());
+        TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder(aggregationName).a(aConfig.build()).b(bConfig.build());
         if (randomBoolean()) {
             aggregationBuilder.tails(randomIntBetween(1, 2));
         }
@@ -89,19 +87,20 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.add(new NamedXContentRegistry.Entry(
-            BaseAggregationBuilder.class,
-            new ParseField(TTestAggregationBuilder.NAME),
-            (p, n) -> TTestAggregationBuilder.PARSER.apply(p, (String) n)));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                BaseAggregationBuilder.class,
+                new ParseField(TTestAggregationBuilder.NAME),
+                (p, n) -> TTestAggregationBuilder.PARSER.apply(p, (String) n)
+            )
+        );
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 }
-

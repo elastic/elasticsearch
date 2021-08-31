@@ -99,7 +99,7 @@ public class AllocatedPersistentTask extends CancellableTask {
         return state.get() == State.COMPLETED || state.get() == State.LOCAL_ABORTED;
     }
 
-    boolean markAsCancelled() {
+    protected boolean markAsCancelled() {
         return state.compareAndSet(State.STARTED, State.PENDING_CANCEL);
     }
 

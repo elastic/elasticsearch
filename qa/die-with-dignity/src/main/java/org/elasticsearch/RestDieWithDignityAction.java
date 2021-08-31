@@ -38,17 +38,18 @@ public class RestDieWithDignityAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return channel -> {
             /*
-             * this is to force the size of the array to be non-deterministic so that a sufficiently smart compiler can not optimize away
+             * This is to force the size of the array to be non-deterministic so that a sufficiently smart compiler can not optimize away
              * getting the length of the array to a constant.
              */
             final int length = Randomness.get().nextBoolean() ? Integer.MAX_VALUE - 1 : Integer.MAX_VALUE;
             final long[] array = new long[length];
-            // this is to force arrays to appear to be consumed so that it can not be optimized away by a sufficiently smart compiler
+            // this is to force the array to be consumed so that it can not be optimized away by a sufficiently smart compiler
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
                 {
                     builder.field("length", array.length);
                 }
+                builder.endObject();
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
             }
         };

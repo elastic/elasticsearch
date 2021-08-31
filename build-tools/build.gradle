@@ -58,6 +58,10 @@ gradlePlugin {
             id = 'elasticsearch.test-gradle-policy'
             implementationClass = 'org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin'
         }
+        yamlTests {
+            id = 'elasticsearch.yaml-rest-test'
+            implementationClass = 'org.elasticsearch.gradle.test.YamlRestTestPlugin'
+        }
     }
 }
 

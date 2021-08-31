@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -114,7 +114,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -411,18 +410,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
     }
 
-    public void testInOutOfRangeValues() {
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class,
-            () -> optimizeAndPlan("SELECT int FROM test WHERE int IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)"));
-        assertThat(ex.getMessage(), is("[" + Long.MAX_VALUE + "] out of [integer] range"));
-    }
-
-    public void testInInRangeValues() {
-        TestContext testContext = new TestContext("mapping-numeric.json");
-        PhysicalPlan p = testContext.optimizeAndPlan("SELECT long FROM test WHERE long IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)");
-        assertEquals(EsQueryExec.class, p.getClass());
-    }
-
     // Datetime
     ///////////
     public void testTermEqualityForDateWithLiteralDate() {
@@ -673,7 +660,7 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testDateRangeWithESDateMath() {
         ZoneId zoneId = randomZone();
         String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
-        String dateMath = randomFrom("now", "now/d", "now/h", "now-2h", "now+2h", "now-5d", "now+5d");
+        String dateMath = randomFrom("now", "now/d", "now/h", "now-2h", "now+2h", "now-5d", "now+5d", "2021-01-01||/M");
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + "'" + dateMath + "'", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();

@@ -419,7 +419,8 @@ public class IndexActionTests extends ESTestCase {
             TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
         String docId = randomAlphaOfLength(5);
-        final List<Map<String, String>> docs = List.of(Map.of("foo", "bar", "_id", docId));
+        final List<Map<String, String>> docs = org.elasticsearch.core.List.of(
+            org.elasticsearch.core.Map.of("foo", "bar", "_id", docId));
         Payload payload;
         if (randomBoolean()) {
             payload = new Payload.Simple("_doc", docs);

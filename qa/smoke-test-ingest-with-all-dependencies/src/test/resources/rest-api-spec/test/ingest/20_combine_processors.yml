@@ -68,6 +68,63 @@
   - match: { _source.geoip.country_iso_code: "US" }
 
 ---
+"Test with date processor and ECS-v1":
+  - do:
+      ingest.put_pipeline:
+        id: "_id"
+        body:  >
+          {
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "log",
+                  "ecs_compatibility": "v1",
+                  "patterns": ["%{COMBINEDAPACHELOG}"]
+                }
+              },
+              {
+                "date" : {
+                  "field" : "timestamp",
+                  "target_field" : "timestamp",
+                  "formats" : ["dd/MMM/yyyy:HH:mm:ss xx"]
+                }
+              },
+              {
+                "geoip" : {
+                  "field" : "source.address"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "_id"
+        body: {
+          log: "70.193.17.92 - - [08/Sep/2014:02:54:42 +0000] \"GET /presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png HTTP/1.1\" 200 175208 \"http://mobile.rivals.com/board_posts.asp?SID=880&mid=198829575&fid=2208&tid=198829575&Team=&TeamId=&SiteId=\" \"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\""
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - length: { _source: 7 }
+  - match: { _source.url.original: "/presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png" }
+  - match: { _source.user_agent.original: "Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36" }
+  - match: { _source.http.request.method: "GET" }
+  - match: { _source.http.request.referrer: "http://mobile.rivals.com/board_posts.asp?SID=880&mid=198829575&fid=2208&tid=198829575&Team=&TeamId=&SiteId=" }
+  - match: { _source.http.response.status_code: 200 }
+  - match: { _source.http.response.body.bytes: 175208 }
+  - match: { _source.source.address: "70.193.17.92" }
+  - match: { _source.http.version: "1.1" }
+  - match: { _source.timestamp: "2014-09-08T02:54:42.000Z" }
+  - match: { _source.geoip.continent_name: "North America" }
+  - match: { _source.geoip.country_iso_code: "US" }
+
+---
 "Test mutate":
   - do:
       ingest.put_pipeline:

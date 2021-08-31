@@ -46,8 +46,11 @@ public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected MinBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> params) {
+        protected MinBucketPipelineAggregationBuilder buildFactory(
+            String pipelineAggregatorName,
+            String bucketsPath,
+            Map<String, Object> params
+        ) {
             return new MinBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

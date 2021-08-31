@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -30,12 +30,13 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
         new ValuesSourceRegistry.RegistryKey<>(NAME, PercentilesAggregatorSupplier.class);
     private static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER =
-            AbstractPercentilesAggregationBuilder.createParser(
-                PercentileRanksAggregationBuilder.NAME,
-                PercentileRanksAggregationBuilder::new,
-                PercentilesConfig.TDigest::new,
-                VALUES_FIELD);
+    public static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER = AbstractPercentilesAggregationBuilder
+        .createParser(
+            PercentileRanksAggregationBuilder.NAME,
+            PercentileRanksAggregationBuilder::new,
+            PercentilesConfig.TDigest::new,
+            VALUES_FIELD
+        );
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         PercentileRanksAggregatorFactory.registerAggregators(builder);
@@ -53,9 +54,11 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
         super(VALUES_FIELD, in);
     }
 
-    private PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
-                                              AggregatorFactories.Builder factoriesBuilder,
-                                              Map<String, Object> metadata) {
+    private PercentileRanksAggregationBuilder(
+        PercentileRanksAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -77,16 +80,27 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
 
-        PercentilesAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        PercentilesAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, context,
-                    parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new PercentileRanksAggregatorFactory(
+            name,
+            config,
+            values,
+            configOrDefault(),
+            keyed,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

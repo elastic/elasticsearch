@@ -34,8 +34,10 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         MetricAggregatorSupplier.class
     );
 
-    public static final ObjectParser<ValueCountAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, ValueCountAggregationBuilder::new);
+    public static final ObjectParser<ValueCountAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        ValueCountAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
@@ -48,8 +50,11 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         super(name);
     }
 
-    protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
-                                           AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ValueCountAggregationBuilder(
+        ValueCountAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -81,12 +86,13 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    protected ValueCountAggregatorFactory innerBuild(AggregationContext context,
-                                                     ValuesSourceConfig config,
-                                                     AggregatorFactory parent,
-                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        MetricAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected ValueCountAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new ValueCountAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 

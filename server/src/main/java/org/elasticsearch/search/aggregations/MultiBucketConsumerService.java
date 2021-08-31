@@ -28,8 +28,13 @@ import java.util.function.IntConsumer;
  */
 public class MultiBucketConsumerService {
     public static final int DEFAULT_MAX_BUCKETS = 65536;
-    public static final Setting<Integer> MAX_BUCKET_SETTING =
-        Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Integer> MAX_BUCKET_SETTING = Setting.intSetting(
+        "search.max_buckets",
+        DEFAULT_MAX_BUCKETS,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final CircuitBreaker breaker;
 
@@ -103,9 +108,16 @@ public class MultiBucketConsumerService {
             if (value != 0) {
                 count += value;
                 if (count > limit) {
-                    throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
-                        + "] but was [" + count + "]. This limit can be set by changing the [" +
-                        MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
+                    throw new TooManyBucketsException(
+                        "Trying to create too many buckets. Must be less than or equal to: ["
+                            + limit
+                            + "] but was ["
+                            + count
+                            + "]. This limit can be set by changing the ["
+                            + MAX_BUCKET_SETTING.getKey()
+                            + "] cluster level setting.",
+                        limit
+                    );
                 }
             }
             // check parent circuit breaker every 1024 calls

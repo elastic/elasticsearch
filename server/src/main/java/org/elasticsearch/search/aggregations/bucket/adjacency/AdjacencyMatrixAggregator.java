@@ -11,12 +11,12 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -51,9 +51,10 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         private final String key;
         private final QueryBuilder filter;
 
-        public static final NamedObjectParser<KeyedFilter, String> PARSER =
-                (XContentParser p, String aggName, String name) ->
-                     new KeyedFilter(name, parseInnerQueryBuilder(p));
+        public static final NamedObjectParser<KeyedFilter, String> PARSER = (
+            XContentParser p,
+            String aggName,
+            String name) -> new KeyedFilter(name, parseInnerQueryBuilder(p));
 
         public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {
@@ -118,8 +119,16 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     private final int totalNumIntersections;
     private final String separator;
 
-    public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
-            Weight[] filters, AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    public AdjacencyMatrixAggregator(
+        String name,
+        AggregatorFactories factories,
+        String separator,
+        String[] keys,
+        Weight[] filters,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.separator = separator;
         this.keys = keys;
@@ -194,8 +203,11 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 // a date-histogram where we will look for transactions over time and can expect many
                 // empty buckets.
                 if (docCount > 0) {
-                    InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(keys[i],
-                            docCount, bucketSubAggs[builtBucketIndex++]);
+                    InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
+                        keys[i],
+                        docCount,
+                        bucketSubAggs[builtBucketIndex++]
+                    );
                     buckets.add(bucket);
                 }
             }
@@ -207,8 +219,11 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     // Empty buckets are not returned due to potential for very sparse matrices
                     if (docCount > 0) {
                         String intersectKey = keys[i] + separator + keys[j];
-                        InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(intersectKey,
-                                docCount, bucketSubAggs[builtBucketIndex++]);
+                        InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
+                            intersectKey,
+                            docCount,
+                            bucketSubAggs[builtBucketIndex++]
+                        );
                         buckets.add(bucket);
                     }
                     pos++;

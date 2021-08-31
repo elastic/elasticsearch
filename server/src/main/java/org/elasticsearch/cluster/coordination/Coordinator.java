@@ -683,7 +683,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
+        return new DiscoveryStats(
+            new PendingClusterStateStats(0, 0, 0),
+            publicationHandler.stats(),
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
+        );
     }
 
     @Override
@@ -1062,12 +1066,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
 
+                final long publicationContextConstructionStartMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterStatePublicationEvent);
+                clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(
+                    transportService.getThreadPool().rawRelativeTimeInMillis() - publicationContextConstructionStartMillis);
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
-                final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
-                    new ListenableFuture<>(), ackListener, publishListener);
+                final CoordinatorPublication publication = new CoordinatorPublication(
+                    clusterStatePublicationEvent,
+                    publishRequest,
+                    publicationContext,
+                    new ListenableFuture<>(),
+                    ackListener,
+                    publishListener);
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
@@ -1245,6 +1257,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     class CoordinatorPublication extends Publication {
 
+        private final ClusterStatePublicationEvent clusterStatePublicationEvent;
         private final PublishRequest publishRequest;
         private final ListenableFuture<Void> localNodeAckEvent;
         private final AckListener ackListener;
@@ -1260,12 +1273,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final List<Join> receivedJoins = new ArrayList<>();
         private boolean receivedJoinsProcessed;
 
-        CoordinatorPublication(PublishRequest publishRequest, PublicationTransportHandler.PublicationContext publicationContext,
-                               ListenableFuture<Void> localNodeAckEvent, AckListener ackListener, ActionListener<Void> publishListener) {
+        CoordinatorPublication(
+            ClusterStatePublicationEvent clusterStatePublicationEvent,
+            PublishRequest publishRequest,
+            PublicationTransportHandler.PublicationContext publicationContext,
+            ListenableFuture<Void> localNodeAckEvent,
+            AckListener ackListener,
+            ActionListener<Void> publishListener
+        ) {
             super(publishRequest,
                 new AckListener() {
                     @Override
                     public void onCommit(TimeValue commitTime) {
+                        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(commitTime.millis());
                         ackListener.onCommit(commitTime);
                     }
 
@@ -1288,7 +1308,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         }
                     }
                 },
-                transportService.getThreadPool()::relativeTimeInMillis);
+                transportService.getThreadPool()::rawRelativeTimeInMillis);
+            this.clusterStatePublicationEvent = clusterStatePublicationEvent;
             this.publishRequest = publishRequest;
             this.publicationContext = publicationContext;
             this.localNodeAckEvent = localNodeAckEvent;
@@ -1345,6 +1366,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            final long completionTimeMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
+            clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(completionTimeMillis - getStartTime());
 
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
@@ -1370,6 +1393,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                             @Override
                             public void onSuccess(String source) {
+                                clusterStatePublicationEvent.setMasterApplyElapsedMillis(
+                                    transportService.getThreadPool().rawRelativeTimeInMillis() - completionTimeMillis);
                                 synchronized (mutex) {
                                     assert currentPublication.get() == CoordinatorPublication.this;
                                     currentPublication = Optional.empty();

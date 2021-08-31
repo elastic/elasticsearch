@@ -41,8 +41,11 @@ public class ParsedTDigestPercentiles extends ParsedPercentiles implements Perce
         return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
     }
 
-    private static final ObjectParser<ParsedTDigestPercentiles, Void> PARSER =
-            new ObjectParser<>(ParsedTDigestPercentiles.class.getSimpleName(), true, ParsedTDigestPercentiles::new);
+    private static final ObjectParser<ParsedTDigestPercentiles, Void> PARSER = new ObjectParser<>(
+        ParsedTDigestPercentiles.class.getSimpleName(),
+        true,
+        ParsedTDigestPercentiles::new
+    );
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }

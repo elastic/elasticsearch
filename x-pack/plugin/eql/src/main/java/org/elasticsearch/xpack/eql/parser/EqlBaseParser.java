@@ -1,31 +1,17 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.eql.parser;
-
-import org.antlr.v4.runtime.FailedPredicateException;
-import org.antlr.v4.runtime.NoViableAltException;
-import org.antlr.v4.runtime.Parser;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.RuleContext;
-import org.antlr.v4.runtime.RuntimeMetaData;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.Vocabulary;
-import org.antlr.v4.runtime.VocabularyImpl;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.ParserATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.tree.ParseTreeListener;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.*;
+import org.antlr.v4.runtime.tree.*;
 import java.util.List;
+import java.util.Iterator;
+import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class EqlBaseParser extends Parser {
-  static { RuntimeMetaData.checkVersion("4.5.3", RuntimeMetaData.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.9.2", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =
@@ -48,31 +34,41 @@ class EqlBaseParser extends Parser {
     RULE_functionName = 21, RULE_constant = 22, RULE_comparisonOperator = 23, 
     RULE_booleanValue = 24, RULE_qualifiedName = 25, RULE_identifier = 26, 
     RULE_timeUnit = 27, RULE_number = 28, RULE_string = 29, RULE_eventValue = 30;
-  public static final String[] ruleNames = {
-    "singleStatement", "singleExpression", "statement", "query", "sequenceParams", 
-    "sequence", "join", "pipe", "joinKeys", "joinTerm", "sequenceTerm", "subquery", 
-    "eventQuery", "eventFilter", "expression", "booleanExpression", "valueExpression", 
-    "operatorExpression", "predicate", "primaryExpression", "functionExpression", 
-    "functionName", "constant", "comparisonOperator", "booleanValue", "qualifiedName", 
-    "identifier", "timeUnit", "number", "string", "eventValue"
-  };
+  private static String[] makeRuleNames() {
+    return new String[] {
+      "singleStatement", "singleExpression", "statement", "query", "sequenceParams", 
+      "sequence", "join", "pipe", "joinKeys", "joinTerm", "sequenceTerm", "subquery", 
+      "eventQuery", "eventFilter", "expression", "booleanExpression", "valueExpression", 
+      "operatorExpression", "predicate", "primaryExpression", "functionExpression", 
+      "functionName", "constant", "comparisonOperator", "booleanValue", "qualifiedName", 
+      "identifier", "timeUnit", "number", "string", "eventValue"
+    };
+  }
+  public static final String[] ruleNames = makeRuleNames();
 
-  private static final String[] _LITERAL_NAMES = {
-    null, "'and'", "'any'", "'by'", "'false'", "'in'", "'in~'", "'join'", 
-    "'like'", "'like~'", "'maxspan'", "'not'", "'null'", "'of'", "'or'", "'regex'", 
-    "'regex~'", "'sequence'", "'true'", "'until'", "'where'", "'with'", "':'", 
-    "'='", "'=='", "'!='", "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", 
-    "'/'", "'%'", "'.'", "','", "'['", "']'", "'('", "')'", "'|'"
-  };
-  private static final String[] _SYMBOLIC_NAMES = {
-    null, "AND", "ANY", "BY", "FALSE", "IN", "IN_INSENSITIVE", "JOIN", "LIKE", 
-    "LIKE_INSENSITIVE", "MAXSPAN", "NOT", "NULL", "OF", "OR", "REGEX", "REGEX_INSENSITIVE", 
-    "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "SEQ", "ASGN", "EQ", "NEQ", 
-    "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", 
-    "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "STRING", "INTEGER_VALUE", 
-    "DECIMAL_VALUE", "IDENTIFIER", "QUOTED_IDENTIFIER", "TILDE_IDENTIFIER", 
-    "LINE_COMMENT", "BRACKETED_COMMENT", "WS"
-  };
+  private static String[] makeLiteralNames() {
+    return new String[] {
+      null, "'and'", "'any'", "'by'", "'false'", "'in'", "'in~'", "'join'", 
+      "'like'", "'like~'", "'maxspan'", "'not'", "'null'", "'of'", "'or'", 
+      "'regex'", "'regex~'", "'sequence'", "'true'", "'until'", "'where'", 
+      "'with'", "':'", "'='", "'=='", "'!='", "'<'", "'<='", "'>'", "'>='", 
+      "'+'", "'-'", "'*'", "'/'", "'%'", "'.'", "','", "'['", "']'", "'('", 
+      "')'", "'|'"
+    };
+  }
+  private static final String[] _LITERAL_NAMES = makeLiteralNames();
+  private static String[] makeSymbolicNames() {
+    return new String[] {
+      null, "AND", "ANY", "BY", "FALSE", "IN", "IN_INSENSITIVE", "JOIN", "LIKE", 
+      "LIKE_INSENSITIVE", "MAXSPAN", "NOT", "NULL", "OF", "OR", "REGEX", "REGEX_INSENSITIVE", 
+      "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "SEQ", "ASGN", "EQ", "NEQ", 
+      "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", 
+      "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "STRING", "INTEGER_VALUE", 
+      "DECIMAL_VALUE", "IDENTIFIER", "QUOTED_IDENTIFIER", "TILDE_IDENTIFIER", 
+      "LINE_COMMENT", "BRACKETED_COMMENT", "WS"
+    };
+  }
+  private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
   /**
@@ -122,6 +118,7 @@ class EqlBaseParser extends Parser {
     super(input);
     _interp = new ParserATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
   }
+
   public static class SingleStatementContext extends ParserRuleContext {
     public StatementContext statement() {
       return getRuleContext(StatementContext.class,0);
@@ -315,6 +312,7 @@ class EqlBaseParser extends Parser {
     enterRule(_localctx, 6, RULE_query);
     try {
       setState(78);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case SEQUENCE:
         enterOuterAlt(_localctx, 1);
@@ -456,12 +454,14 @@ class EqlBaseParser extends Parser {
       setState(85);
       match(SEQUENCE);
       setState(94);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case BY:
         {
         setState(86);
         ((SequenceContext)_localctx).by = joinKeys();
         setState(88);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==WITH) {
           {
@@ -477,6 +477,7 @@ class EqlBaseParser extends Parser {
         setState(90);
         sequenceParams();
         setState(92);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==BY) {
           {
@@ -490,7 +491,7 @@ class EqlBaseParser extends Parser {
       case LB:
         break;
       default:
-        throw new NoViableAltException(this);
+        break;
       }
       setState(96);
       sequenceTerm();
@@ -509,6 +510,7 @@ class EqlBaseParser extends Parser {
         _la = _input.LA(1);
       } while ( _la==LB );
       setState(104);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==UNTIL) {
         {
@@ -575,6 +577,7 @@ class EqlBaseParser extends Parser {
       setState(106);
       match(JOIN);
       setState(108);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==BY) {
         {
@@ -600,6 +603,7 @@ class EqlBaseParser extends Parser {
         _la = _input.LA(1);
       } while ( _la==LB );
       setState(118);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==UNTIL) {
         {
@@ -668,6 +672,7 @@ class EqlBaseParser extends Parser {
       setState(121);
       ((PipeContext)_localctx).kind = match(IDENTIFIER);
       setState(130);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FALSE) | (1L << NOT) | (1L << NULL) | (1L << TRUE) | (1L << PLUS) | (1L << MINUS) | (1L << LP) | (1L << STRING) | (1L << INTEGER_VALUE) | (1L << DECIMAL_VALUE) | (1L << IDENTIFIER) | (1L << QUOTED_IDENTIFIER) | (1L << TILDE_IDENTIFIER))) != 0)) {
         {
@@ -813,6 +818,7 @@ class EqlBaseParser extends Parser {
       setState(141);
       subquery();
       setState(143);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==BY) {
         {
@@ -871,6 +877,7 @@ class EqlBaseParser extends Parser {
       setState(145);
       subquery();
       setState(147);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==BY) {
         {
@@ -1022,6 +1029,7 @@ class EqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(157);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ANY:
         {
@@ -1512,6 +1520,7 @@ class EqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(198);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case FALSE:
       case NULL:
@@ -1553,7 +1562,10 @@ class EqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
           ((ArithmeticUnaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(197);
@@ -1587,7 +1599,10 @@ class EqlBaseParser extends Parser {
             _la = _input.LA(1);
             if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ASTERISK) | (1L << SLASH) | (1L << PERCENT))) != 0)) ) {
               ((ArithmeticBinaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-            } else {
+            }
+            else {
+              if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+              _errHandler.reportMatch(this);
               consume();
             }
             setState(202);
@@ -1606,7 +1621,10 @@ class EqlBaseParser extends Parser {
             _la = _input.LA(1);
             if ( !(_la==PLUS || _la==MINUS) ) {
               ((ArithmeticBinaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-            } else {
+            }
+            else {
+              if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+              _errHandler.reportMatch(this);
               consume();
             }
             setState(205);
@@ -1692,6 +1710,7 @@ class EqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 1);
         {
         setState(212);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -1705,7 +1724,10 @@ class EqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==IN || _la==IN_INSENSITIVE) ) {
           ((PredicateContext)_localctx).kind = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(215);
@@ -1740,7 +1762,10 @@ class EqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LIKE) | (1L << LIKE_INSENSITIVE) | (1L << REGEX) | (1L << REGEX_INSENSITIVE) | (1L << SEQ))) != 0)) ) {
           ((PredicateContext)_localctx).kind = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(227);
@@ -1755,7 +1780,10 @@ class EqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LIKE) | (1L << LIKE_INSENSITIVE) | (1L << REGEX) | (1L << REGEX_INSENSITIVE) | (1L << SEQ))) != 0)) ) {
           ((PredicateContext)_localctx).kind = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(229);
@@ -1989,6 +2017,7 @@ class EqlBaseParser extends Parser {
       setState(252);
       match(LP);
       setState(261);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << FALSE) | (1L << NOT) | (1L << NULL) | (1L << TRUE) | (1L << PLUS) | (1L << MINUS) | (1L << LP) | (1L << STRING) | (1L << INTEGER_VALUE) | (1L << DECIMAL_VALUE) | (1L << IDENTIFIER) | (1L << QUOTED_IDENTIFIER) | (1L << TILDE_IDENTIFIER))) != 0)) {
         {
@@ -2061,7 +2090,10 @@ class EqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==IDENTIFIER || _la==TILDE_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -2168,6 +2200,7 @@ class EqlBaseParser extends Parser {
     enterRule(_localctx, 44, RULE_constant);
     try {
       setState(271);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case NULL:
         _localctx = new NullLiteralContext(_localctx);
@@ -2255,7 +2288,10 @@ class EqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << EQ) | (1L << NEQ) | (1L << LT) | (1L << LTE) | (1L << GT) | (1L << GTE))) != 0)) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -2304,7 +2340,10 @@ class EqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==FALSE || _la==TRUE) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -2379,6 +2418,7 @@ class EqlBaseParser extends Parser {
         if ( _alt==1 ) {
           {
           setState(287);
+          _errHandler.sync(this);
           switch (_input.LA(1)) {
           case DOT:
             {
@@ -2465,7 +2505,10 @@ class EqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==IDENTIFIER || _la==QUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -2516,6 +2559,7 @@ class EqlBaseParser extends Parser {
       setState(294);
       number();
       setState(296);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==IDENTIFIER) {
         {
@@ -2588,6 +2632,7 @@ class EqlBaseParser extends Parser {
     enterRule(_localctx, 56, RULE_number);
     try {
       setState(300);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case DECIMAL_VALUE:
         _localctx = new DecimalLiteralContext(_localctx);
@@ -2695,7 +2740,10 @@ class EqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==STRING || _la==IDENTIFIER) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -2740,7 +2788,7 @@ class EqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\64\u0135\4\2\t\2"+
+    "\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\64\u0135\4\2\t\2"+
     "\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
     "\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
     "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -2766,9 +2814,9 @@ class EqlBaseParser extends Parser {
     "\u0125\13\33\3\34\3\34\3\35\3\35\5\35\u012b\n\35\3\36\3\36\5\36\u012f"+
     "\n\36\3\37\3\37\3 \3 \3 \2\4 $!\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36"+
     " \"$&(*,.\60\62\64\668:<>\2\13\3\2 !\3\2\"$\3\2\7\b\5\2\n\13\21\22\30"+
-    "\30\4\2//\61\61\3\2\32\37\4\2\6\6\24\24\3\2/\60\4\2,,//\u0142\2@\3\2\2"+
-    "\2\4C\3\2\2\2\6F\3\2\2\2\bP\3\2\2\2\nR\3\2\2\2\fW\3\2\2\2\16l\3\2\2\2"+
-    "\20z\3\2\2\2\22\u0086\3\2\2\2\24\u008f\3\2\2\2\26\u0093\3\2\2\2\30\u0097"+
+    "\30\4\2//\61\61\3\2\32\37\4\2\6\6\24\24\3\2/\60\4\2,,//\2\u0142\2@\3\2"+
+    "\2\2\4C\3\2\2\2\6F\3\2\2\2\bP\3\2\2\2\nR\3\2\2\2\fW\3\2\2\2\16l\3\2\2"+
+    "\2\20z\3\2\2\2\22\u0086\3\2\2\2\24\u008f\3\2\2\2\26\u0093\3\2\2\2\30\u0097"+
     "\3\2\2\2\32\u009b\3\2\2\2\34\u009f\3\2\2\2\36\u00a4\3\2\2\2 \u00ad\3\2"+
     "\2\2\"\u00bf\3\2\2\2$\u00c8\3\2\2\2&\u00f2\3\2\2\2(\u00fb\3\2\2\2*\u00fd"+
     "\3\2\2\2,\u010b\3\2\2\2.\u0111\3\2\2\2\60\u0113\3\2\2\2\62\u0115\3\2\2"+

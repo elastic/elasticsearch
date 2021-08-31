@@ -61,7 +61,7 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
 
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
+        throws IOException {
         return new GlobalAggregatorFactory(name, context, parent, subFactoriesBuilder, metadata);
     }
 

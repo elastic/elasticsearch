@@ -6,9 +6,7 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
-
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,16 +22,14 @@ public class PercentageScore extends SignificanceHeuristic {
     public static final String NAME = "percentage";
     public static final ObjectParser<PercentageScore, Void> PARSER = new ObjectParser<>(NAME, PercentageScore::new);
 
-    public PercentageScore() {
-    }
+    public PercentageScore() {}
 
     public PercentageScore(StreamInput in) {
         // Nothing to read.
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -46,12 +42,13 @@ public class PercentageScore extends SignificanceHeuristic {
         return builder;
     }
 
-    public static SignificanceHeuristic parse(XContentParser parser)
-            throws IOException, QueryShardException {
+    public static SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryShardException {
         // move to the closing bracket
         if (parser.nextToken().equals(XContentParser.Token.END_OBJECT) == false) {
-            throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, " +
-                    "but got [{}] instead", parser.currentToken());
+            throw new ElasticsearchParseException(
+                "failed to parse [percentage] significance heuristic. expected an empty object, " + "but got [{}] instead",
+                parser.currentToken()
+            );
         }
         return new PercentageScore();
     }
@@ -92,4 +89,3 @@ public class PercentageScore extends SignificanceHeuristic {
         }
     }
 }
-

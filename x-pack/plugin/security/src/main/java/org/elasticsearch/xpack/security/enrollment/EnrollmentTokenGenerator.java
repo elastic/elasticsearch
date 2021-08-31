@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -47,7 +45,6 @@ import java.util.stream.Collectors;
 public class EnrollmentTokenGenerator {
     protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
-    private static final Logger logger = LogManager.getLogger(EnrollmentTokenGenerator.class);
     private final Environment environment;
     private final SSLService sslService;
     private final CommandLineHttpClient client;
@@ -55,6 +52,8 @@ public class EnrollmentTokenGenerator {
 
     public EnrollmentTokenGenerator(Environment environment) throws MalformedURLException {
         this(environment, new CommandLineHttpClient(environment));
+        // no methods of this class should log because log configuration might not be available
+        // if it is available, it's the server one, which is not cool because this must not interfere with the server
     }
 
     // protected for testing
@@ -107,13 +106,11 @@ public class EnrollmentTokenGenerator {
 
     private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
         final HttpResponse.HttpResponseBuilder httpResponseBuilder = new HttpResponse.HttpResponseBuilder();
-        if (is != null) {
-            String responseBody = Streams.readFully(is).utf8ToString();
-            logger.debug(responseBody);
-            httpResponseBuilder.withResponseBody(responseBody);
-        } else {
-            logger.debug("Error building http response body: null response");
+        if (is == null) {
+            throw new IllegalStateException("Empty response from server");
         }
+        String responseBody = Streams.readFully(is).utf8ToString();
+        httpResponseBuilder.withResponseBody(responseBody);
         return httpResponseBuilder;
     }
 
@@ -173,8 +170,6 @@ public class EnrollmentTokenGenerator {
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + createApiKeyUrl + ". ResponseBody: " +
-                httpResponseApiKey.getResponseBody());
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST "
                 + createApiKeyUrl);
         }
@@ -193,8 +188,6 @@ public class EnrollmentTokenGenerator {
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + httpInfoUrl + ". ResponseBody: " +
-                httpResponseHttp.getResponseBody());
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + httpInfoUrl);
         }
 

@@ -863,4 +863,68 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
     }
+
+    public void testCheckFrozenCacheLeniency() {
+        String cacheSizeSettingValue = "10gb";
+        String cacheSizeSettingKey = "xpack.searchable.snapshot.shared_cache.size";
+        Settings nodeSettings = Settings.builder()
+            .put(cacheSizeSettingKey, cacheSizeSettingValue)
+            .put("node.roles", "data_warm")
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] cannot be greater than zero on non-frozen nodes",
+                cacheSizeSettingKey),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "setting [%s] cannot be greater than zero on non-frozen nodes, and is currently set to [%s]",
+                cacheSizeSettingKey,
+                cacheSizeSettingValue),
+            false,null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        // If no 'node.roles' is specified, a node gets all roles:
+        nodeSettings = Settings.builder()
+            .put(cacheSizeSettingKey, cacheSizeSettingValue)
+            .build();
+        assertThat(
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        // No deprecation warning on a frozen node:
+        nodeSettings = Settings.builder()
+            .put(cacheSizeSettingKey, cacheSizeSettingValue)
+            .put("node.roles", "data_frozen")
+            .build();
+        assertThat(
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        // No cache size specified, so no deprecation warning:
+        nodeSettings = Settings.builder()
+            .put("node.roles", "data_warm")
+            .build();
+        assertThat(
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        // Cache size is not positive, so no deprecation wawrning:
+        nodeSettings = Settings.builder()
+            .put(cacheSizeSettingKey, "0b")
+            .put("node.roles", "data_warm")
+            .build();
+        assertThat(
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+    }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -30,6 +31,7 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -594,5 +596,29 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    static DeprecationIssue checkFrozenCacheLeniency(final Settings settings,
+                                                     final PluginsAndModules pluginsAndModules,
+                                                     final ClusterState clusterState,
+                                                     final XPackLicenseState licenseState) {
+        final String cacheSizeSettingKey = "xpack.searchable.snapshot.shared_cache.size";
+        Setting<ByteSizeValue> cacheSizeSetting =  Setting.byteSizeSetting(cacheSizeSettingKey,  ByteSizeValue.ZERO);
+        if (cacheSizeSetting.exists(settings)) {
+            ByteSizeValue cacheSize = cacheSizeSetting.get(settings);
+            if (cacheSize.getBytes() > 0) {
+                final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
+                if (DataTier.isFrozenNode(new HashSet<>(roles)) == false) {
+                    String message = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes",
+                        cacheSizeSettingKey);
+                    String url =
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
+                    String details = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes, and is " +
+                        "currently set to [%s]", cacheSizeSettingKey, settings.get(cacheSizeSettingKey));
+                    return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+                }
+            }
+        }
+        return null;
     }
 }

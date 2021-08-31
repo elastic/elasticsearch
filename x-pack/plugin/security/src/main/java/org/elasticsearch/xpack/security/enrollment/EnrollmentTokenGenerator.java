@@ -52,8 +52,8 @@ public class EnrollmentTokenGenerator {
 
     public EnrollmentTokenGenerator(Environment environment) throws MalformedURLException {
         this(environment, new CommandLineHttpClient(environment));
-        // no methods of this class should log because log configuration might not be available
-        // if it is available, it's the server one, which is not cool because this must not interfere with the server
+        // methods this class should not log because log configuration might not be available
+        // in case it is available, it's probably the server one, which is not cool because this must not interfere with the server
     }
 
     // protected for testing

@@ -9,7 +9,7 @@ tasks.named("test").configure { enabled = false }
 
 subprojects {
   if (project.name.startsWith('core-with-')) {
-    apply plugin: 'elasticsearch.yaml-rest-test'
+    apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
     dependencies {
       yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")

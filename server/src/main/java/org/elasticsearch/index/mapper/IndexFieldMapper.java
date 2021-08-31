@@ -26,7 +26,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_index";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IndexFieldMapper());
+    private static final IndexFieldMapper INSTANCE = new IndexFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class IndexFieldType extends ConstantFieldType {
 

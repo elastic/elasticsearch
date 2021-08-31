@@ -7,26 +7,25 @@ Painless uses a fine-grained allowlist. Anything that is not part of the
 allowlist results in a compilation error. This capability is the first layer of
 security in a defense in depth strategy for scripting.
 
-In addition to user privileges and script sandboxing, {es} uses the
-https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
-and native security tools as additional layers of security.
-
-As part of its startup sequence, {es} enables the Java Security Manager to limit
-the actions that can be taken by portions of the code. 
-<<modules-scripting-painless,Painless>> uses the Java Security Manager as an
-additional layer of defense to prevent scripts from doing things like writing
-files and listening to sockets.
+The second layer of security is the https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]. As part of its startup
+sequence, {es} enables the Java Security Manager to limit the actions that
+portions of the code can take. <<modules-scripting-painless,Painless>> uses 
+the Java Security Manager as an additional layer of defense to prevent scripts 
+from doing things like writing files and listening to sockets.
 
 {es} uses
 {wikipedia}/Seccomp[seccomp] in Linux,
 https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt]
 in macOS, and
 https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
-on Windows to prevent {es} from forking or executing other processes.
+on Windows as additional security layers to prevent {es} from forking or 
+running other processes.
 
-You can modify the default security settings for scripts to limit the type of
-scripts that are allowed to run and the available 
-{painless}/painless-contexts.html[contexts] that scripts can run in. 
+You can modify the following script settings to restrict the type of scripts
+that are allowed to run, and control the available 
+{painless}/painless-contexts.html[contexts] that scripts can run in. To
+implement additional layers in your defense in depth strategy, follow the 
+<<es-security-principles,{es} security principles>>.
 
 [[allowed-script-types-setting]]
 [discrete]
@@ -41,14 +40,12 @@ IMPORTANT: If you use {kib}, set `script.allowed_types` to `both` or `inline`.
 Some {kib} features rely on inline scripts and do not function as expected
 if {es} does not allow inline scripts.
 
-For example, to run `inline` scripts but not `stored` scripts, specify:
+For example, to run `inline` scripts but not `stored` scripts:
 
 [source,yaml]
 ----
-script.allowed_types: inline <1>
+script.allowed_types: inline
 ----
-<1> Only inline scripts are permitted.
-
 
 [[allowed-script-contexts-setting]]
 [discrete]
@@ -58,8 +55,9 @@ By default, all script contexts are permitted. Use the `script.allowed_contexts`
 setting to specify the contexts that are allowed. To specify that no contexts
 are allowed, set `script.allowed_contexts` to `none`.
 
+For example, to allow scripts to run only in `scoring` and `update` contexts:
+
 [source,yaml]
 ----
-script.allowed_contexts: score, update <1>
+script.allowed_contexts: score, update
 ----
-<1> Scripts can only run in a scoring and update context.

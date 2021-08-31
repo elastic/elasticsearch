@@ -31,8 +31,11 @@ public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentil
         return getPercentileAsString(percent);
     }
 
-    private static final ObjectParser<ParsedHDRPercentiles, Void> PARSER =
-            new ObjectParser<>(ParsedHDRPercentiles.class.getSimpleName(), true, ParsedHDRPercentiles::new);
+    private static final ObjectParser<ParsedHDRPercentiles, Void> PARSER = new ObjectParser<>(
+        ParsedHDRPercentiles.class.getSimpleName(),
+        true,
+        ParsedHDRPercentiles::new
+    );
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }

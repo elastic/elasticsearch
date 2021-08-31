@@ -60,12 +60,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RoutingFieldMapper build() {
-            return new RoutingFieldMapper(required.getValue());
+            return RoutingFieldMapper.get(required.getValue());
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new RoutingFieldMapper(Defaults.REQUIRED),
+        c -> RoutingFieldMapper.get(Defaults.REQUIRED),
         c -> new Builder()
     );
 
@@ -89,6 +89,13 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     private final boolean required;
+
+    private static final RoutingFieldMapper REQUIRED = new RoutingFieldMapper(true);
+    private static final RoutingFieldMapper NOT_REQUIRED = new RoutingFieldMapper(false);
+
+    public static RoutingFieldMapper get(boolean required) {
+        return required ? REQUIRED : NOT_REQUIRED;
+    }
 
     private RoutingFieldMapper(boolean required) {
         super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);

@@ -161,7 +161,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/60021")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60021")
     public void testBucketMergeAndDeleteLastEntry() throws Exception {
         testCase((deferringCollector, delegate) -> new LeafBucketCollector() {
             @Override

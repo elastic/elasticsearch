@@ -385,8 +385,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public static class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
+        private static final MultiFields EMPTY = new MultiFields(Collections.emptyMap());
+
         public static MultiFields empty() {
-            return new MultiFields(Collections.emptyMap());
+            return EMPTY;
         }
 
         public static class Builder {

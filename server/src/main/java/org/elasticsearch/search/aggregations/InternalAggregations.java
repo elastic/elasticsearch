@@ -137,8 +137,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         for (InternalAggregations aggregations : aggregationsList) {
             for (Aggregation aggregation : aggregations.aggregations) {
                 List<InternalAggregation> aggs = aggByName.computeIfAbsent(
-                        aggregation.getName(), k -> new ArrayList<>(aggregationsList.size()));
-                aggs.add((InternalAggregation)aggregation);
+                    aggregation.getName(),
+                    k -> new ArrayList<>(aggregationsList.size())
+                );
+                aggs.add((InternalAggregation) aggregation);
             }
         }
 

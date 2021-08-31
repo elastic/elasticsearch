@@ -386,12 +386,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             future -> clusterService.getClusterApplierService()
                 .onNewClusterState(reason, () -> applier.apply(clusterService.state()), new ClusterApplier.ClusterApplyListener() {
                     @Override
-                    public void onSuccess(String source) {
-                        future.onResponse(source);
+                    public void onSuccess() {
+                        future.onResponse(null);
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         future.onFailure(e);
                     }
                 })

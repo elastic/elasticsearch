@@ -11,9 +11,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -63,8 +63,16 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
                 Map<String, Object> metadata
             ) throws IOException {
 
-                return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                        valuesSourceConfig, maxDocsPerValue);
+                return new DiversifiedMapSamplerAggregator(
+                    name,
+                    shardSize,
+                    factories,
+                    context,
+                    parent,
+                    metadata,
+                    valuesSourceConfig,
+                    maxDocsPerValue
+                );
             }
 
             @Override
@@ -87,8 +95,16 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
                 Map<String, Object> metadata
             ) throws IOException {
 
-                return new DiversifiedBytesHashSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                        valuesSourceConfig, maxDocsPerValue);
+                return new DiversifiedBytesHashSamplerAggregator(
+                    name,
+                    shardSize,
+                    factories,
+                    context,
+                    parent,
+                    metadata,
+                    valuesSourceConfig,
+                    maxDocsPerValue
+                );
             }
 
             @Override
@@ -110,8 +126,16 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
                 Aggregator parent,
                 Map<String, Object> metadata
             ) throws IOException {
-                return new DiversifiedOrdinalsSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                         valuesSourceConfig, maxDocsPerValue);
+                return new DiversifiedOrdinalsSamplerAggregator(
+                    name,
+                    shardSize,
+                    factories,
+                    context,
+                    parent,
+                    metadata,
+                    valuesSourceConfig,
+                    maxDocsPerValue
+                );
             }
 
             @Override
@@ -155,12 +179,17 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
         }
     }
 
-
     protected final int shardSize;
     protected BestDocsDeferringCollector bdd;
 
-    SamplerAggregator(String name, int shardSize, AggregatorFactories factories, AggregationContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+    SamplerAggregator(
+        String name,
+        int shardSize,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, metadata);
         // Make sure we do not allow size > maxDoc, to prevent accidental OOM
         this.shardSize = Math.min(shardSize, searcher().getIndexReader().maxDoc());
@@ -184,8 +213,15 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalSampler(name, bdd == null ? 0 : bdd.getDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalSampler(
+                name,
+                bdd == null ? 0 : bdd.getDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override

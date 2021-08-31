@@ -30,8 +30,13 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     private final MatrixStatsResults results;
 
     /** per shard ctor */
-    InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
-                                  Map<String, Object> metadata) {
+    InternalMatrixStats(
+        String name,
+        long count,
+        RunningStats multiFieldStatsResults,
+        MatrixStatsResults results,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         assert count >= 0;
         this.stats = multiFieldStatsResults;
@@ -224,7 +229,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // merge stats across all shards
         List<InternalAggregation> aggs = new ArrayList<>(aggregations);
-        aggs.removeIf(p -> ((InternalMatrixStats)p).stats == null);
+        aggs.removeIf(p -> ((InternalMatrixStats) p).stats == null);
 
         // return empty result iff all stats are null
         if (aggs.isEmpty()) {
@@ -260,7 +265,6 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         if (super.equals(obj) == false) return false;
 
         InternalMatrixStats other = (InternalMatrixStats) obj;
-        return Objects.equals(this.stats, other.stats) &&
-            Objects.equals(this.results, other.results);
+        return Objects.equals(this.stats, other.stats) && Objects.equals(this.results, other.results);
     }
 }

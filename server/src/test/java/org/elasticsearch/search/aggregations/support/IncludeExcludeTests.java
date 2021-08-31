@@ -31,16 +31,12 @@ import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
-        IncludeExclude inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                null);
+        IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
-        inexcl = new IncludeExclude(
-                null,
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+        inexcl = new IncludeExclude(null, new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
@@ -91,8 +87,8 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testTermAccept() throws IOException {
-        String[] fooSet = {"foo"};
-        String[] barSet = {"bar"};
+        String[] fooSet = { "foo" };
+        String[] barSet = { "bar" };
         String fooRgx = "f.*";
         String barRgx = "b.*";
 
@@ -242,8 +238,7 @@ public class IncludeExcludeTests extends ESTestCase {
             } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
                 return IncludeExclude.parseExclude(parser);
             } else {
-                throw new IllegalArgumentException(
-                    "Unexpected field name serialized in test: " + field.getPreferredName());
+                throw new IllegalArgumentException("Unexpected field name serialized in test: " + field.getPreferredName());
             }
         }
     }
@@ -348,7 +343,7 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testInvalidIncludeExcludeCombination() {
-        String[] values = {"foo"};
+        String[] values = { "foo" };
         String regex = "foo";
 
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));

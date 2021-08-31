@@ -71,8 +71,7 @@ public interface ValuesSourceType {
      * @param context - Context for this aggregation used to handle {@link AggregationContext#nowInMillis() "now"}
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
-    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                AggregationContext context);
+    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, AggregationContext context);
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a

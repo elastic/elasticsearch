@@ -22,8 +22,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 
-public class MatrixStatsAggregationBuilder
-        extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
+public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;
@@ -32,8 +31,11 @@ public class MatrixStatsAggregationBuilder
         super(name);
     }
 
-    protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected MatrixStatsAggregationBuilder(
+        MatrixStatsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.multiValueMode = clone.multiValueMode;
     }
@@ -65,10 +67,12 @@ public class MatrixStatsAggregationBuilder
     }
 
     @Override
-    protected MatrixStatsAggregatorFactory innerBuild(AggregationContext context,
-                                                        Map<String, ValuesSourceConfig> configs,
-                                                        AggregatorFactory parent,
-                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected MatrixStatsAggregatorFactory innerBuild(
+        AggregationContext context,
+        Map<String, ValuesSourceConfig> configs,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metadata);
     }
 

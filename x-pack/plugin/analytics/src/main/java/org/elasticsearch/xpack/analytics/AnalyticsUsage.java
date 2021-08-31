@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 /**
  * Tracks usage of the Analytics aggregations.
@@ -19,8 +19,7 @@ public class AnalyticsUsage {
 
     private final EnumCounters<AnalyticsStatsAction.Item> counters = new EnumCounters<>(AnalyticsStatsAction.Item.class);
 
-    public AnalyticsUsage() {
-    }
+    public AnalyticsUsage() {}
 
     /**
      * Track successful parsing.

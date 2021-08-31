@@ -25,8 +25,12 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class InternalFilterTests extends InternalSingleBucketAggregationTestCase<InternalFilter> {
     @Override
-    protected InternalFilter createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalFilter createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalFilter(name, docCount, aggregations, metadata);
     }
 

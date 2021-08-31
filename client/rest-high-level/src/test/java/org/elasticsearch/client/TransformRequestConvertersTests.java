@@ -17,6 +17,7 @@ import org.elasticsearch.client.transform.DeleteTransformRequest;
 import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformStatsRequest;
 import org.elasticsearch.client.transform.PreviewTransformRequest;
+import org.elasticsearch.client.transform.PreviewTransformRequestTests;
 import org.elasticsearch.client.transform.PutTransformRequest;
 import org.elasticsearch.client.transform.StartTransformRequest;
 import org.elasticsearch.client.transform.StopTransformRequest;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformRequestConvertersTests extends ESTestCase {
 
@@ -176,17 +178,26 @@ public class TransformRequestConvertersTests extends ESTestCase {
     }
 
     public void testPreviewDataFrameTransform() throws IOException {
-        PreviewTransformRequest previewRequest = new PreviewTransformRequest(
-                TransformConfigTests.randomTransformConfig());
+        PreviewTransformRequest previewRequest = new PreviewTransformRequest(TransformConfigTests.randomTransformConfig());
         Request request = TransformRequestConverters.previewTransform(previewRequest);
 
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_transform/_preview"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
-            TransformConfig parsedConfig = TransformConfig.PARSER.apply(parser, null);
-            assertThat(parsedConfig, equalTo(previewRequest.getConfig()));
+            PreviewTransformRequest parsedRequest = PreviewTransformRequestTests.fromXContent(parser);
+            assertThat(parsedRequest, equalTo(previewRequest));
         }
+    }
+
+    public void testPreviewDataFrameTransformById() throws IOException {
+        String transformId = randomAlphaOfLengthBetween(1, 10);
+        PreviewTransformRequest previewRequest = new PreviewTransformRequest(transformId);
+        Request request = TransformRequestConverters.previewTransform(previewRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + transformId + "/_preview"));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testGetDataFrameTransformStats() {

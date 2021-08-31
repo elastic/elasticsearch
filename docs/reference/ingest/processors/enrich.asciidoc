@@ -24,3 +24,11 @@ See <<ingest-enriching-data,enrich data>> section for more information about how
 
 include::common-options.asciidoc[]
 |======
+
+[[enrich-processor-lru-cache]]
+==== Enrich processor LRU cache
+
+The enrich processor performs a search in order to enrich documents. For frequent occurring searches the enrich
+processor uses a small LRU cache. The size of the cache can be controlled using the `enrich.cache_size` node setting.
+By default the cache will have at most 1000 entries. If a different cache size is desired then the setting should be
+changed on the `elasticsearch.yml` on node with the ingest role.

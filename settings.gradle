@@ -1,5 +1,5 @@
 plugins {
-  id "com.gradle.enterprise" version "3.6.2"
+  id "com.gradle.enterprise" version "3.6.4"
 }
 
 includeBuild "build-conventions"
@@ -22,14 +22,10 @@ List projects = [
   'benchmarks',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',
-  'distribution:archives:no-jdk-windows-zip',
   'distribution:archives:darwin-tar',
   'distribution:archives:darwin-aarch64-tar',
-  'distribution:archives:no-jdk-darwin-tar',
-  'distribution:archives:no-jdk-darwin-aarch64-tar',
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
-  'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
   'distribution:docker:cloud-docker-export',
   'distribution:docker:cloud-docker-aarch64-export',
@@ -43,10 +39,8 @@ List projects = [
   'distribution:docker:ubi-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
-  'distribution:packages:no-jdk-deb',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',

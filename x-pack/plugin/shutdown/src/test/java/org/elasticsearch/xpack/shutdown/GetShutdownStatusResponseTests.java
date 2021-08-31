@@ -48,7 +48,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     public static SingleNodeShutdownMetadata randomNodeShutdownMetadata() {
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
-            .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+            .setType(randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class)))
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong())
             .build();

@@ -137,11 +137,16 @@ final class TransformRequestConverters {
     }
 
     static Request previewTransform(PreviewTransformRequest previewRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform", "_preview")
-                .build();
+        RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform");
+        if (previewRequest.getTransformId() != null) {
+            endpointBuilder.addPathPart(previewRequest.getTransformId());
+        }
+        endpointBuilder.addPathPartAsIs("_preview");
+        String endpoint = endpointBuilder.build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(previewRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (previewRequest.getTransformId() == null) {
+            request.setEntity(createEntity(previewRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 

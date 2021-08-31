@@ -48,11 +48,17 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readBoolean() ? new Suggest(in) : null,
             in.readBoolean(),
             in.readOptionalBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0)
-                ? in.readOptionalWriteable(SearchProfileResults::new)
-                : in.readOptionalWriteable(SearchProfileShardResults::new).merge(List.of()),
+            readProfile(in),
             in.readVInt()
         );
+    }
+
+    private static SearchProfileResults readProfile(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            return in.readOptionalWriteable(SearchProfileResults::new);
+        }
+        SearchProfileShardResults shardProfileResult = in.readOptionalWriteable(SearchProfileShardResults::new);
+        return shardProfileResult == null ? null : shardProfileResult.merge(List.of());
     }
 
     @Override

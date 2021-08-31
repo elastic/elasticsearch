@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -22,17 +22,19 @@ import java.util.Map;
 
 @FunctionalInterface
 public interface DateHistogramAggregationSupplier {
-    Aggregator build(String name,
-                     AggregatorFactories factories,
-                     Rounding rounding,
-                     BucketOrder order,
-                     boolean keyed,
-                     long minDocCount,
-                     @Nullable LongBounds extendedBounds,
-                     @Nullable LongBounds hardBounds,
-                     ValuesSourceConfig valuesSourceConfig,
-                     AggregationContext context,
-                     Aggregator parent,
-                     CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        Rounding rounding,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
+        ValuesSourceConfig valuesSourceConfig,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

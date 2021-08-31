@@ -21,8 +21,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -404,48 +404,60 @@ public class RateAggregatorTests extends AggregatorTestCase {
             .subAggregation(termsAggregationBuilder);
 
         IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class, () -> testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(
-                doc(
-                    "2010-03-11T01:07:45",
-                    new NumericDocValuesField("val", 1),
-                    new IntPoint("val", 1),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
-                )
-            );
-            iw.addDocument(
-                doc(
-                    "2010-03-12T01:07:45",
-                    new NumericDocValuesField("val", 2),
-                    new IntPoint("val", 2),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
-                )
-            );
-            iw.addDocument(
-                doc(
-                    "2010-04-01T03:43:34",
-                    new NumericDocValuesField("val", 3),
-                    new IntPoint("val", 3),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
-                )
-            );
-            iw.addDocument(
-                doc(
-                    "2010-04-27T03:43:34",
-                    new NumericDocValuesField("val", 4),
-                    new IntPoint("val", 4),
-                    new SortedSetDocValuesField("term", new BytesRef("b"))
-                )
-            );
-        }, (Consumer<InternalDateHistogram>) dh -> {
-            fail("Shouldn't be here");
-        }, dateType, numType, keywordType));
+            IllegalArgumentException.class,
+            () -> testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(
+                    doc(
+                        "2010-03-11T01:07:45",
+                        new NumericDocValuesField("val", 1),
+                        new IntPoint("val", 1),
+                        new SortedSetDocValuesField("term", new BytesRef("a"))
+                    )
+                );
+                iw.addDocument(
+                    doc(
+                        "2010-03-12T01:07:45",
+                        new NumericDocValuesField("val", 2),
+                        new IntPoint("val", 2),
+                        new SortedSetDocValuesField("term", new BytesRef("a"))
+                    )
+                );
+                iw.addDocument(
+                    doc(
+                        "2010-04-01T03:43:34",
+                        new NumericDocValuesField("val", 3),
+                        new IntPoint("val", 3),
+                        new SortedSetDocValuesField("term", new BytesRef("a"))
+                    )
+                );
+                iw.addDocument(
+                    doc(
+                        "2010-04-27T03:43:34",
+                        new NumericDocValuesField("val", 4),
+                        new IntPoint("val", 4),
+                        new SortedSetDocValuesField("term", new BytesRef("b"))
+                    )
+                );
+            }, (Consumer<InternalDateHistogram>) dh -> { fail("Shouldn't be here"); }, dateType, numType, keywordType)
+        );
         if (millisecondBasedRate) {
-            assertEquals("Cannot use non month-based rate unit [" + rate + "] with calendar interval histogram [" +
-                histogram + "] only month, quarter and year are supported for this histogram", ex.getMessage());
+            assertEquals(
+                "Cannot use non month-based rate unit ["
+                    + rate
+                    + "] with calendar interval histogram ["
+                    + histogram
+                    + "] only month, quarter and year are supported for this histogram",
+                ex.getMessage()
+            );
         } else {
-            assertEquals("Cannot use month-based rate unit [" + rate + "] with non-month based calendar interval histogram [" +
-                histogram + "] only week, day, hour, minute and second are supported for this histogram", ex.getMessage());
+            assertEquals(
+                "Cannot use month-based rate unit ["
+                    + rate
+                    + "] with non-month based calendar interval histogram ["
+                    + histogram
+                    + "] only week, day, hour, minute and second are supported for this histogram",
+                ex.getMessage()
+            );
         }
     }
 
@@ -689,12 +701,19 @@ public class RateAggregatorTests extends AggregatorTestCase {
             .subAggregation(rateAggregationBuilder);
 
         testCase(dateHistogramAggregationBuilder, new TermQuery(new Term("term", "a")), iw -> {
-            iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 }),
-                new StringField("term", "a", Field.Store.NO)));
-            iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3 }),
-                new StringField("term", "a", Field.Store.NO)));
-            iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 4 }),
-                new StringField("term", "b", Field.Store.NO)));
+            iw.addDocument(
+                doc(
+                    "2010-03-01T00:00:00",
+                    histogramFieldDocValues("val", new double[] { 1, 2 }),
+                    new StringField("term", "a", Field.Store.NO)
+                )
+            );
+            iw.addDocument(
+                doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3 }), new StringField("term", "a", Field.Store.NO))
+            );
+            iw.addDocument(
+                doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 4 }), new StringField("term", "b", Field.Store.NO))
+            );
         }, (Consumer<InternalDateHistogram>) dh -> {
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
@@ -713,9 +732,14 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1)));
-            }, h -> { fail("Shouldn't be here"); }, dateType, numType)
+            () -> testCase(
+                dateHistogramAggregationBuilder,
+                new MatchAllDocsQuery(),
+                iw -> { iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1))); },
+                h -> { fail("Shouldn't be here"); },
+                dateType,
+                numType
+            )
         );
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
     }

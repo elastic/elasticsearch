@@ -27,11 +27,17 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
         }
         if (randomBoolean()) {
-            histo.calendarInterval(randomFrom(DateHistogramInterval.days(1),
-                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
+            histo.calendarInterval(
+                randomFrom(DateHistogramInterval.days(1), DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1))
+            );
         } else {
-            histo.fixedInterval(randomFrom(new DateHistogramInterval(randomNonNegativeLong() + "ms"),
-                DateHistogramInterval.days(10), DateHistogramInterval.hours(10)));
+            histo.fixedInterval(
+                randomFrom(
+                    new DateHistogramInterval(randomNonNegativeLong() + "ms"),
+                    DateHistogramInterval.days(10),
+                    DateHistogramInterval.hours(10)
+                )
+            );
         }
         if (randomBoolean()) {
             histo.timeZone(randomZone());

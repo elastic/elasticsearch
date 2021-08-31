@@ -51,7 +51,7 @@ in our build logic to resolve this.
 ### Make a change in the build
 
 There are a few guidelines to follow that should make your life easier to make changes to the elasticsearch build.
-Please add a member of the `es-delivery` team as a reviewer if you're making non trivial changes build.
+Please add a member of the `es-delivery` team as a reviewer if you're making non-trivial changes to the build.
 
 #### Custom Plugin and Task implementations
 

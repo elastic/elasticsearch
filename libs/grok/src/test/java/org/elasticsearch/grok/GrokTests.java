@@ -624,7 +624,7 @@ public class GrokTests extends ESTestCase {
             true,
             tuple(Map.entry("user_agent.original", STRING), agent),
             tuple(Map.entry("user.name", STRING), null),
-            tuple(Map.entry("http.response.body.bytes", LONG), 69849),
+            tuple(Map.entry("http.response.body.bytes", LONG), 69849L),
             tuple(Map.entry("source.address", STRING), clientIp),
             tuple(Map.entry("http.version", STRING), httpVersion),
             tuple(Map.entry("apache.access.user.identity", STRING), null),

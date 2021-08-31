@@ -339,8 +339,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     // Normalized WildcardQueries are requested by the QueryStringQueryParser
     public void testNormalizedWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().normalizedWildcardQuery("a*b", null, mockContext())), equalTo(1));

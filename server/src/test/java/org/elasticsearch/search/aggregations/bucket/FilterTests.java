@@ -16,8 +16,10 @@ public class FilterTests extends BaseAggregationTestCase<FilterAggregationBuilde
 
     @Override
     protected FilterAggregationBuilder createTestAggregatorBuilder() {
-        return new FilterAggregationBuilder(randomAlphaOfLengthBetween(1, 20),
-                QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
+        return new FilterAggregationBuilder(
+            randomAlphaOfLengthBetween(1, 20),
+            QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
+        );
     }
 
 }

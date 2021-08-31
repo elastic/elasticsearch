@@ -373,17 +373,32 @@ public abstract class MappedFieldType {
         return false;
     }
 
-    /** Return a {@link DocValueFormat} that can be used to display and parse
-     *  values as returned by the fielddata API.
-     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+    /**
+     * Pick a {@link DocValueFormat} that can be used to display and parse
+     * values of fields of this type.
+     */
     public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+        checkNoFormat(format);
+        checkNoTimeZone(timeZone);
+        return DocValueFormat.RAW;
+    }
+
+    /**
+     * Validate the provided {@code format} is null.
+     */
+    protected void checkNoFormat(@Nullable String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
         }
+    }
+
+    /**
+     * Validate the provided {@code timeZone} is null.
+     */
+    protected void checkNoTimeZone(@Nullable ZoneId timeZone) {
         if (timeZone != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
         }
-        return DocValueFormat.RAW;
     }
 
     /**

@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -29,12 +29,11 @@ import java.util.Objects;
  *
  * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
  */
-public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValuesSourceAggregationBuilder<AB>>
-        extends AbstractAggregationBuilder<AB> {
+public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValuesSourceAggregationBuilder<AB>> extends
+    AbstractAggregationBuilder<AB> {
 
-
-    public abstract static class LeafOnly<AB extends MultiValuesSourceAggregationBuilder<AB>>
-            extends MultiValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<AB extends MultiValuesSourceAggregationBuilder<AB>> extends MultiValuesSourceAggregationBuilder<
+        AB> {
 
         protected LeafOnly(String name) {
             super(name);
@@ -43,8 +42,9 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
-                    + getType() + "] cannot accept sub-aggregations");
+                throw new AggregationInitializationException(
+                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+                );
             }
         }
 
@@ -57,12 +57,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
-                getType() + "] cannot accept sub-aggregations");
+            throw new AggregationInitializationException(
+                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+            );
         }
     }
-
-
 
     private Map<String, MultiValuesSourceFieldConfig> fields = new HashMap<>();
     private ValueType userValueTypeHint = null;
@@ -72,8 +71,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         super(name);
     }
 
-    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<AB> clone,
-                                                  Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected MultiValuesSourceAggregationBuilder(
+        MultiValuesSourceAggregationBuilder<AB> clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
 
         this.fields = new HashMap<>(clone.fields);
@@ -84,8 +86,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     /**
      * Read from a stream.
      */
-    protected MultiValuesSourceAggregationBuilder(StreamInput in)
-        throws IOException {
+    protected MultiValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         read(in);
     }
@@ -155,13 +156,24 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     protected abstract ValuesSourceType defaultValueSourceType();
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
-                                                               Builder subFactoriesBuilder) throws IOException {
+    protected final MultiValuesSourceAggregatorFactory doBuild(
+        AggregationContext context,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
         Map<String, QueryBuilder> filters = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
-            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(context, userValueTypeHint,
-                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, defaultValueSourceType());
+            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
+                context,
+                userValueTypeHint,
+                value.getFieldName(),
+                value.getScript(),
+                value.getMissing(),
+                value.getTimeZone(),
+                format,
+                defaultValueSourceType()
+            );
             configs.put(key, config);
             filters.put(key, value.getFilter());
         });
@@ -170,9 +182,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         return innerBuild(context, configs, filters, docValueFormat, parent, subFactoriesBuilder);
     }
 
-
-    public static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType,
-                                                ValuesSourceType defaultValuesSourceType) {
+    public static DocValueFormat resolveFormat(
+        @Nullable String format,
+        @Nullable ValueType valueType,
+        ValuesSourceType defaultValuesSourceType
+    ) {
         if (valueType == null) {
             // If the user didn't send a hint, all we can do is fall back to the default
             return defaultValuesSourceType.getFormatter(format, null);
@@ -184,12 +198,14 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         return valueFormat;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                                     Map<String, ValuesSourceConfig> configs,
-                                                                     Map<String, QueryBuilder> filters,
-                                                                     DocValueFormat format, AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException;
-
+    protected abstract MultiValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        Map<String, ValuesSourceConfig> configs,
+        Map<String, QueryBuilder> filters,
+        DocValueFormat format,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -216,7 +232,6 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     public int hashCode() {
         return Objects.hash(super.hashCode(), fields, format, userValueTypeHint);
     }
-
 
     @Override
     public boolean equals(Object obj) {

@@ -20,16 +20,21 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
     protected ValuesSourceConfig config;
 
-    public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
-                                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                         Map<String, Object> metadata) throws IOException {
+    public ValuesSourceAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.config = config;
     }
 
     @Override
-    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality,
-                                     Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         if (config.hasValues() == false) {
             return createUnmapped(parent, metadata);
         }

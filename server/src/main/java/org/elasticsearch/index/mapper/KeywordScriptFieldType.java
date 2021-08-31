@@ -215,4 +215,10 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
+
+    @Override
+    public Query normalizedWildcardQuery(String value, RewriteMethod method, SearchExecutionContext context) {
+        checkAllowExpensiveQueries(context);
+        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, false);
+    }
 }

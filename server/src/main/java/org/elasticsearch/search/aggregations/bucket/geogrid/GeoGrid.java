@@ -21,8 +21,7 @@ public interface GeoGrid extends MultiBucketsAggregation {
      * A bucket that is associated with a geo-grid cell. The key of the bucket is
      * the {@link InternalGeoGridBucket#getKeyAsString()} of the cell
      */
-    interface Bucket extends MultiBucketsAggregation.Bucket {
-    }
+    interface Bucket extends MultiBucketsAggregation.Bucket {}
 
     /**
      * @return The buckets of this aggregation (each bucket representing a geo-grid cell)

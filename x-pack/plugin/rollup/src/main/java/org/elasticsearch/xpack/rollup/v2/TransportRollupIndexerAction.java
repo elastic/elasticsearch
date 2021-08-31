@@ -43,9 +43,11 @@ import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
  *
  * TODO: Enforce that we don't retry on another replica if we throw an error after sending some buckets.
  */
-public class TransportRollupIndexerAction
-    extends TransportBroadcastAction<RollupIndexerAction.Request, RollupIndexerAction.Response,
-    RollupIndexerAction.ShardRequest, RollupIndexerAction.ShardResponse> {
+public class TransportRollupIndexerAction extends TransportBroadcastAction<
+    RollupIndexerAction.Request,
+    RollupIndexerAction.Response,
+    RollupIndexerAction.ShardRequest,
+    RollupIndexerAction.ShardResponse> {
 
     private static final int SORTER_RAM_SIZE_MB = 100;
 
@@ -54,24 +56,35 @@ public class TransportRollupIndexerAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportRollupIndexerAction(Client client,
-                                        ClusterService clusterService,
-                                        TransportService transportService,
-                                        IndicesService indicesService,
-                                        ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RollupIndexerAction.NAME, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, RollupIndexerAction.Request::new, RollupIndexerAction.ShardRequest::new,
-            TASK_THREAD_POOL_NAME);
+    public TransportRollupIndexerAction(
+        Client client,
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            RollupIndexerAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            RollupIndexerAction.Request::new,
+            RollupIndexerAction.ShardRequest::new,
+            TASK_THREAD_POOL_NAME
+        );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState,
-                                                        RollupIndexerAction.Request request,
-                                                        String[] concreteIndices) {
+    protected GroupShardsIterator<ShardIterator> shards(
+        ClusterState clusterState,
+        RollupIndexerAction.Request request,
+        String[] concreteIndices
+    ) {
         if (concreteIndices.length > 1) {
             throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
         }
@@ -87,8 +100,7 @@ public class TransportRollupIndexerAction
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, RollupIndexerAction.Request request,
-                                                      String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, RollupIndexerAction.Request request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
@@ -98,17 +110,22 @@ public class TransportRollupIndexerAction
     }
 
     @Override
-    protected RollupIndexerAction.ShardRequest newShardRequest(int numShards, ShardRouting shard,
-                                                               RollupIndexerAction.Request request) {
+    protected RollupIndexerAction.ShardRequest newShardRequest(int numShards, ShardRouting shard, RollupIndexerAction.Request request) {
         return new RollupIndexerAction.ShardRequest(shard.shardId(), request);
     }
 
     @Override
     protected RollupIndexerAction.ShardResponse shardOperation(RollupIndexerAction.ShardRequest request, Task task) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        String tmpIndexName =  ".rolluptmp-" + request.getRollupIndex();
-        RollupShardIndexer indexer = new RollupShardIndexer(client, indexService, request.shardId(),
-            request.getRollupConfig(), tmpIndexName, SORTER_RAM_SIZE_MB);
+        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            client,
+            indexService,
+            request.shardId(),
+            request.getRollupConfig(),
+            tmpIndexName,
+            SORTER_RAM_SIZE_MB
+        );
         indexer.execute();
         return new RollupIndexerAction.ShardResponse(request.shardId());
     }
@@ -119,9 +136,11 @@ public class TransportRollupIndexerAction
     }
 
     @Override
-    protected RollupIndexerAction.Response newResponse(RollupIndexerAction.Request request,
-                                                AtomicReferenceArray<?> shardsResponses,
-                                                ClusterState clusterState) {
+    protected RollupIndexerAction.Response newResponse(
+        RollupIndexerAction.Request request,
+        AtomicReferenceArray<?> shardsResponses,
+        ClusterState clusterState
+    ) {
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {

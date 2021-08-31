@@ -36,9 +36,7 @@ class FieldValueFetcher {
     final IndexFieldData<?> fieldData;
     final Function<Object, Object> valueFunc;
 
-    protected FieldValueFetcher(String name,
-                                MappedFieldType fieldType, IndexFieldData<?> fieldData,
-                                Function<Object, Object> valueFunc) {
+    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData, Function<Object, Object> valueFunc) {
         this.name = name;
         this.fieldType = fieldType;
         this.format = fieldType.docValueFormat(null, null);
@@ -109,8 +107,9 @@ class FieldValueFetcher {
     static Function<Object, Object> getValidator(String field) {
         return value -> {
             if (VALID_TYPES.contains(value.getClass()) == false) {
-                throw new IllegalArgumentException("Expected [" + VALID_TYPES + "] for field [" + field + "], " +
-                    "got [" + value.getClass() + "]");
+                throw new IllegalArgumentException(
+                    "Expected [" + VALID_TYPES + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
+                );
             }
             return value;
         };

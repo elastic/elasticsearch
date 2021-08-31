@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -43,7 +44,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     EnrichProcessorFactory(Client client, ScriptService scriptService, EnrichCache enrichCache) {
         this.client = client;
         this.scriptService = scriptService;
-        this.enrichCache = enrichCache;
+        this.enrichCache = Objects.requireNonNull(enrichCache);
     }
 
     @Override

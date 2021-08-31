@@ -124,7 +124,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             Response response = (Response) o;
             return executingPolicies.equals(response.executingPolicies) &&
                 coordinatorStats.equals(response.coordinatorStats) &&
-                cacheStats.equals(response.cacheStats);
+                Objects.equals(cacheStats, response.cacheStats);
         }
 
         @Override

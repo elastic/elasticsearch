@@ -13,8 +13,7 @@ Never run an {es} cluster without security enabled. This principle cannot be
 overstated. Running {es} without security leaves your cluster exposed to anyone
 who can send network traffic to {es}, permitting these individuals to download,
 modify, or delete any data in your cluster.
-<<configuring-stack-security,Start the {stack} with security enabled>> or
-<<manually-configure-security,manually configure security>> to prevent
+<<configuring-stack-security,Configure security for the {stack}>> to prevent
 unauthorized access to your clusters and ensure that internode communication
 is secure. 
 

@@ -896,6 +896,10 @@ Test token_count inside nested field doesn't fail:
 
 ---
 profile:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+
   - do:
       indices.create:
         index:  test

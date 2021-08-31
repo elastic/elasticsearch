@@ -59,11 +59,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         private final Coordinator coordinator;
 
         @Inject
-        public TransportAction(
-            TransportService transportService,
-            ActionFilters actionFilters,
-            Coordinator coordinator
-        ) {
+        public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
             super(NAME, transportService, actionFilters, SearchRequest::new);
             this.coordinator = coordinator;
         }

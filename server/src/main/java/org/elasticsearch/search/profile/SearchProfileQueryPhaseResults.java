@@ -30,7 +30,7 @@ import java.util.Map;
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
  */
-public final class SearchProfileQueryPhaseResults implements Writeable {
+public final class SearchProfileQueryPhaseResults implements Writeable { // This is Writeable for backwards compatibility
     private Map<String, SearchProfileQueryPhaseResult> shardResults;
 
     public SearchProfileQueryPhaseResults(Map<String, SearchProfileQueryPhaseResult> shardResults) {
@@ -84,6 +84,20 @@ public final class SearchProfileQueryPhaseResults implements Writeable {
             }
         }
         return new SearchProfileResults(mergedShardResults);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        SearchProfileQueryPhaseResults other = (SearchProfileQueryPhaseResults) obj;
+        return shardResults.equals(other.shardResults);
+    }
+
+    @Override
+    public int hashCode() {
+        return shardResults.hashCode();
     }
 
     /**

@@ -1,6 +1,7 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -34,7 +35,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public final class SearchProfileResults implements Writeable, ToXContentFragment {
 
-    private static final String SEARCHES_FIELD = "searches";
     private static final String ID_FIELD = "id";
     private static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
@@ -80,21 +80,30 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         for (String key : sortedKeys) {
             builder.startObject();
             builder.field(ID_FIELD, key);
-            builder.startArray(SEARCHES_FIELD);
-            SearchProfileShardResult profileShardResult = shardResults.get(key);
-            for (QueryProfileShardResult result : profileShardResult.getSearch().getQueryProfileResults()) {
-                result.toXContent(builder, params);
-            }
-            builder.endArray();
-            profileShardResult.getSearch().getAggregationProfileResults().toXContent(builder, params);
-            if (profileShardResult.getFetch() != null) {
-                builder.field("fetch");
-                profileShardResult.getFetch().toXContent(builder, params);
-            }
+            shardResults.get(key).toXContent(builder, params);
             builder.endObject();
         }
         builder.endArray().endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        SearchProfileResults other = (SearchProfileResults) obj;
+        return shardResults.equals(other.shardResults);
+    }
+
+    @Override
+    public int hashCode() {
+        return shardResults.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static SearchProfileResults fromXContent(XContentParser parser) throws IOException {
@@ -136,7 +145,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (SEARCHES_FIELD.equals(currentFieldName)) {
+                if ("searches".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
                     }

@@ -8,42 +8,24 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResultTests;
-import org.elasticsearch.search.profile.query.QueryProfileShardResult;
-import org.elasticsearch.search.profile.query.QueryProfileShardResultTests;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SearchProfileResultsTests  extends ESTestCase {
-
+public class SearchProfileResultsTests extends AbstractSerializingTestCase<SearchProfileResults> {
     public static SearchProfileResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);
         Map<String, SearchProfileShardResult> shards = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
-            int queryItems = rarely() ? 0 : randomIntBetween(1, 2);
-            for (int q = 0; q < queryItems; q++) {
-                queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
-            }
-            AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
-            SearchProfileQueryPhaseResult searchResult = new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult);
+            SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
             shards.put(
                 randomAlphaOfLengthBetween(5, 10),
@@ -53,45 +35,29 @@ public class SearchProfileResultsTests  extends ESTestCase {
         return new SearchProfileResults(shards);
     }
 
-    public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+    @Override
+    protected SearchProfileResults createTestInstance() {
+        return createTestItem();
     }
 
-    /**
-     * This test adds random fields and objects to the xContent rendered out to ensure we can parse it
-     * back to be forward compatible with additions to the xContent
-     */
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+    @Override
+    protected Reader<SearchProfileResults> instanceReader() {
+        return SearchProfileResults::new;
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        SearchProfileResults shardResult = createTestItem();
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(shardResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        BytesReference mutated;
-        if (addRandomFields) {
-            // The ProfileResults "breakdown" section just consists of key/value pairs, we shouldn't add anything random there
-            // also we don't want to insert into the root object here, its just the PROFILE_FIELD itself
-            Predicate<String> excludeFilter = (s) -> s.isEmpty()
-                    || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
-                    || s.endsWith(ProfileResult.DEBUG.getPreferredName());
-            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-        } else {
-            mutated = originalBytes;
-        }
-        SearchProfileResults parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureFieldName(parser, parser.nextToken(), SearchProfileResults.PROFILE_FIELD);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsed = SearchProfileResults.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertNull(parser.nextToken());
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    @Override
+    protected SearchProfileResults doParseInstance(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        ensureFieldName(parser, parser.nextToken(), SearchProfileResults.PROFILE_FIELD);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        SearchProfileResults result = SearchProfileResults.fromXContent(parser);
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        return result;
     }
 
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return ProfileResultTests.RANDOM_FIELDS_EXCLUDE_FILTER;
+    }
 }

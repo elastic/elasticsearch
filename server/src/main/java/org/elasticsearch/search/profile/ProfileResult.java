@@ -9,6 +9,7 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -156,13 +158,41 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        ProfileResult other = (ProfileResult) obj;
+        return type.equals(other.type)
+            && description.equals(other.description)
+            && breakdown.equals(other.breakdown)
+            && debug.equals(other.debug)
+            && nodeTime == other.nodeTime
+            && children.equals(other.children);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, description, breakdown, debug, nodeTime, children);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
     static {
         InstantiatingObjectParser.Builder<ProfileResult, Void> parser =
                 InstantiatingObjectParser.builder("profile_result", true, ProfileResult.class);
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
-        parser.declareObject(constructorArg(), (p, c) -> p.map(), BREAKDOWN);
+        parser.declareObject(
+            constructorArg(),
+            (p, c) -> p.map().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> ((Number) e.getValue()).longValue())),
+            BREAKDOWN
+        );
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
         parser.declareLong(constructorArg(), NODE_TIME_RAW);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);

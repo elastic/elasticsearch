@@ -23,7 +23,11 @@ public class Order extends Expression {
     }
 
     public enum NullsPosition {
-        FIRST, LAST;
+        FIRST, LAST,
+        /**
+         * Nulls position has not been specified by the user and an appropriate default will be used.
+         */
+        ANY;
     }
 
     private final Expression child;
@@ -34,7 +38,7 @@ public class Order extends Expression {
         super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
-        this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;
+        this.nulls = nulls == null ? NullsPosition.ANY : nulls;
     }
 
     @Override

@@ -54,11 +54,13 @@ import org.junit.Before;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -135,13 +137,13 @@ public class InstallPluginActionTests extends ESTestCase {
         pluginDir = createPluginDir(temp);
         terminal = new MockTerminal();
         env = createEnv(temp);
-        skipJarHellAction = new InstallPluginAction(terminal, null, false) {
+        skipJarHellAction = new InstallPluginAction(terminal, null) {
             @Override
             void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
                 // no jarhell check
             }
         };
-        defaultAction = new InstallPluginAction(terminal, env.v2(), false);
+        defaultAction = new InstallPluginAction(terminal, env.v2());
     }
 
     @Override
@@ -769,7 +771,7 @@ public class InstallPluginActionTests extends ESTestCase {
         throws IOException {
 
         final Environment environment = createEnv(temp).v2();
-        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment, false) {
+        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment) {
             @Override
             Build.Flavor buildFlavor() {
                 return flavor;
@@ -839,10 +841,46 @@ public class InstallPluginActionTests extends ESTestCase {
         skipJarHellAction.execute(List.of(pluginZip));
     }
 
+    private void assertInstallPluginFromUrl(
+        final String pluginId,
+        final String url,
+        final String stagingHash,
+        boolean isSnapshot
+    ) throws Exception {
+        assertInstallPluginFromUrl(
+            pluginId,
+            null,
+            url,
+            stagingHash,
+            isSnapshot
+        );
+    }
+
+    private void assertInstallPluginFromUrl(
+        final String pluginId,
+        final String pluginUrl,
+        final String url,
+        final String stagingHash,
+        boolean isSnapshot
+    ) throws Exception {
+        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        assertInstallPluginFromUrl(
+            pluginId,
+            pluginUrl,
+            url,
+            stagingHash,
+            isSnapshot,
+            ".sha512",
+            checksumAndFilename(digest, url),
+            newSecretKey(),
+            this::signature
+        );
+    }
+
     @SuppressForbidden(reason = "Path.of() is OK in this context")
     void assertInstallPluginFromUrl(
         final String pluginId,
-        final String name,
+        final String pluginUrl,
         final String url,
         final String stagingHash,
         final boolean isSnapshot,
@@ -851,11 +889,11 @@ public class InstallPluginActionTests extends ESTestCase {
         final PGPSecretKey secretKey,
         final BiFunction<byte[], PGPSecretKey, String> signature
     ) throws Exception {
-        PluginDescriptor pluginZip = createPlugin(name, pluginDir);
+        PluginDescriptor pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getUrl()));
-        InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
+        InstallPluginAction action = new InstallPluginAction(terminal, env.v2()) {
             @Override
-            Path downloadZip(String urlString, Path tmpDir) throws IOException {
+            Path downloadZip(String urlString, Proxy proxy, Path tmpDir) throws IOException {
                 assertEquals(url, urlString);
                 Path downloadedPath = tmpDir.resolve("downloaded.zip");
                 Files.copy(pluginZipPath, downloadedPath);
@@ -863,7 +901,7 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            URL openUrl(String urlString) throws IOException {
+            URL openUrl(String urlString, Proxy proxy) throws IOException {
                 if ((url + shaExtension).equals(urlString)) {
                     // calc sha an return file URL to it
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
@@ -882,9 +920,14 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
-                if (InstallPluginAction.OFFICIAL_PLUGINS.contains(name)) {
-                    super.verifySignature(zip, urlString);
+            InputStream urlOpenStream(URL url, Proxy proxy) throws IOException {
+                return url.openStream();
+            }
+
+            @Override
+            void verifySignature(Path zip, String urlString, Proxy proxy) throws IOException, PGPException {
+                if (InstallPluginAction.OFFICIAL_PLUGINS.contains(pluginId)) {
+                    super.verifySignature(zip, urlString, proxy);
                 } else {
                     throw new UnsupportedOperationException("verify signature should not be called for unofficial plugins");
                 }
@@ -933,36 +976,15 @@ public class InstallPluginActionTests extends ESTestCase {
                 // no jarhell check
             }
         };
-        installPlugin(new PluginDescriptor(name, pluginId), env.v1(), action);
-        assertPlugin(name, pluginDir, env.v2());
-    }
-
-    public void assertInstallPluginFromUrl(
-        final String pluginId,
-        final String name,
-        final String url,
-        final String stagingHash,
-        boolean isSnapshot
-    ) throws Exception {
-        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        assertInstallPluginFromUrl(
-            pluginId,
-            name,
-            url,
-            stagingHash,
-            isSnapshot,
-            ".sha512",
-            checksumAndFilename(digest, url),
-            newSecretKey(),
-            this::signature
-        );
+        installPlugin(new PluginDescriptor(pluginId, pluginUrl), env.v1(), action);
+        assertPlugin(pluginId, pluginDir, env.v2());
     }
 
     public void testOfficialPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
+        assertInstallPluginFromUrl("analysis-icu", url, null, false);
     }
 
     public void testOfficialPluginSnapshot() throws Exception {
@@ -972,7 +994,7 @@ public class InstallPluginActionTests extends ESTestCase {
             Version.CURRENT,
             Build.CURRENT.getQualifiedVersion()
         );
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
+        assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
 
     public void testInstallReleaseBuildOfPluginOnSnapshotBuild() {
@@ -982,10 +1004,10 @@ public class InstallPluginActionTests extends ESTestCase {
             Version.CURRENT,
             Build.CURRENT.getQualifiedVersion()
         );
-        // attemping to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
+        // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
         final UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, true)
+            () -> assertInstallPluginFromUrl("analysis-icu", url, null, true)
         );
         assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
         assertThat(
@@ -1000,7 +1022,7 @@ public class InstallPluginActionTests extends ESTestCase {
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
+        assertInstallPluginFromUrl("analysis-icu", url, "abc123", false);
     }
 
     public void testOfficialPlatformPlugin() throws Exception {
@@ -1009,7 +1031,7 @@ public class InstallPluginActionTests extends ESTestCase {
             + "-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
+        assertInstallPluginFromUrl("analysis-icu", url, null, false);
     }
 
     public void testOfficialPlatformPluginSnapshot() throws Exception {
@@ -1020,7 +1042,7 @@ public class InstallPluginActionTests extends ESTestCase {
             Platforms.PLATFORM_NAME,
             Build.CURRENT.getQualifiedVersion()
         );
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
+        assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
 
     public void testOfficialPlatformPluginStaging() throws Exception {
@@ -1031,23 +1053,23 @@ public class InstallPluginActionTests extends ESTestCase {
             + "-"
             + Build.CURRENT.getQualifiedVersion()
             + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
+        assertInstallPluginFromUrl("analysis-icu", url, "abc123", false);
     }
 
     public void testMavenPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
+        assertInstallPluginFromUrl("myplugin", "mygroup:myplugin:1.0.0", url, null, false);
     }
 
     public void testMavenPlatformPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-" + Platforms.PLATFORM_NAME + "-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
+        assertInstallPluginFromUrl("myplugin", "mygroup:myplugin:1.0.0", url, null, false);
     }
 
     public void testMavenSha1Backcompat() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha1", checksum(digest), null, (b, p) -> null);
+        assertInstallPluginFromUrl("myplugin", "mygroup:myplugin:1.0.0", url, null, false, ".sha1", checksum(digest), null, (b, p) -> null);
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("sha512 not found, falling back to sha1"));
     }
 
@@ -1055,8 +1077,8 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         assertInstallPluginFromUrl(
-            "mygroup:myplugin:1.0.0",
             "myplugin",
+            "mygroup:myplugin:1.0.0",
             url,
             null,
             false,
@@ -1076,7 +1098,7 @@ public class InstallPluginActionTests extends ESTestCase {
             UserException.class,
             () -> assertInstallPluginFromUrl(
                 "analysis-icu",
-                "analysis-icu",
+                null,
                 url,
                 null,
                 false,
@@ -1099,7 +1121,7 @@ public class InstallPluginActionTests extends ESTestCase {
             UserException.class,
             () -> assertInstallPluginFromUrl(
                 "analysis-icu",
-                "analysis-icu",
+                null,
                 url,
                 null,
                 false,
@@ -1118,8 +1140,8 @@ public class InstallPluginActionTests extends ESTestCase {
         UserException e = expectThrows(
             UserException.class,
             () -> assertInstallPluginFromUrl(
-                "mygroup:myplugin:1.0.0",
                 "myplugin",
+                "mygroup:myplugin:1.0.0",
                 url,
                 null,
                 false,
@@ -1142,7 +1164,7 @@ public class InstallPluginActionTests extends ESTestCase {
             UserException.class,
             () -> assertInstallPluginFromUrl(
                 "analysis-icu",
-                "analysis-icu",
+                null,
                 url,
                 null,
                 false,
@@ -1165,7 +1187,7 @@ public class InstallPluginActionTests extends ESTestCase {
             UserException.class,
             () -> assertInstallPluginFromUrl(
                 "analysis-icu",
-                "analysis-icu",
+                null,
                 url,
                 null,
                 false,
@@ -1188,7 +1210,7 @@ public class InstallPluginActionTests extends ESTestCase {
             UserException.class,
             () -> assertInstallPluginFromUrl(
                 "analysis-icu",
-                "analysis-icu",
+                null,
                 url,
                 null,
                 false,
@@ -1210,7 +1232,7 @@ public class InstallPluginActionTests extends ESTestCase {
             UserException.class,
             () -> assertInstallPluginFromUrl(
                 "analysis-icu",
-                "analysis-icu",
+                null,
                 url,
                 null,
                 false,
@@ -1229,8 +1251,8 @@ public class InstallPluginActionTests extends ESTestCase {
         UserException e = expectThrows(
             UserException.class,
             () -> assertInstallPluginFromUrl(
-                "mygroup:myplugin:1.0.0",
                 "myplugin",
+                "mygroup:myplugin:1.0.0",
                 url,
                 null,
                 false,
@@ -1266,7 +1288,7 @@ public class InstallPluginActionTests extends ESTestCase {
             IllegalStateException.class,
             () -> assertInstallPluginFromUrl(
                 icu,
-                icu,
+                null,
                 url,
                 null,
                 false,
@@ -1301,7 +1323,7 @@ public class InstallPluginActionTests extends ESTestCase {
             IllegalStateException.class,
             () -> assertInstallPluginFromUrl(
                 icu,
-                icu,
+                null,
                 url,
                 null,
                 false,

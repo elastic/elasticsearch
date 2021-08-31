@@ -46,6 +46,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -80,6 +81,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.plugins.ProxyUtils.buildProxy;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.
@@ -178,11 +180,17 @@ class InstallPluginAction implements Closeable {
     private final Terminal terminal;
     private Environment env;
     private boolean batch;
+    private Proxy proxy;
 
-    InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
+    InstallPluginAction(Terminal terminal, Environment env) {
+        this(terminal, env, false, Proxy.NO_PROXY);
+    }
+
+    InstallPluginAction(Terminal terminal, Environment env, boolean batch, Proxy proxy) {
         this.terminal = terminal;
         this.env = env;
         this.batch = batch;
+        this.proxy = proxy;
     }
 
     // pkg private for testing
@@ -268,10 +276,12 @@ class InstallPluginAction implements Closeable {
     private Path download(PluginDescriptor plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
-        if (OFFICIAL_PLUGINS.contains(pluginId)) {
+        Proxy proxy = getProxy(plugin.getProxy());
+
+        if (OFFICIAL_PLUGINS.contains(pluginId) && plugin.getUrl() == null) {
             final String url = getElasticUrl(getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadAndValidate(url, tmpDir, true);
+            return downloadAndValidate(url, proxy, tmpDir, true);
         }
 
         final String pluginUrl = plugin.getUrl();
@@ -279,9 +289,9 @@ class InstallPluginAction implements Closeable {
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginUrl.split(":");
         if (coordinates.length == 3 && pluginUrl.contains("/") == false && pluginUrl.startsWith("file:") == false) {
-            String mavenUrl = getMavenUrl(coordinates, Platforms.PLATFORM_NAME);
+            String mavenUrl = getMavenUrl(coordinates);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadAndValidate(mavenUrl, tmpDir, false);
+            return downloadAndValidate(mavenUrl, proxy, tmpDir, false);
         }
 
         // fall back to plain old URL
@@ -295,7 +305,7 @@ class InstallPluginAction implements Closeable {
             throw new UserException(ExitCodes.USAGE, msg);
         }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginUrl, StandardCharsets.UTF_8));
-        return downloadZip(pluginUrl, tmpDir);
+        return downloadZip(pluginUrl, proxy, tmpDir);
     }
 
     // pkg private so tests can override
@@ -361,12 +371,12 @@ class InstallPluginAction implements Closeable {
     /**
      * Returns the url for an elasticsearch plugin in maven.
      */
-    private String getMavenUrl(String[] coordinates, String platform) throws IOException {
+    private String getMavenUrl(String[] coordinates) throws IOException {
         final String groupId = coordinates[0].replace(".", "/");
         final String artifactId = coordinates[1];
         final String version = coordinates[2];
         final String baseUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%s/%s/%s", groupId, artifactId, version);
-        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, artifactId, platform, version);
+        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, artifactId, Platforms.PLATFORM_NAME, version);
         if (urlExists(platformUrl)) {
             return platformUrl;
         }
@@ -404,13 +414,13 @@ class InstallPluginAction implements Closeable {
             }
         }
         CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
-        return scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
+        return scoredKeys.stream().map(Tuple::v2).collect(Collectors.toList());
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(String urlString, Path tmpDir) throws IOException {
+    Path downloadZip(String urlString, Proxy proxy, Path tmpDir) throws IOException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
@@ -437,13 +447,17 @@ class InstallPluginAction implements Closeable {
         this.batch = batch;
     }
 
+    // for testing only
+    void setProxy(Proxy proxy) {
+        this.proxy = proxy;
+    }
+
     /**
      * content length might be -1 for unknown and progress only makes sense if the content length is greater than 0
      */
-    private class TerminalProgressInputStream extends ProgressInputStream {
+    private static class TerminalProgressInputStream extends ProgressInputStream {
 
         private final Terminal terminal;
-        private int width = 50;
         private final boolean enabled;
 
         TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
@@ -455,6 +469,7 @@ class InstallPluginAction implements Closeable {
         @Override
         public void onProgress(int percent) {
             if (enabled) {
+                int width = 50;
                 int currentPosition = percent * width / 100;
                 StringBuilder sb = new StringBuilder("\r[");
                 sb.append(String.join("=", Collections.nCopies(currentPosition, "")));
@@ -472,8 +487,8 @@ class InstallPluginAction implements Closeable {
     }
 
     @SuppressForbidden(reason = "URL#openStream")
-    private InputStream urlOpenStream(final URL url) throws IOException {
-        return url.openStream();
+    InputStream urlOpenStream(final URL url, Proxy proxy) throws IOException {
+        return url.openConnection(proxy).getInputStream();
     }
 
     /**
@@ -490,6 +505,7 @@ class InstallPluginAction implements Closeable {
      * </ul>
      *
      * @param urlString      the URL of the plugin ZIP
+     * @param proxy          the proxy to use for fetching the ZIP
      * @param tmpDir         a temporary directory to write downloaded files to
      * @param officialPlugin true if the plugin is an official plugin
      * @return the path to the downloaded plugin ZIP
@@ -497,12 +513,12 @@ class InstallPluginAction implements Closeable {
      * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws UserException if checksum validation fails
      */
-    private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        PGPException, UserException {
-        Path zip = downloadZip(urlString, tmpDir);
+    private Path downloadAndValidate(final String urlString, Proxy proxy, final Path tmpDir, final boolean officialPlugin)
+        throws IOException, PGPException, UserException {
+        Path zip = downloadZip(urlString, proxy, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
-        URL checksumUrl = openUrl(checksumUrlString);
+        URL checksumUrl = openUrl(checksumUrlString, proxy);
         String digestAlgo = "SHA-512";
         if (checksumUrl == null && officialPlugin == false) {
             // fallback to sha1, until 7.0, but with warning
@@ -511,28 +527,24 @@ class InstallPluginAction implements Closeable {
                     + "future release. Please update the plugin to use a sha512 checksum."
             );
             checksumUrlString = urlString + ".sha1";
-            checksumUrl = openUrl(checksumUrlString);
+            checksumUrl = openUrl(checksumUrlString, proxy);
             digestAlgo = "SHA-1";
         }
         if (checksumUrl == null) {
             throw new UserException(ExitCodes.IO_ERROR, "Plugin checksum missing: " + checksumUrlString);
         }
         final String expectedChecksum;
-        try (InputStream in = urlOpenStream(checksumUrl)) {
+        try (InputStream in = urlOpenStream(checksumUrl, proxy)) {
             /*
              * The supported format of the SHA-1 files is a single-line file containing the SHA-1. The supported format of the SHA-512 files
              * is a single-line file containing the SHA-512 and the filename, separated by two spaces. For SHA-1, we verify that the hash
              * matches, and that the file contains a single line. For SHA-512, we verify that the hash and the filename match, and that the
              * file contains a single line.
              */
+            final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             if (digestAlgo.equals("SHA-1")) {
-                final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 expectedChecksum = checksumReader.readLine();
-                if (checksumReader.readLine() != null) {
-                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
-                }
             } else {
-                final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 final String checksumLine = checksumReader.readLine();
                 final String[] fields = checksumLine.split(" {2}");
                 if (officialPlugin && fields.length != 2 || officialPlugin == false && fields.length > 2) {
@@ -554,9 +566,9 @@ class InstallPluginAction implements Closeable {
                         throw new UserException(ExitCodes.IO_ERROR, message);
                     }
                 }
-                if (checksumReader.readLine() != null) {
-                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
-                }
+            }
+            if (checksumReader.readLine() != null) {
+                throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
             }
         }
 
@@ -584,7 +596,7 @@ class InstallPluginAction implements Closeable {
         }
 
         if (officialPlugin) {
-            verifySignature(zip, urlString);
+            verifySignature(zip, urlString, proxy);
         }
 
         return zip;
@@ -595,18 +607,19 @@ class InstallPluginAction implements Closeable {
      * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
      *
      * @param zip       the path to the downloaded plugin ZIP
-     * @param urlString the URL source of the downloade plugin ZIP
+     * @param urlString the URL source of the downloaded plugin ZIP
+     * @param proxy     the proxy to use for fetching the ZIP
      * @throws IOException  if an I/O exception occurs reading from various input streams
      * @throws PGPException if the PGP implementation throws an internal exception during verification
      */
-    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
+    void verifySignature(final Path zip, final String urlString, final Proxy proxy) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
-        final URL ascUrl = openUrl(ascUrlString);
+        final URL ascUrl = openUrl(ascUrlString, proxy);
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
             // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-            InputStream sin = urlOpenStream(ascUrl);
+            InputStream sin = urlOpenStream(ascUrl, proxy);
             // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
             InputStream ain = new ArmoredInputStream(getPublicKey())
         ) {
@@ -671,9 +684,9 @@ class InstallPluginAction implements Closeable {
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests
-    URL openUrl(String urlString) throws IOException {
+    URL openUrl(String urlString, Proxy proxy) throws IOException {
         URL checksumUrl = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection();
+        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection(proxy);
         if (connection.getResponseCode() == 404) {
             return null;
         }
@@ -747,7 +760,7 @@ class InstallPluginAction implements Closeable {
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
+    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException {
         // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
@@ -876,7 +889,7 @@ class InstallPluginAction implements Closeable {
      **/
     private void movePlugin(Path tmpRoot, Path destination) throws IOException {
         Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
-        Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
+        Files.walkFileTree(destination, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
                 final String parentDirName = file.getParent().getFileName().toString();
@@ -988,7 +1001,7 @@ class InstallPluginAction implements Closeable {
 
     @Override
     public void close() throws IOException {
-        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
+        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
     }
 
     static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
@@ -1010,5 +1023,9 @@ class InstallPluginAction implements Closeable {
         ).forEach(terminal::errorPrintln);
 
         throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
+    }
+
+    private Proxy getProxy(String proxyUrl) throws UserException {
+        return proxy == null ? this.proxy : buildProxy(proxyUrl);
     }
 }

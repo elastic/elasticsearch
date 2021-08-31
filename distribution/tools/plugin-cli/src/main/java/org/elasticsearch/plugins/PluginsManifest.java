@@ -10,15 +10,12 @@ package org.elasticsearch.plugins;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.cli.ExitCodes;
+
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -26,18 +23,23 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.plugins.ProxyUtils.buildProxy;
+import static org.elasticsearch.plugins.ProxyUtils.validateProxy;
+
 public class PluginsManifest {
-    private List<PluginDescriptor> pluginDescriptors = List.of();
-    private boolean purge = false;
-    private boolean batch = false;
+    private List<PluginDescriptor> plugins = List.of();
     private String proxy = null;
 
     public void validate(Path manifestPath) throws UserException {
-        if (this.getPluginDescriptors().stream().anyMatch(each -> each == null || each.getId().isBlank())) {
+        if (this.plugins == null) {
+            this.plugins = List.of();
+        }
+
+        if (this.getPlugins().stream().anyMatch(each -> each == null || each.getId() == null || each.getId().isBlank())) {
             throw new RuntimeException("Cannot have null or empty plugin IDs in: " + manifestPath);
         }
 
-        final Map<String, Long> counts = this.pluginDescriptors.stream()
+        final Map<String, Long> counts = this.plugins.stream()
             .map(PluginDescriptor::getId)
             .collect(Collectors.groupingBy(e -> e, Collectors.counting()));
 
@@ -45,6 +47,7 @@ public class PluginsManifest {
             .stream()
             .filter(entry -> entry.getValue() > 1)
             .map(Map.Entry::getKey)
+            .sorted()
             .collect(Collectors.toList());
 
         if (duplicatePluginNames.isEmpty() == false) {
@@ -55,7 +58,7 @@ public class PluginsManifest {
             validateProxy(this.proxy, null, manifestPath);
         }
 
-        for (PluginDescriptor p : this.getPluginDescriptors()) {
+        for (PluginDescriptor p : this.getPlugins()) {
             String proxy = p.getProxy();
             if (proxy != null) {
                 validateProxy(proxy, p.getId(), manifestPath);
@@ -85,28 +88,12 @@ public class PluginsManifest {
         return pluginsManifest;
     }
 
-    public List<PluginDescriptor> getPluginDescriptors() {
-        return pluginDescriptors;
+    public List<PluginDescriptor> getPlugins() {
+        return plugins;
     }
 
-    public void setPluginDescriptors(List<PluginDescriptor> pluginDescriptors) {
-        this.pluginDescriptors = pluginDescriptors;
-    }
-
-    public boolean isPurge() {
-        return purge;
-    }
-
-    public void setPurge(boolean purge) {
-        this.purge = purge;
-    }
-
-    public boolean isBatch() {
-        return batch;
-    }
-
-    public void setBatch(boolean batch) {
-        this.batch = batch;
+    public void setPlugins(List<PluginDescriptor> plugins) {
+        this.plugins = plugins;
     }
 
     public String getProxy() {
@@ -126,29 +113,12 @@ public class PluginsManifest {
             return false;
         }
         PluginsManifest that = (PluginsManifest) o;
-        return purge == that.purge
-            && batch == that.batch
-            && pluginDescriptors.equals(that.pluginDescriptors)
+        return plugins.equals(that.plugins)
             && Objects.equals(proxy, that.proxy);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pluginDescriptors, purge, batch, proxy);
-    }
-
-    private void validateProxy(String proxy, String pluginId, Path manifestPath) throws UserException {
-        String pluginDescription = pluginId == null ? "" : "for plugin [" + pluginId + "] ";
-        try {
-            URI uri = new URI(proxy);
-            if (uri.getHost().isBlank()) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed host " + pluginDescription + "in [proxy] value in: " + manifestPath);
-            }
-            if (uri.getPort() == -1) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed or missing port " + pluginDescription + "in [proxy] value in: " + manifestPath);
-            }
-        } catch (URISyntaxException e) {
-            throw new UserException(ExitCodes.CONFIG, "Malformed [proxy] value " + pluginDescription + "in: " + manifestPath);
-        }
+        return Objects.hash(plugins, proxy);
     }
 }

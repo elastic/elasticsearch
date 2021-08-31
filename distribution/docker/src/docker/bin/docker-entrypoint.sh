@@ -73,6 +73,11 @@ if [[ -n "$ES_LOG_STYLE" ]]; then
   esac
 fi
 
+if [[ -e /usr/share/elasticsearch/config/elasticsearch-plugins.yml ]]; then
+  # Sync installed plugins with descriptor file
+  /usr/share/elasticsearch/bin/elasticsearch-plugin sync --batch
+fi
+
 # Signal forwarding and child reaping is handled by `tini`, which is the
 # actual entrypoint of the container
 exec /usr/share/elasticsearch/bin/elasticsearch <<<"$KEYSTORE_PASSWORD"

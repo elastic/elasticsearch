@@ -1,8 +1,19 @@
-plugins: []
-  # - example1
-  # - example2
-  # - org.elasticsearch.plugins:example-plugin:1.2.3
-  # - https://some.domain/path/example3.zip
-batch: false
-purge: false
-# proxy: https://example.com:1234
+plugins:
+  # Each plugin must have an ID. Plugins with only an ID are official plugins and will be downloaded from Elastic.
+  # - id: example-id
+  #
+  # Plugins can be specified by URL:
+  # - id: example-with-url
+  #   url: https://some.domain/path/example4.zip
+  #
+  # Or by maven coordinates:
+  # - id: example-with-maven-url
+  #   url: org.elasticsearch.plugins:example-plugin:1.2.3
+  #
+  # A proxy can also be configured per-plugin, if necessary
+  # - id: example-with-proxy
+  #   url: https://some.domain/path/example.zip
+  #   proxy: https://some.domain:1234
+
+# Configures a proxy for all network access
+# proxy: https://some.domain:1234

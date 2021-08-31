@@ -8,6 +8,10 @@
 
 package org.elasticsearch.plugins;
 
+import com.fasterxml.jackson.annotation.JacksonAnnotation;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Objects;
 
 public class PluginDescriptor {
@@ -15,9 +19,8 @@ public class PluginDescriptor {
     private String url;
     private String proxy;
 
-    public PluginDescriptor() {}
-
-    public PluginDescriptor(String id, String url, String proxy) {
+    @JsonCreator
+    public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String url, @JsonProperty("proxy") String proxy) {
         this.id = id;
         this.url = url;
         this.proxy = proxy;
@@ -66,5 +69,10 @@ public class PluginDescriptor {
     @Override
     public int hashCode() {
         return Objects.hash(id, url, proxy);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("PluginDescriptor{id='%s', url='%s', proxy='%s'}", id, url, proxy);
     }
 }

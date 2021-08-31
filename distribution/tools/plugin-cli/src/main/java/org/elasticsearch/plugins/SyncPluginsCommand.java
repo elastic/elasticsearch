@@ -10,6 +10,7 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -22,13 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.SILENT;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.plugins.ProxyUtils.buildProxy;
 
 /**
  * A command for the plugin cli to update the installed plugins from the plugin descriptor file.
@@ -69,11 +70,13 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
         final List<PluginInfo> existingPlugins = getExistingPlugins(env, terminal);
 
         // 3. Calculate changes
-        final List<String> pluginsThatShouldExist = pluginsManifest.getPluginDescriptors().stream().map(PluginDescriptor::getId).collect(Collectors.toList());
-        final List<String> pluginsThatActuallyExist = existingPlugins.stream().map(PluginInfo::getName).collect(Collectors.toList());
+        final List<PluginDescriptor> pluginsThatShouldExist = pluginsManifest.getPlugins();
+        final List<PluginDescriptor> pluginsThatActuallyExist = existingPlugins.stream()
+            .map(info -> new PluginDescriptor(info.getName()))
+            .collect(Collectors.toList());
 
-        final List<String> pluginsToInstall = difference(pluginsThatShouldExist, pluginsThatActuallyExist);
-        final List<String> pluginsToRemove = difference(pluginsThatActuallyExist, pluginsThatShouldExist);
+        final List<PluginDescriptor> pluginsToInstall = difference(pluginsThatShouldExist, pluginsThatActuallyExist);
+        final List<PluginDescriptor> pluginsToRemove = difference(pluginsThatActuallyExist, pluginsThatShouldExist);
 
         printRequiredChanges(terminal, isDry, pluginsToRemove, pluginsToInstall);
 
@@ -83,14 +86,19 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
 
         // 5. Remove any plugins that are not in the descriptor
         if (pluginsToRemove.isEmpty() == false) {
-            final RemovePluginCommand removePluginCommand = new RemovePluginCommand();
-            removePluginCommand.execute(terminal, env, pluginsToRemove, isPurge);
+            final RemovePluginAction removePluginAction = new RemovePluginAction(terminal, env, isPurge);
+            removePluginAction.execute(pluginsToRemove);
         }
 
         // 6. Add any plugins that are in the descriptor but missing from disk
         if (pluginsToInstall.isEmpty() == false) {
-            final InstallPluginCommand installPluginCommand = new InstallPluginCommand();
-            installPluginCommand.execute(terminal, pluginsToInstall, isBatch, env, pluginsManifest.getProxy());
+            final InstallPluginAction installPluginAction = new InstallPluginAction(
+                terminal,
+                env,
+                isBatch,
+                buildProxy(pluginsManifest.getProxy())
+            );
+            installPluginAction.execute(pluginsToInstall);
         }
     }
 
@@ -119,11 +127,28 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
         return plugins;
     }
 
-    private static <T> List<T> difference(Collection<T> left, Collection<T> right) {
-        return left.stream().filter(k -> right.contains(k) == false).collect(Collectors.toList());
+    /**
+     * Returns a list of all elements in {@code left} that are not present in {@code right}.
+     * <p>
+     * Comparisons are based solely using {@link PluginDescriptor#getId()}.
+     *
+     * @param left the items that may be retained
+     * @param right the items that may be removed
+     * @return a list of the remaining elements
+     */
+    private static List<PluginDescriptor> difference(List<PluginDescriptor> left, List<PluginDescriptor> right) {
+        return left.stream().filter(eachDescriptor -> {
+            final String id = eachDescriptor.getId();
+            return right.stream().anyMatch(p -> p.getId().equals(id)) == false;
+        }).collect(Collectors.toList());
     }
 
-    private void printRequiredChanges(Terminal terminal, boolean isDry, List<String> pluginsToRemove, List<String> pluginsToInstall) {
+    private void printRequiredChanges(
+        Terminal terminal,
+        boolean isDry,
+        List<PluginDescriptor> pluginsToRemove,
+        List<PluginDescriptor> pluginsToInstall
+    ) {
         final Terminal.Verbosity verbosity = isDry ? SILENT : VERBOSE;
 
         if (pluginsToInstall.isEmpty() && pluginsToRemove.isEmpty()) {
@@ -134,7 +159,7 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
             } else {
                 terminal.println(verbosity, "The following plugins need to be removed:");
                 terminal.println(verbosity, "");
-                pluginsToRemove.forEach(p -> terminal.println(verbosity, "    " + p));
+                pluginsToRemove.forEach(p -> terminal.println(verbosity, "    " + p.getId()));
                 terminal.println(verbosity, "");
             }
 
@@ -143,7 +168,7 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
             } else {
                 terminal.println(verbosity, "The following plugins need to be installed:");
                 terminal.println(verbosity, "");
-                pluginsToInstall.forEach(p -> terminal.println(verbosity, "    " + p));
+                pluginsToInstall.forEach(p -> terminal.println(verbosity, "    " + p.getId()));
                 terminal.println(verbosity, "");
             }
         }

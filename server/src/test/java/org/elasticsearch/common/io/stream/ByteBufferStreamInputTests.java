@@ -12,11 +12,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class ByteBufferStreamInputTests extends AbstractStreamTests {
     @Override
     protected StreamInput getStreamInput(BytesReference bytesReference) throws IOException {
         final BytesRef bytesRef = bytesReference.toBytesRef();
-        return StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        return new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
     }
 }

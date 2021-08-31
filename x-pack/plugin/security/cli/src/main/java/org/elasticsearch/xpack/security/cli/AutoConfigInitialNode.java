@@ -112,8 +112,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             // but still the exit code should indicate that this has not been run
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // preflight checks for the files that are going to be changed
-        // Skipping security auto configuration if configuration files cannot be mutated (ie are read-only)
+        // pre-flight checks for the files that are going to be changed
         final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
         final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
         // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
@@ -460,13 +459,12 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         }
         // Silently skip security auto configuration because the node is configured for multi-node cluster formation (bootstrap or join).
         // Security auto-configuration for the initial node enables transport TLS with newly generated certificates,
-        // which the other cluster nodes don't yet know about.
+        // which the other cluster nodes can't know about and trust
         if (false == DiscoveryModule.isSingleNodeDiscovery(environment.settings()) &&
-                (false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings()).isEmpty() ||
-                        SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.exists(environment.settings()) ||
-                        DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.exists(environment.settings())) &&
                 false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings())
-                        .equals(List.of(Node.NODE_NAME_SETTING.get(environment.settings())))) {
+                        .equals(List.of(Node.NODE_NAME_SETTING.get(environment.settings()))) &&
+                (SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(environment.settings()).isEmpty() == false ||
+                        DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(environment.settings()).isEmpty() == false)) {
             // the node is probably configured to form (join or bootstrap) a multi-node cluster(there's no way to know for sure)
             // in this case security auto-configuration yields
             terminal.println(Terminal.Verbosity.VERBOSE,

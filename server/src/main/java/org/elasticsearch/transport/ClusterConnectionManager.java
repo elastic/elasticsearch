@@ -9,6 +9,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -18,9 +19,12 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -35,14 +39,14 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(ClusterConnectionManager.class);
 
-    private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, ConnectedNodeRefCounter> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
-            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+            Iterator<Map.Entry<DiscoveryNode, ConnectedNodeRefCounter>> iterator = connectedNodes.entrySet().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+                Map.Entry<DiscoveryNode, ConnectedNodeRefCounter> next = iterator.next();
                 try {
                     IOUtils.closeWhileHandlingException(next.getValue());
                 } finally {
@@ -103,7 +107,11 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        if (connectedNodes.containsKey(node)) {
+        ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
+        if (connectedNodeRefCounter != null) {
+            if (connectedNodeRefCounter.isDeleting) {
+                connectedNodeRefCounter.incRef();
+            }
             connectingRefCounter.decRef();
             listener.onResponse(null);
             return;
@@ -129,7 +137,8 @@ public class ClusterConnectionManager implements ConnectionManager {
                 ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
                     try {
-                        if (connectedNodes.putIfAbsent(node, conn) != null) {
+                        ConnectedNodeRefCounter newConnectedNodeRefCounter = new ConnectedNodeRefCounter(node.getName(), conn, node, connectedNodes);
+                        if (connectedNodes.putIfAbsent(node, newConnectedNodeRefCounter) != null) {
                             logger.debug("existing connection to node [{}], closing new redundant connection", node);
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
@@ -140,7 +149,10 @@ public class ClusterConnectionManager implements ConnectionManager {
                                 final Transport.Connection finalConnection = conn;
                                 conn.addCloseListener(ActionListener.wrap(() -> {
                                     logger.trace("unregistering {} after connection close and marking as disconnected", node);
-                                    connectedNodes.remove(node, finalConnection);
+                                    ConnectedNodeRefCounter connectedNodeRefCounter1 = connectedNodes.get(node);
+                                    if (connectedNodeRefCounter1 != null && Objects.equals(connectedNodeRefCounter1.getConnection(), conn)) {
+                                        connectedNodeRefCounter1.decRef();
+                                    }
                                     connectionListener.onNodeDisconnected(node, conn);
                                 }));
                             }
@@ -172,11 +184,11 @@ public class ClusterConnectionManager implements ConnectionManager {
      */
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
-        Transport.Connection connection = connectedNodes.get(node);
-        if (connection == null) {
+        ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
+        if (connectedNodeRefCounter == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
         }
-        return connection;
+        return connectedNodeRefCounter.getConnection();
     }
 
     /**
@@ -192,10 +204,11 @@ public class ClusterConnectionManager implements ConnectionManager {
      */
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
-        Transport.Connection nodeChannels = connectedNodes.remove(node);
-        if (nodeChannels != null) {
+        ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
+        if (connectedNodeRefCounter != null) {
             // if we found it and removed it we close
-            nodeChannels.close();
+            connectedNodeRefCounter.decRef();
+            connectedNodeRefCounter.setIsDeleting(false);
         }
     }
 
@@ -265,6 +278,77 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public ConnectionProfile getConnectionProfile() {
         return defaultProfile;
+    }
+
+    @Override
+    public void setIsDeleting(DiscoveryNode discoveryNode) {
+        connectedNodes.get(discoveryNode).setIsDeleting(true);
+    }
+
+    public static final class ConnectedNodeRefCounter extends AbstractRefCounted implements Closeable {
+
+        private final Transport.Connection connection;
+        private final ConcurrentMap<DiscoveryNode, ConnectedNodeRefCounter> connectedNodes;
+        private final DiscoveryNode node;
+        private volatile boolean isDeleting = false;
+
+        public ConnectedNodeRefCounter(String name, Transport.Connection connection, DiscoveryNode node,
+                                       ConcurrentMap<DiscoveryNode, ConnectedNodeRefCounter> connectedNodes) {
+            super(name);
+            this.connection = connection;
+            this.connectedNodes = connectedNodes;
+            this.node = node;
+            assert connection != null : "connection can't be null";
+        }
+
+        public Transport.Connection getConnection() {
+            return connection;
+        }
+
+        public DiscoveryNode getNode() {
+            return node;
+        }
+
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            connection.sendRequest(requestId, action, request, options);
+        }
+
+        public void addCloseListener(ActionListener<Void> listener) {
+            connection.addCloseListener(listener);
+        }
+
+        public boolean isClosed() {
+            return connection.isClosed();
+        }
+
+        public Version getVersion() {
+            return connection.getVersion();
+        }
+
+        public Object getCacheKey() {
+            return connection;
+        }
+
+        @Override
+        protected void closeInternal() {
+            logger.info("closeInternal, data：[{}], current connection:[{}]", node.getName(), refCount());
+            connectedNodes.remove(node);
+            connection.close();
+        }
+
+        @Override
+        public void close() {
+            closeInternal();
+        }
+
+        public void setIsDeleting(boolean isDeleting) {
+            this.isDeleting = isDeleting;
+        }
+
+        public boolean isDeleting() {
+            return isDeleting;
+        }
     }
 
 }

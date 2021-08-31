@@ -121,6 +121,12 @@ public class StubbableConnectionManager implements ConnectionManager {
         return delegate.getConnectionProfile();
     }
 
+    @Override
+    public void setIsDeleting(DiscoveryNode discoveryNode) {
+        this.delegate.setIsDeleting(discoveryNode);
+    }
+
+
     @FunctionalInterface
     public interface GetConnectionBehavior {
         Transport.Connection getConnection(ConnectionManager connectionManager, DiscoveryNode discoveryNode);

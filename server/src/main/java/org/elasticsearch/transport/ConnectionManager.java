@@ -44,6 +44,8 @@ public interface ConnectionManager extends Closeable {
 
     ConnectionProfile getConnectionProfile();
 
+    void setIsDeleting(DiscoveryNode discoveryNode);
+
     @FunctionalInterface
     interface ConnectionValidator {
         void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);

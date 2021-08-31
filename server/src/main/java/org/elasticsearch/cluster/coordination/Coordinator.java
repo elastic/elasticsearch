@@ -211,6 +211,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
+                transportService.getConnectionManager().setIsDeleting(discoveryNode);
                 masterService.submitStateUpdateTask("node-left",
                     new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),

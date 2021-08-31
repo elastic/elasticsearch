@@ -131,6 +131,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.closeNoBlock();
     }
 
+    @Override
+    public void setIsDeleting(DiscoveryNode discoveryNode) {
+        this.delegate.setIsDeleting(discoveryNode);
+    }
+
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
         this.connectedNodes = CollectionUtils.appendToCopy(this.connectedNodes, addedNode);
     }

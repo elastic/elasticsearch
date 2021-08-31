@@ -1282,8 +1282,8 @@ setup:
 ---
 "Use of missing and missing_bucket in same source":
   - skip:
-      version: " - 7.15.99"
-      reason: missing_bucket has been deprecated and replaced by missing in 7.16
+      version: " - 7.16.0"
+      reason: "`missing_bucket` has been deprecated and replaced by `missing` in 7.16"
   - do:
       catch: "/.*The following fields are not allowed together: \\[missing_bucket, missing\\].*/"
       search:

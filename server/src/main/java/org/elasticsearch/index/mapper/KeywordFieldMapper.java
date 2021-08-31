@@ -452,8 +452,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
-                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    private KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
+                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo,
             builder.script.get() != null, builder.onScriptError.getValue());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;

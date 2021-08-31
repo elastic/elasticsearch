@@ -50,12 +50,12 @@ public class ClusterServiceUtils {
         executor.onNewClusterState("test setting state",
             () -> ClusterState.builder(clusterState).version(clusterState.version() + 1).build(), new ClusterApplyListener() {
                 @Override
-                public void onSuccess(String source) {
+                public void onSuccess() {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     exception.set(e);
                     latch.countDown();
                 }
@@ -150,12 +150,12 @@ public class ClusterServiceUtils {
                 clusterStatePublicationEvent::getNewState,
                 new ClusterApplyListener() {
                     @Override
-                    public void onSuccess(String source) {
+                    public void onSuccess() {
                         publishListener.onResponse(null);
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         publishListener.onFailure(e);
                     }
                 });

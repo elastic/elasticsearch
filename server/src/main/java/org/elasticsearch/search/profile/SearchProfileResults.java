@@ -52,7 +52,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             // Before 8.0.0 we only send the search profile result
             shardResults = in.readMap(
                 StreamInput::readString,
-                i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(in), null)
+                i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(i), null)
             );
         }
     }

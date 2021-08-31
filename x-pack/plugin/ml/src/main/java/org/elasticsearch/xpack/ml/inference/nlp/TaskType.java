@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughCon
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 
 import java.util.Locale;
@@ -24,10 +24,10 @@ public enum TaskType {
             return new NerProcessor(tokenizer, (NerConfig) config);
         }
     },
-    SENTIMENT_ANALYSIS {
+    TEXT_CLASSIFICATION {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new SentimentAnalysisProcessor(tokenizer, (SentimentAnalysisConfig) config);
+            return new TextClassificationProcessor(tokenizer, (TextClassificationConfig) config);
         }
     },
     FILL_MASK {

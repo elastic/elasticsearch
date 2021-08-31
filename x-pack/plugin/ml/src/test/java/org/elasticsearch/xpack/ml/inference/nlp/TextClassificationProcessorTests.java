@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -29,24 +29,25 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class SentimentAnalysisProcessorTests extends ESTestCase {
+public class TextClassificationProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
-        SentimentAnalysisConfig config = new SentimentAnalysisConfig(new VocabularyConfig("test-index", "vocab"), null, null);
-        SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(mock(BertTokenizer.class), config);
+        TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, null, null);
+        TextClassificationProcessor processor = new TextClassificationProcessor(mock(BertTokenizer.class), config);
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{}, 0L, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][] {}, 0L, null);
             InferenceResults inferenceResults = processor.processResult(null, torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
-            assertEquals("Sentiment analysis result has no data",
-                ((WarningInferenceResults) inferenceResults).getWarning());
+            assertEquals("Text classification result has no data", ((WarningInferenceResults) inferenceResults).getWarning());
         }
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][]{{1.0}}, 0L, null);
+            PyTorchResult torchResult = new PyTorchResult("foo", new double[][] { { 1.0 } }, 0L, null);
             InferenceResults inferenceResults = processor.processResult(null, torchResult);
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
-            assertEquals("Expected 2 values in sentiment analysis result",
-                ((WarningInferenceResults)inferenceResults).getWarning());
+            assertEquals(
+                "Expected exactly [2] values in text classification result; got [1]",
+                ((WarningInferenceResults) inferenceResults).getWarning()
+            );
         }
     }
 
@@ -56,8 +57,8 @@ public class SentimentAnalysisProcessorTests extends ESTestCase {
             new BertTokenization(null, null, 512)
         ).build();
 
-        SentimentAnalysisConfig config = new SentimentAnalysisConfig(new VocabularyConfig("test-index", "vocab"), null, null);
-        SentimentAnalysisProcessor processor = new SentimentAnalysisProcessor(tokenizer, config);
+        TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, null, null);
+        TextClassificationProcessor processor = new TextClassificationProcessor(tokenizer, config);
 
         NlpTask.Request request = processor.buildRequest("Elasticsearch fun", "request1");
 
@@ -70,14 +71,30 @@ public class SentimentAnalysisProcessorTests extends ESTestCase {
     }
 
     public void testValidate() {
+        ValidationException validationException = expectThrows(
+            ValidationException.class,
+            () -> new TextClassificationProcessor(
+                mock(BertTokenizer.class),
+                new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, List.of("too few"), null)
+            )
+        );
 
-        SentimentAnalysisConfig config = new SentimentAnalysisConfig(new VocabularyConfig("test-index", "vocab"), null,
-            List.of("too", "many", "class", "labels"));
+        assertThat(
+            validationException.getMessage(),
+            containsString("Text classification requires at least 2 [classification_labels]. Invalid labels [too few]")
+        );
 
-        ValidationException validationException = expectThrows(ValidationException.class,
-            () -> new SentimentAnalysisProcessor(mock(BertTokenizer.class), config));
+        validationException = expectThrows(
+            ValidationException.class,
+            () -> new TextClassificationProcessor(
+                mock(BertTokenizer.class),
+                new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, List.of("class", "labels"), 0)
+            )
+        );
 
-        assertThat(validationException.getMessage(),
-            containsString("Sentiment analysis requires exactly 2 [classification_labels]. Invalid labels [too, many, class, labels]"));
+        assertThat(
+            validationException.getMessage(),
+            containsString("Text classification requires at least 1 [num_top_classes]; provided [0]")
+        );
     }
- }
+}

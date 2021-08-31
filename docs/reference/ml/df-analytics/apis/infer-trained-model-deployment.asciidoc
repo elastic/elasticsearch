@@ -59,8 +59,8 @@ The input text for evaluation.
 [[infer-trained-model-deployment-example]]
 == {api-examples-title}
 
-The response depends on the task the model is trained for. If it is a 
-sentiment analysis task, the response is the score. For example:
+The response depends on the task the model is trained for. If it is a
+text classification task, the response is the score. For example:
 
 [source,console]
 --------------------------------------------------
@@ -77,7 +77,7 @@ The API returns scores in this case, for example:
 ----
 {
   "positive" : 0.9998062667902223,
-  "negative" : 1.9373320977752957E-4	
+  "negative" : 1.9373320977752957E-4
 }
 ----
 // NOTCONSOLE

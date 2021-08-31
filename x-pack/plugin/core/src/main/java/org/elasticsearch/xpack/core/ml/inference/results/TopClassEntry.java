@@ -66,6 +66,10 @@ public class TopClassEntry implements Writeable, ToXContentObject {
     private final double probability;
     private final double score;
 
+    public TopClassEntry(Object classification, double score) {
+        this(classification, score, score);
+    }
+
     public TopClassEntry(Object classification, double probability, double score) {
         this.classification = ExceptionsHelper.requireNonNull(classification, CLASS_NAME);
         this.probability = probability;

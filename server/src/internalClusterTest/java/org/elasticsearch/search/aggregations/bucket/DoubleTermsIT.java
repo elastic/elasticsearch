@@ -122,30 +122,45 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         createIndex("idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < NUM_DOCS; i++) {
-            builders.add(client().prepareIndex("idx").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, (double) i)
-                    .field("num_tag", i < NUM_DOCS/2 + 1 ? 1 : 0) // used to test order by single-bucket sub agg
-                    .field("constant", 1)
-                    .startArray(MULTI_VALUED_FIELD_NAME).value((double) i).value(i + 1d).endArray()
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("idx")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SINGLE_VALUED_FIELD_NAME, (double) i)
+                            .field("num_tag", i < NUM_DOCS / 2 + 1 ? 1 : 0) // used to test order by single-bucket sub agg
+                            .field("constant", 1)
+                            .startArray(MULTI_VALUED_FIELD_NAME)
+                            .value((double) i)
+                            .value(i + 1d)
+                            .endArray()
+                            .endObject()
+                    )
+            );
 
         }
         for (int i = 0; i < 100; i++) {
-            builders.add(client().prepareIndex("high_card_idx").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, (double) i)
-                    .startArray(MULTI_VALUED_FIELD_NAME).value((double)i).value(i + 1d).endArray()
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("high_card_idx")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SINGLE_VALUED_FIELD_NAME, (double) i)
+                            .startArray(MULTI_VALUED_FIELD_NAME)
+                            .value((double) i)
+                            .value(i + 1d)
+                            .endArray()
+                            .endObject()
+                    )
+            );
         }
 
         createIndex("idx_unmapped");
         assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, i*2)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
+            );
         }
 
         getMultiSortDocs(builders);
@@ -201,67 +216,47 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
         assertAcked(prepareCreate("sort_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=double"));
         for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, 1)
-                    .field("l", 1)
-                    .field("d", i)
-                    .endObject()));
-            builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, 2)
-                    .field("l", 2)
-                    .field("d", i)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("sort_idx")
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 1).field("l", 1).field("d", i).endObject())
+            );
+            builders.add(
+                client().prepareIndex("sort_idx")
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 2).field("l", 2).field("d", i).endObject())
+            );
         }
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 3)
-                .field("l", 3)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 3)
-                .field("l", 3)
-                .field("d", 2)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 4)
-                .field("l", 3)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 4)
-                .field("l", 3)
-                .field("d", 3)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 5)
-                .field("l", 5)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 5)
-                .field("l", 5)
-                .field("d", 2)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 6)
-                .field("l", 5)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 7)
-                .field("l", 5)
-                .field("d", 1)
-                .endObject()));
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 1).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 2).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 1).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 3).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 1).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 2).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 6).field("l", 5).field("d", 1).endObject())
+        );
+        builders.add(
+            client().prepareIndex("sort_idx")
+                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 7).field("l", 5).field("d", 1).endObject())
+        );
     }
 
     private String key(Terms.Bucket bucket) {
@@ -270,11 +265,17 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> client()
-                        .prepareSearch("high_card_idx").addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME)
-                                .minDocCount(randomInt(1)).size(0).collectMode(randomFrom(SubAggCollectionMode.values())))
-                        .get());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareSearch("high_card_idx")
+                .addAggregation(
+                    terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .minDocCount(randomInt(1))
+                        .size(0)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                )
+                .get()
+        );
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
@@ -289,8 +290,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
         SearchResponse allResponse = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+            .addAggregation(terms("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
         assertSearchResponse(allResponse);
         Terms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -301,9 +302,13 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         final int numPartitions = randomIntBetween(2, 4);
         Set<Number> foundTerms = new HashSet<>();
         for (int partition = 0; partition < numPartitions; partition++) {
-            SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field(field)
-                    .includeExclude(new IncludeExclude(partition, numPartitions)).collectMode(randomFrom(SubAggCollectionMode.values())))
-                    .get();
+            SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                    terms("terms").field(field)
+                        .includeExclude(new IncludeExclude(partition, numPartitions))
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                )
+                .get();
             assertSearchResponse(response);
             terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
@@ -318,14 +323,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
-                .get();
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -335,7 +340,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (i+1d)));
+            assertThat(key(bucket), equalTo("" + (i + 1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
@@ -343,14 +348,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field(MULTI_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
-                .get();
+            .addAggregation(
+                terms("terms").field(MULTI_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -360,7 +365,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 6; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (i+1d)));
+            assertThat(key(bucket), equalTo("" + (i + 1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1L));
@@ -372,15 +377,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field(MULTI_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script(
-                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "(long) (_value / 1000 + 1)", Collections.emptyMap())))
-                .get();
+            .addAggregation(
+                terms("terms").field(MULTI_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "(long) (_value / 1000 + 1)", Collections.emptyMap()))
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -412,14 +416,19 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     */
 
     public void testScriptSingleValue() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script(ScriptType.INLINE,
-                                    CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].value", Collections.emptyMap())))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .script(
+                        new Script(
+                            ScriptType.INLINE,
+                            CustomScriptPlugin.NAME,
+                            "doc['" + MULTI_VALUED_FIELD_NAME + "'].value",
+                            Collections.emptyMap()
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -438,14 +447,19 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptMultiValued() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']",
-                                    Collections.emptyMap())))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .script(
+                        new Script(
+                            ScriptType.INLINE,
+                            CustomScriptPlugin.NAME,
+                            "doc['" + MULTI_VALUED_FIELD_NAME + "']",
+                            Collections.emptyMap()
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -469,13 +483,10 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+            .addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
 
         assertSearchResponse(response);
-
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -493,14 +504,12 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .format("0000.00"))
-                .get();
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())).format("0000.00")
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -519,17 +528,15 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscWithSubTermsAgg() throws Exception {
         boolean asc = true;
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field(SINGLE_VALUED_FIELD_NAME)
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.aggregation("avg_i", asc))
-                                .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(
-                                        terms("subTerms").field(MULTI_VALUED_FIELD_NAME).collectMode(
-                                                randomFrom(SubAggCollectionMode.values())))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("avg_i", asc))
+                    .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
+                    .subAggregation(terms("subTerms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -541,7 +548,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             Avg avg = bucket.getAggregations().get("avg_i");
@@ -563,13 +570,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("num_tags").field("num_tag").collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.aggregation("filter", asc))
-                                .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))).get();
-
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("num_tags").field("num_tag")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("filter", asc))
+                    .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -599,18 +607,18 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("tags")
-                                .field("num_tag")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.aggregation("filter1>filter2>max", asc))
-                                .subAggregation(
-                                        filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
-                                                filter("filter2", QueryBuilders.matchAllQuery()).subAggregation(
-                                                        max("max").field(SINGLE_VALUED_FIELD_NAME))))).get();
-
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("tags").field("num_tag")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("filter1>filter2>max", asc))
+                    .subAggregation(
+                        filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
+                            filter("filter2", QueryBuilders.matchAllQuery()).subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))
+                        )
+                    )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -657,9 +665,12 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .addAggregation(
-                                terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                        .order(BucketOrder.aggregation("avg_i", true))).get();
+                    .addAggregation(
+                        terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                            .order(BucketOrder.aggregation("avg_i", true))
+                    )
+                    .get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
@@ -673,14 +684,13 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .addAggregation(
-                                terms("terms")
-                                        .field(SINGLE_VALUED_FIELD_NAME)
-                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                        .order(BucketOrder.aggregation("num_tags", true))
-                                        .subAggregation(
-                                                terms("num_tags").field("num_tags").collectMode(randomFrom(SubAggCollectionMode.values()))))
-                        .get();
+                    .addAggregation(
+                        terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                            .order(BucketOrder.aggregation("num_tags", true))
+                            .subAggregation(terms("num_tags").field("num_tags").collectMode(randomFrom(SubAggCollectionMode.values())))
+                    )
+                    .get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
@@ -694,13 +704,18 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .addAggregation(
-                                terms("terms").field(SINGLE_VALUED_FIELD_NAME + "2").collectMode(randomFrom(SubAggCollectionMode.values()))
-                                        .order(BucketOrder.aggregation("stats.foo", true))
-                                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
+                    .addAggregation(
+                        terms("terms").field(SINGLE_VALUED_FIELD_NAME + "2")
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                            .order(BucketOrder.aggregation("stats.foo", true))
+                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .get();
 
-                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                        "with an unknown specified metric to order by");
+                fail(
+                    "Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
+                        + "with an unknown specified metric to order by"
+                );
 
             } catch (ElasticsearchException e) {
                 // expected
@@ -712,13 +727,18 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .addAggregation(
-                                terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                        .order(BucketOrder.aggregation("stats", true))
-                                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
+                    .addAggregation(
+                        terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                            .order(BucketOrder.aggregation("stats", true))
+                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .get();
 
-                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                        "where the metric name is not specified");
+                fail(
+                    "Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
+                        + "where the metric name is not specified"
+                );
 
             } catch (ElasticsearchException e) {
                 // expected
@@ -728,12 +748,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.aggregation("stats.avg", asc))
-                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("stats.avg", asc))
+                    .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -745,7 +767,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
@@ -756,12 +778,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationDesc() throws Exception {
         boolean asc = false;
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.aggregation("stats.avg", asc))
-                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("stats.avg", asc))
+                    .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -773,7 +797,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 4; i >= 0; i--) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
@@ -784,12 +808,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueExtendedStatsAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.aggregation("stats.variance", asc))
-                                .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("stats.variance", asc))
+                    .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -801,7 +827,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
@@ -813,19 +839,23 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testScriptScore() {
         Script scoringScript = new Script(
-            ScriptType.INLINE, CustomScriptPlugin .NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
+            ScriptType.INLINE,
+            CustomScriptPlugin.NAME,
+            "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value",
+            Collections.emptyMap()
+        );
 
         Script aggregationScript = new Script(
-            ScriptType.INLINE, CustomScriptPlugin.NAME, "ceil(_score.doubleValue()/3)", Collections.emptyMap());
+            ScriptType.INLINE,
+            CustomScriptPlugin.NAME,
+            "ceil(_score.doubleValue()/3)",
+            Collections.emptyMap()
+        );
 
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .setQuery(functionScoreQuery(scriptFunction(scoringScript)))
-                .addAggregation(
-                        terms("terms")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(aggregationScript))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setQuery(functionScoreQuery(scriptFunction(scoringScript)))
+            .addAggregation(terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).script(aggregationScript))
+            .get();
 
         assertSearchResponse(response);
 
@@ -837,7 +867,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 3; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(i == 1 ? 3L : 1L));
         }
@@ -870,9 +900,12 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByThreeCriteria() throws Exception {
         double[] expectedKeys = new double[] { 2, 1, 4, 5, 3, 6, 7 };
-        assertMultiSortResponse(expectedKeys, BucketOrder.count(false),
-                BucketOrder.aggregation("sum_d", false),
-                BucketOrder.aggregation("avg_l", false));
+        assertMultiSortResponse(
+            expectedKeys,
+            BucketOrder.count(false),
+            BucketOrder.aggregation("sum_d", false),
+            BucketOrder.aggregation("avg_l", false)
+        );
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
@@ -881,12 +914,15 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     private void assertMultiSortResponse(double[] expectedKeys, BucketOrder... order) {
-        SearchResponse response = client()
-                .prepareSearch("sort_idx")
-                .addAggregation(
-                        terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(BucketOrder.compound(order)).subAggregation(avg("avg_l").field("l"))
-                                .subAggregation(sum("sum_d").field("d"))).get();
+        SearchResponse response = client().prepareSearch("sort_idx")
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(BucketOrder.compound(order))
+                    .subAggregation(avg("avg_l").field("l"))
+                    .subAggregation(sum("sum_d").field("d"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -919,47 +955,132 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=float")
+        assertAcked(
+            prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1.5),
-                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2.5));
+                .get()
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1.5),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2.5)
+        );
 
         // Make sure we are starting with a clear cache
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(0L)
+        );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                terms("terms").field("d").script(
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))).get();
+        SearchResponse r = client().prepareSearch("cache_test_idx")
+            .setSize(0)
+            .addAggregation(
+                terms("terms").field("d")
+                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))
+            )
+            .get();
         assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(0L)
+        );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-            terms("terms").field("d").script(
-                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
+        r = client().prepareSearch("cache_test_idx")
+            .setSize(0)
+            .addAggregation(
+                terms("terms").field("d")
+                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+            )
+            .get();
         assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-            .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-            .getMissCount(), equalTo(1L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(1L)
+        );
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(terms("terms").field("d")).get();
         assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(2L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(2L)
+        );
     }
 }

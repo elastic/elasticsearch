@@ -17,15 +17,18 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class ArrayValuesSourceAggregatorFactory
-    extends AggregatorFactory {
+public abstract class ArrayValuesSourceAggregatorFactory extends AggregatorFactory {
 
     protected Map<String, ValuesSourceConfig> configs;
 
-    public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                              AggregationContext context, AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metadata) throws IOException {
+    public ArrayValuesSourceAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
     }

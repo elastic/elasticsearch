@@ -32,8 +32,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         RangeAggregatorSupplier.class
     );
 
-    public static final ObjectParser<RangeAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
+    public static final ObjectParser<RangeAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
@@ -65,9 +64,11 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         super(in, InternalRange.FACTORY, Range::new);
     }
 
-    protected RangeAggregationBuilder(RangeAggregationBuilder clone,
-                                      AggregatorFactories.Builder factoriesBuilder,
-                                      Map<String, Object> metadata) {
+    protected RangeAggregationBuilder(
+        RangeAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -143,11 +144,13 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        RangeAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected RangeAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
@@ -167,8 +170,18 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
 
-        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory,
-                                          context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new RangeAggregatorFactory(
+            name,
+            config,
+            ranges,
+            keyed,
+            rangeFactory,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

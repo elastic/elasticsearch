@@ -39,13 +39,20 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
         return builder.field(CommonFields.VALUE.getPreferredName(), aggregation());
     }
 
-    private static final ObjectParser<ParsedScriptedMetric, Void> PARSER =
-            new ObjectParser<>(ParsedScriptedMetric.class.getSimpleName(), true, ParsedScriptedMetric::new);
+    private static final ObjectParser<ParsedScriptedMetric, Void> PARSER = new ObjectParser<>(
+        ParsedScriptedMetric.class.getSimpleName(),
+        true,
+        ParsedScriptedMetric::new
+    );
 
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareField((agg, value) -> agg.aggregation = Collections.singletonList(value),
-                ParsedScriptedMetric::parseValue, CommonFields.VALUE, ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            (agg, value) -> agg.aggregation = Collections.singletonList(value),
+            ParsedScriptedMetric::parseValue,
+            CommonFields.VALUE,
+            ValueType.VALUE_OBJECT_ARRAY
+        );
     }
 
     private static Object parseValue(XContentParser parser) throws IOException {
@@ -55,14 +62,14 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
             value = null;
         } else if (token.isValue()) {
             if (token == XContentParser.Token.VALUE_STRING) {
-                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+                // binary values will be parsed back and returned as base64 strings when reading from json and yaml
                 value = parser.text();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 value = parser.numberValue();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 value = parser.booleanValue();
             } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+                // binary values will be parsed back and returned as BytesArray when reading from cbor and smile
                 value = new BytesArray(parser.binaryValue());
             }
         } else if (token == XContentParser.Token.START_OBJECT) {

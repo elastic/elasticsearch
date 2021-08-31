@@ -33,10 +33,18 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     private final int shardSize;
     private final GeoBoundingBox geoBoundingBox;
 
-    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
-                                 int shardSize, GeoBoundingBox geoBoundingBox, AggregationContext context,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+    GeoTileGridAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int precision,
+        int requiredSize,
+        int shardSize,
+        GeoBoundingBox geoBoundingBox,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.precision = precision;
         this.requiredSize = requiredSize;
@@ -66,7 +74,13 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 config.getValuesSource(),
                 precision,
                 geoBoundingBox,
-            requiredSize, shardSize, context, parent, cardinality, metadata);
+                requiredSize,
+                shardSize,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -85,11 +99,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 parent,
                 cardinality,
                 metadata) -> {
-                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(
-                    (ValuesSource.GeoPoint) valuesSource,
-                    precision,
-                    geoBoundingBox
-                );
+                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox);
                 return new GeoTileGridAggregator(
                     name,
                     factories,
@@ -102,6 +112,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     metadata
                 );
             },
-                true);
+            true
+        );
     }
 }

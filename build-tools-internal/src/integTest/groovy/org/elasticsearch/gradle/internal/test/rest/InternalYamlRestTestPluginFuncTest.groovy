@@ -11,13 +11,13 @@ package org.elasticsearch.gradle.internal.test.rest
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-class YamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
+class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest does nothing when there are no tests"() {
         given:
         buildFile << """
         plugins {
-          id 'elasticsearch.yaml-rest-test'
+          id 'elasticsearch.internal-yaml-rest-test'
         }
         """
 
@@ -34,7 +34,7 @@ class YamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.yaml-rest-test'
+            apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"

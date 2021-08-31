@@ -110,7 +110,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         private final boolean enabled;
 
-        public static FieldNamesFieldType of(boolean enabled) {
+        public static FieldNamesFieldType get(boolean enabled) {
             return enabled ? ENABLED : DISABLED;
         }
 
@@ -153,7 +153,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private final Version indexVersionCreated;
 
     private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated) {
-        super(FieldNamesFieldType.of(enabled.value()));
+        super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
         this.indexVersionCreated = indexVersionCreated;
     }

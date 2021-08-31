@@ -12,5 +12,4 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 /**
  * A {@code filter} aggregation. Defines a single bucket that holds all documents that match a specific filter.
  */
-public interface Filter extends SingleBucketAggregation {
-}
+public interface Filter extends SingleBucketAggregation {}

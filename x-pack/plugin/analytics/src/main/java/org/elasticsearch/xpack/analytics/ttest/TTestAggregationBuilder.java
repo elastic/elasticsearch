@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -41,8 +41,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField TAILS_FIELD = new ParseField("tails");
 
-    public static final ObjectParser<TTestAggregationBuilder, String> PARSER =
-        ObjectParser.fromBuilder(NAME, TTestAggregationBuilder::new);
+    public static final ObjectParser<TTestAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, TTestAggregationBuilder::new);
 
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
@@ -64,9 +63,11 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         super(name);
     }
 
-    public TTestAggregationBuilder(TTestAggregationBuilder clone,
-                                   AggregatorFactories.Builder factoriesBuilder,
-                                   Map<String, Object> metadata) {
+    public TTestAggregationBuilder(
+        TTestAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -91,8 +92,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     public TTestAggregationBuilder tails(int tails) {
         if (tails < 1 || tails > 2) {
-            throw new IllegalArgumentException(
-                "[tails] must be 1 or 2. Found [" + tails + "] in [" + name + "]");
+            throw new IllegalArgumentException("[tails] must be 1 or 2. Found [" + tails + "] in [" + name + "]");
         }
         this.tails = tails;
         return this;
@@ -132,7 +132,8 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         Map<String, QueryBuilder> filters,
         DocValueFormat format,
         AggregatorFactory parent,
-        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         QueryBuilder filterA = filters.get(A_FIELD.getPreferredName());
         QueryBuilder filterB = filters.get(B_FIELD.getPreferredName());
         if (filterA == null && filterB == null) {
@@ -140,15 +141,26 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
             FieldContext fieldContextB = configs.get(B_FIELD.getPreferredName()).fieldContext();
             if (fieldContextA != null && fieldContextB != null) {
                 if (fieldContextA.field().equals(fieldContextB.field())) {
-                    throw new IllegalArgumentException("The same field [" + fieldContextA.field() +
-                        "] is used for both population but no filters are specified.");
+                    throw new IllegalArgumentException(
+                        "The same field [" + fieldContextA.field() + "] is used for both population but no filters are specified."
+                    );
                 }
             }
         }
 
-        return new TTestAggregatorFactory(name, configs, testType, tails,
-            filterA, filterB, format, context, parent,
-            subFactoriesBuilder, metadata);
+        return new TTestAggregatorFactory(
+            name,
+            configs,
+            testType,
+            tails,
+            filterA,
+            filterB,
+            format,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override

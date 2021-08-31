@@ -95,15 +95,23 @@ public class LongBoundsTests extends ESTestCase {
         assertNull(parsed.getMin());
         assertEquals(now, (long) parsed.getMax());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", nowInMillis, format));
-        assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
-                e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", nowInMillis, format)
+        );
+        assertEquals(
+            "[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
+            e.getMessage()
+        );
 
-        e = expectThrows(IllegalArgumentException.class,
-                () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", nowInMillis, format));
-        assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
-                e.getMessage());
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", nowInMillis, format)
+        );
+        assertEquals(
+            "[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
+            e.getMessage()
+        );
     }
 
     public void testTransportRoundTrip() throws IOException {

@@ -69,7 +69,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
     private static Double[] firstDerivValueCounts_empty_rnd;
     private static long numDocsEmptyIdx_rnd;
 
-
     private void setupValueCounts() {
         numDocsEmptyIdx = 0L;
         numDocsEmptyIdx_rnd = 0L;
@@ -122,37 +121,36 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
     public void testDocCountDerivative() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(interval);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
+            .interval(interval);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("2nd_deriv", "deriv"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(numValueBuckets));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(numValueBuckets));
 
-                for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
-                    SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-                    if (i > 0) {
-                        assertThat(docCountDeriv, notNullValue());
-                        assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i - 1]));
-                    } else {
-                        assertThat(docCountDeriv, nullValue());
-                    }
-                    SimpleValue docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
-                    if (i > 1) {
-                        assertThat(docCount2ndDeriv, notNullValue());
-                        assertThat(docCount2ndDeriv.value(), equalTo((double) secondDerivValueCounts[i - 2]));
-                    } else {
-                        assertThat(docCount2ndDeriv, nullValue());
-                    }
+            for (int i = 0; i < numValueBuckets; ++i) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
+                SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+                if (i > 0) {
+                    assertThat(docCountDeriv, notNullValue());
+                    assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i - 1]));
+                } else {
+                    assertThat(docCountDeriv, nullValue());
                 }
-            });
+                SimpleValue docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
+                if (i > 1) {
+                    assertThat(docCount2ndDeriv, notNullValue());
+                    assertThat(docCount2ndDeriv.value(), equalTo((double) secondDerivValueCounts[i - 2]));
+                } else {
+                    assertThat(docCount2ndDeriv, nullValue());
+                }
+            }
+        });
     }
 
     /**
@@ -161,489 +159,463 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
     public void testSingleValuedField_normalised() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
+            .interval(interval)
+            .minDocCount(0);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit("1ms"));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("2nd_deriv", "deriv").unit("10ms"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(numValueBuckets));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(numValueBuckets));
 
-                for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
-                    Derivative docCountDeriv = bucket.getAggregations().get("deriv");
-                    if (i > 0) {
-                        assertThat(docCountDeriv, notNullValue());
-                        assertThat(docCountDeriv.value(), closeTo((firstDerivValueCounts[i - 1]), 0.00001));
-                        assertThat(docCountDeriv.normalizedValue(), closeTo((double) (firstDerivValueCounts[i - 1]) / 5, 0.00001));
-                    } else {
-                        assertThat(docCountDeriv, nullValue());
-                    }
-                    Derivative docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
-                    if (i > 1) {
-                        assertThat(docCount2ndDeriv, notNullValue());
-                        assertThat(docCount2ndDeriv.value(), closeTo((secondDerivValueCounts[i - 2]), 0.00001));
-                        assertThat(docCount2ndDeriv.normalizedValue(), closeTo((double) (secondDerivValueCounts[i - 2]) * 2, 0.00001));
-                    } else {
-                        assertThat(docCount2ndDeriv, nullValue());
-                    }
+            for (int i = 0; i < numValueBuckets; ++i) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
+                Derivative docCountDeriv = bucket.getAggregations().get("deriv");
+                if (i > 0) {
+                    assertThat(docCountDeriv, notNullValue());
+                    assertThat(docCountDeriv.value(), closeTo((firstDerivValueCounts[i - 1]), 0.00001));
+                    assertThat(docCountDeriv.normalizedValue(), closeTo((double) (firstDerivValueCounts[i - 1]) / 5, 0.00001));
+                } else {
+                    assertThat(docCountDeriv, nullValue());
                 }
-            });
+                Derivative docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
+                if (i > 1) {
+                    assertThat(docCount2ndDeriv, notNullValue());
+                    assertThat(docCount2ndDeriv.value(), closeTo((secondDerivValueCounts[i - 2]), 0.00001));
+                    assertThat(docCount2ndDeriv.normalizedValue(), closeTo((double) (secondDerivValueCounts[i - 2]) * 2, 0.00001));
+                } else {
+                    assertThat(docCount2ndDeriv, nullValue());
+                }
+            }
+        });
     }
-
 
     public void testSingleValueAggDerivative() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(interval);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
+            .interval(interval);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(numValueBuckets));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(numValueBuckets));
 
-                Object[] propertiesKeys = (Object[]) histogram.getProperty("_key");
-                Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
-                Object[] propertiesSumCounts = (Object[]) histogram.getProperty("sum.value");
+            Object[] propertiesKeys = (Object[]) histogram.getProperty("_key");
+            Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
+            Object[] propertiesSumCounts = (Object[]) histogram.getProperty("sum.value");
 
-                Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
-                // overwritten
-                for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
-                    Sum sum = bucket.getAggregations().get("sum");
-                    assertThat(sum, notNullValue());
-                    long expectedSum = valueCounts[i] * (i * interval);
-                    assertThat(sum.getValue(), equalTo((double) expectedSum));
-                    SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
-                    if (i > 0) {
-                        assertThat(sumDeriv, notNullValue());
-                        long sumDerivValue = expectedSum - expectedSumPreviousBucket;
-                        assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                        assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
-                            AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
-                            equalTo((double) sumDerivValue));
-                    } else {
-                        assertThat(sumDeriv, nullValue());
-                    }
-                    expectedSumPreviousBucket = expectedSum;
-                    assertThat(propertiesKeys[i], equalTo((double) i * interval));
-                    assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
-                    assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
+            Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+            // overwritten
+            for (int i = 0; i < numValueBuckets; ++i) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
+                Sum sum = bucket.getAggregations().get("sum");
+                assertThat(sum, notNullValue());
+                long expectedSum = valueCounts[i] * (i * interval);
+                assertThat(sum.getValue(), equalTo((double) expectedSum));
+                SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+                if (i > 0) {
+                    assertThat(sumDeriv, notNullValue());
+                    long sumDerivValue = expectedSum - expectedSumPreviousBucket;
+                    assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
+                    assertThat(
+                        ((InternalMultiBucketAggregation.InternalBucket) bucket).getProperty(
+                            "histo",
+                            AggregationPath.parse("deriv.value").getPathElementsAsStringList()
+                        ),
+                        equalTo((double) sumDerivValue)
+                    );
+                } else {
+                    assertThat(sumDeriv, nullValue());
                 }
-            });
+                expectedSumPreviousBucket = expectedSum;
+                assertThat(propertiesKeys[i], equalTo((double) i * interval));
+                assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
+                assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
+            }
+        });
     }
 
     public void testMultiValueAggDerivative() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(interval);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
+            .interval(interval);
         aggBuilder.subAggregation(new StatsAggregationBuilder("stats").field(SINGLE_VALUED_FIELD_NAME));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "stats.sum"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(numValueBuckets));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(numValueBuckets));
 
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                Object[] propertiesKeys = (Object[]) histogram.getProperty("_key");
-                Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
-                Object[] propertiesSumCounts = (Object[]) histogram.getProperty("stats.sum");
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            Object[] propertiesKeys = (Object[]) histogram.getProperty("_key");
+            Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
+            Object[] propertiesSumCounts = (Object[]) histogram.getProperty("stats.sum");
 
-                Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
-                // overwritten
-                for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
-                    Stats stats = bucket.getAggregations().get("stats");
-                    assertThat(stats, notNullValue());
-                    long expectedSum = valueCounts[i] * (i * interval);
-                    assertThat(stats.getSum(), equalTo((double) expectedSum));
-                    SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
-                    if (i > 0) {
-                        assertThat(sumDeriv, notNullValue());
-                        long sumDerivValue = expectedSum - expectedSumPreviousBucket;
-                        assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                        assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
-                            AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
-                            equalTo((double) sumDerivValue));
-                    } else {
-                        assertThat(sumDeriv, nullValue());
-                    }
-                    expectedSumPreviousBucket = expectedSum;
-                    assertThat(propertiesKeys[i], equalTo((double) i * interval));
-                    assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
-                    assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
+            Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+            // overwritten
+            for (int i = 0; i < numValueBuckets; ++i) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i * interval, valueCounts[i]);
+                Stats stats = bucket.getAggregations().get("stats");
+                assertThat(stats, notNullValue());
+                long expectedSum = valueCounts[i] * (i * interval);
+                assertThat(stats.getSum(), equalTo((double) expectedSum));
+                SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+                if (i > 0) {
+                    assertThat(sumDeriv, notNullValue());
+                    long sumDerivValue = expectedSum - expectedSumPreviousBucket;
+                    assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
+                    assertThat(
+                        ((InternalMultiBucketAggregation.InternalBucket) bucket).getProperty(
+                            "histo",
+                            AggregationPath.parse("deriv.value").getPathElementsAsStringList()
+                        ),
+                        equalTo((double) sumDerivValue)
+                    );
+                } else {
+                    assertThat(sumDeriv, nullValue());
                 }
-            });
+                expectedSumPreviousBucket = expectedSum;
+                assertThat(propertiesKeys[i], equalTo((double) i * interval));
+                assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
+                assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
+            }
+        });
     }
 
     public void testUnmapped() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(interval);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
+            .interval(interval);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(0));
-            },
-            indexWriter -> {
-                Document document = new Document();
-                indexWriter.addDocument(document);
-                indexWriter.commit();
-            });
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(0));
+        }, indexWriter -> {
+            Document document = new Document();
+            indexWriter.addDocument(document);
+            indexWriter.commit();
+        });
     }
 
     public void testDocCountDerivativeWithGaps() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(1);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(valueCounts_empty.length));
-                assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+            assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
 
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
-                    SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-                    if (firstDerivValueCounts_empty[i] == null) {
-                        assertThat(docCountDeriv, nullValue());
-                    } else {
-                        assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty[i]));
-                    }
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
+                SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+                if (firstDerivValueCounts_empty[i] == null) {
+                    assertThat(docCountDeriv, nullValue());
+                } else {
+                    assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty[i]));
                 }
-            },
-            indexWriter -> {
-                Document document = new Document();
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
-                        document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
-                        indexWriter.addDocument(document);
-                        document.clear();
-                        numDocsEmptyIdx++;
-                    }
+            }
+        }, indexWriter -> {
+            Document document = new Document();
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
+                    document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                    numDocsEmptyIdx++;
                 }
-                indexWriter.commit();
-            });
+            }
+            indexWriter.commit();
+        });
 
     }
 
     public void testDocCountDerivativeWithGaps_random() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME)
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(1)
             .extendedBounds(0L, numBuckets_empty_rnd - 1);
         aggBuilder.subAggregation(
-            new DerivativePipelineAggregationBuilder("deriv", "_count")
-                .gapPolicy(randomFrom(BucketHelpers.GapPolicy.values()))
+            new DerivativePipelineAggregationBuilder("deriv", "_count").gapPolicy(randomFrom(BucketHelpers.GapPolicy.values()))
         );
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
-                assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx_rnd));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
+            assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx_rnd));
 
-                for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
-                    SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-                    if (firstDerivValueCounts_empty_rnd[i] == null) {
-                        assertThat(docCountDeriv, nullValue());
-                    } else {
-                        assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty_rnd[i]));
-                    }
+            for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
+                SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+                if (firstDerivValueCounts_empty_rnd[i] == null) {
+                    assertThat(docCountDeriv, nullValue());
+                } else {
+                    assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty_rnd[i]));
                 }
-            },
-            indexWriter -> {
-                Document document = new Document();
-                for (int i = 0; i < numBuckets_empty_rnd; i++) {
-                    valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
-                    // make approximately half of the buckets empty
-                    if (randomBoolean())
-                        valueCounts_empty_rnd[i] = 0L;
-                    for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-                        document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
-                        indexWriter.addDocument(document);
-                        document.clear();
-                        numDocsEmptyIdx_rnd++;
-                    }
-                    if (i > 0) {
-                        firstDerivValueCounts_empty_rnd[i] = (double) valueCounts_empty_rnd[i] - valueCounts_empty_rnd[i - 1];
-                    }
-                    indexWriter.commit();
+            }
+        }, indexWriter -> {
+            Document document = new Document();
+            for (int i = 0; i < numBuckets_empty_rnd; i++) {
+                valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
+                // make approximately half of the buckets empty
+                if (randomBoolean()) valueCounts_empty_rnd[i] = 0L;
+                for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
+                    document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                    numDocsEmptyIdx_rnd++;
                 }
-            });
+                if (i > 0) {
+                    firstDerivValueCounts_empty_rnd[i] = (double) valueCounts_empty_rnd[i] - valueCounts_empty_rnd[i - 1];
+                }
+                indexWriter.commit();
+            }
+        });
     }
 
     public void testDocCountDerivativeWithGaps_insertZeros() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME)
-            .interval(1);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(
-            new DerivativePipelineAggregationBuilder("deriv", "_count")
-                .gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
+            new DerivativePipelineAggregationBuilder("deriv", "_count").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
         );
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(valueCounts_empty.length));
-                assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+            assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
 
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i + ": ", bucket, i, valueCounts_empty[i]);
-                    SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-                    if (firstDerivValueCounts_empty[i] == null) {
-                        assertThat(docCountDeriv, nullValue());
-                    } else {
-                        assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty[i]));
-                    }
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i + ": ", bucket, i, valueCounts_empty[i]);
+                SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+                if (firstDerivValueCounts_empty[i] == null) {
+                    assertThat(docCountDeriv, nullValue());
+                } else {
+                    assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty[i]));
                 }
-            },
-            indexWriter -> {
-                Document document = new Document();
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
-                        document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
-                        indexWriter.addDocument(document);
-                        document.clear();
-                        numDocsEmptyIdx++;
-                    }
+            }
+        }, indexWriter -> {
+            Document document = new Document();
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
+                    document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                    numDocsEmptyIdx++;
                 }
-                indexWriter.commit();
-            });
+            }
+            indexWriter.commit();
+        });
     }
 
     public void testSingleValueAggDerivativeWithGaps() throws Exception {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(1);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum"));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(valueCounts_empty.length));
-                assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+            assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
 
-                double lastSumValue = Double.NaN;
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
-                    Sum sum = bucket.getAggregations().get("sum");
-                    double thisSumValue = sum.value();
-                    if (bucket.getDocCount() == 0) {
-                        thisSumValue = Double.NaN;
-                    }
-                    SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
-                    if (i == 0) {
-                        assertThat(sumDeriv, nullValue());
+            double lastSumValue = Double.NaN;
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
+                Sum sum = bucket.getAggregations().get("sum");
+                double thisSumValue = sum.value();
+                if (bucket.getDocCount() == 0) {
+                    thisSumValue = Double.NaN;
+                }
+                SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+                if (i == 0) {
+                    assertThat(sumDeriv, nullValue());
+                } else {
+                    double expectedDerivative = thisSumValue - lastSumValue;
+                    if (Double.isNaN(expectedDerivative)) {
+                        assertThat(sumDeriv.value(), equalTo(expectedDerivative));
                     } else {
-                        double expectedDerivative = thisSumValue - lastSumValue;
-                        if (Double.isNaN(expectedDerivative)) {
-                            assertThat(sumDeriv.value(), equalTo(expectedDerivative));
-                        } else {
-                            assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
-                        }
-                    }
-                    lastSumValue = thisSumValue;
-                }
-            },
-            indexWriter -> {
-                Document document = new Document();
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
-                        document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
-                        indexWriter.addDocument(document);
-                        document.clear();
-                        numDocsEmptyIdx++;
+                        assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
                     }
                 }
-                indexWriter.commit();
-            });
+                lastSumValue = thisSumValue;
+            }
+        }, indexWriter -> {
+            Document document = new Document();
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
+                    document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                    numDocsEmptyIdx++;
+                }
+            }
+            indexWriter.commit();
+        });
 
     }
 
     public void testSingleValueAggDerivativeWithGaps_insertZeros() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(1);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
-        aggBuilder.subAggregation(
-            new DerivativePipelineAggregationBuilder("deriv", "sum")
-                    .gapPolicy(GapPolicy.INSERT_ZEROS)
-        );
+        aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum").gapPolicy(GapPolicy.INSERT_ZEROS));
 
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(valueCounts_empty.length));
-                assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+            assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx));
 
-                double lastSumValue = Double.NaN;
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
-                    Sum sum = bucket.getAggregations().get("sum");
-                    double thisSumValue = sum.value();
-                    if (bucket.getDocCount() == 0) {
-                        thisSumValue = 0;
-                    }
-                    SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
-                    if (i == 0) {
-                        assertThat(sumDeriv, nullValue());
-                    } else {
-                        double expectedDerivative = thisSumValue - lastSumValue;
-                        assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
-                    }
-                    lastSumValue = thisSumValue;
+            double lastSumValue = Double.NaN;
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty[i]);
+                Sum sum = bucket.getAggregations().get("sum");
+                double thisSumValue = sum.value();
+                if (bucket.getDocCount() == 0) {
+                    thisSumValue = 0;
                 }
-            },
-            indexWriter -> {
-                Document document = new Document();
-                for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-                    for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
-                        document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
-                        indexWriter.addDocument(document);
-                        document.clear();
-                        numDocsEmptyIdx++;
-                    }
+                SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+                if (i == 0) {
+                    assertThat(sumDeriv, nullValue());
+                } else {
+                    double expectedDerivative = thisSumValue - lastSumValue;
+                    assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
                 }
-                indexWriter.commit();
-            });
+                lastSumValue = thisSumValue;
+            }
+        }, indexWriter -> {
+            Document document = new Document();
+            for (int i = 0; i < valueCounts_empty.length; i++) {
+                if (frequently()) {
+                    indexWriter.commit();
+                }
+                for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
+                    document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                    numDocsEmptyIdx++;
+                }
+            }
+            indexWriter.commit();
+        });
     }
 
     public void testSingleValueAggDerivativeWithGaps_random() throws IOException {
         setupValueCounts();
         BucketHelpers.GapPolicy gapPolicy = randomFrom(GapPolicy.values());
         Query query = new MatchAllDocsQuery();
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(SINGLE_VALUED_FIELD_NAME).interval(1)
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
+            .interval(1)
             .extendedBounds(0L, (long) numBuckets_empty_rnd - 1);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
-        aggBuilder.subAggregation(
-            new DerivativePipelineAggregationBuilder("deriv", "sum").gapPolicy(gapPolicy)
-        );
-        executeTestCase(query, aggBuilder,
-            histogram -> {
-                assertThat(histogram, notNullValue());
-                assertThat(histogram.getName(), equalTo("histo"));
-                List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
-                assertThat(buckets.size(), equalTo(valueCounts_empty_rnd.length));
-                assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx_rnd));
+        aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum").gapPolicy(gapPolicy));
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(histogram, notNullValue());
+            assertThat(histogram.getName(), equalTo("histo"));
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
+            assertThat(buckets.size(), equalTo(valueCounts_empty_rnd.length));
+            assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx_rnd));
 
-                double lastSumValue = Double.NaN;
-                for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
-                    checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
-                    Sum sum = bucket.getAggregations().get("sum");
-                    double thisSumValue = sum.value();
-                    if (bucket.getDocCount() == 0) {
-                        switch (gapPolicy) {
-                            case INSERT_ZEROS:
-                                thisSumValue = 0;
-                                break;
-                            case KEEP_VALUES:
-                                break;
-                            default:
-                                thisSumValue = Double.NaN;
-                        }
+            double lastSumValue = Double.NaN;
+            for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
+                Histogram.Bucket bucket = buckets.get(i);
+                checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
+                Sum sum = bucket.getAggregations().get("sum");
+                double thisSumValue = sum.value();
+                if (bucket.getDocCount() == 0) {
+                    switch (gapPolicy) {
+                        case INSERT_ZEROS:
+                            thisSumValue = 0;
+                            break;
+                        case KEEP_VALUES:
+                            break;
+                        default:
+                            thisSumValue = Double.NaN;
                     }
-                    SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
-                    if (i == 0) {
-                        assertThat(sumDeriv, nullValue());
+                }
+                SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+                if (i == 0) {
+                    assertThat(sumDeriv, nullValue());
+                } else {
+                    double expectedDerivative = thisSumValue - lastSumValue;
+                    if (Double.isNaN(expectedDerivative)) {
+                        assertThat(sumDeriv.value(), equalTo(expectedDerivative));
                     } else {
-                        double expectedDerivative = thisSumValue - lastSumValue;
-                        if (Double.isNaN(expectedDerivative)) {
-                            assertThat(sumDeriv.value(), equalTo(expectedDerivative));
-                        } else {
-                            assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
-                        }
+                        assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
                     }
-                    lastSumValue = thisSumValue;
                 }
-            },
-            indexWriter -> {
-                Document document = new Document();
-                for (int i = 0; i < numBuckets_empty_rnd; i++) {
-                    valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
-                    // make approximately half of the buckets empty
-                    if (randomBoolean())
-                        valueCounts_empty_rnd[i] = 0L;
-                    for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-                        document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
-                        indexWriter.addDocument(document);
-                        document.clear();
-                        numDocsEmptyIdx_rnd++;
-                    }
-                    if (i > 0) {
-                        firstDerivValueCounts_empty_rnd[i] = (double) valueCounts_empty_rnd[i] - valueCounts_empty_rnd[i - 1];
-                    }
-                    indexWriter.commit();
+                lastSumValue = thisSumValue;
+            }
+        }, indexWriter -> {
+            Document document = new Document();
+            for (int i = 0; i < numBuckets_empty_rnd; i++) {
+                valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
+                // make approximately half of the buckets empty
+                if (randomBoolean()) valueCounts_empty_rnd[i] = 0L;
+                for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
+                    document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                    numDocsEmptyIdx_rnd++;
                 }
-            });
+                if (i > 0) {
+                    firstDerivValueCounts_empty_rnd[i] = (double) valueCounts_empty_rnd[i] - valueCounts_empty_rnd[i - 1];
+                }
+                indexWriter.commit();
+            }
+        });
     }
 
     public void testSingleValueAggDerivative_invalidPath() throws IOException {
         try {
             Query query = new MatchAllDocsQuery();
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-                .field(SINGLE_VALUED_FIELD_NAME).interval(1);
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
             aggBuilder.subAggregation(
-                new FiltersAggregationBuilder("filters", QueryBuilders.termQuery("tag", "foo"))
-                    .subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME))
+                new FiltersAggregationBuilder("filters", QueryBuilders.termQuery("tag", "foo")).subAggregation(
+                    new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME)
+                )
             );
             aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
-            aggBuilder.subAggregation(
-                new DerivativePipelineAggregationBuilder("deriv", "filters>get>sum")
-            );
+            aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "filters>get>sum"));
             executeTestCase(query, aggBuilder, history -> {});
             fail("Expected an Exception but didn't get one");
         } catch (Exception e) {
@@ -665,8 +637,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
     public void testDerivDerivNPE() throws IOException {
         try (Directory directory = newDirectory()) {
             Query query = new MatchAllDocsQuery();
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-                .field("tick").interval(1);
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field("tick").interval(1);
             aggBuilder.subAggregation(new AvgAggregationBuilder("avg").field("value"));
             aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv1", "avg"));
             aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv2", "deriv1"));
@@ -702,8 +673,12 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
         return count;
     }
 
-    private void checkBucketKeyAndDocCount(final String msg, final Histogram.Bucket bucket, final long expectedKey,
-                                           final long expectedDocCount) {
+    private void checkBucketKeyAndDocCount(
+        final String msg,
+        final Histogram.Bucket bucket,
+        final long expectedKey,
+        final long expectedDocCount
+    ) {
         assertThat(msg, bucket, notNullValue());
         assertThat(msg + " key", ((Number) bucket.getKey()).longValue(), equalTo(expectedKey));
         assertThat(msg + " docCount", bucket.getDocCount(), equalTo(expectedDocCount));
@@ -723,8 +698,12 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify,
-                                 CheckedConsumer<RandomIndexWriter, IOException> setup) throws IOException {
+    private void executeTestCase(
+        Query query,
+        AggregationBuilder aggBuilder,
+        Consumer<InternalAggregation> verify,
+        CheckedConsumer<RandomIndexWriter, IOException> setup
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 setup.accept(indexWriter);
@@ -734,8 +713,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
-                MappedFieldType valueFieldType
-                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
+                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);
 

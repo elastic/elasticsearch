@@ -9,11 +9,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -76,8 +76,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -150,38 +149,64 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     @Override
     public double metric(String name, long owningBucketOrd) {
         if (valuesSource == null || owningBucketOrd >= counts.size()) {
-            switch(InternalExtendedStats.Metrics.resolve(name)) {
-                case count: return 0;
-                case sum: return 0;
-                case min: return Double.POSITIVE_INFINITY;
-                case max: return Double.NEGATIVE_INFINITY;
-                case avg: return Double.NaN;
-                case sum_of_squares: return 0;
-                case variance: return Double.NaN;
-                case variance_population: return Double.NaN;
-                case variance_sampling: return Double.NaN;
-                case std_deviation: return Double.NaN;
-                case std_deviation_population: return Double.NaN;
-                case std_deviation_sampling: return Double.NaN;
-                case std_upper: return Double.NaN;
-                case std_lower: return Double.NaN;
+            switch (InternalExtendedStats.Metrics.resolve(name)) {
+                case count:
+                    return 0;
+                case sum:
+                    return 0;
+                case min:
+                    return Double.POSITIVE_INFINITY;
+                case max:
+                    return Double.NEGATIVE_INFINITY;
+                case avg:
+                    return Double.NaN;
+                case sum_of_squares:
+                    return 0;
+                case variance:
+                    return Double.NaN;
+                case variance_population:
+                    return Double.NaN;
+                case variance_sampling:
+                    return Double.NaN;
+                case std_deviation:
+                    return Double.NaN;
+                case std_deviation_population:
+                    return Double.NaN;
+                case std_deviation_sampling:
+                    return Double.NaN;
+                case std_upper:
+                    return Double.NaN;
+                case std_lower:
+                    return Double.NaN;
                 default:
                     throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
             }
         }
-        switch(InternalExtendedStats.Metrics.resolve(name)) {
-            case count: return counts.get(owningBucketOrd);
-            case sum: return sums.get(owningBucketOrd);
-            case min: return mins.get(owningBucketOrd);
-            case max: return maxes.get(owningBucketOrd);
-            case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            case sum_of_squares: return sumOfSqrs.get(owningBucketOrd);
-            case variance: return variance(owningBucketOrd);
-            case variance_population: return variancePopulation(owningBucketOrd);
-            case variance_sampling: return varianceSampling(owningBucketOrd);
-            case std_deviation: return Math.sqrt(variance(owningBucketOrd));
-            case std_deviation_population: return Math.sqrt(variance(owningBucketOrd));
-            case std_deviation_sampling: return  Math.sqrt(varianceSampling(owningBucketOrd));
+        switch (InternalExtendedStats.Metrics.resolve(name)) {
+            case count:
+                return counts.get(owningBucketOrd);
+            case sum:
+                return sums.get(owningBucketOrd);
+            case min:
+                return mins.get(owningBucketOrd);
+            case max:
+                return maxes.get(owningBucketOrd);
+            case avg:
+                return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+            case sum_of_squares:
+                return sumOfSqrs.get(owningBucketOrd);
+            case variance:
+                return variance(owningBucketOrd);
+            case variance_population:
+                return variancePopulation(owningBucketOrd);
+            case variance_sampling:
+                return varianceSampling(owningBucketOrd);
+            case std_deviation:
+                return Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_population:
+                return Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_sampling:
+                return Math.sqrt(varianceSampling(owningBucketOrd));
             case std_upper:
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             case std_lower:
@@ -199,14 +224,14 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
         double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        return variance < 0 ? 0 : variance;
     }
 
     private double varianceSampling(long owningBucketOrd) {
         double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
         double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
@@ -214,9 +239,17 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         if (valuesSource == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
-                mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
-                metadata());
+        return new InternalExtendedStats(
+            name,
+            counts.get(bucket),
+            sums.get(bucket),
+            mins.get(bucket),
+            maxes.get(bucket),
+            sumOfSqrs.get(bucket),
+            sigma,
+            format,
+            metadata()
+        );
     }
 
     @Override

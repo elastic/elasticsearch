@@ -24,22 +24,55 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     protected final boolean showTermDocCountError;
 
-    AbstractStringTermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode,
-            boolean showTermDocCountError, Map<String, Object> metadata) throws IOException {
+    AbstractStringTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        SubAggCollectionMode subAggCollectMode,
+        boolean showTermDocCountError,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.showTermDocCountError = showTermDocCountError;
     }
 
     protected StringTerms buildEmptyTermsAggregation() {
-        return new StringTerms(name, order, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0L);
+        return new StringTerms(
+            name,
+            order,
+            order,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata(),
+            format,
+            bucketCountThresholds.getShardSize(),
+            showTermDocCountError,
+            0,
+            emptyList(),
+            0L
+        );
     }
 
-    protected SignificantStringTerms buildEmptySignificantTermsAggregation(long subsetSize, SignificanceHeuristic significanceHeuristic) {
+    protected SignificantStringTerms buildEmptySignificantTermsAggregation(
+        long subsetSize,
+        long supersetSize,
+        SignificanceHeuristic significanceHeuristic
+    ) {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
-        int supersetSize = searcher().getIndexReader().numDocs();
-        return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, subsetSize, supersetSize, significanceHeuristic, emptyList());
+        return new SignificantStringTerms(
+            name,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata(),
+            format,
+            subsetSize,
+            supersetSize,
+            significanceHeuristic,
+            emptyList()
+        );
     }
 }

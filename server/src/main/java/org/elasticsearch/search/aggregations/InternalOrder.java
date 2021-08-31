@@ -113,8 +113,7 @@ public abstract class InternalOrder extends BucketOrder {
                 return false;
             }
             Aggregation other = (Aggregation) obj;
-            return Objects.equals(path, other.path)
-                && Objects.equals(order, other.order);
+            return Objects.equals(path, other.path) && Objects.equals(order, other.order);
         }
     }
 
@@ -187,8 +186,8 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             List<Comparator<T>> comparators = orderElements.stream()
-                    .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
-                    .collect(toList());
+                .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
+                .collect(toList());
             return (lhs, rhs) -> {
                 for (Comparator<T> c : comparators) {
                     int result = c.compare(lhs, rhs);
@@ -314,9 +313,7 @@ public abstract class InternalOrder extends BucketOrder {
                 return false;
             }
             SimpleOrder other = (SimpleOrder) obj;
-            return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(order, other.order);
+            return Objects.equals(id, other.id) && Objects.equals(key, other.key) && Objects.equals(order, other.order);
         }
     }
 
@@ -387,7 +384,8 @@ public abstract class InternalOrder extends BucketOrder {
                 return ((KeyComparable) b1).compareKey(b2);
             }
             throw new IllegalStateException("Unexpected order bucket class [" + b1.getClass() + "]");
-        };    }
+        };
+    }
 
     /**
      * @return compare by {@link Bucket#getKey()} that will be in the bucket once it is reduced
@@ -473,10 +471,14 @@ public abstract class InternalOrder extends BucketOrder {
         public static BucketOrder readOrder(StreamInput in) throws IOException {
             byte id = in.readByte();
             switch (id) {
-                case COUNT_DESC_ID: return COUNT_DESC;
-                case COUNT_ASC_ID: return COUNT_ASC;
-                case KEY_DESC_ID: return KEY_DESC;
-                case KEY_ASC_ID: return KEY_ASC;
+                case COUNT_DESC_ID:
+                    return COUNT_DESC;
+                case COUNT_ASC_ID:
+                    return COUNT_ASC;
+                case KEY_DESC_ID:
+                    return KEY_DESC;
+                case KEY_ASC_ID:
+                    return KEY_ASC;
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
@@ -510,10 +512,14 @@ public abstract class InternalOrder extends BucketOrder {
                     // translate the old histogram order IDs to the new order objects
                     byte id = in.readByte();
                     switch (id) {
-                        case 1: return KEY_ASC;
-                        case 2: return KEY_DESC;
-                        case 3: return COUNT_ASC;
-                        case 4: return COUNT_DESC;
+                        case 1:
+                            return KEY_ASC;
+                        case 2:
+                            return KEY_DESC;
+                        case 3:
+                            return COUNT_ASC;
+                        case 4:
+                            return COUNT_DESC;
                         case 0: // aggregation order stream logic is backwards compatible
                             boolean asc = in.readBoolean();
                             String key = in.readString();
@@ -562,7 +568,7 @@ public abstract class InternalOrder extends BucketOrder {
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
                 order.writeTo(out);
             } else { // backwards compat logic
-                if(bwcOrderFlag) { // need to add flag that determines if order exists
+                if (bwcOrderFlag) { // need to add flag that determines if order exists
                     out.writeBoolean(true); // order always exists
                 }
                 if (order instanceof CompoundOrder) {
@@ -588,7 +594,8 @@ public abstract class InternalOrder extends BucketOrder {
                         case KEY_ASC_ID:
                             id = 1;
                             break;
-                        default: throw new RuntimeException("unknown order id [" + order.id() + "]");
+                        default:
+                            throw new RuntimeException("unknown order id [" + order.id() + "]");
                     }
                     out.writeByte(id);
                 }
@@ -601,8 +608,7 @@ public abstract class InternalOrder extends BucketOrder {
      */
     public static class Parser {
 
-        private static final DeprecationLogger deprecationLogger =
-                DeprecationLogger.getLogger(Parser.class);
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Parser.class);
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
@@ -625,22 +631,23 @@ public abstract class InternalOrder extends BucketOrder {
                     } else if ("desc".equalsIgnoreCase(dir)) {
                         orderAsc = false;
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown order direction [" + dir + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown order direction [" + dir + "]");
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token [" + token + "] for [order]");
+                    throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] for [order]");
                 }
             }
             if (orderKey == null) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Must specify at least one field for [order]");
+                throw new ParsingException(parser.getTokenLocation(), "Must specify at least one field for [order]");
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "aggregation_order_key",
-                    "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
+                deprecationLogger.deprecate(
+                    DeprecationCategory.AGGREGATIONS,
+                    "aggregation_order_key",
+                    "Deprecated aggregation order key [{}] used, replaced by [_key]",
+                    orderKey
+                );
             }
             switch (orderKey) {
                 case "_term":

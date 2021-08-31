@@ -7,20 +7,12 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -35,6 +27,14 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<MultiTermsAggregationBuilder> {
     public static final String NAME = "multi_terms";
@@ -116,7 +116,8 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             REGISTRY_KEY,
             org.elasticsearch.core.List.of(CoreValuesSourceType.NUMERIC),
             MultiTermsAggregator::buildNumericTermValues,
-            false);
+            false
+        );
         registry.register(
             REGISTRY_KEY,
             org.elasticsearch.core.List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
@@ -127,12 +128,14 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             REGISTRY_KEY,
             org.elasticsearch.core.List.of(CoreValuesSourceType.KEYWORD),
             MultiTermsAggregator.StringTermValuesSource::new,
-            false);
+            false
+        );
         registry.register(
             REGISTRY_KEY,
             org.elasticsearch.core.List.of(CoreValuesSourceType.IP),
             MultiTermsAggregator.IPTermValuesSource::new,
-            false);
+            false
+        );
     }
 
     public MultiTermsAggregationBuilder(String name) {

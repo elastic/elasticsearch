@@ -44,11 +44,13 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
         ReduceContext forPartialReduction();
+
         /**
          * Build a {@linkplain ReduceContext} to perform the final reduction.
          */
         ReduceContext forFinalReduction();
     }
+
     public static class ReduceContext {
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
@@ -64,8 +66,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         /**
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
-        public static ReduceContext forPartialReduction(BigArrays bigArrays, ScriptService scriptService,
-                Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
+        public static ReduceContext forPartialReduction(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization
+        ) {
             return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
         }
 
@@ -73,14 +78,28 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * Build a {@linkplain ReduceContext} to perform the final reduction.
          * @param pipelineTreeRoot The root of tree of pipeline aggregations for this request
          */
-        public static ReduceContext forFinalReduction(BigArrays bigArrays, ScriptService scriptService,
-                IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot) {
-            return new ReduceContext(bigArrays, scriptService, multiBucketConsumer,
-                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"), () -> pipelineTreeRoot);
+        public static ReduceContext forFinalReduction(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            IntConsumer multiBucketConsumer,
+            PipelineTree pipelineTreeRoot
+        ) {
+            return new ReduceContext(
+                bigArrays,
+                scriptService,
+                multiBucketConsumer,
+                requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
+                () -> pipelineTreeRoot
+            );
         }
 
-        private ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer,
-                PipelineTree pipelineTreeRoot, Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
+        private ReduceContext(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            IntConsumer multiBucketConsumer,
+            PipelineTree pipelineTreeRoot,
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization
+        ) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
             this.multiBucketConsumer = multiBucketConsumer;
@@ -167,7 +186,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
     }
 
-
     /**
      * Read from a stream.
      */
@@ -184,8 +202,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         out.writeString(name);
         out.writeGenericValue(metadata);
         if (out.getVersion().before(Version.V_7_8_0)) {
-            assert pipelineAggregatorsForBwcSerialization != null :
-                "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
+            assert pipelineAggregatorsForBwcSerialization != null
+                : "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
             out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);
         }
         doWriteTo(out);
@@ -218,7 +236,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
         throw new IllegalStateException(
-                "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
+            "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]"
+        );
     }
 
     /**
@@ -231,7 +250,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * be called after all aggregations have been fully reduced
      */
     public InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelinesForThisAgg) {
+        InternalAggregation reducedAggs,
+        ReduceContext reduceContext,
+        PipelineTree pipelinesForThisAgg
+    ) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelinesForThisAgg.aggregators()) {
             reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
@@ -343,11 +365,12 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj == this) { return true; }
+        if (obj == this) {
+            return true;
+        }
 
         InternalAggregation other = (InternalAggregation) obj;
-        return Objects.equals(name, other.name) &&
-                Objects.equals(metadata, other.metadata);
+        return Objects.equals(name, other.name) && Objects.equals(metadata, other.metadata);
     }
 
     @Override

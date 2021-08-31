@@ -59,6 +59,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         PARSER.declareDouble(HistogramValuesSourceBuilder::interval, Histogram.INTERVAL_FIELD);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
+
     static HistogramValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new HistogramValuesSourceBuilder(name), null);
     }
@@ -97,7 +98,9 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                         );
                     }
                 );
-            }, false);
+            },
+            false
+        );
     }
 
     private double interval = 0;

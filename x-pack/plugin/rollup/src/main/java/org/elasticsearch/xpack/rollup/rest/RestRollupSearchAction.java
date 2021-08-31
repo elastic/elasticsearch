@@ -28,25 +28,34 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRollupSearchAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            RestSearchAction.TYPED_KEYS_PARAM,
-            RestSearchAction.TOTAL_HITS_AS_INT_PARAM)));
+    private static final Set<String> RESPONSE_PARAMS = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM))
+    );
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "_rollup_search"),
-            new Route(POST, "_rollup_search"),
-            new Route(GET, "{index}/_rollup_search"),
-            new Route(POST, "{index}/_rollup_search")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "_rollup_search"),
+                new Route(POST, "_rollup_search"),
+                new Route(GET, "{index}/_rollup_search"),
+                new Route(POST, "{index}/_rollup_search")
+            )
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        restRequest.withContentOrSourceParamParserOrNull(parser ->
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser,
-                    client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size)));
+        restRequest.withContentOrSourceParamParserOrNull(
+            parser -> RestSearchAction.parseSearchRequest(
+                searchRequest,
+                restRequest,
+                parser,
+                client.getNamedWriteableRegistry(),
+                size -> searchRequest.source().size(size)
+            )
+        );
         RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
         return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestToXContentListener<>(channel));
     }

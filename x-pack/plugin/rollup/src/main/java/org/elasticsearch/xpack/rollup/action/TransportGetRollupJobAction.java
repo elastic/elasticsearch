@@ -32,13 +32,24 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobTask, GetRollupJobsAction.Request,
-        GetRollupJobsAction.Response, GetRollupJobsAction.Response> {
+public class TransportGetRollupJobAction extends TransportTasksAction<
+    RollupJobTask,
+    GetRollupJobsAction.Request,
+    GetRollupJobsAction.Response,
+    GetRollupJobsAction.Response> {
 
     @Inject
     public TransportGetRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
-        super(GetRollupJobsAction.NAME, clusterService, transportService, actionFilters, GetRollupJobsAction.Request::new,
-            GetRollupJobsAction.Response::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
+        super(
+            GetRollupJobsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            GetRollupJobsAction.Request::new,
+            GetRollupJobsAction.Response::new,
+            GetRollupJobsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -62,8 +73,12 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
             if (nodes.getMasterNode() == null) {
                 listener.onFailure(new MasterNotDiscoveredException("no known master nodes"));
             } else {
-                transportService.sendRequest(nodes.getMasterNode(), actionName, request,
-                        new ActionListenerResponseHandler<>(listener, GetRollupJobsAction.Response::new));
+                transportService.sendRequest(
+                    nodes.getMasterNode(),
+                    actionName,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, GetRollupJobsAction.Response::new)
+                );
             }
         }
     }
@@ -80,8 +95,8 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
             // persistent tasks and see if at least once has a RollupJob param
             if (request.getId().equals(Metadata.ALL)) {
                 hasRollupJobs = pTasksMeta.tasks()
-                        .stream()
-                        .anyMatch(persistentTask -> persistentTask.getTaskName().equals(RollupField.TASK_NAME));
+                    .stream()
+                    .anyMatch(persistentTask -> persistentTask.getTaskName().equals(RollupField.TASK_NAME));
 
             } else if (pTasksMeta.getTask(request.getId()) != null) {
                 // If we're looking for a single job, we can just check directly
@@ -92,16 +107,22 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
     }
 
     @Override
-    protected void taskOperation(GetRollupJobsAction.Request request, RollupJobTask jobTask,
-                                 ActionListener<GetRollupJobsAction.Response> listener) {
+    protected void taskOperation(
+        GetRollupJobsAction.Request request,
+        RollupJobTask jobTask,
+        ActionListener<GetRollupJobsAction.Response> listener
+    ) {
         List<GetRollupJobsAction.JobWrapper> jobs = Collections.emptyList();
 
         assert jobTask.getConfig().getId().equals(request.getId()) || request.getId().equals(Metadata.ALL);
 
         // Little extra insurance, make sure we only return jobs that aren't cancelled
         if (jobTask.isCancelled() == false) {
-            GetRollupJobsAction.JobWrapper wrapper = new GetRollupJobsAction.JobWrapper(jobTask.getConfig(), jobTask.getStats(),
-                    (RollupJobStatus) jobTask.getStatus());
+            GetRollupJobsAction.JobWrapper wrapper = new GetRollupJobsAction.JobWrapper(
+                jobTask.getConfig(),
+                jobTask.getStats(),
+                (RollupJobStatus) jobTask.getStatus()
+            );
             jobs = Collections.singletonList(wrapper);
         }
 
@@ -109,11 +130,16 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
     }
 
     @Override
-    protected GetRollupJobsAction.Response newResponse(GetRollupJobsAction.Request request, List<GetRollupJobsAction.Response> tasks,
-                                                       List<TaskOperationFailure> taskOperationFailures,
-                                                       List<FailedNodeException> failedNodeExceptions) {
-        List<GetRollupJobsAction.JobWrapper> jobs = tasks.stream().map(GetRollupJobsAction.Response::getJobs)
-                .flatMap(Collection::stream).collect(Collectors.toList());
+    protected GetRollupJobsAction.Response newResponse(
+        GetRollupJobsAction.Request request,
+        List<GetRollupJobsAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
+        List<GetRollupJobsAction.JobWrapper> jobs = tasks.stream()
+            .map(GetRollupJobsAction.Response::getJobs)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
         return new GetRollupJobsAction.Response(jobs, taskOperationFailures, failedNodeExceptions);
     }
 

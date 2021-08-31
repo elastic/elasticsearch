@@ -783,13 +783,6 @@ public class GetActionIT extends ESIntegTestCase {
         index("test", "_doc", "1", doc);
     }
 
-    public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-            () -> client().prepareGet("cluster:index", "_doc", "id").get());
-        assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
-            iae.getMessage());
-    }
-
     private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields) {
         assertGetFieldsAlwaysWorks(index, type, docId, fields, null);
     }

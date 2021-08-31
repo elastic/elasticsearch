@@ -28,8 +28,9 @@ import java.util.Locale;
  * utc. So converting from utc is as simple as adding the offset.
  * <p>
  * Getting from local time back to utc is harder. Most local times happen once.
- * But some local times happen twice. And some don't happen at all. Take, for
- * example, the time in my house. Most days I don't touch my clocks and I'm a
+ * But some local times happen twice (DST overlap).
+ * And some don't happen at all (DST gap).  Take, for example,
+ * the time in my house. Most days I don't touch my clocks and I'm a
  * constant offset from UTC. But once in the fall at 2am I roll my clock back.
  * So at 5am utc my clocks say 1am. Then at 6am utc my clocks say 1am AGAIN.
  * I do similarly terrifying things again in the spring when I skip my clocks
@@ -37,6 +38,8 @@ import java.util.Locale;
  * <p>
  * So there are two methods to convert from local time back to utc,
  * {@link #localToUtc(long, Strategy)} and {@link #localToUtcInThisOffset(long)}.
+ * @see ZoneOffsetTransition#isGap()
+ * @see ZoneOffsetTransition#isOverlap()
  */
 public abstract class LocalTimeOffset {
     /**

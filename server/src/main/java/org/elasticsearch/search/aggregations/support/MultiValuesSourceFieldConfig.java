@@ -9,13 +9,13 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,20 +48,28 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         ObjectParser<Builder, Void> build(boolean scriptable, boolean timezoneAware, boolean filtered, boolean heterogeneous);
     }
 
-    public static final ParserBuilder PARSER
-        = (scriptable, timezoneAware, filtered, heterogeneous) -> {
+    public static final ParserBuilder PARSER = (scriptable, timezoneAware, filtered, heterogeneous) -> {
 
-        ObjectParser<MultiValuesSourceFieldConfig.Builder, Void> parser
-            = new ObjectParser<>(MultiValuesSourceFieldConfig.NAME, MultiValuesSourceFieldConfig.Builder::new);
+        ObjectParser<MultiValuesSourceFieldConfig.Builder, Void> parser = new ObjectParser<>(
+            MultiValuesSourceFieldConfig.NAME,
+            MultiValuesSourceFieldConfig.Builder::new
+        );
 
         parser.declareString(MultiValuesSourceFieldConfig.Builder::setFieldName, ParseField.CommonFields.FIELD);
-        parser.declareField(MultiValuesSourceFieldConfig.Builder::setMissing, XContentParser::objectText,
-            ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
+        parser.declareField(
+            MultiValuesSourceFieldConfig.Builder::setMissing,
+            XContentParser::objectText,
+            ParseField.CommonFields.MISSING,
+            ObjectParser.ValueType.VALUE
+        );
 
         if (scriptable) {
-            parser.declareField(MultiValuesSourceFieldConfig.Builder::setScript,
+            parser.declareField(
+                MultiValuesSourceFieldConfig.Builder::setScript,
                 (p, context) -> Script.parse(p),
-                Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+                Script.SCRIPT_PARSE_FIELD,
+                ObjectParser.ValueType.OBJECT_OR_STRING
+            );
         }
 
         if (timezoneAware) {
@@ -75,23 +83,41 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         }
 
         if (filtered) {
-            parser.declareField(MultiValuesSourceFieldConfig.Builder::setFilter,
+            parser.declareField(
+                MultiValuesSourceFieldConfig.Builder::setFilter,
                 (p, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
-                FILTER, ObjectParser.ValueType.OBJECT);
+                FILTER,
+                ObjectParser.ValueType.OBJECT
+            );
         }
 
         if (heterogeneous) {
-            parser.declareField(MultiValuesSourceFieldConfig.Builder::setUserValueTypeHint,
-                p -> ValueType.lenientParse(p.text()), ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
+            parser.declareField(
+                MultiValuesSourceFieldConfig.Builder::setUserValueTypeHint,
+                p -> ValueType.lenientParse(p.text()),
+                ValueType.VALUE_TYPE,
+                ObjectParser.ValueType.STRING
+            );
 
-            parser.declareField(MultiValuesSourceFieldConfig.Builder::setFormat, XContentParser::text,
-                ParseField.CommonFields.FORMAT, ObjectParser.ValueType.STRING);
+            parser.declareField(
+                MultiValuesSourceFieldConfig.Builder::setFormat,
+                XContentParser::text,
+                ParseField.CommonFields.FORMAT,
+                ObjectParser.ValueType.STRING
+            );
         }
         return parser;
     };
 
-    protected MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, ZoneId timeZone, QueryBuilder filter,
-                                           ValueType userValueTypeHint, String format) {
+    protected MultiValuesSourceFieldConfig(
+        String fieldName,
+        Object missing,
+        Script script,
+        ZoneId timeZone,
+        QueryBuilder filter,
+        ValueType userValueTypeHint,
+        String format
+    ) {
         this.fieldName = fieldName;
         this.missing = missing;
         this.script = script;
@@ -156,7 +182,6 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         return format;
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
@@ -199,7 +224,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             builder.field(FILTER.getPreferredName());
             filter.toXContent(builder, params);
         }
-        if(userValueTypeHint != null) {
+        if (userValueTypeHint != null) {
             builder.field(AggregationBuilder.CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
         }
         if (format != null) {
@@ -303,15 +328,25 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
         public MultiValuesSourceFieldConfig build() {
             if (Strings.isNullOrEmpty(fieldName) && script == null) {
-                throw new IllegalArgumentException("[" +  ParseField.CommonFields.FIELD.getPreferredName()
-                    + "] and [" + Script.SCRIPT_PARSE_FIELD.getPreferredName() + "] cannot both be null.  " +
-                    "Please specify one or the other.");
+                throw new IllegalArgumentException(
+                    "["
+                        + ParseField.CommonFields.FIELD.getPreferredName()
+                        + "] and ["
+                        + Script.SCRIPT_PARSE_FIELD.getPreferredName()
+                        + "] cannot both be null.  "
+                        + "Please specify one or the other."
+                );
             }
 
             if (Strings.isNullOrEmpty(fieldName) == false && script != null) {
-                throw new IllegalArgumentException("[" +  ParseField.CommonFields.FIELD.getPreferredName()
-                    + "] and [" + Script.SCRIPT_PARSE_FIELD.getPreferredName() + "] cannot both be configured.  " +
-                    "Please specify one or the other.");
+                throw new IllegalArgumentException(
+                    "["
+                        + ParseField.CommonFields.FIELD.getPreferredName()
+                        + "] and ["
+                        + Script.SCRIPT_PARSE_FIELD.getPreferredName()
+                        + "] cannot both be configured.  "
+                        + "Please specify one or the other."
+                );
             }
 
             return new MultiValuesSourceFieldConfig(fieldName, missing, script, timeZone, filter, userValueTypeHint, format);

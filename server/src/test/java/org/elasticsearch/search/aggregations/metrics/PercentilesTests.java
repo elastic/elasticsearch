@@ -83,23 +83,25 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
     }
 
     public void testExceptionMultipleMethods() throws IOException {
-        final String illegalAgg = "{\n" +
-            "       \"percentiles\": {\n" +
-            "           \"field\": \"load_time\",\n" +
-            "           \"percents\": [99],\n" +
-            "           \"tdigest\": {\n" +
-            "               \"compression\": 200\n" +
-            "           },\n" +
-            "           \"hdr\": {\n" +
-            "               \"number_of_significant_value_digits\": 3\n" +
-            "           }\n" +
-            "   }\n" +
-            "}";
+        final String illegalAgg = "{\n"
+            + "       \"percentiles\": {\n"
+            + "           \"field\": \"load_time\",\n"
+            + "           \"percents\": [99],\n"
+            + "           \"tdigest\": {\n"
+            + "               \"compression\": 200\n"
+            + "           },\n"
+            + "           \"hdr\": {\n"
+            + "               \"number_of_significant_value_digits\": 3\n"
+            + "           }\n"
+            + "   }\n"
+            + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, illegalAgg);
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        XContentParseException e = expectThrows(XContentParseException.class,
-                () -> PercentilesAggregationBuilder.parse("myPercentiles", parser));
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> PercentilesAggregationBuilder.parse("myPercentiles", parser)
+        );
         assertThat(e.getMessage(), containsString("[percentiles] failed to parse field [hdr]"));
     }
 }

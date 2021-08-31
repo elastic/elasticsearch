@@ -60,8 +60,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 // TODO: Is this the correct exception type here?
-                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
 
             ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
@@ -73,8 +74,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             Number missing;
             if (rawMissing instanceof Number) {
                 missing = (Number) rawMissing;
@@ -128,8 +133,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             final BytesRef missing = docValueFormat.parseBytesRef(rawMissing.toString());
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
                 return MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) valuesSource, missing);
@@ -153,16 +162,21 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
             if ((fieldContext.indexFieldData() instanceof IndexGeoPointFieldData) == false) {
                 // TODO: Is this the correct exception type here?
-                throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
 
             return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             // TODO: also support the structured formats of geo points
             final GeoPoint missing = new GeoPoint(rawMissing.toString());
             return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
@@ -198,8 +212,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
@@ -220,8 +238,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             return KEYWORD.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
@@ -253,8 +275,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         private ValuesSource.Numeric fieldData(FieldContext fieldContext, AggregationContext context) {
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
-                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
             if (fieldContext.fieldType() instanceof DateFieldType == false) {
                 return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
@@ -274,7 +297,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                      * The range of dates, min first, then max. This is an array so we can
                      * write to it inside the QueryVisitor below.
                      */
-                    long[] range = new long[] {Long.MIN_VALUE, Long.MAX_VALUE};
+                    long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
                     if (fieldContext.fieldType().isSearchable()) {
@@ -330,19 +353,24 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
-            return  new DocValueFormat.DateTime(
+            return new DocValueFormat.DateTime(
                 format == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format),
                 tz == null ? ZoneOffset.UTC : tz,
                 // If we were just looking at fields, we could read the resolution from the field settings, but we need to deal with script
-                // output, which has no way to indicate the resolution, so we need to default to something.  Milliseconds is the standard.
-                DateFieldMapper.Resolution.MILLISECONDS);
+                // output, which has no way to indicate the resolution, so we need to default to something. Milliseconds is the standard.
+                DateFieldMapper.Resolution.MILLISECONDS
+            );
         }
     },
     BOOLEAN() {
@@ -362,8 +390,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
@@ -371,8 +403,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return DocValueFormat.BOOLEAN;
         }
-    }
-    ;
+    };
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

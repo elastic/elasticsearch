@@ -26,8 +26,9 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(Route.builder(GET, "/_rollup/data/{id}")
-            .replaces(GET, "/_xpack/rollup/data/{id}/", RestApiVersion.V_7).build());
+        return singletonList(
+            Route.builder(GET, "/_rollup/data/{id}").replaces(GET, "/_xpack/rollup/data/{id}/", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -432,12 +432,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> newState, new ClusterApplyListener() {
             @Override
-            public void onSuccess(String source) {
+            public void onSuccess() {
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
                 throw new AssertionError("Expected a proper response", e);
             }

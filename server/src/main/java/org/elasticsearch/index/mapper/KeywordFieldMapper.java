@@ -124,7 +124,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false).setValidator(v -> {
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false).addValidator(v -> {
                 if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
@@ -452,8 +452,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
-                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    private KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
+                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo,
             builder.script.get() != null, builder.onScriptError.getValue());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;

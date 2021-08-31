@@ -99,13 +99,13 @@ public interface NamedGroupExtractor {
                     try {
                         // Try to collect warnings up front and refuse to compile the expression if there are any
                         List<String> warnings = new ArrayList<>();
-                        new Grok(Grok.BUILTIN_PATTERNS, pattern, watchdog, warnings::add).match("__nomatch__");
+                        new Grok(Grok.getBuiltinPatterns(false), pattern, watchdog, warnings::add).match("__nomatch__");
                         if (false == warnings.isEmpty()) {
                             throw new IllegalArgumentException("emitted warnings: " + warnings);
                         }
 
                         return new Grok(
-                            Grok.BUILTIN_PATTERNS,
+                            Grok.getBuiltinPatterns(false),
                             pattern,
                             watchdog,
                             w -> { throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w); }

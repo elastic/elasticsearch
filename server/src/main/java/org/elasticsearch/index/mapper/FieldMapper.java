@@ -691,10 +691,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public Consumer<T> getValidator() {
-            return this.validator;
-        }
-
         /**
          * Configure a custom serializer for this parameter
          */

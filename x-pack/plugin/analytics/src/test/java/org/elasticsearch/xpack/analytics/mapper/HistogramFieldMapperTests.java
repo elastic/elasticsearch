@@ -317,8 +317,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
     }
 
-    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
-        throws IOException {
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_metric", metricType);

@@ -28,7 +28,7 @@ import static java.util.stream.Collectors.toList;
 public class FetchProfiler implements FetchPhase.Profiler {
     private FetchProfileBreakdown current;
 
-    private long nanoTime() {
+    long nanoTime() {
         return System.nanoTime();
     }
 

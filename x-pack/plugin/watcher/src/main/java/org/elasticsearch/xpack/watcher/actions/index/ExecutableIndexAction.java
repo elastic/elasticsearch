@@ -159,7 +159,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 }
                 builder.endArray();
 
-                return new IndexAction.Simulated("", "",
+                return new IndexAction.Simulated("", "", "",
                     action.refreshPolicy, new XContentSource(BytesReference.bytes(builder), XContentType.JSON));
             }
         }

@@ -7,7 +7,7 @@ This document provides a general guidelines for using and working on the elastic
 
 ## Build logic organisation
 
-The elasticsearch project contains 3 build related projects that are included into the elasticsearch build as a [composite build](https://docs.gradle.org/current/userguide/composite_builds.html).
+The Elasticsearch project contains 3 build-related projects that are included into the Elasticsearch build as a [composite build](https://docs.gradle.org/current/userguide/composite_builds.html).
 
 ### `build-conventions`
 

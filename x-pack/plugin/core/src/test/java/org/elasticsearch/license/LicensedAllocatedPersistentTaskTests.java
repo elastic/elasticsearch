@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
 
@@ -29,6 +30,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
             new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID,
                 org.elasticsearch.core.Map.of(), feature, "context", licenseState);
         PersistentTasksService service = mock(PersistentTasksService.class);
+        when(service.isLocalAbortSupported()).thenReturn(true);
         TaskManager taskManager = mock(TaskManager.class);
         task.init(service, taskManager, "id", 0);
         verify(licenseState, times(1)).enableUsageTracking(feature, "context");

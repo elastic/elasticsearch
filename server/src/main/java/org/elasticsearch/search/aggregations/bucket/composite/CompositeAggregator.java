@@ -74,7 +74,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     private final CompositeValuesSourceConfig[] sourceConfigs;
     private final SingleDimensionValuesSource<?>[] sources;
     private final CompositeValuesCollectorQueue queue;
-    private final DateHistogramValuesSource innerSizedBucketAggregator;
+    private final DateHistogramValuesSource[] innerSizedBucketAggregators;
 
     private final List<Entry> entries = new ArrayList<>();
     private LeafReaderContext currentLeaf;
@@ -115,7 +115,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             );
         }
         this.sourceConfigs = sourceConfigs;
-        DateHistogramValuesSource firstDateHistogramValueSource = null;
+        List<DateHistogramValuesSource> dateHistogramValuesSources = new ArrayList<>();
         for (int i = 0; i < sourceConfigs.length; i++) {
             this.sources[i] = sourceConfigs[i].createValuesSource(
                 context.bigArrays(),
@@ -123,11 +123,11 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 size,
                 this::addRequestCircuitBreakerBytes
             );
-            if (firstDateHistogramValueSource == null && this.sources[i] instanceof DateHistogramValuesSource) {
-                firstDateHistogramValueSource = (DateHistogramValuesSource) this.sources[i];
+            if (this.sources[i] instanceof DateHistogramValuesSource) {
+                dateHistogramValuesSources.add((DateHistogramValuesSource) this.sources[i]);
             }
         }
-        this.innerSizedBucketAggregator = firstDateHistogramValueSource;
+        this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
         if (rawAfterKey != null) {
             try {
@@ -558,22 +558,26 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     @Override
     public double bucketSize(long bucket, Rounding.DateTimeUnit unit) {
-        if (innerSizedBucketAggregator == null) {
+        if (innerSizedBucketAggregators.length != 1) {
             throw new AggregationExecutionException(
-                "aggregation [" + name() + "] does not have a date_histogram value source; one is required to calculate the bucket size"
+                "aggregation ["
+                    + name()
+                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
             );
         }
-        return innerSizedBucketAggregator.bucketSize(bucket, unit);
+        return innerSizedBucketAggregators[0].bucketSize(bucket, unit);
     }
 
     @Override
     public double bucketSize(Rounding.DateTimeUnit unit) {
-        if (innerSizedBucketAggregator == null) {
+        if (innerSizedBucketAggregators.length != 1) {
             throw new AggregationExecutionException(
-                "aggregation [" + name() + "] does not have a date_histogram value source; one is required to calculate the bucket size"
+                "aggregation ["
+                    + name()
+                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
             );
         }
-        return innerSizedBucketAggregator.bucketSize(unit);
+        return innerSizedBucketAggregators[0].bucketSize(unit);
     }
 
     private static class Entry {

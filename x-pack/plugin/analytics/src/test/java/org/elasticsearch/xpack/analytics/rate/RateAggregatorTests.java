@@ -301,9 +301,13 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("day");
-        List<CompositeValuesSourceBuilder<?>> valuesSourceBuilders = Collections.singletonList(
-            new HistogramValuesSourceBuilder("histo").field("val")
-        );
+        List<CompositeValuesSourceBuilder<?>> valuesSourceBuilders = randomBoolean()
+            ? Collections.singletonList(new HistogramValuesSourceBuilder("histo").field("val"))
+            : Arrays.asList(
+                new DateHistogramValuesSourceBuilder("my_date").field(DATE_FIELD).calendarInterval(new DateHistogramInterval("month")),
+                new DateHistogramValuesSourceBuilder("my_date2").field(DATE_FIELD).calendarInterval(new DateHistogramInterval("month")),
+                new HistogramValuesSourceBuilder("histo").field("val")
+            );
 
         CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder("my_buckets", valuesSourceBuilders)
             .subAggregation(rateAggregationBuilder);
@@ -317,7 +321,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         );
         assertEquals(
             ex.getMessage(),
-            "aggregation [my_buckets] does not have a date_histogram value source; one is required to calculate the bucket size"
+            "aggregation [my_buckets] does not have exactly one date_histogram value source; "
+                + "exactly one is required when using with rate aggregation"
         );
     }
 

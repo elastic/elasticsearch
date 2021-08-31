@@ -109,7 +109,7 @@ public class ClusterConnectionManager implements ConnectionManager {
 
         ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
         if (connectedNodeRefCounter != null) {
-            if (connectedNodeRefCounter.isDeleting) {
+            if (connectedNodeRefCounter.isDeleting()) {
                 connectedNodeRefCounter.incRef();
             }
             connectingRefCounter.decRef();

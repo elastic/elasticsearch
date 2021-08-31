@@ -193,8 +193,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     Settings settings = descriptor.getSettings();
                     String aliasName = descriptor.getAliasName();
 
+                    // if we are writing to the alias name, we should create the primary index here
+                    String targetIndex = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
+
                     CreateIndexClusterStateUpdateRequest updateRequest =
-                        new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), targetIndex, request.index())
                             .ackTimeout(request.timeout())
                             .masterNodeTimeout(request.masterNodeTimeout());
 

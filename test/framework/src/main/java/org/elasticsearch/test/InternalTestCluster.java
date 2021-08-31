@@ -1119,6 +1119,16 @@ public final class InternalTestCluster extends TestCluster {
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
         try {
+            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
+            ClusterServiceUtils.awaitClusterState(
+                logger,
+                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
+                getInstance(ClusterService.class)
+            );
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values().stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
@@ -2273,16 +2283,6 @@ public final class InternalTestCluster extends TestCluster {
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
-
-                try {
-                    assertBusy(() -> {
-                        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                        assertThat("Accounting breaker not reset to 0 on node: " + name + ", are there still Lucene indices around?",
-                            acctBreaker.getUsed(), equalTo(0L));
-                    });
-                } catch (Exception e) {
-                    throw new AssertionError("Exception during check for accounting breaker reset to 0", e);
-                }
 
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of

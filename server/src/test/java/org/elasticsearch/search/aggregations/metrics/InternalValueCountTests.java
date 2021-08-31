@@ -39,26 +39,26 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
         long value = instance.getValue();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(value)) {
-                value += between(1, 100);
-            } else {
-                value = between(1, 100);
-            }
-            break;
-        case 2:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(value)) {
+                    value += between(1, 100);
+                } else {
+                    value = between(1, 100);
+                }
+                break;
+            case 2:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalValueCount(name, value, metadata);
     }

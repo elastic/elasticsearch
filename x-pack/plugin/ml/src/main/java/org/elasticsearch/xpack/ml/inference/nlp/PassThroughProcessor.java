@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 /**
  * A NLP processor that directly returns the PyTorch result
@@ -18,10 +20,10 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
  */
 public class PassThroughProcessor implements NlpTask.Processor {
 
-    private final BertRequestBuilder bertRequestBuilder;
+    private final NlpTask.RequestBuilder requestBuilder;
 
-    PassThroughProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
+    PassThroughProcessor(NlpTokenizer tokenizer, BertPassThroughConfig config) {
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     @Override
@@ -31,15 +33,15 @@ public class PassThroughProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return bertRequestBuilder;
+        return requestBuilder;
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return this::processResult;
+        return PassThroughProcessor::processResult;
     }
 
-    private InferenceResults processResult(PyTorchResult pyTorchResult) {
+    private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
         return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
     }
 }

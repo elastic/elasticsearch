@@ -35,8 +35,9 @@ The API returns the following response:
 }
 --------------------------------------------------
 
-The "complete" flag is false if time or space constraints were met and the
-set of terms examined was not the full set of available values.
+If the `complete` flag is `false`, the returned `terms` set may be incomplete
+and should be treated as approximate. This can occur due to a few reasons, such
+as a request timeout or a node error.
 
 [[search-terms-enum-api-request]]
 ==== {api-request-title}
@@ -97,9 +98,8 @@ Defaults to false.
 query rewrites to `match_none`.
 
 [[terms-enum-search_after-param]]
-`string`::
+`search_after`::
 (Optional, string)
 The string after which terms in the index should be returned. Allows for a form of
-pagination if the last result from one request is passed as the search_after
+pagination if the last result from one request is passed as the `search_after`
 parameter for a subsequent request.
-

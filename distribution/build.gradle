@@ -9,10 +9,10 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoTask
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
@@ -35,12 +35,15 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
-  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
-
+  target = new File(providers.systemProperty('csv')
+                      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
+                      .forUseAtConfigurationTime()
+                      .get()
+  )
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
   String jdkMajorVersion = jdkVersion.split('[+.]')[0]
-  String sourceUrl = "https://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  String sourceUrl = "https://github.com/openjdk/jdk${jdkMajorVersion}u/archive/refs/tags/jdk-${jdkVersion}.tar.gz"
   additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 
   // Explicitly add the dependency on the RHEL UBI Docker base image
@@ -66,10 +69,6 @@ def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", Notice
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-def buildDefaultNoJdkNoticeTaskProvider = tasks.register("buildDefaultNoJdkNotice", NoticeTask)
-
-def buildOssNoJdkNoticeTaskProvider = tasks.register("buildOssNoJdkNotice", NoticeTask)
-
 // The :server and :libs projects belong to all distributions
 tasks.withType(NoticeTask).configureEach {
   licensesDir project(':server').file('licenses')
@@ -83,7 +82,6 @@ tasks.withType(NoticeTask).configureEach {
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
-String ossOutputs = 'build/outputs/oss'
 String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
@@ -351,20 +349,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from buildTransportModulesTaskProvider
     }
 
-    configFiles = { distributionType, testDistro, jdk ->
+    configFiles = { distributionType, isTestDistro ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
+          filter("tokens" : expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
         from defaultConfigFiles
       }
     }
 
-    binFiles = { distributionType, testDistro, jdk ->
+    binFiles = { distributionType, testDistro ->
       copySpec {
         // non-windows files, for all distributions
         with copySpec {
@@ -372,7 +370,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -380,7 +378,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
+            filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -400,16 +398,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = { testDistro, jdk ->
+    noticeFile = { testDistro ->
       copySpec {
         if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-         if (jdk) {
-            from buildDefaultNoticeTaskProvider
-          } else {
-            from buildDefaultNoJdkNoticeTaskProvider
-          }
+          from buildDefaultNoticeTaskProvider
         }
       }
     }
@@ -463,14 +457,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, testDistro, jdk ->
+  ext.expansionsForDistribution = { distributionType, isTestDistro ->
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
     final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
-    if (testDistro) {
+    if (isTestDistro) {
       licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
@@ -483,6 +477,7 @@ subprojects {
     Map<String, Object> expansions = [
       'project.name': project.name,
       'project.version': version,
+      'project.minor.version': "${VersionProperties.elasticsearchVersion.major}.${VersionProperties.elasticsearchVersion.minor}",
 
       'path.conf': [
         'deb': '/etc/elasticsearch',
@@ -537,7 +532,7 @@ subprojects {
       ],
 
       'es.distribution.flavor': [
-        'def': testDistro ? 'oss' : 'default'
+        'def': 'default'
       ],
 
       'es.distribution.type': [
@@ -548,11 +543,11 @@ subprojects {
       ],
 
       'es.bundled_jdk': [
-        'def': jdk ? 'true' : 'false'
+        'def': 'true'
       ],
 
       'license.name': [
-        'deb': testDistro ? 'ASL-2.0' : 'Elastic-License'
+        'deb': 'Elastic-License'
       ],
 
       'license.text': [

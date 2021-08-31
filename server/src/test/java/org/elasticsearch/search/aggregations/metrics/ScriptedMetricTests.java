@@ -45,7 +45,11 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
         } else {
             ScriptType type = randomFrom(ScriptType.values());
             return new Script(
-                type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), script, Collections.emptyMap());
+                type,
+                type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG),
+                script,
+                Collections.emptyMap()
+            );
         }
     }
 

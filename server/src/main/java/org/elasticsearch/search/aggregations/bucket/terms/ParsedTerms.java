@@ -9,11 +9,11 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -32,7 +32,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
     protected long sumOtherDocCount;
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountErrorUpperBound;
     }
 
@@ -68,13 +68,16 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
         return builder;
     }
 
-    static void declareParsedTermsFields(final ObjectParser<? extends ParsedTerms, Void> objectParser,
-                                         final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser) {
-        declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
-        objectParser.declareLong((parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value ,
-                DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME);
-        objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value,
-                SUM_OF_OTHER_DOC_COUNTS);
+    static void declareParsedTermsFields(
+        final ObjectParser<? extends ParsedTerms, Void> objectParser,
+        final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser
+    ) {
+        declareMultiBucketAggregationFields(objectParser, bucketParser, bucketParser);
+        objectParser.declareLong(
+            (parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value,
+            DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME
+        );
+        objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value, SUM_OF_OTHER_DOC_COUNTS);
     }
 
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Terms.Bucket {
@@ -100,10 +103,11 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
             return builder;
         }
 
-
-        static <B extends ParsedBucket> B parseTermsBucketXContent(final XContentParser parser, final Supplier<B> bucketSupplier,
-                                                                   final CheckedBiConsumer<XContentParser, B, IOException> keyConsumer)
-                throws IOException {
+        static <B extends ParsedBucket> B parseTermsBucketXContent(
+            final XContentParser parser,
+            final Supplier<B> bucketSupplier,
+            final CheckedBiConsumer<XContentParser, B, IOException> keyConsumer
+        ) throws IOException {
 
             final B bucket = bucketSupplier.get();
             final List<Aggregation> aggregations = new ArrayList<>();
@@ -125,8 +129,12 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
                         bucket.showDocCountError = true;
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

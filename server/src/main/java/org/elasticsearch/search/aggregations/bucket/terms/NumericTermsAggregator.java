@@ -12,9 +12,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -64,8 +64,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         IncludeExclude.LongFilter longFilter,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
-    )
-        throws IOException {
+    ) throws IOException {
         super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
@@ -178,8 +177,7 @@ public class NumericTermsAggregator extends TermsAggregator {
 
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx],
-                    topBucketsPerOrd[ordIdx]);
+                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
             }
             return result;
         }
@@ -372,7 +370,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                null
             );
         }
 
@@ -390,7 +388,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
@@ -454,7 +452,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                null
             );
         }
 
@@ -472,7 +470,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
@@ -573,8 +571,6 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         SignificantLongTerms buildEmptyResult() {
-            // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            int supersetSize = searcher().getIndexReader().numDocs();
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),
@@ -593,6 +589,5 @@ public class NumericTermsAggregator extends TermsAggregator {
             Releasables.close(backgroundFrequencies, subsetSizes);
         }
     }
-
 
 }

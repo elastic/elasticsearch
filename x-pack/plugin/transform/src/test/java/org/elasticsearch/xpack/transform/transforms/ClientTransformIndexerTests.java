@@ -21,10 +21,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +53,6 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -84,7 +86,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(Client.class),
             mock(TransformIndexerStats.class),
             mock(TransformConfig.class),
-            Collections.emptyMap(),
             null,
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
@@ -142,7 +143,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 client,
                 mock(TransformIndexerStats.class),
                 config,
-                Collections.emptyMap(),
                 null,
                 new TransformCheckpoint(
                     "transform",
@@ -196,6 +196,29 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
             indexer.onStop();
             assertEquals(0L, client.getPitContextCounter());
+
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
+            );
+
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> { assertEquals("the_pit_id++", response.pointInTimeId()); }
+            );
+
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> { assertEquals("the_pit_id+++", response.pointInTimeId()); }
+            );
+
+            assertEquals(1L, client.getPitContextCounter());
+
+            // throws search context missing:
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> { assertNull(response.pointInTimeId()); }
+            );
         }
     }
 
@@ -217,7 +240,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 client,
                 mock(TransformIndexerStats.class),
                 config,
-                Collections.emptyMap(),
                 null,
                 new TransformCheckpoint(
                     "transform",
@@ -285,7 +307,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
             Client client,
             TransformIndexerStats initialStats,
             TransformConfig transformConfig,
-            Map<String, String> fieldMappings,
             TransformProgress transformProgress,
             TransformCheckpoint lastCheckpoint,
             TransformCheckpoint nextCheckpoint,
@@ -302,7 +323,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 client,
                 initialStats,
                 transformConfig,
-                fieldMappings,
                 transformProgress,
                 lastCheckpoint,
                 nextCheckpoint,
@@ -313,8 +333,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest() {
-            return new SearchRequest().source(new SearchSourceBuilder());
+        protected Tuple<String, SearchRequest> buildSearchRequest() {
+            return new Tuple<>("mock", new SearchRequest().source(new SearchSourceBuilder()));
         }
     }
 
@@ -356,28 +376,35 @@ public class ClientTransformIndexerTests extends ESTestCase {
             } else if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
 
-                SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                        // Simulate completely null aggs
+                // throw search context missing for the 4th run
+                if (searchRequest.pointInTimeBuilder() != null
+                    && "the_pit_id+++".equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
+                    listener.onFailure(new SearchContextMissingException(new ShardSearchContextId("sc_missing", 42)));
+                } else {
+                    SearchResponse response = new SearchResponse(
+                        new InternalSearchResponse(
+                            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                            // Simulate completely null aggs
+                            null,
+                            new Suggest(Collections.emptyList()),
+                            new SearchProfileShardResults(Collections.emptyMap()),
+                            false,
+                            false,
+                            1
+                        ),
                         null,
-                        new Suggest(Collections.emptyList()),
-                        new SearchProfileShardResults(Collections.emptyMap()),
-                        false,
-                        false,
-                        1
-                    ),
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY,
-                    // copy the pit from the request
-                    searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
-                );
-                listener.onResponse((Response) response);
+                        1,
+                        1,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY,
+                        // copy the pit from the request
+                        searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
+                    );
+                    listener.onResponse((Response) response);
+
+                }
                 return;
             }
 
@@ -392,7 +419,10 @@ public class ClientTransformIndexerTests extends ESTestCase {
         LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }, e -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+            fail("got unexpected exception: " + e);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));

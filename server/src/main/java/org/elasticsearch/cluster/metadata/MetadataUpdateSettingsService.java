@@ -82,7 +82,7 @@ public class MetadataUpdateSettingsService {
                 false, // don't validate values here we check it below never allow to change the number of shards
                 true); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
-            Setting setting = indexScopedSettings.get(key);
+            Setting<?> setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
             assert setting != null // we already validated the normalized settings
                 || (isWildcard && normalizedSettings.hasValue(key) == false)
@@ -136,8 +136,8 @@ public class MetadataUpdateSettingsService {
                         shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
 
                         /*
-                         * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
-                         * these copies stale.
+                         * We do not update the in-sync allocation IDs as they will be removed upon the first index operation
+                         * which makes these copies stale.
                          *
                          * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                          */
@@ -157,11 +157,12 @@ public class MetadataUpdateSettingsService {
                                 indexSettings.put(indexMetadata.getSettings());
                             }
                             /*
-                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
-                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
-                             * there is a not value provided on the source of the index creation. A user can update this setting though,
-                             * including updating it to null, indicating that they want to use the default value. In this case, we again
-                             * have to provide an explicit value for the setting to the default (one).
+                             * The setting index.number_of_replicas is special; we require that this setting has a value
+                             * in the index. When creating the index, we ensure this by explicitly providing a value for
+                             * the setting to the default (one) if there is a not value provided on the source of the
+                             * index creation. A user can update this setting though, including updating it to null,
+                             * indicating that they want to use the default value. In this case, we again have to
+                             * provide an explicit value for the setting to the default (one).
                              */
                             if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
                                 indexSettings.put(
@@ -186,11 +187,12 @@ public class MetadataUpdateSettingsService {
                                 indexSettings.put(indexMetadata.getSettings());
                             }
                             /*
-                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
-                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
-                             * there is a not value provided on the source of the index creation. A user can update this setting though,
-                             * including updating it to null, indicating that they want to use the default value. In this case, we again
-                             * have to provide an explicit value for the setting to the default (one).
+                             * The setting index.number_of_replicas is special; we require that this setting has a value
+                             * in the index. When creating the index, we ensure this by explicitly providing a value for
+                             * the setting to the default (one) if there is a not value provided on the source of the
+                             * index creation. A user can update this setting though, including updating it to null,
+                             * indicating that they want to use the default value. In this case, we again have to
+                             * provide an explicit value for the setting to the default (one).
                              */
                             if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
                                 indexSettings.put(

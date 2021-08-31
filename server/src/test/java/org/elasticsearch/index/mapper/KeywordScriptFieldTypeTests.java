@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -123,8 +124,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
@@ -132,7 +133,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }
@@ -325,6 +326,18 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             }
         }
     }
+    
+    // Normalized WildcardQueries are requested by the QueryStringQueryParser
+    public void testNormalizedWildcardQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(simpleMappedFieldType().normalizedWildcardQuery("a*b", null, mockContext())), equalTo(1));
+            }
+        }
+    }    
 
     public void testWildcardQueryIsExpensive() {
         checkExpensiveQuery(this::randomWildcardQuery);

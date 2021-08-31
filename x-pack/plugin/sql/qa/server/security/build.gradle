@@ -1,30 +1,23 @@
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 dependencies {
   testImplementation project(':x-pack:plugin:core')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 Project mainProject = project
-
-configurations.create('testArtifacts')
-
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
 
 // Tests are pushed down to subprojects and will be checked there.
 tasks.named("testingConventions").configure { enabled = false }
 
 subprojects {
   // Use tests from the root security qa project in subprojects
-  configurations.create('testArtifacts')
+  configurations.create('testArtifacts').transitive(false)
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
-    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
+    testImplementation(testArtifact(project(xpackModule('core'))))
+    testArtifacts testArtifact(project(mainProject.path))
   }
 
   testClusters.matching { it.name == "integTest" }.configureEach {
@@ -57,7 +50,7 @@ subprojects {
     nonInputProperties.systemProperty 'tests.audit.logfile',
       "${-> testClusters.integTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}-1.json.gz"
   }
 
   tasks.named("testingConventions").configure { enabled = false }

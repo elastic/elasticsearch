@@ -17,8 +17,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -74,7 +75,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertFalse("should not be called as stoppedBeforeFinished is false", stoppedBeforeFinished);
             assertThat(step, equalTo(2));
             ++step;
-            return new IterationResult<>(Collections.emptyList(), 3, true);
+            return new IterationResult<>(Stream.empty(), 3, true);
         }
 
         private void awaitForLatch() {
@@ -191,13 +192,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ++processOps;
             if (processOps == 5) {
-                return new IterationResult<>(Collections.singletonList(new IndexRequest()), processOps, true);
+                return new IterationResult<>(Stream.of(new IndexRequest()), processOps, true);
             }
             else if (processOps % 2 == 0) {
-                return new IterationResult<>(Collections.emptyList(), processOps, false);
+                return new IterationResult<>(Stream.empty(), processOps, false);
             }
 
-            return new IterationResult<>(Collections.singletonList(new IndexRequest()), processOps, false);
+            return new IterationResult<>(Stream.of(new IndexRequest()), processOps, false);
         }
 
         @Override

@@ -167,8 +167,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field(DATE_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DATE_FIELD_NAME)
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -183,15 +182,23 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDateFieldNanosecondResolution() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, null, Collections.emptyMap());
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
+            DATE_FIELD_NAME,
+            true,
+            false,
+            true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.Resolution.NANOSECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field(DATE_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DATE_FIELD_NAME)
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -205,16 +212,24 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    public void  testMissingDateWithDateNanosField() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, null, Collections.emptyMap());
+    public void testMissingDateWithDateNanosField() throws IOException {
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
+            DATE_FIELD_NAME,
+            true,
+            false,
+            true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.Resolution.NANOSECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field(DATE_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DATE_FIELD_NAME)
             .missing("2015-11-13T16:14:34")
             .addRange(milli1 - 1, milli1 + 1);
 
@@ -247,8 +262,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
 
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field(NUMBER_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(NUMBER_FIELD_NAME)
             .addRange(start, start + 50)
             .addRange(start + 50, start + 100)
             .addUnboundedFrom(start + 100);
@@ -261,35 +275,30 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(3));
             // If we had a native `double` range aggregator we'd get 50, 50, 50
-            assertThat(ranges.stream().mapToLong(InternalRange.Bucket::getDocCount).toArray(), equalTo(new long[] {44, 48, 58}));
+            assertThat(ranges.stream().mapToLong(InternalRange.Bucket::getDocCount).toArray(), equalTo(new long[] { 44, 48, 58 }));
             assertTrue(AggregationInspectionHelper.hasValue(range));
         }, fieldType);
     }
 
-    public void  testMissingDateWithNumberField() throws IOException {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field(NUMBER_FIELD_NAME)
+    public void testMissingDateWithNumberField() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(NUMBER_FIELD_NAME)
             .addRange(-2d, 5d)
             .missing("1979-01-01T00:00:00");
 
-        MappedFieldType fieldType
-            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(NumberFormatException.class,
-            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-            }, range -> fail("Should have thrown exception"), fieldType));
+        expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+        }, range -> fail("Should have thrown exception"), fieldType));
     }
 
     public void testUnmappedWithMissingNumber() throws IOException {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field("does_not_exist")
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field("does_not_exist")
             .addRange(-2d, 5d)
             .missing(0L);
 
-        MappedFieldType fieldType
-            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -303,70 +312,64 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedWithMissingDate() throws IOException {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field("does_not_exist")
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field("does_not_exist")
             .addRange(-2d, 5d)
             .missing("2020-02-13T10:11:12");
 
-        MappedFieldType fieldType
-            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(NumberFormatException.class,
-            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-            }, range -> fail("Should have thrown exception"), fieldType));
+        expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+        }, range -> fail("Should have thrown exception"), fieldType));
     }
 
     public void testUnsupportedType() {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field("not_a_number")
-            .addRange(-2d, 5d);
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field("not_a_number").addRange(-2d, 5d);
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
-            }, range -> fail("Should have thrown exception"), fieldType));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(
+                aggregationBuilder,
+                new MatchAllDocsQuery(),
+                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
+                range -> fail("Should have thrown exception"),
+                fieldType
+            )
+        );
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [range]", e.getMessage());
     }
 
     public void testBadMissingField() {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field(NUMBER_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(NUMBER_FIELD_NAME)
             .addRange(-2d, 5d)
             .missing("bogus");
 
-        MappedFieldType fieldType
-            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(NumberFormatException.class,
-            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-            }, range -> fail("Should have thrown exception"), fieldType));
+        expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+        }, range -> fail("Should have thrown exception"), fieldType));
     }
 
     public void testUnmappedWithBadMissingField() {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
-            .field("does_not_exist")
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field("does_not_exist")
             .addRange(-2d, 5d)
             .missing("bogus");
 
-        MappedFieldType fieldType
-            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(NumberFormatException.class,
-            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-            }, range -> fail("Should have thrown exception"), fieldType));
+        expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+        }, range -> fail("Should have thrown exception"), fieldType));
     }
 
     public void testSubAggCollectsFromSingleBucketIfOneRange() throws IOException {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test")
-            .field(NUMBER_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
             .addRange(0d, 10d)
             .subAggregation(aggCardinality("c"));
 
@@ -378,8 +381,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSubAggCollectsFromManyBucketsIfManyRanges() throws IOException {
-        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test")
-            .field(NUMBER_FIELD_NAME)
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
             .addRange(0d, 10d)
             .addRange(10d, 100d)
             .subAggregation(aggCardinality("c"));
@@ -500,9 +502,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void testCase(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
+    private void testCase(
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify
+    ) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
@@ -522,9 +526,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void simpleTestCase(RangeAggregationBuilder aggregationBuilder,
-                          Query query,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
+    private void simpleTestCase(
+        RangeAggregationBuilder aggregationBuilder,
+        Query query,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify
+    ) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -534,11 +540,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, verify, fieldType);
     }
 
-    private void testCase(RangeAggregationBuilder aggregationBuilder,
-                          Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
-                          MappedFieldType fieldType) throws IOException {
+    private void testCase(
+        RangeAggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify,
+        MappedFieldType fieldType
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
@@ -547,8 +555,12 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> agg = searchAndReduce(indexSearcher,
-                    query, aggregationBuilder, fieldType);
+                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
+                    indexSearcher,
+                    query,
+                    aggregationBuilder,
+                    fieldType
+                );
                 verify.accept(agg);
 
             }

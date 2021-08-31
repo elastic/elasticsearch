@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -13,6 +13,7 @@ esplugin {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('vector-tile'))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')

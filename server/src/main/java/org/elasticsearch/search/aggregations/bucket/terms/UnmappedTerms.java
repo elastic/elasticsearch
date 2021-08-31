@@ -33,8 +33,13 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalTerms.Bucket<Bucket> {
-        private Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
-                DocValueFormat formatter) {
+        private Bucket(
+            long docCount,
+            InternalAggregations aggregations,
+            boolean showDocCountError,
+            long docCountError,
+            DocValueFormat formatter
+        ) {
             super(docCount, aggregations, showDocCountError, docCountError, formatter);
         }
     }
@@ -97,12 +102,11 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, 0, 0, Collections.emptyList());
+        return doXContentCommon(builder, params, 0L, 0, Collections.emptyList());
     }
 
     @Override
-    protected void setDocCountError(long docCountError) {
-    }
+    protected void setDocCountError(long docCountError) {}
 
     @Override
     protected int getShardSize() {
@@ -110,8 +114,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public long getDocCountError() {
-        return 0;
+    public Long getDocCountError() {
+        return 0L;
     }
 
     @Override

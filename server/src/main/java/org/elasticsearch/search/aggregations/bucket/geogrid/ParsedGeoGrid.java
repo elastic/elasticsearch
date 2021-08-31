@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
@@ -24,10 +24,12 @@ public abstract class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedG
         return buckets;
     }
 
-    public static ObjectParser<ParsedGeoGrid, Void> createParser(Supplier<ParsedGeoGrid> supplier,
-            CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser,
-            CheckedFunction<XContentParser, ParsedBucket, IOException> keyedBucketParser) {
-        ObjectParser<ParsedGeoGrid, Void> parser =  new ObjectParser<>(ParsedGeoGrid.class.getSimpleName(), true, supplier);
+    public static ObjectParser<ParsedGeoGrid, Void> createParser(
+        Supplier<ParsedGeoGrid> supplier,
+        CheckedFunction<XContentParser, ParsedGeoGridBucket, IOException> bucketParser,
+        CheckedFunction<XContentParser, ParsedGeoGridBucket, IOException> keyedBucketParser
+    ) {
+        ObjectParser<ParsedGeoGrid, Void> parser = new ObjectParser<>(ParsedGeoGrid.class.getSimpleName(), true, supplier);
         declareMultiBucketAggregationFields(parser, bucketParser, keyedBucketParser);
         return parser;
     }

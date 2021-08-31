@@ -300,6 +300,11 @@ public class DeterministicTaskQueue {
             }
 
             @Override
+            public long rawRelativeTimeInMillis() {
+                return currentTimeMillis;
+            }
+
+            @Override
             public long absoluteTimeInMillis() {
                 return currentTimeMillis;
             }

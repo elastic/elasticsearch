@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.service;
 
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,14 +36,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -55,14 +55,15 @@ import static org.hamcrest.Matchers.is;
 
 public class ClusterApplierServiceTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
-    private static long currentTimeMillis;
+    private ThreadPool threadPool;
+    private long currentTimeMillis;
     private boolean allowClusterStateApplicationFailure = false;
     private ClusterApplierService clusterApplierService;
     private ClusterSettings clusterSettings;
 
-    @BeforeClass
-    public static void createThreadPool() {
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
         threadPool = new TestThreadPool(ClusterApplierServiceTests.class.getName()) {
             @Override
             public long relativeTimeInMillis() {
@@ -70,19 +71,6 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 return currentTimeMillis;
             }
         };
-    }
-
-    @AfterClass
-    public static void stopThreadPool() {
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-            threadPool = null;
-        }
-    }
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allowClusterStateApplicationFailure = false;
         clusterApplierService = createClusterApplierService(true);
@@ -91,6 +79,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         clusterApplierService.close();
+        if (threadPool != null) {
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        }
         super.tearDown();
     }
 
@@ -118,7 +109,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         return clusterApplierService;
     }
 
-    private static void advanceTime(long millis) {
+    private void advanceTime(long millis) {
         // time is only read/written on applier thread, so no synchronization is needed
         assertThat(Thread.currentThread().getName(), containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME));
         currentTimeMillis += millis;

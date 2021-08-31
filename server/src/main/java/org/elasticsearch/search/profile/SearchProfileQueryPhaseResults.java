@@ -49,6 +49,15 @@ public final class SearchProfileQueryPhaseResults implements Writeable {
         shardResults = Collections.unmodifiableMap(shardResults);
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(shardResults.size());
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> entry : shardResults.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
+        }
+    }
+
     /**
      * Merge the profiling information from some fetch results into this
      * profiling information.
@@ -75,15 +84,6 @@ public final class SearchProfileQueryPhaseResults implements Writeable {
             }
         }
         return new SearchProfileResults(mergedShardResults);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(shardResults.size());
-        for (Map.Entry<String, SearchProfileQueryPhaseResult> entry : shardResults.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
     }
 
     /**

@@ -38,8 +38,11 @@ public class ParsedTDigestPercentileRanks extends ParsedPercentileRanks {
         };
     }
 
-    private static final ObjectParser<ParsedTDigestPercentileRanks, Void> PARSER =
-            new ObjectParser<>(ParsedTDigestPercentileRanks.class.getSimpleName(), true, ParsedTDigestPercentileRanks::new);
+    private static final ObjectParser<ParsedTDigestPercentileRanks, Void> PARSER = new ObjectParser<>(
+        ParsedTDigestPercentileRanks.class.getSimpleName(),
+        true,
+        ParsedTDigestPercentileRanks::new
+    );
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }

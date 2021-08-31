@@ -33,9 +33,15 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private double currentValue;
     private boolean missingCurrentValue;
 
-    DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
-                       CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
-                       DocValueFormat format, MissingBucket missingBucket, int size, int reverseMul) {
+    DoubleValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        MissingBucket missingBucket,
+        int size,
+        int reverseMul
+    ) {
         super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = missingBucket.include() ? new BitArray(100, bigArrays) : null;
@@ -44,7 +50,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         if (missingBucket.include() && missingCurrentValue) {
             bits.clear(slot);
         } else {
@@ -121,9 +127,11 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(value.toString(), false, () -> {
-                throw new IllegalArgumentException("now() is not supported in [after] key");
-            });
+            afterValue = format.parseDouble(
+                value.toString(),
+                false,
+                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
+            );
         }
     }
 

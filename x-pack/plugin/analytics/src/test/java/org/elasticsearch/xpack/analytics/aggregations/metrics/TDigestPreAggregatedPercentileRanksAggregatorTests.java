@@ -6,11 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -35,6 +30,11 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
 import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
 
 public class TDigestPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
@@ -46,30 +46,30 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentileRanksAggregationBuilder("tdigest_percentiles", new double[]{1.0})
-            .field(fieldName)
+        return new PercentileRanksAggregationBuilder("tdigest_percentiles", new double[] { 1.0 }).field(fieldName)
             .percentilesConfig(new PercentilesConfig.TDigest());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
-        return List.of(CoreValuesSourceType.NUMERIC,
+        return List.of(
+            CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            AnalyticsValuesSourceType.HISTOGRAM);
+            AnalyticsValuesSourceType.HISTOGRAM
+        );
     }
 
     public void testSimple() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            doc.add(histogramFieldDocValues("field", new double[] {3, 0.2, 10}));
+            doc.add(histogramFieldDocValues("field", new double[] { 3, 0.2, 10 }));
             w.addDocument(doc);
 
-            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] {0.1, 0.5, 12})
-                    .field("field")
-                    .method(PercentilesMethod.TDIGEST);
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.1, 0.5, 12 })
+                .field("field")
+                .method(PercentilesMethod.TDIGEST);
             MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -90,7 +90,7 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
                 // https://github.com/elastic/elasticsearch/issues/14851
                 // assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
-                assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks) ranks)));
             }
         }
     }

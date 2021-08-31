@@ -46,7 +46,7 @@ public enum MissingBucket implements Writeable {
     /**
      * Create a bucket for documents with missing values and always place it first.
      */
-    FIRST{
+    FIRST {
         @Override
         public int compareAnyValueToMissing(int reverseMul) {
             return 1;
@@ -88,7 +88,7 @@ public enum MissingBucket implements Writeable {
     }
 
     public static MissingBucket fromString(String op) {
-        switch(op) {
+        switch (op) {
             case "_ignore":
                 return IGNORE;
             case "_include":

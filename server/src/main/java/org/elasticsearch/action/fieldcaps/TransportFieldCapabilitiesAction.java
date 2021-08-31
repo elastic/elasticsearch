@@ -11,23 +11,34 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -41,10 +52,14 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+    public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    private final FieldCapabilitiesFetcher fieldCapabilitiesFetcher;
     private final Predicate<String> metadataFieldPred;
 
     @Inject
@@ -59,8 +74,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+
+        this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
+
+        transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.SAME,
+            FieldCapabilitiesNodeRequest::new, new NodeTransportHandler());
     }
 
     @Override
@@ -80,44 +100,92 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
         }
 
-        checkIndexBlocks(clusterState, concreteIndices);
-
-        final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
-        if (totalNumRequest == 0) {
+        if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
             listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
             return;
         }
 
+        checkIndexBlocks(clusterState, concreteIndices);
+
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
         final FailureCollector indexFailures = new FailureCollector();
-        final Runnable countDown = createResponseMerger(request, totalNumRequest, indexResponses, indexFailures, listener);
 
+        // If all nodes are on version 7.16 or higher, then we group the shard requests and send a single request per node.
+        // Otherwise, for backwards compatibility we follow the old strategy of sending a separate request per shard.
+        final Map<String, List<ShardId>> shardsByNode;
+        final CountDown completionCounter;
+        if (clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_16_0) && request.indexFilter() == null) {
+            shardsByNode = groupShardsByNode(clusterState, concreteIndices, indexFailures);
+            completionCounter = new CountDown(shardsByNode.size() + remoteClusterIndices.size());
+        } else {
+            shardsByNode = null;
+            completionCounter = new CountDown(concreteIndices.length + remoteClusterIndices.size());
+        }
+
+        final Runnable countDown = createResponseMerger(request, completionCounter, indexResponses, indexFailures, listener);
         if (concreteIndices.length > 0) {
             // fork this action to the management pool as it can fan out to a large number of child requests that get handled on SAME and
             // thus would all run on the current transport thread and block it for an unacceptable amount of time
             // (particularly with security enabled)
             threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(ActionRunnable.wrap(listener, l -> {
-                for (String index : concreteIndices) {
-                    new TransportFieldCapabilitiesIndexAction.AsyncShardsAction(
-                        transportService,
-                        clusterService,
-                        prepareLocalIndexRequest(request, index, localIndices, nowInMillis),
-                        new ActionListener<FieldCapabilitiesIndexResponse>() {
-                            @Override
-                            public void onResponse(FieldCapabilitiesIndexResponse result) {
-                                if (result.canMatch()) {
-                                    indexResponses.add(result);
-                                }
-                                countDown.run();
-                            }
+                if (shardsByNode != null) {
+                    for (Map.Entry<String, List<ShardId>> entry : shardsByNode.entrySet()) {
+                        String nodeId = entry.getKey();
+                        List<ShardId> shardIds = entry.getValue();
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                indexFailures.collect(e, index);
-                                countDown.run();
+                        DiscoveryNode node = clusterState.getNodes().get(nodeId);
+                        assert node != null;
+
+                        FieldCapabilitiesNodeRequest nodeRequest = prepareLocalNodeRequest(request, shardIds, localIndices, nowInMillis);
+                        transportService.sendRequest(node, ACTION_NODE_NAME, nodeRequest, new ActionListenerResponseHandler<>(
+                            new ActionListener<FieldCapabilitiesNodeResponse>() {
+                                @Override
+                                public void onResponse(FieldCapabilitiesNodeResponse response) {
+                                    for (FieldCapabilitiesIndexResponse indexResponse : response.getIndexResponses()) {
+                                        if (indexResponse.canMatch()) {
+                                            indexResponses.add(indexResponse);
+                                        }
+
+                                    }
+                                    for (FieldCapabilitiesFailure indexFailure : response.getFailures()) {
+                                        indexFailures.collect(indexFailure.getException(), indexFailure.getIndices());
+                                    }
+                                    countDown.run();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    for (ShardId shardId : shardIds) {
+                                        indexFailures.collect(e, shardId.getIndexName());
+                                    }
+                                    countDown.run();
+                                }
+                            },
+                            FieldCapabilitiesNodeResponse::new));
+                    }
+                } else {
+                    for (String index : concreteIndices) {
+                        new TransportFieldCapabilitiesIndexAction.AsyncShardsAction(
+                            transportService,
+                            clusterService,
+                            prepareLocalIndexRequest(request, index, localIndices, nowInMillis),
+                            new ActionListener<FieldCapabilitiesIndexResponse>() {
+                                @Override
+                                public void onResponse(FieldCapabilitiesIndexResponse result) {
+                                    if (result.canMatch()) {
+                                        indexResponses.add(result);
+                                    }
+                                    countDown.run();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    indexFailures.collect(e, index);
+                                    countDown.run();
+                                }
                             }
-                        }
-                    ).start();
+                        ).start();
+                    }
                 }
             }));
         }
@@ -160,11 +228,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private Runnable createResponseMerger(FieldCapabilitiesRequest request,
-                                          int totalNumRequests,
+                                          CountDown completionCounter,
                                           List<FieldCapabilitiesIndexResponse> indexResponses,
                                           FailureCollector indexFailures,
                                           ActionListener<FieldCapabilitiesResponse> listener) {
-        final CountDown completionCounter = new CountDown(totalNumRequests);
         return () -> {
             if (completionCounter.countDown()) {
                 List<FieldCapabilitiesFailure> failures = indexFailures.values();
@@ -193,10 +260,19 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         };
     }
 
-    private static  FieldCapabilitiesIndexRequest prepareLocalIndexRequest(FieldCapabilitiesRequest request,
-                                                                           String index,
-                                                                           OriginalIndices originalIndices,
-                                                                           long nowInMillis) {
+    private static FieldCapabilitiesNodeRequest prepareLocalNodeRequest(FieldCapabilitiesRequest request,
+                                                                        List<ShardId> shardIds,
+                                                                        OriginalIndices originalIndices,
+                                                                        long nowInMillis) {
+        ShardId[] shardIdArray = shardIds.toArray(new ShardId[0]);
+        return new FieldCapabilitiesNodeRequest(shardIdArray, request.fields(), originalIndices,
+            request.indexFilter(), nowInMillis, request.runtimeFields());
+    }
+
+    private static FieldCapabilitiesIndexRequest prepareLocalIndexRequest(FieldCapabilitiesRequest request,
+                                                                          String index,
+                                                                          OriginalIndices originalIndices,
+                                                                          long nowInMillis) {
         return new FieldCapabilitiesIndexRequest(request.fields(), index, originalIndices,
             request.indexFilter(), nowInMillis, request.runtimeFields());
     }
@@ -213,6 +289,40 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
         return remoteRequest;
+    }
+
+    private Map<String, List<ShardId>> groupShardsByNode(ClusterState clusterState,
+                                                         String[] concreteIndices,
+                                                         FailureCollector indexFailures) {
+        Map<String, List<ShardId>> shardsByNodeId = new HashMap<>();
+        for (String indexName : concreteIndices) {
+            GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
+                .searchShards(clusterState, new String[]{ indexName }, null, null);
+
+            ShardRouting selectedCopy = null;
+            for (ShardIterator shardCopies : shards) {
+                for (ShardRouting copy : shardCopies) {
+                    if (copy.active() && copy.assignedToNode()) {
+                        selectedCopy = copy;
+                        break;
+                    }
+                }
+
+                if (selectedCopy != null) {
+                    String nodeId = selectedCopy.currentNodeId();
+                    List<ShardId> shardGroup = shardsByNodeId.computeIfAbsent(nodeId, key -> new ArrayList<>());
+                    shardGroup.add(selectedCopy.shardId());
+                    break;
+                }
+            }
+
+            if (selectedCopy == null) {
+                Exception e = new NoShardAvailableActionException(null,
+                    LoggerMessageFormat.format("No shard available for index [{}]", indexName));
+                indexFailures.collect(e, indexName);
+            }
+        }
+        return shardsByNodeId;
     }
 
     private FieldCapabilitiesResponse merge(
@@ -289,6 +399,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             );
         }
 
+        void collect(Exception e, String[] indices) {
+            for (String index : indices) {
+                collect(e, index);
+            }
+        }
+
         void collectRemoteException(Exception ex, String clusterAlias, String[] remoteIndices) {
             for (String failedIndex : remoteIndices) {
                 collect(ex, RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex));
@@ -297,6 +413,35 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         int size() {
             return this.indexFailures.size();
+        }
+    }
+
+    private class NodeTransportHandler implements TransportRequestHandler<FieldCapabilitiesNodeRequest> {
+        @Override
+        public void messageReceived(final FieldCapabilitiesNodeRequest request,
+                                    final TransportChannel channel,
+                                    Task task) throws Exception {
+            ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
+
+            List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
+            List<FieldCapabilitiesFailure> indexFailures = new ArrayList<>();
+
+            for (ShardId shardId : request.shardIds()) {
+                FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request.fields(), shardId.getIndexName(),
+                    request.originalIndices(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
+                indexRequest.shardId(shardId);
+                try {
+                    FieldCapabilitiesIndexResponse indexResponse = fieldCapabilitiesFetcher.fetch(indexRequest);
+                    indexResponses.add(indexResponse);
+                } catch (Exception e) {
+                    FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(new String[] {shardId.getIndexName()}, e);
+                    indexFailures.add(failure);
+                }
+            }
+
+            FieldCapabilitiesNodeResponse response = new FieldCapabilitiesNodeResponse(request.indices(),
+                indexResponses, indexFailures);
+            listener.onResponse(response);
         }
     }
 }

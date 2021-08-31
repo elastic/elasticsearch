@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.List;
 
-import static org.elasticsearch.test.eql.DataLoader.DATE_NANOS_INDEX;
+import static org.elasticsearch.test.eql.DataLoader.TEST_NANOS_INDEX;
 
 public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
 
@@ -22,7 +22,7 @@ public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
 
     // constructor for "local" rest tests
     public EqlDateNanosSpecTestCase(String query, String name, long[] eventIds) {
-        this(DATE_NANOS_INDEX, query, name, eventIds);
+        this(TEST_NANOS_INDEX, query, name, eventIds);
     }
 
     // constructor for multi-cluster tests

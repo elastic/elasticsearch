@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.eql.execution.assembler.SeriesUtils.SeriesSpec;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.eql.session.Payload;
@@ -85,8 +86,8 @@ public class SequenceSpecTests extends ESTestCase {
         static final TimestampExtractor INSTANCE = new TimestampExtractor();
 
         @Override
-        public Long extract(SearchHit hit) {
-            return (long) hit.docId();
+        public Object extract(SearchHit hit) {
+            return Timestamp.of(String.valueOf(hit.docId()));
         }
     }
 

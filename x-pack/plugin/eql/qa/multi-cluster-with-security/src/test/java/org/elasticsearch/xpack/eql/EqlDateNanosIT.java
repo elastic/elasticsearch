@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.test.eql.EqlDateNanosSpecTestCase;
 
-import static org.elasticsearch.test.eql.DataLoader.DATE_NANOS_INDEX;
+import static org.elasticsearch.test.eql.DataLoader.TEST_NANOS_INDEX;
 import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterIndex;
 
 public class EqlDateNanosIT extends EqlDateNanosSpecTestCase {
 
     public EqlDateNanosIT(String query, String name, long[] eventIds) {
-        super(remoteClusterIndex(DATE_NANOS_INDEX), query, name, eventIds);
+        super(remoteClusterIndex(TEST_NANOS_INDEX), query, name, eventIds);
     }
 }

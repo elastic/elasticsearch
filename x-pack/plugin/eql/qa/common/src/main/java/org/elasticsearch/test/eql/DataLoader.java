@@ -46,16 +46,16 @@ import org.elasticsearch.xpack.ql.TestUtils;
  * Loads EQL dataset into ES.
  *
  * Checks for predefined indices:
- * - endgame-140    - for existing data
- * - eql_date_nanos - same as endgame-140, but with nano-precision timestamps
- * - extra          - additional data
+ * - endgame-140       - for existing data
+ * - endgame-140-nanos - same as endgame-140, but with nano-precision timestamps
+ * - extra             - additional data
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
-    public static final String DATE_NANOS_INDEX = "eql_date_nanos";
+    public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -97,9 +97,10 @@ public class DataLoader {
         //
         // Date_Nanos index
         //
-        // The data for this index is loaded from the same endgame-140.data sample, only having the mapping for @timestamp changed.
+        // The data for this index is loaded from the same endgame-140.data sample, only having the mapping for @timestamp changed: the
+        // chosen Windows filetime timestamps (2017+) can coincidentally also be readily used as nano-resolution unix timestamps (1973+).
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
-        load(client, DATE_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
+        load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
     }
 
     private static void load(RestHighLevelClient client, String indexName, String dataName, Consumer<Map<String, Object>> datasetTransform,
@@ -190,7 +191,7 @@ public class DataLoader {
         Object object = entry.get("timestamp");
         assertThat(object, instanceOf(Long.class));
         // interpret the value as nanos since the unix epoch
-        String timestamp = entry.get("timestamp").toString();
+        String timestamp = object.toString();
         assertThat(timestamp.length(), greaterThan(12));
         // avoid double approximations and BigDecimal ops
         String millis = timestamp.substring(0, 12);

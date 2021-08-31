@@ -9,22 +9,20 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Instant;
-
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class OrdinalTests extends ESTestCase {
 
     public void testCompareToDifferentTs() {
-        Object ts1 = randomTimestamp();
-        Object ts2 = randomValueOtherThan(ts1, OrdinalTests::randomTimestamp);
+        Timestamp ts1 = randomTimestamp();
+        Timestamp ts2 = randomValueOtherThan(ts1, OrdinalTests::randomTimestamp);
         Ordinal one = new Ordinal(ts1, (Comparable) randomLong(), randomLong());
         Ordinal two = new Ordinal(ts2, (Comparable) randomLong(), randomLong());
 
-        assertEquals(timestampCompare(ts1, ts2), one.compareTo(two));
+        assertEquals(ts1.compareTo(ts2), one.compareTo(two));
     }
 
     public void testCompareToSameTsDifferentTie() {
-        Object ts = randomTimestamp();
+        Timestamp ts = randomTimestamp();
         Comparable tie1 = (Comparable) randomLong();
         Comparable tie2 = randomValueOtherThan(tie1, () -> (Comparable) randomLong());
         Ordinal one = new Ordinal(ts, tie1, randomLong());
@@ -34,7 +32,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsOneTieNull() {
-        Object ts = randomTimestamp();
+        Timestamp ts = randomTimestamp();
         Ordinal one = new Ordinal(ts, (Comparable) randomLong(), randomLong());
         Ordinal two = new Ordinal(ts, null, randomLong());
 
@@ -42,7 +40,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieSameImplicitTb() {
-        Object ts = randomTimestamp();
+        Timestamp ts = randomTimestamp();
         Comparable c = randomLong();
         long implicitTb = randomLong();
         Ordinal one = new Ordinal(ts, c, implicitTb);
@@ -54,7 +52,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieDifferentImplicitTb() {
-        Object ts = randomTimestamp();
+        Timestamp ts = randomTimestamp();
         Comparable c = randomLong();
         long implicitTb = randomLong();
         Ordinal one = new Ordinal(ts, c, implicitTb);
@@ -64,7 +62,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieNullSameImplicitTb() {
-        Object ts = randomTimestamp();
+        Timestamp ts = randomTimestamp();
         long implicitTb = randomLong();
         Ordinal one = new Ordinal(ts, null, implicitTb);
         Ordinal two = new Ordinal(ts, null, implicitTb);
@@ -75,7 +73,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieNullDifferentImplicitTb() {
-        Object ts = randomTimestamp();
+        Timestamp ts = randomTimestamp();
         long implicitTb1 = randomLong();
         long implicitTb2 = randomValueOtherThan(implicitTb1, () -> randomLong());
         Ordinal one = new Ordinal(ts, null, implicitTb1);
@@ -133,26 +131,16 @@ public class OrdinalTests extends ESTestCase {
         assertFalse(before.afterOrAt(after));
     }
 
-    static Object randomTimestamp() {
-        if (randomBoolean()) {
-            return randomLongBetween(-3155701416721920000L, 3155688986440319900L);
-        } else {
-            return randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(-3155701416721920000L, 3155688986440319900L)) :
-                Instant.ofEpochSecond(randomLongBetween(-31557014167219200L, 31556889864403199L), randomLongBetween(1, 999_999_999L));
-        }
+    static Timestamp randomTimestamp() {
+        final long MAX_MICROS = 999_999L;
+        // range chosen so that the value is convertible to Instant
+        long millis = randomLongBetween(Long.MIN_VALUE + MAX_MICROS, Long.MAX_VALUE - MAX_MICROS);
+        String timestamp = millis + (randomBoolean() ? "" : "." + randomLongBetween(0, MAX_MICROS));
+        return Timestamp.of(timestamp);
     }
 
-    static Object randomTimestampBetween(long from, long to) {
-        return randomBoolean() ? randomLongBetween(from, to) : Instant.ofEpochMilli(randomLongBetween(from, to));
-    }
-
-    static int timestampCompare(Object ts1, Object ts2) {
-        if (ts1 instanceof Long && ts2 instanceof Long) {
-            return Long.compare((Long) ts1, (Long) ts2);
-        } else {
-            Instant i1 = ts1 instanceof Long ? Instant.ofEpochMilli((Long) ts1) : (Instant) ts1;
-            Instant i2 = ts2 instanceof Long ? Instant.ofEpochMilli((Long) ts2) : (Instant) ts2;
-            return i1.compareTo(i2);
-        }
+    static Timestamp randomTimestampBetween(long from, long to) {
+        long millis = randomLongBetween(from, to);
+        return Timestamp.of(millis + (randomBoolean() ? "" : ".0"));
     }
 }

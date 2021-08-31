@@ -78,7 +78,8 @@ public class BoxedQueryRequest implements QueryRequest {
      */
     public BoxedQueryRequest from(Ordinal begin) {
         from = begin;
-        timestampRange.gte(begin != null ? begin.timestampAsString() : null);
+        // the range limits need to be serializable: convert to string for StreamOutput to be able to handle the value
+        timestampRange.gte(begin != null ? begin.timestamp().toString() : null);
         return this;
     }
 
@@ -88,7 +89,7 @@ public class BoxedQueryRequest implements QueryRequest {
      */
     public BoxedQueryRequest to(Ordinal end) {
         to = end;
-        timestampRange.lte(end != null ? end.timestampAsString() : null);
+        timestampRange.lte(end != null ? end.timestamp().toString() : null);
         return this;
     }
 

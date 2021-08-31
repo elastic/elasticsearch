@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -594,5 +595,81 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    static DeprecationIssue checkSslServerEnabled(final Settings settings,
+                                                   final PluginsAndModules pluginsAndModules,
+                                                   final ClusterState clusterState,
+                                                   final XPackLicenseState licenseState) {
+        List<String> details = new ArrayList<>();
+        for (String prefix : new String[] {"xpack.security.transport.ssl", "xpack.security.http.ssl"}) {
+            final String enabledSettingKey = prefix + ".enabled";
+            String enabledSettingValue = settings.get(enabledSettingKey);
+            Settings sslSettings = settings.filter(setting -> setting.startsWith(prefix));
+            if (enabledSettingValue == null && sslSettings.size() > 0) {
+                String keys = sslSettings.keySet().stream().collect(Collectors.joining(","));
+                String detail = String.format(Locale.ROOT, "setting [%s] is unset but the following settings exist: [%s]",
+                    enabledSettingKey, keys);
+                details.add(detail);
+            }
+        }
+        if (details.isEmpty()) {
+            return null;
+        } else {
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+            String message = "cannot set ssl properties without explicitly enabling or disabling ssl";
+            String detailsString = details.stream().collect(Collectors.joining("; "));
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
+        }
+    }
+
+    static DeprecationIssue checkSslCertConfiguration(final Settings settings,
+                                                      final PluginsAndModules pluginsAndModules,
+                                                      final ClusterState clusterState,
+                                                      final XPackLicenseState licenseState) {
+        List<String> details = new ArrayList<>();
+        for (String prefix : new String[]{"xpack.security.transport.ssl", "xpack.security.http.ssl"}) {
+            final String enabledSettingKey = prefix + ".enabled";
+            boolean sslEnabled = settings.getAsBoolean(enabledSettingKey, false);
+            if (sslEnabled) {
+                String keystorePathSettingKey = prefix + "." + SslConfigurationKeys.KEYSTORE_PATH;
+                String keyPathSettingKey = prefix + "." + SslConfigurationKeys.KEY;
+                String certificatePathSettingKey = prefix + "." + SslConfigurationKeys.CERTIFICATE;
+                boolean keystorePathSettingExists = settings.get(keystorePathSettingKey) != null;
+                boolean keyPathSettingExists = settings.get(keyPathSettingKey) != null;
+                boolean certificatePathSettingExists = settings.get(certificatePathSettingKey) != null;
+                if (keystorePathSettingExists == false && keyPathSettingExists == false && certificatePathSettingExists == false) {
+                    String detail = String.format(Locale.ROOT, "none of [%s], [%s], or [%s] are set. Either [%s] or [%s] and [%s] must be" +
+                            " set if [%s] is true", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
+                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey, enabledSettingKey);
+                    details.add(detail);
+                } else if (keystorePathSettingExists && keyPathSettingExists && certificatePathSettingExists) {
+                    String detail = String.format(Locale.ROOT, "all of [%s], [%s], and [%s] are set. Only [%s] or [%s] and [%s] can be " +
+                            "set", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey, keystorePathSettingKey,
+                        keyPathSettingKey, certificatePathSettingKey);
+                    details.add(detail);
+                } else if (keystorePathSettingExists && (keyPathSettingExists || certificatePathSettingExists)) {
+                    String detail = String.format(Locale.ROOT, "[%s] and [%s] are set. Only [%s] or [%s] and [%s] can be set",
+                        keystorePathSettingKey,
+                        keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
+                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    details.add(detail);
+                } else if ((keyPathSettingExists && certificatePathSettingExists == false) ||
+                    (keyPathSettingExists == false && certificatePathSettingExists)) {
+                    String detail = String.format(Locale.ROOT, "[%s] is set but [%s] is not",
+                        keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
+                        keyPathSettingExists ? certificatePathSettingKey : keyPathSettingKey);
+                    details.add(detail);
+                }
+            }
+        }
+        if (details.isEmpty()) {
+            return null;
+        } else {
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+            String message = "must set either keystore or key path and certificate path if ssl is enabled";
+            String detailsString = details.stream().collect(Collectors.joining("; "));
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
+        }
     }
 }

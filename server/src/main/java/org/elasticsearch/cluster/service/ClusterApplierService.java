@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -278,6 +279,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
+    /**
+     * Run the given clusterStateConsumer on the applier thread. Should only be used in tests and by {@link IndicesStore} when it's deleting
+     * the data behind a shard that moved away from a node.
+     *
+     * @param priority              {@link Priority#HIGH} unless in tests.
+     */
+    // TODO get rid of this, make it so that shard data can be deleted without blocking the applier thread.
     public void runOnApplierThread(
         String source,
         Priority priority,

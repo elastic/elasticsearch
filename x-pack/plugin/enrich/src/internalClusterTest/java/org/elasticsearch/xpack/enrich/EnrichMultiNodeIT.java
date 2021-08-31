@@ -184,7 +184,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         assertThat(stats.getNodeId(), equalTo(nodeId));
         assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
         // 'numDocs' lookups are done, but not 'numDocs' searches, because searches may get cached:
-        assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo((long) keys.size()), lessThanOrEqualTo((long) numDocs)));
+        // and not all enrichments may happen via the same node.
+        assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
     }
 
     private static List<String> createSourceIndex(int numDocs) {

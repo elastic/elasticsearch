@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.rate;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
@@ -29,7 +28,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     private final DocValueFormat format;
     private final Rounding.DateTimeUnit rateUnit;
     protected final RateMode rateMode;
-    private final CachedSupplier<SizedBucketAggregator> sizedBucketAggregator;
+    private final SizedBucketAggregator sizedBucketAggregator;
 
     protected DoubleArray sums;
     protected DoubleArray compensations;
@@ -55,7 +54,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         }
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
-        this.sizedBucketAggregator = new CachedSupplier<>(this::findSizedBucketAncestor);
+        this.sizedBucketAggregator = findSizedBucketAncestor();
     }
 
     private SizedBucketAggregator findSizedBucketAncestor() {
@@ -97,7 +96,6 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     }
 
     private double divisor(long owningBucketOrd) {
-        SizedBucketAggregator sizedBucketAggregator = this.sizedBucketAggregator.get();
         if (sizedBucketAggregator == parent) {
             return sizedBucketAggregator.bucketSize(owningBucketOrd, rateUnit);
         } else {

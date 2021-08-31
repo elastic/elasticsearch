@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toList;
 
@@ -48,7 +47,10 @@ public class FetchProfiler implements FetchPhase.Profiler {
 
     @Override
     public void visitor(FieldsVisitor fieldsVisitor) {
-        current.debug.put("stored_fields", fieldsVisitor == null ? List.of() : new TreeSet<>(fieldsVisitor.getFieldNames()));
+        current.debug.put(
+            "stored_fields",
+            fieldsVisitor == null ? List.of() : fieldsVisitor.getFieldNames().stream().sorted().collect(toList())
+        );
     }
 
     @Override

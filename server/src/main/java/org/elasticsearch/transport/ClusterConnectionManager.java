@@ -282,7 +282,9 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     @Override
     public void setIsDeleting(DiscoveryNode discoveryNode) {
-        connectedNodes.get(discoveryNode).setIsDeleting(true);
+        if (connectedNodes.containsKey(discoveryNode)) {
+            connectedNodes.get(discoveryNode).setIsDeleting(true);
+        }
     }
 
     public static final class ConnectedNodeRefCounter extends AbstractRefCounted implements Closeable {

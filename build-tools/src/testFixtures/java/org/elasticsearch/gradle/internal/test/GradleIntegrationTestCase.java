@@ -177,6 +177,9 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     protected void assertBuildFileExists(BuildResult result, String projectName, String path) {
         Path absPath = getBuildDir(projectName).toPath().resolve(path);
+        for (File file : absPath.getParent().toFile().listFiles()) {
+            System.out.println("file = " + file);
+        }
         assertTrue(
             result.getOutput() + "\n\nExpected `" + absPath + "` to exists but it did not" + "\n\nOutput is:\n" + result.getOutput(),
             Files.exists(absPath)

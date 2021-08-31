@@ -14,7 +14,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -22,7 +21,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public abstract class AbstractRateAggregator extends NumericMetricsAggregator.SingleValue {
@@ -31,7 +29,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     private final DocValueFormat format;
     private final Rounding.DateTimeUnit rateUnit;
     protected final RateMode rateMode;
-    private final CachedSupplier<RateDivisorCalculator> rateDivisorCalculator;
+    private final CachedSupplier<SizedBucketAggregator> sizedBucketAggregator;
 
     protected DoubleArray sums;
     protected DoubleArray compensations;
@@ -57,42 +55,24 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         }
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
-        this.rateDivisorCalculator = new CachedSupplier<>(this::constructRateDivisor);
+        this.sizedBucketAggregator = new CachedSupplier<>(this::findSizedBucketAncestor);
     }
 
-    private RateDivisorCalculator constructRateDivisor() {
+    private SizedBucketAggregator findSizedBucketAncestor() {
         SizedBucketAggregator sizedBucketAggregator = null;
-        boolean isParent = false;
         for (Aggregator ancestor = parent; ancestor != null; ancestor = ancestor.parent()) {
             if (ancestor instanceof SizedBucketAggregator) {
                 sizedBucketAggregator = (SizedBucketAggregator) ancestor;
-                isParent = ancestor == parent;
                 break;
-            }
-        }
-        if (sizedBucketAggregator == null) {
-            for (Aggregator ancestor = parent; ancestor != null; ancestor = ancestor.parent()) {
-                if (ancestor instanceof CompositeAggregator) {
-                    List<SizedBucketAggregator> compositeSizedBucketAggregators = ((CompositeAggregator) ancestor)
-                        .getSizedBucketAggregators();
-                    if (compositeSizedBucketAggregators.size() != 1) {
-                        throw new IllegalArgumentException(
-                            "the ancestor composite aggregation [" + ancestor.name() + "] must have exactly one date_histogram group by"
-                        );
-                    }
-                    sizedBucketAggregator = compositeSizedBucketAggregators.get(0);
-                    isParent = ancestor == parent;
-                    break;
-                }
             }
         }
         if (sizedBucketAggregator == null) {
             throw new IllegalArgumentException(
                 "The rate aggregation can only be used inside a date histogram aggregation or "
-                    + "composite aggregation with exactly one date histogram value source"
+                    + "composite aggregation with one date histogram value source"
             );
         }
-        return new RateDivisorCalculator(sizedBucketAggregator, isParent, rateUnit);
+        return sizedBucketAggregator;
     }
 
     @Override
@@ -102,10 +82,10 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (rateDivisorCalculator == null || valuesSource == null || owningBucketOrd >= sums.size()) {
+        if (sizedBucketAggregator == null || valuesSource == null || owningBucketOrd >= sums.size()) {
             return 0.0;
         }
-        return sums.get(owningBucketOrd) / rateDivisorCalculator.get().divisor(owningBucketOrd);
+        return sums.get(owningBucketOrd) / divisor(owningBucketOrd);
     }
 
     @Override
@@ -113,7 +93,16 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalRate(name, sums.get(bucket), rateDivisorCalculator.get().divisor(bucket), format, metadata());
+        return new InternalRate(name, sums.get(bucket), divisor(bucket), format, metadata());
+    }
+
+    private double divisor(long owningBucketOrd) {
+        SizedBucketAggregator sizedBucketAggregator = this.sizedBucketAggregator.get();
+        if (sizedBucketAggregator == parent) {
+            return sizedBucketAggregator.bucketSize(owningBucketOrd, rateUnit);
+        } else {
+            return sizedBucketAggregator.bucketSize(rateUnit);
+        }
     }
 
     @Override
@@ -126,19 +115,4 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         Releasables.close(sums, compensations);
     }
 
-    private static class RateDivisorCalculator {
-        private final SizedBucketAggregator delegate;
-        private final boolean isParent;
-        private final Rounding.DateTimeUnit rateUnit;
-
-        RateDivisorCalculator(SizedBucketAggregator delegate, boolean isParent, Rounding.DateTimeUnit rateUnit) {
-            this.delegate = delegate;
-            this.isParent = isParent;
-            this.rateUnit = rateUnit;
-        }
-
-        private double divisor(long owningBucketOrd) {
-            return isParent ? delegate.bucketSize(owningBucketOrd, rateUnit) : delegate.bucketSize(rateUnit);
-        }
-    }
 }

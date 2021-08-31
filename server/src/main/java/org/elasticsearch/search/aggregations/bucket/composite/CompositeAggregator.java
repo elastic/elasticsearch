@@ -33,9 +33,11 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -62,7 +64,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
-public final class CompositeAggregator extends BucketsAggregator {
+public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -72,6 +74,7 @@ public final class CompositeAggregator extends BucketsAggregator {
     private final CompositeValuesSourceConfig[] sourceConfigs;
     private final SingleDimensionValuesSource<?>[] sources;
     private final CompositeValuesCollectorQueue queue;
+    private final DateHistogramValuesSource innerSizedBucketAggregator;
 
     private final List<Entry> entries = new ArrayList<>();
     private LeafReaderContext currentLeaf;
@@ -112,6 +115,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             );
         }
         this.sourceConfigs = sourceConfigs;
+        DateHistogramValuesSource firstDateHistogramValueSource = null;
         for (int i = 0; i < sourceConfigs.length; i++) {
             this.sources[i] = sourceConfigs[i].createValuesSource(
                 context.bigArrays(),
@@ -119,7 +123,11 @@ public final class CompositeAggregator extends BucketsAggregator {
                 size,
                 this::addRequestCircuitBreakerBytes
             );
+            if (firstDateHistogramValueSource == null && this.sources[i] instanceof DateHistogramValuesSource) {
+                firstDateHistogramValueSource = (DateHistogramValuesSource) this.sources[i];
+            }
         }
+        this.innerSizedBucketAggregator = firstDateHistogramValueSource;
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
         if (rawAfterKey != null) {
             try {
@@ -548,14 +556,24 @@ public final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
-    public List<SizedBucketAggregator> getSizedBucketAggregators() {
-        List<SizedBucketAggregator> sizedBucketAggregators = new ArrayList<>();
-        for (SingleDimensionValuesSource<?> source : sources) {
-            if (source instanceof DateHistogramValuesSource) {
-                sizedBucketAggregators.add((DateHistogramValuesSource) source);
-            }
+    @Override
+    public double bucketSize(long bucket, Rounding.DateTimeUnit unit) {
+        if (innerSizedBucketAggregator == null) {
+            throw new AggregationExecutionException(
+                "aggregation [" + name() + "] does not have a date_histogram value source; one is required to calculate the bucket size"
+            );
         }
-        return sizedBucketAggregators;
+        return innerSizedBucketAggregator.bucketSize(bucket, unit);
+    }
+
+    @Override
+    public double bucketSize(Rounding.DateTimeUnit unit) {
+        if (innerSizedBucketAggregator == null) {
+            throw new AggregationExecutionException(
+                "aggregation [" + name() + "] does not have a date_histogram value source; one is required to calculate the bucket size"
+            );
+        }
+        return innerSizedBucketAggregator.bucketSize(unit);
     }
 
     private static class Entry {

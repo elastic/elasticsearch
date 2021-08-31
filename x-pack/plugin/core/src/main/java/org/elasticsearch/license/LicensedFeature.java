@@ -51,11 +51,21 @@ public abstract class LicensedFeature {
          */
         public boolean checkAndStartTracking(XPackLicenseState state, String contextName) {
             if (state.isAllowed(this)) {
-                state.enableUsageTracking(this, contextName);
+                startTracking(state, contextName);
                 return true;
             } else {
                 return false;
             }
+        }
+
+        /**
+         * Starts tracking the feature.
+         *
+         * This is an alternative to {@link #checkAndStartTracking(XPackLicenseState, String)}
+         * where the license state has already been checked.
+         */
+        public void startTracking(XPackLicenseState state, String contextName) {
+            state.enableUsageTracking(this, contextName);
         }
 
         /**

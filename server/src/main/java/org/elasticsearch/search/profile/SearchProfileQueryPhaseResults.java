@@ -30,14 +30,14 @@ import java.util.Map;
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
  */
-public final class SearchProfileShardResults implements Writeable {  // Rename to SearchProfileQueryPhaseResults
+public final class SearchProfileQueryPhaseResults implements Writeable {
     private Map<String, SearchProfileQueryPhaseResult> shardResults;
 
-    public SearchProfileShardResults(Map<String, SearchProfileQueryPhaseResult> shardResults) {
+    public SearchProfileQueryPhaseResults(Map<String, SearchProfileQueryPhaseResult> shardResults) {
         this.shardResults =  Collections.unmodifiableMap(shardResults);
     }
 
-    public SearchProfileShardResults(StreamInput in) throws IOException {
+    public SearchProfileQueryPhaseResults(StreamInput in) throws IOException {
         int size = in.readInt();
         shardResults = new HashMap<>(size);
 

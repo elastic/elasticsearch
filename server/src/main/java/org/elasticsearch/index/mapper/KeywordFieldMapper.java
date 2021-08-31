@@ -124,7 +124,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false).setValidator(v -> {
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false).addValidator(v -> {
                 if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"

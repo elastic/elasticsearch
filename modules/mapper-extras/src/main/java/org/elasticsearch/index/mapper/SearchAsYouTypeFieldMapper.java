@@ -97,7 +97,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         // `doc_values=false`, even though it cannot be set; and so we need to continue
         // serializing it forever because of mapper assertions in mixed clusters.
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> false, false)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v) {
                     throw new MapperParsingException("Cannot set [doc_values] on field of type [search_as_you_type]");
                 }
@@ -106,7 +106,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Integer> maxShingleSize = Parameter.intParam("max_shingle_size", false,
             m -> builder(m).maxShingleSize.get(), Defaults.MAX_SHINGLE_SIZE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
                     throw new MapperParsingException("[max_shingle_size] must be at least [" + MAX_SHINGLE_SIZE_LOWER_BOUND
                         + "] and at most " + "[" + MAX_SHINGLE_SIZE_UPPER_BOUND + "], got [" + v + "]");

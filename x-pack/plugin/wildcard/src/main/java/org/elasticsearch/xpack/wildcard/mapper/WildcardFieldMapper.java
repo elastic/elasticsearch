@@ -193,7 +193,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final Parameter<Integer> ignoreAbove
             = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                 }
@@ -333,7 +333,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);                
+                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
@@ -365,11 +365,11 @@ public class WildcardFieldMapper extends FieldMapper {
             // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
             // clause which we can't accelerate at all and needs verification. Example would be ".."
             if (approxNgramQuery instanceof MatchAllButRequireVerificationQuery) {
-                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), value, automaton);            
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), value, automaton);
             }
 
             // We can accelerate execution with the ngram query
-            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);            
+            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -740,9 +740,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
             if (accelerationQuery == null) {
                 return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
-                    name(), lower + "-" + upper, automaton);            
+                    name(), lower + "-" + upper, automaton);
             }
-            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);            
+            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);
         }
 
         @Override
@@ -822,10 +822,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 );
                 if (ngramQ.clauses().size() == 0) {
                     return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
-                        name(), searchTerm, fq.getAutomata().automaton);            
+                        name(), searchTerm, fq.getAutomata().automaton);
                 }
 
-                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);            
+                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }

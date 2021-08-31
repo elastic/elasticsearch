@@ -17,6 +17,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.VersionType;
@@ -34,7 +35,7 @@ import java.util.OptionalLong;
 /**
  * An engine implementation for following shards.
  */
-public final class FollowingEngine extends InternalEngine {
+public class FollowingEngine extends InternalEngine {
 
 
     /**
@@ -117,16 +118,27 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
-        // In some scenarios it is possible to advance maxSeqNoOfUpdatesOrDeletes over the leader
-        // maxSeqNoOfUpdatesOrDeletes, since in this engine (effectively a it is a replica) we don't check if the previous version
-        // was a delete and it's possible to consider it as an update, advancing the max sequence number
-        // over the leader maxSeqNoOfUpdatesOrDeletes.
-        // See FollowingEngineTests#testConcurrentUpdateOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates or #72527 for more details.
+    protected void advanceMaxSeqNoOfDeleteOnPrimary(long seqNo) {
+        if (Assertions.ENABLED) {
+            final long localCheckpoint = getProcessedLocalCheckpoint();
+            final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+            assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo :
+                "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
+        }
 
-        // The goal of this marker it's just an optimization and it won't affect the correctness or durability
-        // of the indexed documents.
-        super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo);
+        super.advanceMaxSeqNoOfDeleteOnPrimary(seqNo);
+    }
+
+    @Override
+    protected void advanceMaxSeqNoOfUpdateOnPrimary(long seqNo) {
+        // In some scenarios it is possible to advance maxSeqNoOfUpdatesOrDeletes over the leader
+        // maxSeqNoOfUpdatesOrDeletes, since in this engine (effectively it is a replica) we don't check if the previous version
+        // was a delete and it's possible to consider it as an update, advancing the max sequence number over the leader
+        // maxSeqNoOfUpdatesOrDeletes.
+        // The goal of this marker it's just an optimization and it won't affect the correctness or durability of the indexed documents.
+
+        // See FollowingEngineTests#testConcurrentUpdateOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates or #72527 for more details.
+        super.advanceMaxSeqNoOfUpdateOnPrimary(seqNo);
     }
 
     @Override

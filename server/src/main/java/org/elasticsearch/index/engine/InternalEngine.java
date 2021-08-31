@@ -832,7 +832,11 @@ public class InternalEngine extends Engine {
         return doGenerateSeqNoForOperation(operation);
     }
 
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfUpdateOnPrimary(long seqNo) {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+    }
+
+    protected void advanceMaxSeqNoOfDeleteOnPrimary(long seqNo) {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
     }
 
@@ -900,7 +904,7 @@ public class InternalEngine extends Engine {
 
                         final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
                         if (toAppend == false) {
-                            advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(index.seqNo());
+                            advanceMaxSeqNoOfUpdateOnPrimary(index.seqNo());
                         }
                     } else {
                         markSeqNoAsSeen(index.seqNo());
@@ -1276,7 +1280,7 @@ public class InternalEngine extends Engine {
                         delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
                         delete.getIfSeqNo(), delete.getIfPrimaryTerm());
 
-                    advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
+                    advanceMaxSeqNoOfDeleteOnPrimary(delete.seqNo());
                 } else {
                     markSeqNoAsSeen(delete.seqNo());
                 }

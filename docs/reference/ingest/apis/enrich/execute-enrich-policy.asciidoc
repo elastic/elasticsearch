@@ -102,8 +102,8 @@ it may take a while to return a response.
 (Required, string)
 Enrich policy to execute.
 
-[[execute-enrich-policy-api-request-body]]
-==== {api-request-body-title}
+[[execute-enrich-policy-api-query-params]]
+==== {api-query-parms-title}
 
 `wait_for_completion`::
 (Required, Boolean)

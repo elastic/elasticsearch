@@ -36,7 +36,7 @@ public abstract class ExpressionTranslator<E extends Expression> {
     }
 
     public static FieldAttribute checkIsFieldAttribute(Expression e) {
-        Check.isTrue(e instanceof FieldAttribute, "Line {}: Expected [{}] to be FieldAttribute but was not.", e.sourceLocation(), e);
+        Check.isTrue(e instanceof FieldAttribute, "Expected a FieldAttributed but received [{}]", e);
         return (FieldAttribute) e;
     }
 }

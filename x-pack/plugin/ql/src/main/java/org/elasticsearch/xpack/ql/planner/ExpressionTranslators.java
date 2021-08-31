@@ -336,8 +336,6 @@ public final class ExpressionTranslators {
         }
 
         private static RangeQuery translate(Range r, TranslatorHandler handler) {
-            Check.isTrue(r.value() instanceof FieldAttribute, "Expected [{}] to be FieldAttribute but was not.", r.value());
-
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
             String format = null;

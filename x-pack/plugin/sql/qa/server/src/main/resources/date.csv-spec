@@ -278,8 +278,33 @@ SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y';
 10085
 ;
 
+filterDateMathIn
+SELECT emp_no FROM test_emp WHERE hire_date IN ('2021-02-03||-27y/y');
+
+    emp_no
+---------------
+10008
+10030
+10044
+10085
+;
+
 filterDateMathDisjunction
 SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y' OR hire_date = '2021-02-03||-28y/y';
+
+    emp_no
+---------------
+10008
+10017
+10030
+10040
+10042
+10044
+10085
+;
+
+filterInWithMultipleDateMath
+SELECT emp_no FROM test_emp WHERE hire_date IN ('2021-02-03||-27y/y', '2021-02-03||-28y/y');
 
     emp_no
 ---------------
@@ -302,6 +327,45 @@ SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y' OR hire_date 
 10030
 10044
 10085
+;
+
+filterInWithDateMathAndDateTime
+SELECT emp_no FROM test_emp WHERE hire_date IN ('2021-02-03||-27y/y', '1993-08-03'::datetime);
+
+    emp_no
+---------------
+10008
+10017
+10030
+10044
+10085
+;
+
+filterMixedDatetimeDisjunction
+SELECT emp_no FROM test_emp
+WHERE hire_date = '2000-02-18||-1y/y'
+   OR hire_date = '1997-05-19T00:00:00.000Z'::datetime
+   OR hire_date = '1996-11-05T00:00:00.000Z'
+   OR hire_date = '1995-12-15';
+
+    emp_no
+---------------
+10019
+10024
+10084
+10093
+;
+
+filterMixedDatetimeIn
+SELECT emp_no FROM test_emp
+WHERE hire_date IN ('2000-02-18||-1y/y', '1997-05-19T00:00:00.000Z'::datetime, '1996-11-05T00:00:00.000Z', '1995-12-15');
+
+    emp_no
+---------------
+10019
+10024
+10084
+10093
 ;
 
 filterDateMathDisjunctionWithIn

@@ -863,4 +863,32 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
     }
+
+    public void testCheckFractionalByteValueSettings() {
+        String settingKey = "network.tcp.send_buffer_size";
+        String unit = randomFrom(new String[] {"k", "kb", "m", "mb", "g", "gb", "t", "tb", "p", "pb"});
+        float value = Math.abs(randomFloat());
+        String settingValue = value + unit;
+        String unaffectedSettingKey = "some.other.setting";
+        String unaffectedSettingValue = "54.32.43mb"; //Not an actual number, so we don't expect to see a deprecation log about it
+        final Settings nodeSettings =
+            Settings.builder().put(settingKey, settingValue).put(unaffectedSettingKey, unaffectedSettingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "support for fractional byte size values is deprecated and will be removed in a future release",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html#deprecation-logging",
+            String.format(Locale.ROOT,
+                "change the following settings to non-fractional values: [%s->%s]",
+                settingKey,
+                settingValue),
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkFractionalByteValueSettings(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+        assertWarnings(String.format(Locale.ROOT,"Fractional bytes values are deprecated. Use non-fractional bytes values instead: [%s] " +
+            "found for setting [%s]", settingValue, settingKey));
+    }
 }

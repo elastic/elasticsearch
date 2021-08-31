@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -594,5 +596,32 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    static DeprecationIssue checkFractionalByteValueSettings(final Settings settings,
+                                                             final PluginsAndModules pluginsAndModules,
+                                                             final ClusterState clusterState,
+                                                             final XPackLicenseState licenseState) {
+        Map<String, String> fractionalByteSettings = new HashMap<>();
+        for (String key : settings.keySet()) {
+            try {
+                settings.getAsBytesSize(key, ByteSizeValue.ZERO);
+                String stringValue = settings.get(key);
+                if (stringValue.contains(".")) {
+                    fractionalByteSettings.put(key, stringValue);
+                }
+            } catch (Exception ignoreThis) {
+                // We expect anything that is not a byte setting to throw an exception, but we don't care about those
+            }
+        }
+        if (fractionalByteSettings.isEmpty()) {
+            return null;
+        }
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/logging.html#deprecation-logging";
+        String message = "support for fractional byte size values is deprecated and will be removed in a future release";
+        String details = "change the following settings to non-fractional values: [" +
+            fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey() + "->" +
+            fractionalByteSetting.getValue()).collect(Collectors.joining(", ")) + "]";
+        return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 }

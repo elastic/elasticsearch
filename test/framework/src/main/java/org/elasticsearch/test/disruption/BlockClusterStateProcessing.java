@@ -41,7 +41,9 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block",
+        clusterService.getClusterApplierService().runOnApplierThread(
+            "service_disruption_block",
+            Priority.IMMEDIATE,
             currentState -> {
                 started.countDown();
                 CountDownLatch latch = disruptionLatch.get();
@@ -52,8 +54,9 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
                         Throwables.rethrow(e);
                     }
                 }
-            }, (source, e) -> logger.error("unexpected error during disruption", e),
-            Priority.IMMEDIATE);
+            },
+            e -> logger.error("unexpected error during disruption", e)
+        );
         try {
             started.await();
         } catch (InterruptedException e) {

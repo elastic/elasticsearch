@@ -66,21 +66,13 @@ Elasticsearch specific build logic is located in the `build-tools-internal` subp
 
 The elasticsearch build makes use of the [task avoidance API](https://docs.gradle.org/current/userguide/task_configuration_avoidance.html) to keep the configuration time of the build low.
 
-- When declaring tasks (in build scripts or custom plugins) this means that we want to _register_ a task like:
+When declaring tasks (in build scripts or custom plugins) this means that we want to _register_ a task like:
 
+    tasks.register('someTask') { ... }
 
-  a task should be declared via
+instead of eagerly _creating_ the task:
 
-  ```
-  tasks.register('someTask') {
-  }
-  ```
-
-  instead of eagerly _creating_ the task
-  ```
-  task someTask {
-  }
-  ```
+    task someTask { ... }
 
 The major difference between these two syntaxes is, that the configuration block of an registered task will only be executed when the task is actually created due to the build requires that task to run. The configuration block of an eagerly created tasks will be executed immediately.
 

@@ -40,7 +40,9 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
+    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class IgnoredFieldType extends StringFieldType {
 

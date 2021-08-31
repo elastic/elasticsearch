@@ -115,9 +115,6 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         if (useBwCFormat) {
             final Version version = randomVersionBetween(random(), Version.V_7_5_0, Version.CURRENT);
             initWithSnapshotVersion(repoName, repoPath, version);
-            // Re-create repo to clear repository data cache
-            assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
-            createRepository(repoName, "fs", repoPath);
         }
 
         createSnapshot(repoName, "empty-snap", Collections.emptyList());

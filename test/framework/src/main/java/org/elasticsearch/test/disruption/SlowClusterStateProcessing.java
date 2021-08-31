@@ -90,7 +90,9 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             return false;
         }
         final AtomicBoolean stopped = new AtomicBoolean(false);
-        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_delay",
+        clusterService.getClusterApplierService().runOnApplierThread(
+            "service_disruption_delay",
+            Priority.IMMEDIATE,
             currentState -> {
                 try {
                     long count = duration.millis() / 200;
@@ -105,8 +107,9 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                 } catch (InterruptedException e) {
                     ExceptionsHelper.reThrowIfNotNull(e);
                 }
-            }, (source, e) -> countDownLatch.countDown(),
-            Priority.IMMEDIATE);
+            },
+            e -> countDownLatch.countDown()
+        );
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {

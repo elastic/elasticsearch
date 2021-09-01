@@ -26,6 +26,13 @@
         }
       ]
     },
+    "params":{
+      "defer_definition_decompression": {
+        "required": false,
+        "type": "boolean",
+        "description": "Should the action skip decompressing the definition to validate it and set default values, default value is false"
+      }
+    },
     "body":{
       "description":"The trained model configuration",
       "required":true

@@ -48,43 +48,38 @@ public class FilterIT extends ESIntegTestCase {
         numTag1Docs = randomIntBetween(1, numDocs - 1);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i + 1)
-                    .field("tag", "tag1")
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("idx", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().field("value", i + 1).field("tag", "tag1").endObject())
+            );
         }
         for (int i = numTag1Docs; i < numDocs; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .field("value", i)
-                    .field("tag", "tag2")
-                    .field("name", "name" + i)
-                    .endObject();
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+            XContentBuilder source = jsonBuilder().startObject()
+                .field("value", i)
+                .field("tag", "tag2")
+                .field("name", "name" + i)
+                .endObject();
+            builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted docs that match the filter
-                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
+                builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             }
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("tag1", termQuery("tag", "tag1")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1"))).get();
 
         assertSearchResponse(response);
-
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());
@@ -107,18 +102,16 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("tag1", termQuery("tag", "tag1"))
-                        .subAggregation(avg("avg_value").field("value")))
-                .get();
+            .addAggregation(filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value").field("value")))
+            .get();
 
         assertSearchResponse(response);
-
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());
         assertThat(filter.getName(), equalTo("tag1"));
         assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
-        assertThat((long) ((InternalAggregation)filter).getProperty("_count"), equalTo((long) numTag1Docs));
+        assertThat((long) ((InternalAggregation) filter).getProperty("_count"), equalTo((long) numTag1Docs));
 
         long sum = 0;
         for (int i = 0; i < numTag1Docs; ++i) {
@@ -129,14 +122,13 @@ public class FilterIT extends ESIntegTestCase {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag1Docs));
-        assertThat((double) ((InternalAggregation)filter).getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
+        assertThat((double) ((InternalAggregation) filter).getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
     }
 
     public void testAsSubAggregation() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field("value").interval(2L).subAggregation(
-                                filter("filter", matchAllQuery()))).get();
+            .addAggregation(histogram("histo").field("value").interval(2L).subAggregation(filter("filter", matchAllQuery())))
+            .get();
 
         assertSearchResponse(response);
 
@@ -153,13 +145,12 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testWithContextBasedSubAggregation() throws Exception {
         try {
-            client().prepareSearch("idx")
-                    .addAggregation(filter("tag1", termQuery("tag", "tag1"))
-                            .subAggregation(avg("avg_value")))
-                    .get();
+            client().prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value"))).get();
 
-            fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
-                    "context which the sub-aggregation can inherit");
+            fail(
+                "expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
+                    + "context which the sub-aggregation can inherit"
+            );
 
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("all shards failed"));
@@ -168,10 +159,9 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(filter("filter", matchAllQuery())))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(filter("filter", matchAllQuery())))
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");

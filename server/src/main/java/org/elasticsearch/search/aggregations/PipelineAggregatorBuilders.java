@@ -31,8 +31,7 @@ import java.util.Map;
 
 public final class PipelineAggregatorBuilders {
 
-    private PipelineAggregatorBuilders() {
-    }
+    private PipelineAggregatorBuilders() {}
 
     public static DerivativePipelineAggregationBuilder derivative(String name, String bucketsPath) {
         return new DerivativePipelineAggregationBuilder(name, bucketsPath);

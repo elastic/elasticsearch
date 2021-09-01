@@ -20,8 +20,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -67,6 +67,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
      * Create a new named {@link GeoGridAggregationBuilder}-derived builder
      */
     protected abstract GeoGridAggregationBuilder createBuilder(String name);
+
     /**
      * Return a point within the bounds of the tile grid
      */
@@ -83,27 +84,39 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     protected abstract Rectangle getTile(double lng, double lat, int precision);
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), null, geoGrid -> {
-            assertEquals(0, geoGrid.getBuckets().size());
-        }, iw -> {
-            // Intentionally not writing any docs
-        });
+        testCase(
+            new MatchAllDocsQuery(),
+            FIELD_NAME,
+            randomPrecision(),
+            null,
+            geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); },
+            iw -> {
+                // Intentionally not writing any docs
+            }
+        );
     }
 
     public void testUnmapped() throws IOException {
-        testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, geoGrid -> {
-            assertEquals(0, geoGrid.getBuckets().size());
-        }, iw -> {
-            iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
-        });
+        testCase(
+            new MatchAllDocsQuery(),
+            "wrong_field",
+            randomPrecision(),
+            null,
+            geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); },
+            iw -> { iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))); }
+        );
     }
 
     public void testUnmappedMissing() throws IOException {
-        GeoGridAggregationBuilder builder = createBuilder("_name")
-            .field("wrong_field")
-            .missing("53.69437,6.475031");
-        testCase(new MatchAllDocsQuery(), randomPrecision(), null, geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
-            iw -> iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))), builder);
+        GeoGridAggregationBuilder builder = createBuilder("_name").field("wrong_field").missing("53.69437,6.475031");
+        testCase(
+            new MatchAllDocsQuery(),
+            randomPrecision(),
+            null,
+            geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
+            iw -> iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))),
+            builder
+        );
 
     }
 
@@ -168,7 +181,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             .subAggregation(createBuilder("gg").field(FIELD_NAME).precision(precision));
         Consumer<StringTerms> verify = (terms) -> {
             Map<String, Map<String, Long>> actual = new TreeMap<>();
-            for (StringTerms.Bucket tb: terms.getBuckets()) {
+            for (StringTerms.Bucket tb : terms.getBuckets()) {
                 InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
                 for (InternalGeoGridBucket ggb : gg.getBuckets()) {
@@ -192,7 +205,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         lng = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lng));
         lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
 
-        return new double[] {lat, lng};
+        return new double[] { lat, lng };
     }
 
     public void testBounds() throws IOException {
@@ -230,13 +243,14 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         int in = 0;
         List<LatLonDocValuesField> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            Point  p = randomPoint();
+            Point p = randomPoint();
             double x = encodeDecodeLon.apply(p.getLon());
             double y = encodeDecodeLat.apply(p.getLat());
             Rectangle pointTile = getTile(x, y, precision);
-            boolean intersectsBounds = boundsTop > pointTile.getMinY() && boundsBottom < pointTile.getMaxY()
+            boolean intersectsBounds = boundsTop > pointTile.getMinY()
+                && boundsBottom < pointTile.getMaxY()
                 && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
-                || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
+                    || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
             if (intersectsBounds) {
                 in++;
             }
@@ -262,16 +276,25 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
-    private void testCase(Query query, String field, int precision, GeoBoundingBox geoBoundingBox,
-                          Consumer<InternalGeoGrid<T>> verify,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex) throws IOException {
+    private void testCase(
+        Query query,
+        String field,
+        int precision,
+        GeoBoundingBox geoBoundingBox,
+        Consumer<InternalGeoGrid<T>> verify,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex
+    ) throws IOException {
         testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
     }
 
-    private void testCase(Query query, int precision, GeoBoundingBox geoBoundingBox,
-                          Consumer<InternalGeoGrid<T>> verify,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          GeoGridAggregationBuilder aggregationBuilder) throws IOException {
+    private void testCase(
+        Query query,
+        int precision,
+        GeoBoundingBox geoBoundingBox,
+        Consumer<InternalGeoGrid<T>> verify,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        GeoGridAggregationBuilder aggregationBuilder
+    ) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);

@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -62,7 +61,7 @@ public class PercentilesMethodTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 PercentilesMethod.readFromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown PercentilesMethod ordinal ["));
             }
 

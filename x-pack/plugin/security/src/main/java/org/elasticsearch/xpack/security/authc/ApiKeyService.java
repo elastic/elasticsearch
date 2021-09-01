@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -183,6 +184,18 @@ public class ApiKeyService {
         25000, Property.NodeScope);
     public static final Setting<TimeValue> DOC_CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.doc_cache.ttl",
         TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(15), Property.NodeScope);
+
+    // This following fixed role descriptor is for fleet-server BWC on and before 7.14.
+    // It is fixed and must NOT be updated when the fleet-server service account updates.
+    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
+        "{\"elastic/fleet-server\":{\"cluster\":[\"monitor\",\"manage_own_api_key\"]," +
+            "\"indices\":[{\"names\":[\"logs-*\",\"metrics-*\",\"traces-*\",\"synthetics-*\"," +
+            "\".logs-endpoint.diagnostic.collection-*\"]," +
+            "\"privileges\":[\"write\",\"create_index\",\"auto_configure\"],\"allow_restricted_indices\":false}," +
+            "{\"names\":[\".fleet-*\"],\"privileges\":[\"read\",\"write\",\"monitor\",\"create_index\",\"auto_configure\"]," +
+            "\"allow_restricted_indices\":false}],\"applications\":[],\"run_as\":[],\"metadata\":{}," +
+            "\"transient_metadata\":{\"enabled\":true}}}"
+    );
 
     private final Clock clock;
     private final Client client;
@@ -540,9 +553,15 @@ public class ApiKeyService {
             .onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES) : "This method only applies to authentication objects created on or after v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
-        return new Tuple<>(
-            (String) metadata.get(API_KEY_ID_KEY),
-            (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY));
+        final BytesReference bytesReference =
+            (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY);
+        if (limitedBy && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
+            if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(API_KEY_CREATOR_REALM_NAME))
+                && "elastic/fleet-server".equals(authentication.getUser().principal())) {
+                return new Tuple<>((String) metadata.get(API_KEY_ID_KEY), FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14);
+            }
+        }
+        return new Tuple<>((String) metadata.get(API_KEY_ID_KEY), bytesReference);
     }
 
     public static class ApiKeyRoleDescriptors {

@@ -3,8 +3,8 @@
 
 == Configuring SAML single-sign-on on the {stack}
 
-The Elastic Stack supports SAML single-sign-on (SSO) into {kib}, using {es} as
-a backend service. In SAML terminology, the Elastic Stack is operating as a
+The {stack} supports SAML single-sign-on (SSO) into {kib}, using {es} as
+a backend service. In SAML terminology, the {stack} is operating as a
 _Service Provider_.
 
 The other component that is needed to enable SAML single-sign-on is the
@@ -13,19 +13,19 @@ performs that actual authentication of users.
 
 If you are interested in configuring SSO into {kib}, then you will need to
 provide {es} with information about your _Identity Provider_, and you will need
-to register the Elastic Stack as a known _Service Provider_ within that
+to register the {stack} as a known _Service Provider_ within that
 Identity Provider. There are also a few configuration changes that are
 required in {kib} to activate the SAML authentication provider.
 
 NOTE: The SAML support in {kib} is designed on the expectation that it will be
 the primary (or sole) authentication method for users of that {kib} instance.
 Once you enable SAML authentication in {kib} it will affect all users who try
-to login. The <<saml-kibana>> section provides more detail about how this works.
+to login. The <<saml-configure-kibana>> section provides more detail about how this works.
 
 [[saml-guide-idp]]
 === The identity provider
 
-The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
+The {stack} supports the SAML 2.0 _Web Browser SSO_ and the SAML
 2.0 _Single Logout_ profiles and can integrate with any Identity Provider (IdP)
 that supports at least the SAML 2.0 _Web Browser SSO Profile_.
 It has been tested with a number of popular IdP implementations, such as
@@ -34,7 +34,7 @@ https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-w
 This guide assumes that you have an existing IdP and wish to add {kib} as a
 Service Provider.
 
-The Elastic Stack uses a standard SAML _metadata_ document, in XML format that
+The {stack} uses a standard SAML _metadata_ document, in XML format that
 defines the capabilities and features of your IdP. You should be able to
 download or generate such a document within your IdP administration interface.
 
@@ -49,7 +49,7 @@ read the metadata document to find it - look for the `entityID` attribute on the
 `EntityDescriptor` element.
 
 Most IdPs will provide an appropriate metadata file with all the features that
-the Elastic Stack requires, and should only require the configuration steps
+the {stack} requires, and should only require the configuration steps
 described below. For completeness sake, the minimum requirements that the Elastic
 Stack has for the IdP's metadata are:
 
@@ -65,7 +65,7 @@ Stack has for the IdP's metadata are:
   with binding of HTTP-Redirect
   (`urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect`)
 
-The Elastic Stack requires that all messages from the IdP are signed.
+The {stack} requires that all messages from the IdP are signed.
 For authentication `<Response>` messages, the signature may be applied to either
 the response itself, or to the individual assertions.
 For `<LogoutRequest>` messages, the message itself must be signed, and the
@@ -127,7 +127,7 @@ xpack.security.authc.realms.saml.saml1:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.example.com/"
-  sp.acs: "https://kibana.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
@@ -177,7 +177,7 @@ sp.acs::
     or the IdP.
     The correct value may vary depending on how you have installed {kib} and
     whether there are any proxies involved, but it will typically be
-    +$\{kibana-url}/api/security/v1/saml+ where _$\{kibana-url}_ is the base URL for
+    +$\{kibana-url}/api/security/saml/callback+ where _$\{kibana-url}_ is the base URL for
     your {kib} instance.
 
 sp.logout::
@@ -290,7 +290,7 @@ xpack.security.authc.realms.saml.saml1:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.example.com/"
-  sp.acs: "https://kibana.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "nameid:persistent"
   attributes.groups: "roles"
 ------------------------------------------------------------
@@ -335,7 +335,7 @@ xpack.security.authc.realms.saml.saml1:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.example.com/"
-  sp.acs: "https://kibana.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
   attribute_patterns.principal: "^([^@]+)@staff\\.example\\.com$"
 ------------------------------------------------------------
@@ -397,7 +397,7 @@ The level of support for SLO varies between Identity Providers.
 You should consult the documentation for your IdP to determine what Logout
 services it offers.
 
-By default the Elastic Stack will support SAML SLO if the following are true:
+By default the {stack} will support SAML SLO if the following are true:
 
 - Your IdP metadata specifies that the IdP offers a SLO service
 - Your IdP releases a NameID in the subject of the SAML assertion that it issues for your users
@@ -411,7 +411,7 @@ One of the values that {es} reads from the IdP's SAML metadata is the
 stack, {es} requires that this exist and support a binding of
 `urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect`.
 
-The Elastic Stack will send both `<LogoutRequest>` and `<LogoutResponse>`
+The {stack} will send both `<LogoutRequest>` and `<LogoutResponse>`
 messages to this service as appropriate.
 
 ===== The sp.logout setting
@@ -457,7 +457,7 @@ The possible solutions to this problem are:
   the IdP metadata file, and do _not_ set `idp.use_single_logout` to `false`.
 - Advise your users to close their browser after logging out of {kib}
 - Enable the `force_authn` setting on your SAML realm. This setting causes the
-  Elastic Stack to request fresh authentication from the IdP every time a user
+  {stack} to request fresh authentication from the IdP every time a user
   attempts to log in to {kib}.
   This setting defaults to `false` because it can be a more cumbersome user
   experience, but it can also be an effective protection to stop users
@@ -467,27 +467,27 @@ The possible solutions to this problem are:
 [[saml-enc-sign]]
 ==== Encryption and signing
 
-The Elastic Stack supports generating signed SAML messages (for authentication
+The {stack} supports generating signed SAML messages (for authentication
 and/or logout), verifying signed SAML messages from the IdP (for both
 authentication and logout) and can process encrypted content.
 
 You can configure {es} for signing, encryption or both, with the same
 or separate keys used for each of those.
 
-The Elastic Stack uses X.509 certificates with RSA private keys for SAML
+The {stack} uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
 the `elasticsearch-certutil` tool.
 
-Your IdP may require that the Elastic Stack have a cryptographic key for signing
+Your IdP may require that the {stack} have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within
-the Service Provider configuration (either within the Elastic Stack SAML
+the Service Provider configuration (either within the {stack} SAML
 metadata file or manually configured within the IdP administration interface).
 While most IdPs do not expected authentication requests to be signed, it is
 commonly the case that signatures are required for logout requests. Your IdP
 will validate these signatures against the signing certificate that has been
-configured for the Elastic Stack Service Provider.
+configured for the {stack} Service Provider.
 
-Encryption certificates are rarely needed, but the Elastic Stack supports them
+Encryption certificates are rarely needed, but the {stack} supports them
 for cases where IdPs or local policies mandate their use.
 
 ===== Generating certificates and keys
@@ -631,7 +631,7 @@ curl -u user_name:password  -X GET http://localhost:9200/_security/saml/metadata
 [[saml-role-mapping]]
 === Configuring role mappings
 
-When a user authenticates using SAML, they are identified to the Elastic Stack,
+When a user authenticates using SAML, they are identified to the {stack},
 but this does not automatically grant them access to perform any actions or
 access any data.
 
@@ -728,7 +728,7 @@ fields.
   metadata field `saml_friendlyName` where "name" is the full URI name of the
   attribute. For example `saml_mail`.
 
-This behaviour can be disabled by adding `populate_user_metadata: false` to as
+This behavior can be disabled by adding `populate_user_metadata: false` to as
 a setting in the saml realm.
 
 [[saml-configure-kibana]]
@@ -825,7 +825,7 @@ xpack.security.authc.realms.saml.saml_finance:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.finance.example.com/"
-  sp.acs: "https://kibana.finance.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.finance.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.finance.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
@@ -834,7 +834,7 @@ xpack.security.authc.realms.saml.saml_sales:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.sales.example.com/"
-  sp.acs: "https://kibana.sales.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.sales.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.sales.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
@@ -843,7 +843,7 @@ xpack.security.authc.realms.saml.saml_eng:
   idp.metadata.path: saml/idp-external.xml
   idp.entity_id: "https://engineering.sso.example.net/"
   sp.entity_id:  "https://kibana.engineering.example.com/"
-  sp.acs: "https://kibana.engineering.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.engineering.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.engineering.example.com/logout"
   attributes.principal: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn"
 ------------------------------------------------------------
@@ -857,7 +857,7 @@ instances use basic authentication against another realm type (e.g.
 
 The SAML 2.0 specification offers a lot of options and flexibility for the implementers
 of the standard which in turn adds to the complexity and the number of configuration options
-that are available both at the Service Provider (Elastic Stack) and at the Identity Provider.
+that are available both at the Service Provider ({stack}) and at the Identity Provider.
 Additionally, different security domains have different security requirements that need
 specific configuration to be satisfied.
 A conscious effort has been made to mask this complexity with sane defaults and the detailed
@@ -886,7 +886,7 @@ access tokens after the current one expires.
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly
-in {es}. See <<saml-guide-authentication>>
+in {es}. Refer to <<saml-elasticsearch-authentication>>.
 
 [[saml-no-kibana-user]]
 ==== Service Account user for accessing the APIs

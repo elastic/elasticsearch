@@ -11,6 +11,7 @@ package org.elasticsearch.common.geo.builders;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 
@@ -53,5 +54,87 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
             mpb.polygon(pgb);
         }
         return mpb;
+    }
+
+    public void testInvalidPolygonBuilders() {
+        try {
+            // self intersection polygon
+            new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-10, -10)
+                .coordinate(10, 10)
+                .coordinate(-10, 10)
+                .coordinate(10, -10)
+                .close())
+                .buildS4J();
+            fail("Self intersection not detected");
+        } catch (InvalidShapeException e) {
+        }
+
+        // polygon with hole
+        new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+            .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5)
+                .coordinate(5, -5).close()))
+            .buildS4J();
+        try {
+            // polygon with overlapping hole
+            new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                .hole(new LineStringBuilder(new CoordinatesBuilder()
+                    .coordinate(-5, -5).coordinate(-5, 11).coordinate(5, 11).coordinate(5, -5).close()))
+                .buildS4J();
+
+            fail("Self intersection not detected");
+        } catch (InvalidShapeException e) {
+        }
+
+        try {
+            // polygon with intersection holes
+            new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
+                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5)
+                    .coordinate(5, -5).close()))
+                .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4)
+                    .coordinate(-5, -4).close()))
+                .buildS4J();
+            fail("Intersection of holes not detected");
+        } catch (InvalidShapeException e) {
+        }
+
+        try {
+            // Common line in polygon
+            new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-10, -10)
+                .coordinate(-10, 10)
+                .coordinate(-5, 10)
+                .coordinate(-5, -5)
+                .coordinate(-5, 20)
+                .coordinate(10, 20)
+                .coordinate(10, -10)
+                .close())
+                .buildS4J();
+            fail("Self intersection not detected");
+        } catch (InvalidShapeException e) {
+        }
+
+        // Multipolygon: polygon with hole and polygon within the whole
+        new MultiPolygonBuilder()
+            .polygon(new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-10, -10)
+                    .coordinate(-10, 10)
+                    .coordinate(10, 10)
+                    .coordinate(10, -10).close())
+                .hole(new LineStringBuilder(
+                    new CoordinatesBuilder().coordinate(-5, -5)
+                        .coordinate(-5, 5)
+                        .coordinate(5, 5)
+                        .coordinate(5, -5).close())))
+            .polygon(new PolygonBuilder(
+                new CoordinatesBuilder()
+                    .coordinate(-4, -4)
+                    .coordinate(-4, 4)
+                    .coordinate(4, 4)
+                    .coordinate(4, -4).close()))
+            .buildS4J();
     }
 }

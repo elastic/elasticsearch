@@ -89,6 +89,8 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         try {
             String output;
             client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 30);
+            //TODO do not generate and display enrollment tokens as they cannot be used if single-node discovery
+            //TODO do not generate elastic user password if there are already file users set up
             final List<EnrollmentToken> enrollmentTokens = enrollmentTokenGenerator.createEnrollmentTokens(ElasticUser.NAME,
                     bootstrapPassword);
             if (enrollmentTokens == null || (enrollmentTokens.size() != 1 && enrollmentTokens.size() != 2)) {

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import java.time.Instant;
 
+import static java.time.temporal.ChronoUnit.NANOS;
+
 // wrapper for Unix epoch timestamps with different resolutions.
 public abstract class Timestamp {
     static final long MILLIS_PER_SECOND = 1_000L;
@@ -44,8 +46,7 @@ public abstract class Timestamp {
 
     // time delta in nanos between this and other instance
     public long delta(Timestamp other) {
-        Instant diff = instant().minusNanos(other.instant().getNano()).minusSeconds(other.instant().getEpochSecond());
-        return diff.getEpochSecond() * NANOS_PER_SECOND + diff.getNano();
+        return other.instant().until(instant(), NANOS);
     }
 
     @Override

@@ -63,7 +63,9 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 `xpack.security.authc.password_hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for secure user credential storage.
-See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+See <<password-hashing-algorithms>>.
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`. 
+In all other cases, defaults to `bcrypt`.
 
 [discrete]
 [[anonymous-access-settings]]

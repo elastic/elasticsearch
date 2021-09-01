@@ -26,14 +26,14 @@ public class FreezeStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
         getClient().admin().indices().execute(FreezeIndexAction.INSTANCE,
             new FreezeRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE),
             ActionListener.wrap(response -> {
                 if (response.isAcknowledged() == false) {
                     throw new ElasticsearchException("freeze index request failed to be acknowledged");
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             }, listener::onFailure));
     }
 

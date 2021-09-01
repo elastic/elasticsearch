@@ -1213,9 +1213,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         } else {
                             SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
                             if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
-                                throw new IllegalStateException("The parsed [" + searchExtBuilder.getClass().getName() + "] object has a "
-                                        + "different writeable name compared to the name of the section that it was parsed from: found ["
-                                        + searchExtBuilder.getWriteableName() + "] expected [" + extSectionName + "]");
+                                throw new IllegalStateException(
+                                    "The parsed ["
+                                        + searchExtBuilder.getClass().getName()
+                                        + "] object has a different writeable name compared to the name of the section that "
+                                        + " it was parsed from: found ["
+                                        + searchExtBuilder.getWriteableName()
+                                        + "] expected ["
+                                        + extSectionName
+                                        + "]"
+                                );
                             }
                             extBuilders.add(searchExtBuilder);
                         }

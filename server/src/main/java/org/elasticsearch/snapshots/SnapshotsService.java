@@ -70,7 +70,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
@@ -308,35 +308,42 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
-                final List<SnapshotFeatureInfo> featureStates;
+                final Set<SnapshotFeatureInfo> featureStates = new HashSet<>();
+                final Set<String> systemDataStreamNames = new HashSet<>();
                 // if we have any feature states in the snapshot, we add their required indices to the snapshot indices if they haven't
                 // been requested by the request directly
-                if (featureStatesSet.isEmpty()) {
-                    featureStates = Collections.emptyList();
-                } else {
-                    final Set<String> indexNames = new HashSet<>(indices);
-                    featureStates = featureStatesSet.stream()
-                        .map(
-                            feature -> new SnapshotFeatureInfo(
-                                feature,
-                                systemIndexDescriptorMap.get(feature)
-                                    .getIndexDescriptors()
-                                    .stream()
-                                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
-                                    .collect(Collectors.toList())
-                            )
-                        )
-                        .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
-                        .collect(Collectors.toList());
-                    for (SnapshotFeatureInfo featureState : featureStates) {
-                        indexNames.addAll(featureState.getIndices());
+                final Set<String> indexNames = new HashSet<>(indices);
+                for (String featureName : featureStatesSet) {
+                    SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
+
+                    Set<String> featureSystemIndices = feature.getIndexDescriptors()
+                        .stream()
+                        .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                        .collect(Collectors.toSet());
+                    Set<String> featureAssociatedIndices = feature.getAssociatedIndexDescriptors()
+                        .stream()
+                        .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                        .collect(Collectors.toSet());
+
+                    Set<String> featureSystemDataStreams = new HashSet<>();
+                    Set<String> featureDataStreamBackingIndices = new HashSet<>();
+                    for (SystemDataStreamDescriptor sdd : feature.getDataStreamDescriptors()) {
+                        List<String> backingIndexNames = sdd.getBackingIndexNames(currentState.metadata());
+                        if (backingIndexNames.size() > 0) {
+                            featureDataStreamBackingIndices.addAll(backingIndexNames);
+                            featureSystemDataStreams.add(sdd.getDataStreamName());
+                        }
                     }
 
-                    // Add all resolved indices from the feature states to the list of indices
-                    for (String feature : featureStatesSet) {
-                        for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
-                            indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
-                        }
+                    if (featureSystemIndices.size() > 0
+                        || featureAssociatedIndices.size() > 0
+                        || featureDataStreamBackingIndices.size() > 0) {
+
+                        featureStates.add(new SnapshotFeatureInfo(featureName, List.copyOf(featureSystemIndices)));
+                        indexNames.addAll(featureSystemIndices);
+                        indexNames.addAll(featureAssociatedIndices);
+                        indexNames.addAll(featureDataStreamBackingIndices);
+                        systemDataStreamNames.addAll(featureSystemDataStreams);
                     }
                     indices = List.copyOf(indexNames);
                 }
@@ -346,6 +353,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     request.indicesOptions(),
                     request.indices()
                 );
+                dataStreams.addAll(systemDataStreamNames);
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
@@ -388,7 +396,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     shards,
                     userMeta,
                     version,
-                    featureStates
+                    List.copyOf(featureStates)
                 );
                 return ClusterState.builder(currentState)
                     .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry)))
@@ -1376,12 +1384,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
         final Snapshot snapshot = entry.snapshot();
+        final boolean newFinalization = endingSnapshots.add(snapshot);
         if (entry.isClone() && entry.state() == State.FAILED) {
             logger.debug("Removing failed snapshot clone [{}] from cluster state", entry);
-            removeFailedSnapshotFromClusterState(snapshot, new SnapshotException(snapshot, entry.failure()), null);
+            if (newFinalization) {
+                removeFailedSnapshotFromClusterState(snapshot, new SnapshotException(snapshot, entry.failure()), null);
+            }
             return;
         }
-        final boolean newFinalization = endingSnapshots.add(snapshot);
         final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {
@@ -1741,15 +1751,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Computes the cluster state resulting from removing a given snapshot create operation that was finalized in the repository from the
-     * given state. This method will update the shard generations of snapshots that the given snapshot depended on so that finalizing them
-     * will not cause rolling back to an outdated shard generation.
+     * Computes the cluster state resulting from removing a given snapshot create operation from the given state. This method will update
+     * the shard generations of snapshots that the given snapshot depended on so that finalizing them will not cause rolling back to an
+     * outdated shard generation.
      *
      * @param state    current cluster state
      * @param snapshot snapshot for which to remove the snapshot operation
      * @return updated cluster state
      */
-    public static ClusterState stateWithoutSuccessfulSnapshot(ClusterState state, Snapshot snapshot) {
+    public static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot) {
         // TODO: updating snapshots here leaks their outdated generation files, we should add logic to clean those up and enhance
         // BlobStoreTestUtil to catch this leak
         SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
@@ -1905,32 +1915,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Computes the cluster state resulting from removing a given snapshot create operation from the given state after it has failed at
-     * any point before being finalized in the repository.
-     *
-     * @param state    current cluster state
-     * @param snapshot snapshot for which to remove the snapshot operation
-     * @return updated cluster state
-     */
-    private static ClusterState stateWithoutFailedSnapshot(ClusterState state, Snapshot snapshot) {
-        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-        ClusterState result = state;
-        boolean changed = false;
-        ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-        for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-            if (entry.snapshot().equals(snapshot)) {
-                changed = true;
-            } else {
-                entries.add(entry);
-            }
-        }
-        if (changed) {
-            result = ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(entries)).build();
-        }
-        return readyDeletions(result).v1();
-    }
-
-    /**
      * Removes record of running snapshot from cluster state and notifies the listener when this action is complete. This method is only
      * used when the snapshot fails for some reason. During normal operation the snapshot repository will remove the
      * {@link SnapshotsInProgress.Entry} from the cluster state once it's done finalizing the snapshot.
@@ -1946,7 +1930,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final ClusterState updatedState = stateWithoutFailedSnapshot(currentState, snapshot);
+                final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot);
                 assert updatedState == currentState || endingSnapshots.contains(snapshot)
                     : "did not track [" + snapshot + "] in ending snapshots while removing it from the cluster state";
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them

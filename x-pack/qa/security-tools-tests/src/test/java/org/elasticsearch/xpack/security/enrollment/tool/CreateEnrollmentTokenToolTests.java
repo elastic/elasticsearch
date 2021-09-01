@@ -23,7 +23,8 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.security.enrollment.CreateEnrollmentToken;
+import org.elasticsearch.xpack.security.enrollment.EnrollmentToken;
+import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 import org.junit.AfterClass;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -60,14 +62,14 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
 
     private CommandLineHttpClient client;
     private KeyStoreWrapper keyStoreWrapper;
-    private CreateEnrollmentToken createEnrollmentTokenService;
+    private EnrollmentTokenGenerator enrollmentTokenGenerator;
 
     @Override
     protected Command newCommand() {
         return new CreateEnrollmentTokenTool(environment -> client, environment -> keyStoreWrapper,
-            environment -> createEnrollmentTokenService) {
+            environment -> enrollmentTokenGenerator) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(Map<String, String> settings) {
                 return new Environment(CreateEnrollmentTokenToolTests.this.settings, confDir);
             }
         };
@@ -112,15 +114,17 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
             any(CheckedFunction.class))).thenReturn(healthResponse);
 
-        this.createEnrollmentTokenService = mock(CreateEnrollmentToken.class);
-        when(createEnrollmentTokenService.createKibanaEnrollmentToken(anyString(), any(SecureString.class)))
-            .thenReturn("eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbOjoxXTo5MjAwIiwiMTI3LjAuMC4xOjkyMDAiXSwiZmdyIjoiOWQ4MTRmYzdiNDQ0MWE0MWJlMDA5ZmQ0" +
-                "MzlkOWU5MzRiMDZiMjZjZjk4N2I1YzNjOGU0OWI1NmQ2MGYzMmMxMiIsImtleSI6Im5NMmVYbm9CbnBvT3ZncGFiaWU5OlRHaHF5UU9UVENhUEJpOVZQak1i" +
-                "OWcifQ==");
-        when(createEnrollmentTokenService.createNodeEnrollmentToken(anyString(), any(SecureString.class)))
-            .thenReturn("eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbOjoxXTo5MjAwIiwiMTI3LjAuMC4xOjkyMDAiXSwiZmdyIjoiOWQ4MTRmYzdiNDQ0MWE0MWJlMDA5ZmQ0" +
-                "MzlkOWU5MzRiMDZiMjZjZjk4N2I1YzNjOGU0OWI1NmQ2MGYzMmMxMiIsImtleSI6IndLTmZYSG9CQTFPMHI4UXBOV25FOnRkdUgzTmNTVHNTOGN0c3AwaWNU" +
-                "eEEifQ==");
+        this.enrollmentTokenGenerator = mock(EnrollmentTokenGenerator.class);
+        EnrollmentToken kibanaToken = new EnrollmentToken("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
+            "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", "8.0.0",
+            Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202"));
+        EnrollmentToken nodeToken = new EnrollmentToken("DR6CzXkBDf8amV_48yYX:4BhUk-mkFm-AwvRFg90KJ",
+            "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", "8.0.0",
+            Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202"));
+        when(enrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class)))
+            .thenReturn(kibanaToken);
+        when(enrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class)))
+            .thenReturn(nodeToken);
     }
 
     @AfterClass
@@ -135,9 +139,9 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         String scope = randomBoolean() ? "node" : "kibana";
         String output = execute("--scope", scope);
         if (scope.equals("kibana")) {
-            assertThat(output, containsString("WU5OlRHaHF5UU9UVENhUEJpOVZQak1iOWcifQ=="));
+            assertThat(output, containsString("1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
         } else {
-            assertThat(output, containsString("25FOnRkdUgzTmNTVHNTOGN0c3AwaWNUeEEifQ=="));
+            assertThat(output, containsString("4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
         }
     }
 
@@ -170,13 +174,13 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         String scope = randomBoolean() ? "node" : "kibana";
         String output = execute("--scope", scope);
         if (scope.equals("kibana")) {
-            assertThat(output, containsString("WU5OlRHaHF5UU9UVENhUEJpOVZQak1iOWcifQ=="));
+            assertThat(output, containsString("1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
         } else {
-            assertThat(output, containsString("25FOnRkdUgzTmNTVHNTOGN0c3AwaWNUeEEifQ=="));
+            assertThat(output, containsString("4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
         }
     }
 
-    public void testEnrollmentDisabled() throws Exception {
+    public void testEnrollmentDisabled() {
         settings = Settings.builder()
             .put(settings)
             .put(XPackSettings.ENROLLMENT_ENABLED.getKey(), false)
@@ -192,10 +196,10 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
     }
 
     public void testUnableToCreateToken() throws Exception {
-        this.createEnrollmentTokenService = mock(CreateEnrollmentToken.class);
-        when(createEnrollmentTokenService.createKibanaEnrollmentToken(anyString(), any(SecureString.class)))
+        this.enrollmentTokenGenerator = mock(EnrollmentTokenGenerator.class);
+        when(enrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class)))
             .thenThrow(new IllegalStateException("example exception message"));
-        when(createEnrollmentTokenService.createNodeEnrollmentToken(anyString(), any(SecureString.class)))
+        when(enrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class)))
             .thenThrow(new IllegalStateException("example exception message"));
         String scope = randomBoolean() ? "node" : "kibana";
         UserException e = expectThrows(UserException.class, () -> {

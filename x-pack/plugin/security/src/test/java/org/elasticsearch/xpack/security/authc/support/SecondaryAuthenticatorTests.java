@@ -101,7 +101,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         realm = new DummyUsernamePasswordRealm(new RealmConfig(new RealmIdentifier("dummy", "test_realm"), settings, env, threadContext));
-        when(realms.asList()).thenReturn(List.of(realm));
+        when(realms.getActiveRealms()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
         final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
@@ -115,7 +115,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, Long.MAX_VALUE, null);
+        licenseState.update(License.OperationMode.PLATINUM, true, Long.MAX_VALUE);
 
         final Clock clock = Clock.systemUTC();
 

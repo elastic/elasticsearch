@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-
 public class AvgBucketAggregatorTests extends AggregatorTestCase {
     private static final String DATE_FIELD = "date";
     private static final String VALUE_FIELD = "value";
@@ -52,7 +51,8 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
         "2015-06-24T13:47:43",
         "2015-11-13T16:14:34",
         "2016-03-04T17:09:50",
-        "2017-12-12T22:55:46");
+        "2017-12-12T22:55:46"
+    );
 
     /**
      * Test for issue #30608.  Under the following circumstances:
@@ -72,13 +72,11 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
-        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo")
-            .calendarInterval(DateHistogramInterval.YEAR)
+        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("foo").field(VALUE_FIELD));
 
-        AvgBucketPipelineAggregationBuilder avgBucketBuilder
-            = new AvgBucketPipelineAggregationBuilder("the_avg_bucket", "histo>foo");
+        AvgBucketPipelineAggregationBuilder avgBucketBuilder = new AvgBucketPipelineAggregationBuilder("the_avg_bucket", "histo>foo");
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -102,13 +100,10 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
 
-                MappedFieldType valueFieldType
-                    = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000,
-                    new MappedFieldType[]{fieldType, valueFieldType});
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000,
-                    new MappedFieldType[]{fieldType, valueFieldType});
+                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, new MappedFieldType[] { fieldType, valueFieldType });
+                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, new MappedFieldType[] { fieldType, valueFieldType });
             }
 
             // Finally, reduce the pipeline agg
@@ -119,7 +114,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             reducedAggs.add(histogramResult);
             reducedAggs.add(avgResult);
             Aggregations aggregations = new Aggregations(reducedAggs);
-            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator)avgBucketAgg).doReduce(aggregations, null);
+            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);
         }
     }

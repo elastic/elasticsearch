@@ -8,17 +8,15 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.ssl.SslVerificationMode;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
-import javax.crypto.SecretKeyFactory;
-import javax.net.ssl.SSLContext;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 
@@ -145,9 +145,9 @@ public class XPackSettings {
         new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
-                return "PBKDF2";
+                return Hasher.PBKDF2_STRETCH.name();
             } else {
-                return "BCRYPT";
+                return Hasher.BCRYPT.name();
             }
         },
         Function.identity(),

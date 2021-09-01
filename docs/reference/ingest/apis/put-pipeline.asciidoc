@@ -48,7 +48,7 @@ PUT _ingest/pipeline/my-pipeline-id
 [[put-pipeline-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[put-pipeline-api-request-body]]
@@ -70,13 +70,12 @@ specified. {es} will not attempt to run the pipeline's remaining processors.
 
 `processors`::
 (Required, array of <<processors,processor>> objects)
-Processors used to preform transformations on documents before indexing.
+Processors used to perform transformations on documents before indexing.
 Processors run sequentially in the order specified.
 
 `version`::
 (Optional, integer)
 Version number used by external systems to track ingest pipelines.
-
 +
 This parameter is intended for external systems only. {es} does not use or
 validate pipeline version numbers.

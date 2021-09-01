@@ -81,11 +81,16 @@ public class RollupJobIdentifierUtils {
         } else if (RollupField.SUPPORTED_METRICS.contains(source.getWriteableName())) {
             checkVSLeaf((ValuesSourceAggregationBuilder.LeafOnly) source, jobCaps, bestCaps);
         } else if (source.getWriteableName().equals(TermsAggregationBuilder.NAME)) {
-            checkTerms((TermsAggregationBuilder)source, jobCaps, bestCaps);
+            checkTerms((TermsAggregationBuilder) source, jobCaps, bestCaps);
         } else {
-            throw new IllegalArgumentException("Unable to translate aggregation tree into Rollup.  Aggregation ["
-                    + source.getName() + "] is of type [" + source.getClass().getSimpleName() + "] which is " +
-                    "currently unsupported.");
+            throw new IllegalArgumentException(
+                "Unable to translate aggregation tree into Rollup.  Aggregation ["
+                    + source.getName()
+                    + "] is of type ["
+                    + source.getClass().getSimpleName()
+                    + "] which is "
+                    + "currently unsupported."
+            );
         }
     }
 
@@ -99,7 +104,7 @@ public class RollupJobIdentifierUtils {
             if (fieldCaps != null) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
+                        DateHistogramInterval interval = new DateHistogramInterval((String) agg.get(RollupField.INTERVAL));
 
                         ZoneId thisTimezone = ZoneId.of(((String) agg.get(DateHistogramGroupConfig.TIME_ZONE)), ZoneId.SHORT_IDS);
                         ZoneId sourceTimeZone = source.timeZone() == null
@@ -120,11 +125,14 @@ public class RollupJobIdentifierUtils {
                         */
 
                         DateHistogramInterval configCalendarInterval = agg.get(CALENDAR_INTERVAL) != null
-                            ? new DateHistogramInterval((String) agg.get(CALENDAR_INTERVAL)) : null;
+                            ? new DateHistogramInterval((String) agg.get(CALENDAR_INTERVAL))
+                            : null;
                         DateHistogramInterval configFixedInterval = agg.get(FIXED_INTERVAL) != null
-                            ? new DateHistogramInterval((String) agg.get(FIXED_INTERVAL)) : null;
+                            ? new DateHistogramInterval((String) agg.get(FIXED_INTERVAL))
+                            : null;
                         DateHistogramInterval configLegacyInterval = agg.get(INTERVAL) != null
-                            ? new DateHistogramInterval((String) agg.get(INTERVAL)) : null;
+                            ? new DateHistogramInterval((String) agg.get(INTERVAL))
+                            : null;
 
                         // If histo used calendar_interval explicitly
                         if (source.getCalendarInterval() != null) {
@@ -165,8 +173,9 @@ public class RollupJobIdentifierUtils {
 
                         } else {
                             // This _should not_ happen, but if miraculously it does we need to just quit
-                            throw new IllegalArgumentException("An interval of some variety must be configured on " +
-                                "the date_histogram aggregation.");
+                            throw new IllegalArgumentException(
+                                "An interval of some variety must be configured on " + "the date_histogram aggregation."
+                            );
                         }
                         // If we get here nothing matched, and we can break out
                         break;
@@ -176,8 +185,13 @@ public class RollupJobIdentifierUtils {
         }
 
         if (localCaps.isEmpty()) {
-            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName() + "] agg on field [" +
-                    source.field() + "] which also satisfies all requirements of query.");
+            throw new IllegalArgumentException(
+                "There is not a rollup job that has a ["
+                    + source.getWriteableName()
+                    + "] agg on field ["
+                    + source.field()
+                    + "] which also satisfies all requirements of query."
+            );
         }
 
         // We are a leaf, save our best caps
@@ -203,13 +217,12 @@ public class RollupJobIdentifierUtils {
         return interval;
     }
 
-    static boolean validateCalendarInterval(DateHistogramInterval requestInterval,
-                                                    DateHistogramInterval configInterval) {
+    static boolean validateCalendarInterval(DateHistogramInterval requestInterval, DateHistogramInterval configInterval) {
         if (requestInterval == null || configInterval == null) {
             return false;
         }
 
-        // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
+        // The request must be gte the config. The CALENDAR_ORDERING map values are integers representing
         // relative orders between the calendar units
         Rounding.DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
         if (requestUnit == null) {
@@ -233,10 +246,8 @@ public class RollupJobIdentifierUtils {
         }
 
         // Both are fixed, good to convert to millis now
-        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
-            "date_histo.config.interval").getMillis();
-        long requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(),
-            "date_histo.request.interval").getMillis();
+        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(), "date_histo.config.interval").getMillis();
+        long requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(), "date_histo.request.interval").getMillis();
 
         // Must be a multiple and gte the config
         return requestIntervalMillis >= configIntervalMillis && requestIntervalMillis % configIntervalMillis == 0;
@@ -264,8 +275,13 @@ public class RollupJobIdentifierUtils {
         }
 
         if (localCaps.isEmpty()) {
-            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName()
-                + "] agg on field [" + source.field() + "] which also satisfies all requirements of query.");
+            throw new IllegalArgumentException(
+                "There is not a rollup job that has a ["
+                    + source.getWriteableName()
+                    + "] agg on field ["
+                    + source.field()
+                    + "] which also satisfies all requirements of query."
+            );
         }
 
         // We are a leaf, save our best caps
@@ -296,8 +312,13 @@ public class RollupJobIdentifierUtils {
         }
 
         if (localCaps.isEmpty()) {
-            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName() + "] agg on field [" +
-                    source.field() + "] which also satisfies all requirements of query.");
+            throw new IllegalArgumentException(
+                "There is not a rollup job that has a ["
+                    + source.getWriteableName()
+                    + "] agg on field ["
+                    + source.field()
+                    + "] which also satisfies all requirements of query."
+            );
         }
 
         // We are a leaf, save our best caps
@@ -313,8 +334,11 @@ public class RollupJobIdentifierUtils {
      * Ensure that the metrics are supported by one or more job caps.  There is no notion of "best"
      * caps for metrics, it is either supported or not.
      */
-    private static void checkVSLeaf(ValuesSourceAggregationBuilder.LeafOnly<?,?> source, List<RollupJobCaps> jobCaps,
-                                    Set<RollupJobCaps> bestCaps) {
+    private static void checkVSLeaf(
+        ValuesSourceAggregationBuilder.LeafOnly<?, ?> source,
+        List<RollupJobCaps> jobCaps,
+        Set<RollupJobCaps> bestCaps
+    ) {
         ArrayList<RollupJobCaps> localCaps = new ArrayList<>();
         for (RollupJobCaps cap : jobCaps) {
             RollupJobCaps.RollupFieldCaps fieldCaps = cap.getFieldCaps().get(source.field());
@@ -329,8 +353,13 @@ public class RollupJobIdentifierUtils {
         }
 
         if (localCaps.isEmpty()) {
-            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName() + "] agg with name [" +
-                    source.getName() + "] which also satisfies all requirements of query.");
+            throw new IllegalArgumentException(
+                "There is not a rollup job that has a ["
+                    + source.getWriteableName()
+                    + "] agg with name ["
+                    + source.getName()
+                    + "] which also satisfies all requirements of query."
+            );
         }
 
         // Metrics are always leaves so go ahead and add to best caps
@@ -410,8 +439,8 @@ public class RollupJobIdentifierUtils {
 
             // If dates are the same, the "smaller" job is the one with a larger histo avg histo weight.
             // Not bullet proof, but heuristically we prefer:
-            //  - one job with interval 100 (avg 100) over one job with interval 10 (avg 10)
-            //  - one job with interval 100 (avg 100) over one job with ten histos @ interval 10 (avg 10)
+            // - one job with interval 100 (avg 100) over one job with interval 10 (avg 10)
+            // - one job with interval 100 (avg 100) over one job with ten histos @ interval 10 (avg 10)
             // because in both cases the larger intervals likely generate fewer documents
             //
             // The exception is if one of jobs had no histo (avg 0) then we prefer that

@@ -292,8 +292,17 @@ separately.
   to a specific remote cluster. This setting impacts only requests
   sent to the remote cluster. If the inbound request is compressed,
   Elasticsearch compresses the response. The setting options are `true`,
-  `indexing_data`, and `false`. The option `indexing_data` is experimental.
-  If unset, the global `transport.compress` is used as the fallback setting.
+  `indexing_data`, and `false`. If unset, the global `transport.compress` is
+  used as the fallback setting.
+
+`cluster.remote.<cluster_alias>.transport.compression_scheme`::
+
+  Per cluster setting that enables you to configure compression scheme for
+  requests to a specific remote cluster. This setting impacts only requests
+  sent to the remote cluster. If an inbound request is compressed, {es}
+  compresses the response using the same compression scheme. The setting options
+  are `deflate` and `lz4`. If unset, the global `transport.compression_scheme`
+  is used as the fallback setting.
 
 [discrete]
 [[remote-cluster-sniff-settings]]

@@ -13,13 +13,13 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -175,10 +176,11 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private ActionFuture<ClusterUpdateSettingsResponse> setVerificationMode(String name, SslVerificationMode mode) {
         final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
+        final String verificationModeName = randomBoolean() ? mode.name() : mode.name().toLowerCase(Locale.ROOT);
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters." + name + ".type", HttpExporter.TYPE)
             .put("xpack.monitoring.exporters." + name + ".host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
-            .put("xpack.monitoring.exporters." + name + ".ssl.verification_mode", mode.name())
+            .put("xpack.monitoring.exporters." + name + ".ssl.verification_mode", verificationModeName)
             .build();
         updateSettings.transientSettings(settings);
         return client().admin().cluster().updateSettings(updateSettings);

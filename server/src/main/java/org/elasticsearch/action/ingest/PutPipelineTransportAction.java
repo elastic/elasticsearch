@@ -58,10 +58,10 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
-        if (state.getNodes().getMinNodeVersion().before(Version.V_8_0_0)) {
+        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
             Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
-                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_8_0_0);
+                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
             }
         }
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();

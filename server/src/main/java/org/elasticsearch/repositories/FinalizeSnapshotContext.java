@@ -79,7 +79,7 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
     }
 
     public ClusterState updatedClusterState(ClusterState state) {
-        return SnapshotsService.stateWithoutSuccessfulSnapshot(state, snapshotInfo.snapshot());
+        return SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot());
     }
 
     @Override

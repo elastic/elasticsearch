@@ -212,14 +212,14 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     private static BulkItemResponse bulkItemSuccess(String docId) {
-        return new BulkItemResponse(
+        return BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
             new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), docId, 0, 0, 1, true));
     }
 
     private static BulkItemResponse bulkItemFailure(String docId) {
-        return new BulkItemResponse(
+        return BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
             new BulkItemResponse.Failure("my-index", docId, new Exception("boom")));

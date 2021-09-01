@@ -51,10 +51,9 @@ public final class TransportSettings {
     public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
     public static final Setting<Compression.Enabled> TRANSPORT_COMPRESS =
-        enumSetting(Compression.Enabled.class, "transport.compress", Compression.Enabled.FALSE, Setting.Property.NodeScope);
+        enumSetting(Compression.Enabled.class, "transport.compress", Compression.Enabled.INDEXING_DATA, Setting.Property.NodeScope);
     public static final Setting<Compression.Scheme> TRANSPORT_COMPRESSION_SCHEME =
-        enumSetting(Compression.Scheme.class, "transport.compression_scheme", Compression.Scheme.DEFLATE,
-            Setting.Property.NodeScope);
+        enumSetting(Compression.Scheme.class, "transport.compression_scheme", Compression.Scheme.LZ4, Setting.Property.NodeScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);

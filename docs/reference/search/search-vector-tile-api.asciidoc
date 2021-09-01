@@ -1,7 +1,7 @@
 [[search-vector-tile-api]]
-=== Search vector tile API
+=== Vector tile search API
 ++++
-<titleabbrev>Search vector tile</titleabbrev>
+<titleabbrev>Vector tile search</titleabbrev>
 ++++
 
 experimental::[]
@@ -83,7 +83,7 @@ change in a future release.
 [[search-vector-tile-api-desc]]
 ==== {api-description-title}
 
-Internally, {es} translates a search vector tile API request into a
+Internally, {es} translates a vector tile search API request into a
 <<search-search,search>> containing:
 
 * A <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query on the
@@ -98,7 +98,7 @@ a bounding box.
 on the `<field>`. The search only includes this aggregation if the
 `exact_bounds` parameter is `true`.
 
-For example, {es} may translate a search vector tile API request with an
+For example, {es} may translate a vector tile search API request with an
 `exact_bounds` argument of `true` into the following search:
 
 [source,console]

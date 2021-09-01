@@ -66,7 +66,10 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
             }
         }
         if (sizedBucketAggregator == null) {
-            throw new IllegalArgumentException("The rate aggregation can only be used inside a date histogram");
+            throw new IllegalArgumentException(
+                "The rate aggregation can only be used inside a date histogram aggregation or "
+                    + "composite aggregation with one date histogram value source"
+            );
         }
         return sizedBucketAggregator;
     }
@@ -109,4 +112,5 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     public void doClose() {
         Releasables.close(sums, compensations);
     }
+
 }

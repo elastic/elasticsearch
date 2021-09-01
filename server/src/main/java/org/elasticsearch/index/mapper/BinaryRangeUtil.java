@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,7 +42,7 @@ enum BinaryRangeUtil {
         return out.bytes().toBytesRef();
     }
 
-    static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) {
+    static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.IP, BinaryRangeUtil::decodeIP);
     }
 
@@ -70,7 +69,7 @@ enum BinaryRangeUtil {
         return out.bytes().toBytesRef();
     }
 
-    static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
+    static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.LONG,
             BinaryRangeUtil::decodeLong);
     }
@@ -92,44 +91,41 @@ enum BinaryRangeUtil {
         return out.bytes().toBytesRef();
     }
 
-    static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
+    static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.DOUBLE,
             BinaryRangeUtil::decodeDouble);
     }
 
-    static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) {
+    static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.FLOAT,
             BinaryRangeUtil::decodeFloat);
     }
 
     static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeType rangeType,
-                                                     TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
+                                                     TriFunction<byte[], Integer, Integer, Object> decodeBytes) throws IOException {
 
         RangeType.LengthType lengthType = rangeType.lengthType;
         ByteArrayStreamInput in = new ByteArrayStreamInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
-        try {
-            int numRanges = in.readVInt();
-            List<RangeFieldMapper.Range> ranges = new ArrayList<>(numRanges);
 
-            final byte[] bytes = encodedRanges.bytes;
-            int offset = in.getPosition();
-            for (int i = 0; i < numRanges; i++) {
-                int length = lengthType.readLength(bytes, offset);
-                Object from = decodeBytes.apply(bytes, offset, length);
-                offset += length;
+        int numRanges = in.readVInt();
+        List<RangeFieldMapper.Range> ranges = new ArrayList<>(numRanges);
 
-                length = lengthType.readLength(bytes, offset);
-                Object to = decodeBytes.apply(bytes, offset, length);
-                offset += length;
-                // TODO: Support for exclusive ranges, pending resolution of #40601
-                RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
-                ranges.add(decodedRange);
-            }
-            return ranges;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        final byte[] bytes = encodedRanges.bytes;
+        int offset = in.getPosition();
+        for (int i = 0; i < numRanges; i++) {
+            int length = lengthType.readLength(bytes, offset);
+            Object from = decodeBytes.apply(bytes, offset, length);
+            offset += length;
+
+            length = lengthType.readLength(bytes, offset);
+            Object to = decodeBytes.apply(bytes, offset, length);
+            offset += length;
+            // TODO: Support for exclusive ranges, pending resolution of #40601
+            RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
+            ranges.add(decodedRange);
         }
+        return ranges;
     }
 
     static BytesRef encodeFloatRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {

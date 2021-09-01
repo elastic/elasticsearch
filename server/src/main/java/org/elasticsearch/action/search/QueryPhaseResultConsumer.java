@@ -348,19 +348,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 circuitBreakerBytes = 0;
             }
             failure.compareAndSet(null, exc);
-            MergeTask task = runningTask.get();
-            runningTask.compareAndSet(task, null);
-            onPartialMergeFailure.accept(exc);
-            List<MergeTask> toCancels = new ArrayList<>();
+            final List<Releasable> toCancels = new ArrayList<>();
+            toCancels.add(() -> onPartialMergeFailure.accept(exc));
+            final MergeTask task = runningTask.getAndSet(null);
             if (task != null) {
-                toCancels.add(task);
+                toCancels.add(task::cancel);
             }
-            queue.stream().forEach(toCancels::add);
-            queue.clear();
+            MergeTask mergeTask;
+            while ((mergeTask = queue.pollFirst()) != null) {
+                toCancels.add(mergeTask::cancel);
+            }
             mergeResult = null;
-            for (MergeTask toCancel : toCancels) {
-                toCancel.cancel();
-            }
+            Releasables.close(toCancels);
         }
 
         private void onAfterMerge(MergeTask task, MergeResult newResult, long estimatedSize) {

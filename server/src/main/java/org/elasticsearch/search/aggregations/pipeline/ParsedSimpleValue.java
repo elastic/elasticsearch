@@ -22,8 +22,11 @@ public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregatio
         return InternalSimpleValue.NAME;
     }
 
-    private static final ObjectParser<ParsedSimpleValue, Void> PARSER = new ObjectParser<>(ParsedSimpleValue.class.getSimpleName(), true,
-            ParsedSimpleValue::new);
+    private static final ObjectParser<ParsedSimpleValue, Void> PARSER = new ObjectParser<>(
+        ParsedSimpleValue.class.getSimpleName(),
+        true,
+        ParsedSimpleValue::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.NaN);

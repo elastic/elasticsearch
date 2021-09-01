@@ -883,6 +883,31 @@ null           |10
 //
 ///////////////////////////////
 
+dtDateMathEquals
+// tag::dtDateMathEquals
+SELECT hire_date FROM emp WHERE hire_date = '1987-03-01||+4y/y';
+
+       hire_date
+------------------------
+1991-01-26T00:00:00.000Z
+1991-10-22T00:00:00.000Z
+1991-09-01T00:00:00.000Z
+1991-06-26T00:00:00.000Z
+1991-08-30T00:00:00.000Z
+1991-12-01T00:00:00.000Z
+// end::dtDateMathEquals
+;
+
+dtDateMathIn
+// tag::dtDateMathIn
+SELECT hire_date FROM emp WHERE hire_date IN ('1987-03-01||+2y/M', '1987-03-01||+3y/M');
+
+       hire_date
+------------------------
+1989-03-31T00:00:00.000Z
+1990-03-02T00:00:00.000Z
+// end::dtDateMathIn
+;
 
 dtIntervalPlusInterval
 // tag::dtIntervalPlusInterval

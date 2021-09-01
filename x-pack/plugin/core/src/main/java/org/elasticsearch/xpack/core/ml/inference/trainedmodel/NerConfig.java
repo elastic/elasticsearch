@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,36 +40,38 @@ public class NerConfig implements NlpConfig {
     @SuppressWarnings({ "unchecked"})
     private static ConstructingObjectParser<NerConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<NerConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new NerConfig((VocabularyConfig) a[0], (TokenizationParams) a[1], (List<String>) a[2]));
+            a -> new NerConfig((VocabularyConfig) a[0], (Tokenization) a[1], (List<String>) a[2]));
         parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), TokenizationParams.createParser(ignoreUnknownFields),
-            TOKENIZATION_PARAMS);
+        parser.declareNamedObject(
+            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
+                TOKENIZATION
+        );
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), CLASSIFICATION_LABELS);
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
-    private final TokenizationParams tokenizationParams;
+    private final Tokenization tokenization;
     private final List<String> classificationLabels;
 
     public NerConfig(VocabularyConfig vocabularyConfig,
-                     @Nullable TokenizationParams tokenizationParams,
+                     @Nullable Tokenization tokenization,
                      @Nullable List<String> classificationLabels) {
         this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
-        this.tokenizationParams = tokenizationParams == null ? TokenizationParams.createDefault() : tokenizationParams;
+        this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
     }
 
     public NerConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
-        tokenizationParams = new TokenizationParams(in);
+        tokenization = in.readNamedWriteable(Tokenization.class);
         classificationLabels = in.readStringList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
-        tokenizationParams.writeTo(out);
+        out.writeNamedWriteable(tokenization);
         out.writeStringCollection(classificationLabels);
     }
 
@@ -76,7 +79,7 @@ public class NerConfig implements NlpConfig {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
-        builder.field(TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
+        NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         if (classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
@@ -111,13 +114,13 @@ public class NerConfig implements NlpConfig {
 
         NerConfig that = (NerConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
-            && Objects.equals(tokenizationParams, that.tokenizationParams)
+            && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(classificationLabels, that.classificationLabels);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenizationParams, classificationLabels);
+        return Objects.hash(vocabularyConfig, tokenization, classificationLabels);
     }
 
     @Override
@@ -126,8 +129,8 @@ public class NerConfig implements NlpConfig {
     }
 
     @Override
-    public TokenizationParams getTokenizationParams() {
-        return tokenizationParams;
+    public Tokenization getTokenization() {
+        return tokenization;
     }
 
     public List<String> getClassificationLabels() {

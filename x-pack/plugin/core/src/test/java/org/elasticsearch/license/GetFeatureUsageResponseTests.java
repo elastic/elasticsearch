@@ -37,12 +37,12 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
         GetFeatureUsageResponse finalResponse = new GetFeatureUsageResponse(input);
         assertThat(finalResponse.getFeatures(), hasSize(1));
         FeatureUsageInfo fui2 = finalResponse.getFeatures().get(0);
-        assertThat(fui2.family, equalTo(family));
-        assertThat(fui2.name, equalTo("feature"));
+        assertThat(fui2.getFamily(), equalTo(family));
+        assertThat(fui2.getName(), equalTo("feature"));
         // time is truncated to nearest second
-        assertThat(fui2.lastUsedTime, equalTo(zdt.withZoneSameInstant(ZoneOffset.UTC).withNano(0)));
-        assertThat(fui2.context, equalTo(context));
-        assertThat(fui2.licenseLevel, equalTo("gold"));
+        assertThat(fui2.getLastUsedTime(), equalTo(zdt.withZoneSameInstant(ZoneOffset.UTC).withNano(0)));
+        assertThat(fui2.getContext(), equalTo(context));
+        assertThat(fui2.getLicenseLevel(), equalTo("gold"));
     }
 
     public void testPre715StreamFormat() throws IOException {

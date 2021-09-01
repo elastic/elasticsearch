@@ -48,7 +48,7 @@ final class ElasticServiceAccounts {
         new ElasticServiceAccount("kibana", ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana"));
 
     static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT).stream()
-        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));;
+        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
     private ElasticServiceAccounts() {}
 

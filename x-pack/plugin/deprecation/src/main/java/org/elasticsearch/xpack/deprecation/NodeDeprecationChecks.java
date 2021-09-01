@@ -602,9 +602,9 @@ class NodeDeprecationChecks {
         ClusterState cs,
         XPackLicenseState licenseState
     ) {
-        final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING =
+        final Setting.AffixSetting<String> transportTypeProfileSetting =
             Setting.affixKeySetting("transport.profiles.","xpack.security.type", s -> Setting.simpleString(s));
-        List<Setting<?>> transportProfiles = TRANSPORT_TYPE_PROFILE_SETTING.getAllConcreteSettings(settings)
+        List<Setting<?>> transportProfiles = transportTypeProfileSetting.getAllConcreteSettings(settings)
             .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
 
         if (transportProfiles.isEmpty()) {

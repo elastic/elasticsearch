@@ -19,7 +19,7 @@ public class NanosTimestamp extends Timestamp {
     }
 
     @Override
-    public Instant timestamp() {
+    public Instant instant() {
         return timestamp;
     }
 

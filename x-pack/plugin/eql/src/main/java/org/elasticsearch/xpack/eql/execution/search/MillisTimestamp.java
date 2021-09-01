@@ -20,16 +20,16 @@ public class MillisTimestamp extends Timestamp {
 
     @Override
     public int compareTo(Timestamp other) {
-        return other instanceof MillisTimestamp ? Long.compare(timestamp, ((MillisTimestamp) other).timestamp) : -other.compareTo(this);
+        return other instanceof MillisTimestamp ? Long.compare(timestamp, ((MillisTimestamp) other).timestamp) : super.compareTo(other);
     }
 
     @Override
-    public long diff(Timestamp other) {
-        return other instanceof MillisTimestamp ? (timestamp - ((MillisTimestamp) other).timestamp) * NANOS_PER_MILLI : -other.diff(this);
+    public long delta(Timestamp other) {
+        return other instanceof MillisTimestamp ? (timestamp - ((MillisTimestamp) other).timestamp) * NANOS_PER_MILLI : super.delta(other);
     }
 
     @Override
-    public Instant timestamp() {
+    public Instant instant() {
         if (instant == null) {
             instant = Instant.ofEpochMilli(timestamp);
         }

@@ -18,10 +18,10 @@ public abstract class Timestamp {
 
     private String source;
 
-    abstract Instant timestamp();
+    abstract Instant instant();
 
     int compareTo(Timestamp other) {
-        return timestamp().compareTo(other.timestamp());
+        return instant().compareTo(other.instant());
     }
 
     public static Timestamp of(String milliseconds) {
@@ -43,8 +43,8 @@ public abstract class Timestamp {
     }
 
     // time delta in nanos between this and other instance
-    public long diff(Timestamp other) {
-        Instant diff = timestamp().minusNanos(other.timestamp().getNano()).minusSeconds(other.timestamp().getEpochSecond());
+    public long delta(Timestamp other) {
+        Instant diff = instant().minusNanos(other.instant().getNano()).minusSeconds(other.instant().getEpochSecond());
         return diff.getEpochSecond() * NANOS_PER_SECOND + diff.getNano();
     }
 

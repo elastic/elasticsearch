@@ -183,7 +183,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInNanos > 0 && ordinal.timestamp().diff(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
+        if (maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
             stats.rejectionMaxspan++;
             return;
         }

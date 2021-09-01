@@ -86,7 +86,7 @@ public class SequenceSpecTests extends ESTestCase {
         static final TimestampExtractor INSTANCE = new TimestampExtractor();
 
         @Override
-        public Object extract(SearchHit hit) {
+        public Timestamp extract(SearchHit hit) {
             return Timestamp.of(String.valueOf(hit.docId()));
         }
     }

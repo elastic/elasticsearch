@@ -38,7 +38,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
-            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
+            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+            ClusterDeprecationChecks::checkGeoShapeTemplates
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -117,7 +118,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::storeTypeSettingCheck,
             IndexDeprecationChecks::checkIndexRoutingRequireSetting,
             IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
-            IndexDeprecationChecks::checkIndexRoutingExcludeSetting
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
+            IndexDeprecationChecks::checkGeoShapeMappings
         ));
 
     /**

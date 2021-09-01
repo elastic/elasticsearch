@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -31,19 +30,20 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
+public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
+
+    public abstract XContentBuilder getMapping() throws IOException;
+
+    public abstract Version getVersion() throws IOException;
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 
-    public abstract XContentBuilder getMapping(Version version) throws IOException;
-
     public void testSimpleBoundingBoxTest() throws Exception {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping(version);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, getVersion()).build();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -119,9 +119,8 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
     }
 
     public void testLimit2BoundingBox() throws Exception {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping(version);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, getVersion()).build();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -184,9 +183,8 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
     }
 
     public void testCompleteLonRange() throws Exception {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping(version);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, getVersion()).build();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 

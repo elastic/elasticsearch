@@ -15,7 +15,6 @@ import static java.time.temporal.ChronoUnit.NANOS;
 public abstract class Timestamp {
     static final long MILLIS_PER_SECOND = 1_000L;
     static final long NANOS_PER_MILLI = 1_000_000L;
-    static final long NANOS_PER_SECOND = MILLIS_PER_SECOND * NANOS_PER_MILLI;
     private static final long[] MICROS_MULTIPLIER = {0L, 100_000L, 10_000L, 1_000L, 1_00L, 10L};
 
     private String source;

@@ -115,7 +115,7 @@ public class NumberFieldMapper extends FieldMapper {
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
 
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .setValidator(v -> {
+                .addValidator(v -> {
                     if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
                         throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
                     }

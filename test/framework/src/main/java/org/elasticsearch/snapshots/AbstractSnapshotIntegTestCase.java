@@ -349,7 +349,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     /**
      * Randomly write an empty snapshot of an older version to an empty repository to simulate an older repository metadata format.
      */
-    protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws IOException {
+    protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
             initWithSnapshotVersion(repoName, repoPath, VersionUtils.randomIndexCompatibleVersion(random()));
         }
@@ -359,7 +359,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      * Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
      * generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
      */
-    protected String initWithSnapshotVersion(String repoName, Path repoPath, Version version) throws IOException {
+    protected String initWithSnapshotVersion(String repoName, Path repoPath, Version version) throws Exception {
         assertThat("This hack only works on an empty repository", getRepositoryData(repoName).getSnapshotIds(), empty());
         final String oldVersionSnapshot = OLD_VERSION_SNAPSHOT_PREFIX + version.id;
         final CreateSnapshotResponse createSnapshotResponse = clusterAdmin()
@@ -393,6 +393,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 BlobStoreRepository.SNAPSHOT_FORMAT.write(downgradedSnapshotInfo,
                         blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()), snapshotInfo.snapshotId().getUUID(),
                         randomBoolean()))));
+
+        final RepositoryMetadata repoMetadata = blobStoreRepository.getMetadata();
+        if (BlobStoreRepository.CACHE_REPOSITORY_DATA.get(repoMetadata.settings())) {
+            logger.info("--> recreating repository to clear caches");
+            assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+            createRepository(repoName, repoMetadata.type(), Settings.builder().put(repoMetadata.settings()));
+        }
         return oldVersionSnapshot;
     }
 

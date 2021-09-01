@@ -133,7 +133,7 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> builder(m).maxInputLength.get(), Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
-            .setValidator(Builder::validateInputLength)
+            .addValidator(Builder::validateInputLength)
             .alwaysSerialize();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

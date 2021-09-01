@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,6 +40,7 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -53,12 +55,16 @@ import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
@@ -793,6 +799,48 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()),
             indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNodeShutdown() throws Exception {
+        assumeTrue("no data streams in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+
+        if (isRunningAgainstOldCluster()) {
+            final Request getNodesReq = new Request("GET", "_nodes");
+            final Response getNodesResp = adminClient().performRequest(getNodesReq);
+            final Map<String, Object> nodes = (Map<String, Object>) entityAsMap(getNodesResp).get("nodes");
+            final String nodeIdToShutdown = randomFrom(nodes.keySet());
+
+            final Request putShutdownRequest = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+                putBody.startObject();
+                {
+                    // Use the types available from as early as possible
+                    final String type = randomFrom("restart", "replace");
+                    putBody.field("type", type);
+                    putBody.field("reason", this.getTestName());
+                }
+                putBody.endObject();
+                putShutdownRequest.setJsonEntity(Strings.toString(putBody));
+            }
+            assertOK(client().performRequest(putShutdownRequest));
+        }
+
+        final Request getShutdownsReq = new Request("GET", "_nodes/shutdown");
+        final Response getShutdownsResp = client().performRequest(getShutdownsReq);
+        final List<Map<String, Object>> shutdowns = (List<Map<String, Object>>) entityAsMap(getShutdownsResp).get("nodes");
+        assertThat("there should be exactly one shutdown registered", shutdowns, hasSize(1));
+        final Map<String, Object> shutdown = shutdowns.get(0);
+        assertThat(shutdown.get("node_id"), notNullValue()); // Since we randomly determine the node ID, we can't check it
+        assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
+        assertThat(
+            (String) shutdown.get("status"),
+            anyOf(
+                Arrays.stream(SingleNodeShutdownMetadata.Status.values())
+                    .map(value -> equalToIgnoringCase(value.toString()))
+                    .collect(Collectors.toList())
+            )
+        );
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern)

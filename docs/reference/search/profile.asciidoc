@@ -972,7 +972,6 @@ GET /my-index-000001/_search?filter_path=profile.shards.fetch
   }
 }
 ----
-// TEST[s/_search/_search\?filter_path=profile.shards.filter/]
 // TEST[continued]
 
 And here is the fetch profile:
@@ -1008,9 +1007,8 @@ And here is the fetch profile:
                 "process_count": 5
               },
               "debug": {
-                "foo": "bar",
-                "loaded_nested": 0,
-                "fast_path": 5
+                "fast_path": 4,
+                "loaded_nested": 0
               }
             }
           ]

@@ -245,8 +245,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     logger.trace("[{}] opening managed connection to seed node: [{}] proxy address: [{}]", clusterAlias, handshakeNode,
                         proxyAddress);
                     final DiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
-                    connectionManager.connectToNode(handshakeNodeWithProxy, null,
-                        transportService.connectionValidator(handshakeNodeWithProxy), fullConnectionStep);
+                    connectionManager.connectToRemoteClusterNode(
+                        handshakeNodeWithProxy,
+                        transportService.connectionValidator(handshakeNodeWithProxy),
+                        fullConnectionStep);
                 } else {
                     fullConnectionStep.onResponse(null);
                 }
@@ -327,7 +329,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 if (nodePredicate.test(node) && shouldOpenMoreConnections()) {
                     logger.trace("[{}] opening managed connection to node: [{}] proxy address: [{}]", clusterAlias, node, proxyAddress);
                     final DiscoveryNode nodeWithProxy = maybeAddProxyAddress(proxyAddress, node);
-                    connectionManager.connectToNode(nodeWithProxy, null,
+                    connectionManager.connectToRemoteClusterNode(nodeWithProxy,
                         transportService.connectionValidator(node), new ActionListener<>() {
                             @Override
                             public void onResponse(Void aVoid) {

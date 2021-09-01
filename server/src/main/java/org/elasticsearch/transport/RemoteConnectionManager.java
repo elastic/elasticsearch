@@ -42,11 +42,27 @@ public class RemoteConnectionManager implements ConnectionManager {
         });
     }
 
+    /**
+     * Remote cluster connections have a different lifecycle from intra-cluster connections. Use {@link #connectToRemoteClusterNode}
+     * instead of this method.
+     */
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              ConnectionManager.ConnectionValidator connectionValidator,
-                              ActionListener<Void> listener) throws ConnectTransportException {
-        delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
+    public final void connectToNode(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Void> listener
+    ) throws ConnectTransportException {
+        assert false : "use connectToRemoteClusterNode instead";
+        listener.onFailure(new UnsupportedOperationException("use connectToRemoteClusterNode instead"));
+    }
+
+    public void connectToRemoteClusterNode(
+        DiscoveryNode node,
+        ConnectionValidator connectionValidator,
+        ActionListener<Void> listener
+    ) throws ConnectTransportException {
+        delegate.connectToNode(node, null, connectionValidator, listener);
     }
 
     @Override

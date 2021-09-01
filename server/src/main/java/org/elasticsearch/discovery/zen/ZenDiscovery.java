@@ -698,16 +698,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             this::clusterState,
             new ClusterApplyListener() {
                 @Override
-                public void onSuccess(String source) {
+                public void onSuccess() {
                     try {
                         pendingStatesQueue.markAsProcessed(newClusterState);
                     } catch (Exception e) {
-                        onFailure(source, e);
+                        onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.error(() -> new ParameterizedMessage("unexpected failure applying [{}]", reason), e);
                     try {
                         // TODO: use cluster state uuid instead of full cluster state so that we don't keep reference to CS around
@@ -911,7 +911,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 .build();
 
             committedState.set(clusterState);
-            clusterApplier.onNewClusterState(reason, this::clusterState, (source, e) -> {}); // don't wait for state to be applied
+            clusterApplier.onNewClusterState(reason, this::clusterState, e -> {}); // don't wait for state to be applied
         }
     }
 

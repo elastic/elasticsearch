@@ -95,9 +95,14 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 },
             m -> toType(m).wrapper).setSerializer((b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
         final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5)
-            .setValidator(n -> {
+            .addValidator(n -> {
                 if (n > 50) {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
+                }
+            })
+            .addValidator(n -> {
+                if (n < 0) {
+                    throw new IllegalArgumentException("Value of [n] cannot be less than 0");
                 }
             })
             .setMergeValidator((o, n, c) -> n >= o);
@@ -107,7 +112,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
         final Parameter<String> required = Parameter.stringParam("required", true, m -> toType(m).required, null)
-            .setValidator(value -> {
+            .addValidator(value -> {
                 if (value == null) {
                     throw new IllegalArgumentException("field [required] must be specified");
                 }
@@ -370,6 +375,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> fromMapping("{\"type\":\"test_mapper\",\"int_value\":60,\"required\":\"value\"}"));
         assertEquals("Value of [n] cannot be greater than 50", e.getMessage());
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> fromMapping("{\"type\":\"test_mapper\",\"int_value\":-60,\"required\":\"value\"}"));
+        assertEquals("Value of [n] cannot be less than 0", e2.getMessage());
     }
 
     // test deprecations

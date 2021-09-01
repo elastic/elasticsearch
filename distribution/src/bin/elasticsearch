@@ -16,15 +16,15 @@
 source "`dirname "$0"`"/elasticsearch-env
 
 CHECK_KEYSTORE=true
-AUTO_CONFIG="${AUTO_CONFIG:-true}"
-AUTO_CONFIG_DONE=false
+TRY_AUTO_CONFIG="${TRY_AUTO_CONFIG:-true}"
+GENERATE_ENROLL_CREDENTIALS=false
 DAEMONIZE=false
 QUIET=false
 for option in "$@"; do
   case "$option" in
     -h|--help|-V|--version)
       CHECK_KEYSTORE=false
-      AUTO_CONFIG=false
+      TRY_AUTO_CONFIG=false
       ;;
     -d|--daemonize)
       DAEMONIZE=true
@@ -52,7 +52,7 @@ then
   fi
 fi
 
-if [[ $AUTO_CONFIG = true ]]; then
+if [[ $TRY_AUTO_CONFIG = true ]]; then
   # It is possible that an auto-conf failure prevents the node from starting, but this is only the exceptional case (exit code 1).
   # Most likely an auto-conf failure will leave the configuration untouched (exit codes 63, 73, and 78), optionally printing a message
   # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
@@ -77,10 +77,10 @@ if [[ $AUTO_CONFIG = true ]]; then
       "$@" \
       <<<"$KEYSTORE_PASSWORD"
     ); then
-      AUTO_CONFIG_DONE=true
+      GENERATE_ENROLL_CREDENTIALS=true
   else
     retval=$?
-    AUTO_CONFIG_DONE=false
+    GENERATE_ENROLL_CREDENTIALS=false
     # these exit codes cover the cases where auto-conf cannot run but the node should not be prevented from starting as usual
     if [[ $retval -ne 80 ]] && [[ $retval -ne 73 ]] && [[ $retval -ne 78 ]]; then
       exit $retval
@@ -99,7 +99,7 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out if process should be detached
 if [[ $DAEMONIZE = false ]]; then
-  if [[ $AUTO_CONFIG_DONE = true ]]; then
+  if [[ $GENERATE_ENROLL_CREDENTIALS = true ]]; then
 # First check if the banner can be displayed given the OS and terminal type
     if [[ $QUIET = false ]] && "$JAVA" "$XSHARE" -Xms2m -Xmx32m -XX:+UseSerialGC \
       -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
@@ -144,7 +144,7 @@ if [[ $DAEMONIZE = false ]]; then
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
 else
-  if [[ $AUTO_CONFIG_DONE = true ]]; then
+  if [[ $GENERATE_ENROLL_CREDENTIALS = true ]]; then
     echo "warning: Security with TLS is now auto configured but no credentials have been generated" \
     "and displayed because stdout cannot be used or is not a terminal that supports ANSI escape sequences" >&2
   fi

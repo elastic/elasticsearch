@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
@@ -272,10 +273,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                         @Override
                         public void onSuccess() {
+                            onClusterStateApplied();
                             applyListener.onResponse(null);
                         }
                     });
             }
+        }
+    }
+
+    private void onClusterStateApplied() {
+        assert Thread.currentThread().getName().contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
+            || Thread.currentThread().getName().startsWith("TEST-")
+            : Thread.currentThread().getName();
+        if (getMode() != Mode.CANDIDATE) {
+            joinHelper.onClusterStateApplied();
         }
     }
 
@@ -1419,6 +1430,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                             @Override
                             public void onSuccess() {
+                                onClusterStateApplied();
                                 clusterStatePublicationEvent.setMasterApplyElapsedMillis(
                                     transportService.getThreadPool().rawRelativeTimeInMillis() - completionTimeMillis);
                                 synchronized (mutex) {

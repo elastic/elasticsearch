@@ -22,9 +22,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -799,6 +799,64 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue, nullValue());
     }
 
+    public void testCheckSearchRemoteSettings() {
+        // test for presence of deprecated exporter passwords
+        final int numClusters = randomIntBetween(1, 3);
+        final String[] clusterNames = new String[numClusters];
+        final Settings.Builder settingsBuilder = Settings.builder();
+        for (int k = 0; k < numClusters; k++) {
+            clusterNames[k] = randomAlphaOfLength(5);
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".seeds", randomAlphaOfLength(5));
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".proxy", randomAlphaOfLength(5));
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".skip_unavailable", randomBoolean());
+        }
+        settingsBuilder.put("search.remote.connections_per_cluster", randomIntBetween(0, 100));
+        settingsBuilder.put("search.remote.initial_connect_timeout", randomIntBetween(30, 60));
+        settingsBuilder.put("search.remote.connect", randomBoolean());
+        final Settings settings = settingsBuilder.build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSearchRemoteSettings(settings, null, null , licenseState);
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
+        String joinedNames = Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".seeds")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",";
+        joinedNames += Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".proxy")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",";
+        joinedNames += Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".skip_unavailable")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",search.remote.connections_per_cluster,search.remote.initial_connect_timeout,search.remote.connect";
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "search.remote settings [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "replace search.remote settings [%s] with their secure 'cluster.remote' replacements",
+                joinedNames
+            ), false, null)));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {
         boolean settingValue = randomBoolean();
         String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
@@ -888,5 +946,57 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             // Setting this back so that other tests don't fail
             NodeDeprecationChecks.permitsHandshakesFromIncompatibleBuildsSupplier = null;
         }
+    }
+
+    private void checkSimpleSetting(String settingKey, String settingValue, String url, DeprecationChecks.NodeDeprecationCheck<Settings,
+        PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue> checkFunction) {
+        final Settings nodeSettings =
+            Settings.builder().put(settingKey, settingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            url,
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                settingKey,
+                settingValue),
+            false,null
+        );
+
+        assertThat(
+            checkFunction.apply(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
+    }
+
+    public void testCheckAcceptDefaultPasswordSetting() {
+        String settingKey = "xpack.security.authc.accept_default_password";
+        String settingValue = String.valueOf(randomBoolean());
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkAcceptDefaultPasswordSetting);
+    }
+
+    public void testCheckAcceptRolesCacheMaxSizeSetting() {
+        String settingKey = "xpack.security.authz.store.roles.index.cache.max_size";
+        String settingValue = String.valueOf(randomIntBetween(1, 10000));
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting);
+    }
+
+    public void testCheckRolesCacheTTLSizeSetting() {
+        String settingKey = "xpack.security.authz.store.roles.index.cache.ttl";
+        String settingValue = randomPositiveTimeValue();
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkRolesCacheTTLSizeSetting);
     }
 }

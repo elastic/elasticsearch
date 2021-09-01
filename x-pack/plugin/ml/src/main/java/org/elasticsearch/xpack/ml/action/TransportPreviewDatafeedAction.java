@@ -116,11 +116,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {}),
                 listener.delegateFailure((l, dataExtractorFactory) -> {
-                    isDateNanos(previewDatafeedConfig.getHeaders(), job.getDataDescription().getTimeField(), listener.delegateFailure((l2, isDateNanos) -> {
-                        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0,
-                            isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
-                        threadPool.generic().execute(() -> previewDatafeed(dataExtractor, l));
-                    }));
+                    isDateNanos(previewDatafeedConfig.getHeaders(), job.getDataDescription().getTimeField(),
+                        listener.delegateFailure((l2, isDateNanos) -> {
+                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0,
+                                isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
+                            threadPool.generic().execute(() -> previewDatafeed(dataExtractor, l));
+                        }));
                 }));
         });
     }

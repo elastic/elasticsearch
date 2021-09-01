@@ -25,6 +25,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -138,7 +139,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
         // if it is, silently skip auto configuration
-        checkExistingConfiguration(env, terminal);
+        checkExistingConfiguration(env.settings(), terminal);
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
         final String instantAutoConfigName = "tls_auto_config_initial_node_" + autoConfigDate.toInstant().getEpochSecond();
@@ -441,32 +442,33 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
     // Detect if the existing yml configuration is incompatible with auto-configuration,
     // in which case auto-configuration is SILENTLY skipped.
     // This assumes the user knows what she's doing when configuring the node.
-    void checkExistingConfiguration(Environment environment, Terminal terminal) throws UserException {
-        // Silently skipping security auto configuration, because Security is already configured.
-        if (environment.settings().hasValue(XPackSettings.SECURITY_ENABLED.getKey())) {
+    void checkExistingConfiguration(Settings settings, Terminal terminal) throws UserException {
+        // Silently skip security auto configuration when Security is already configured.
+        // Security is enabled implicitly, but if the admin chooses to enable it explicitly then
+        // skip the TLS auto-configuration, as this is a sign that the admin is opting for the default behavior
+        if (XPackSettings.SECURITY_ENABLED.exists(settings)) {
             // do not try to validate, correct or fill in any incomplete security configuration,
             // instead rely on the regular node startup to do this validation
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that security is already configured.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // Silently skipping security auto configuration if enrollment is disabled.
-        // But tolerate enrollment explicitly enabled, as it could be useful to enable it by a command line option
-        // only the first time that the node is started.
-        if (environment.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey()) && false ==
-                XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
+        // Silently skip security auto configuration if enrollment is disabled.
+        if (XPackSettings.ENROLLMENT_ENABLED.exists(settings) && false == XPackSettings.ENROLLMENT_ENABLED.get(settings)) {
+            // Tolerate enrollment explicitly ENABLED, as it could be useful to enable it by a command line option
+            // only the first time that the node is started.
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because enrollment is explicitly disabled.");
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Security auto configuration must not run if the node is configured for multi-node cluster formation (bootstrap or join).
         // This is because transport TLS with newly generated certs will hinder cluster formation because the other nodes cannot trust yet.
-        if (false == DiscoveryModule.isSingleNodeDiscovery(environment.settings()) &&
-                (false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings()).isEmpty() ||
-                 false == SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(environment.settings()).isEmpty() ||
-                 false == DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(environment.settings()).isEmpty()) &&
-                false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings())
-                        .equals(List.of(Node.NODE_NAME_SETTING.get(environment.settings())))) {
+        if (false == DiscoveryModule.isSingleNodeDiscovery(settings) &&
+                (false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty() ||
+                 false == SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty() ||
+                 false == DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty()) &&
+                false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings)
+                        .equals(List.of(Node.NODE_NAME_SETTING.get(settings)))) {
             // Unfortunately, we cannot tell, for every configuration, if it is going to result in a multi node cluster, as it depends
             // on the addresses that this node, and the others, will bind to when starting (and this runs on a single node before it
             // starts).
@@ -478,24 +480,24 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                             "multi-node cluster, which is not supported.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // Silently skipping security auto configuration because node cannot become master.
-        boolean canBecomeMaster = DiscoveryNode.isMasterNode(environment.settings()) &&
-                false == DiscoveryNode.hasRole(environment.settings(), DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+        // Silently skip security auto configuration because node cannot become master.
+        boolean canBecomeMaster = DiscoveryNode.isMasterNode(settings) &&
+                false == DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
         if (false == canBecomeMaster) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because the node is configured such that it cannot become master.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // Silently skipping security auto configuration, because the node cannot contain the Security index data
-        boolean canHoldSecurityIndex = DiscoveryNode.canContainData(environment.settings());
+        // Silently skip security auto configuration, because the node cannot contain the Security index data
+        boolean canHoldSecurityIndex = DiscoveryNode.canContainData(settings);
         if (false == canHoldSecurityIndex) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because the node is configured such that it cannot contain data.");
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Silently skipping security auto configuration because TLS is already configured
-        if (false == environment.settings().getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
-                false == environment.settings().getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
+        if (false == settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
+                false == settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
             // zero validation for the TLS settings as well, let the node bootup do its thing
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because it appears that TLS is already configured.");

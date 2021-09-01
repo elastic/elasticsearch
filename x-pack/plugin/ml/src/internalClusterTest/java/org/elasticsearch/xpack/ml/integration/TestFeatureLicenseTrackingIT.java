@@ -18,7 +18,6 @@ import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -30,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.After;
 
 import java.time.ZonedDateTime;
@@ -44,7 +43,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_FEATURE_FAMILY;
 import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildClassification;
 import static org.elasticsearch.xpack.ml.integration.ModelInferenceActionIT.buildTrainedModelConfigBuilder;
-import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -52,11 +50,11 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
+public class TestFeatureLicenseTrackingIT extends BaseMlIntegTestCase {
 
     private final Set<String> createdPipelines = new HashSet<>();
     @After
-    public void cleanup() {
+    public void cleanupPipelines() {
         for (String pipeline : createdPipelines) {
             try {
                 client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
@@ -204,16 +202,10 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         Job.Builder job = createScheduledJob(jobId);
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId)).actionGet();
-        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).getState(), JobState.OPENED));
     }
 
-    private List<GetJobsStatsAction.Response.JobStats> getJobStats(String jobId) {
-        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-        GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
-        return response.getResponse().results();
-    }
-
-    private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
+    private void putTrainedModelIngestPipeline(String pipelineId, String modelId) {
         client().execute(
             PutPipelineAction.INSTANCE,
             new PutPipelineRequest(

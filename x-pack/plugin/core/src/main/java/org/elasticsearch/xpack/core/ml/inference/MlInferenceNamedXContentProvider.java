@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -172,9 +172,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(FillMaskConfig.NAME),
             FillMaskConfig::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
-            new ParseField(SentimentAnalysisConfig.NAME), SentimentAnalysisConfig::fromXContentLenient));
-        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(SentimentAnalysisConfig.NAME),
-            SentimentAnalysisConfig::fromXContentStrict));
+            new ParseField(TextClassificationConfig.NAME), TextClassificationConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class,
+            new ParseField(TextClassificationConfig.NAME), TextClassificationConfig::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
             new ParseField(BertPassThroughConfig.NAME), BertPassThroughConfig::fromXContentLenient));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(BertPassThroughConfig.NAME),
@@ -269,8 +269,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             PyTorchPassThroughResults.NAME,
             PyTorchPassThroughResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
-            SentimentAnalysisResults.NAME,
-            SentimentAnalysisResults::new));
+            TextClassificationResults.NAME,
+            TextClassificationResults::new));
 
         // Inference Configs
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
@@ -282,7 +282,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
             FillMaskConfig.NAME, FillMaskConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
-            SentimentAnalysisConfig.NAME, SentimentAnalysisConfig::new));
+            TextClassificationConfig.NAME, TextClassificationConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
             BertPassThroughConfig.NAME, BertPassThroughConfig::new));
 

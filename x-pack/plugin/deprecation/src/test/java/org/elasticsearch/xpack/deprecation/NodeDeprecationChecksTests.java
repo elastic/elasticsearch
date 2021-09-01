@@ -21,9 +21,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -862,5 +862,57 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 () -> randomFrom(License.OperationMode.values())));
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
+    }
+
+    private void checkSimpleSetting(String settingKey, String settingValue, String url, DeprecationChecks.NodeDeprecationCheck<Settings,
+        PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue> checkFunction) {
+        final Settings nodeSettings =
+            Settings.builder().put(settingKey, settingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            url,
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                settingKey,
+                settingValue),
+            false,null
+        );
+
+        assertThat(
+            checkFunction.apply(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
+    }
+
+    public void testCheckAcceptDefaultPasswordSetting() {
+        String settingKey = "xpack.security.authc.accept_default_password";
+        String settingValue = String.valueOf(randomBoolean());
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkAcceptDefaultPasswordSetting);
+    }
+
+    public void testCheckAcceptRolesCacheMaxSizeSetting() {
+        String settingKey = "xpack.security.authz.store.roles.index.cache.max_size";
+        String settingValue = String.valueOf(randomIntBetween(1, 10000));
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting);
+    }
+
+    public void testCheckRolesCacheTTLSizeSetting() {
+        String settingKey = "xpack.security.authz.store.roles.index.cache.ttl";
+        String settingValue = randomPositiveTimeValue();
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkRolesCacheTTLSizeSetting);
     }
 }

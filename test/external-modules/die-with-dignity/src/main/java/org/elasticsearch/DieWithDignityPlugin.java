@@ -25,6 +25,10 @@ import java.util.function.Supplier;
 
 public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
 
+    public DieWithDignityPlugin() {
+        assert System.getProperty("die.with.dignity.test").equals("true") : "test should pass the `die.with.dignity.test` property";
+    }
+
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,

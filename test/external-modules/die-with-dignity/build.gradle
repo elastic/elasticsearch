@@ -19,6 +19,10 @@ tasks.named("javaRestTest").configure {
   systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
 }
 
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  systemProperty "die.with.dignity.test", "true"
+}
+
 tasks.named("test").configure {
   enabled = false
 }

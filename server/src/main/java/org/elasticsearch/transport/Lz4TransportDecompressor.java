@@ -24,7 +24,6 @@
 package org.elasticsearch.transport;
 
 import net.jpountz.lz4.LZ4Exception;
-import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.apache.lucene.util.BytesRef;

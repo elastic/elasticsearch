@@ -5,11 +5,29 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+/*
+ * Copyright 2020 Adrien Grand and the lz4-java contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.elasticsearch.common.compress.lz4;
 
 import net.jpountz.lz4.LZ4Exception;
+import net.jpountz.util.Utils;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.compress.lz4.LZ4Constants.LAST_LITERALS;
@@ -17,8 +35,18 @@ import static org.elasticsearch.common.compress.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.common.compress.lz4.LZ4Constants.ML_MASK;
 import static org.elasticsearch.common.compress.lz4.LZ4Constants.RUN_MASK;
 
+/**
+ * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
+ * net.jpountz.lz4.LZ4SafeUtils.
+ *
+ * It modifies the original implementation to use Java9 array mismatch method and varhandle performance
+ * improvements. Comments are included to mark the changes.
+ */
 enum LZ4SafeUtils {
     ;
+
+    // Added VarHandle
+    private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, Utils.NATIVE_BYTE_ORDER);
 
     static int hash(byte[] buf, int i) {
         return LZ4Utils.hash(SafeUtils.readInt(buf, i));
@@ -40,20 +68,26 @@ enum LZ4SafeUtils {
 
     static void wildIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchCopyEnd) {
         do {
-            copy8Bytes(dest, matchOff, dest, dOff);
+            // Changed to copy incremental
+            copy8BytesIncremental(dest, matchOff, dest, dOff);
             matchOff += 8;
             dOff += 8;
         } while (dOff < matchCopyEnd);
     }
 
+    // Modified to use VarHandle
     static void copy8Bytes(byte[] src, int sOff, byte[] dest, int dOff) {
+        longPlatformNative.set(dest, dOff, (long) longPlatformNative.get(src, sOff));
+    }
+
+    static void copy8BytesIncremental(byte[] src, int sOff, byte[] dest, int dOff) {
         for (int i = 0; i < 8; ++i) {
             dest[dOff + i] = src[sOff + i];
         }
     }
 
+    // Modified to use Arrays.mismatch
     static int commonBytes(byte[] b, int o1, int o2, int limit) {
-        // TODO: Check
         int mismatch = Arrays.mismatch(b, o1, limit, b, o2, limit);
         return mismatch == -1 ? limit : mismatch;
     }

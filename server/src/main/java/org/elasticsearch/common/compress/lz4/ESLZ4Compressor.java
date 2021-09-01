@@ -5,6 +5,21 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+/*
+ * Copyright 2020 Adrien Grand and the lz4-java contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.elasticsearch.common.compress.lz4;
 
@@ -14,8 +29,17 @@ import net.jpountz.lz4.LZ4Exception;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+/**
+ * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
+ * net.jpountz.lz4.LZ4Compressor.
+ *
+ * It modifies the original implementation to use custom LZ4SafeUtils and SafeUtils implementations which
+ * include performance improvements. Additionally, instead of allocating a new hashtable for each compress
+ * call, it reuses thread-local hashtables. Comments are included to mark the changes.
+ */
 public class ESLZ4Compressor extends LZ4Compressor {
 
+    // Modified to add thread-local hash tables
     private static final ThreadLocal<short[]> sixtyFourKBHashTable = ThreadLocal.withInitial(() -> new short[8192]);
     private static final ThreadLocal<int[]> biggerHashTable = ThreadLocal.withInitial(() -> new int[4096]);
 
@@ -31,6 +55,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
         int dOff = destOff;
         int anchor = srcOff;
         if (srcLen >= 13) {
+            // Modified to use thread-local hash table
             short[] hashTable = sixtyFourKBHashTable.get();
             Arrays.fill(hashTable, (short) 0);
             int sOff = srcOff + 1;
@@ -54,7 +79,8 @@ public class ESLZ4Compressor extends LZ4Compressor {
                     excess = LZ4Utils.hash64k(SafeUtils.readInt(src, sOff));
                     ref = srcOff + SafeUtils.readShort(hashTable, excess);
                     SafeUtils.writeShort(hashTable, excess, sOff - srcOff);
-                } while(!LZ4SafeUtils.readIntEquals(src, ref, sOff));
+                    // Modified to use explicit == false
+                } while(LZ4SafeUtils.readIntEquals(src, ref, sOff) == false);
 
                 excess = LZ4SafeUtils.commonBytesBackward(src, ref, sOff, srcOff, anchor);
                 sOff -= excess;
@@ -102,7 +128,8 @@ public class ESLZ4Compressor extends LZ4Compressor {
                     int h = LZ4Utils.hash64k(SafeUtils.readInt(src, sOff));
                     ref = srcOff + SafeUtils.readShort(hashTable, h);
                     SafeUtils.writeShort(hashTable, h, sOff - srcOff);
-                    if (!LZ4SafeUtils.readIntEquals(src, sOff, ref)) {
+                    // Modified to use explicit == false
+                    if (LZ4SafeUtils.readIntEquals(src, sOff, ref) == false) {
                         anchor = sOff++;
                         break;
                     }
@@ -130,6 +157,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
             int dOff = destOff;
             int sOff = srcOff + 1;
             int anchor = srcOff;
+            // Modified to use thread-local hash table
             int[] hashTable = biggerHashTable.get();
             Arrays.fill(hashTable, srcOff);
 
@@ -148,7 +176,8 @@ public class ESLZ4Compressor extends LZ4Compressor {
                         int ref = SafeUtils.readInt(hashTable, excess);
                         int back = sOff - ref;
                         SafeUtils.writeInt(hashTable, excess, sOff);
-                        if (back >= 65536 || !LZ4SafeUtils.readIntEquals(src, ref, sOff)) {
+                        // Modified to use explicit == false
+                        if (back >= 65536 || LZ4SafeUtils.readIntEquals(src, ref, sOff) == false) {
                             continue;
                         }
 
@@ -198,7 +227,8 @@ public class ESLZ4Compressor extends LZ4Compressor {
                             ref = SafeUtils.readInt(hashTable, h);
                             SafeUtils.writeInt(hashTable, h, sOff);
                             back = sOff - ref;
-                            if (back >= 65536 || !LZ4SafeUtils.readIntEquals(src, ref, sOff)) {
+                            // Modified to use explicit == false
+                            if (back >= 65536 || LZ4SafeUtils.readIntEquals(src, ref, sOff) == false) {
                                 anchor = sOff++;
                                 continue label63;
                             }

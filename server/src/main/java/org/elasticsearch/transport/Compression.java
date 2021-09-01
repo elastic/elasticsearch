@@ -47,7 +47,7 @@ public class Compression {
                 LZ4_BLOCK_SIZE = 64 * 1024;
             }
 
-            USE_FORKED_LZ4 = Booleans.parseBoolean(System.getProperty("es.transport.compression.use_forked_lz4", "true"));
+            USE_FORKED_LZ4 = Booleans.parseBoolean(System.getProperty("es.compression.use_forked_lz4", "true"));
         }
 
         public static boolean isDeflate(BytesReference bytes) {

@@ -11,26 +11,26 @@ import java.nio.file.Path
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean oss, boolean jdk) {
+CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean isTestDistro) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles(oss)
+        with libFiles(isTestDistro)
       }
       into('config') {
         dirMode 0750
         fileMode 0660
-        with configFiles(distributionType, oss, jdk)
+        with configFiles(distributionType, isTestDistro)
         from {
           dirMode 0750
           jvmOptionsDir.getParent()
         }
       }
       into('bin') {
-        with binFiles(distributionType, oss, jdk)
+        with binFiles(distributionType, isTestDistro)
       }
-      if (jdk) {
-        into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
+      into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
+        if (isTestDistro == false) {
           with jdkFiles(project, platform, architecture)
         }
       }
@@ -50,11 +50,11 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         include 'README.asciidoc'
       }
       from(rootProject.file('licenses')) {
-        include oss ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+        include isTestDistro ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
         rename { 'LICENSE.txt' }
       }
 
-      with noticeFile(oss, jdk)
+      with noticeFile(isTestDistro)
       into('modules') {
         with modulesFiles
       }
@@ -65,70 +65,42 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
+      archiveFiles(transportModulesFiles, 'zip', null, 'x64', true)
     }
   }
 
   windowsZip {
     archiveClassifier = 'windows-x86_64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false, true)
-    }
-  }
-
-  noJdkWindowsZip {
-    archiveClassifier = 'no-jdk-windows-x86_64'
-    content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false, false)
+      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false)
     }
   }
 
   darwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
+      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false)
     }
   }
 
   darwinAarch64Tar {
     archiveClassifier = 'darwin-aarch64'
     content {
-      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, true)
-    }
-  }
-
-  noJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x86_64'
-    content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
-    }
-  }
-
-  noJdkDarwinAarch64Tar {
-    archiveClassifier = 'no-jdk-darwin-aarch64'
-    content {
-      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, false)
+      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false)
     }
   }
 
   linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
-      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
+      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', false)
     }
   }
 
   linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false, true)
-    }
-  }
-
-  noJdkLinuxTar {
-    archiveClassifier = 'no-jdk-linux-x86_64'
-    content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false, false)
+      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
     }
   }
 }

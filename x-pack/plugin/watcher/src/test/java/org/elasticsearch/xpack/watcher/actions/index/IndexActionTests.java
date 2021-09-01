@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class IndexActionTests extends ESTestCase {
@@ -382,5 +383,26 @@ public class IndexActionTests extends ESTestCase {
         } else {
             assertThat(result.status(), is(Status.FAILURE));
         }
+    }
+
+    public void testIndexSeveralDocumentsIsSimulated() throws Exception {
+        IndexAction action = new IndexAction("test-index", null, null, "@timestamp", null, null, refreshPolicy);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
+            TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+
+        String docId = randomAlphaOfLength(5);
+        final List<Map<String, String>> docs = List.of(Map.of("foo", "bar", "_id", docId));
+        Payload payload;
+        if (randomBoolean()) {
+            payload = new Payload.Simple("_doc", docs);
+        } else {
+            payload = new Payload.Simple("_doc", docs.toArray());
+        }
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", ZonedDateTime.now(ZoneOffset.UTC), payload);
+        when(ctx.simulateAction("my_id")).thenReturn(true);
+
+        Action.Result result = executable.execute("my_id", ctx, payload);
+        assertThat(result.status(), is(Status.SIMULATED));
+        verifyZeroInteractions(client);
     }
 }

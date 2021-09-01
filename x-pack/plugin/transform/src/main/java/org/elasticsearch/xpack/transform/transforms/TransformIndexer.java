@@ -1091,32 +1091,34 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return queryBuilder;
     }
 
-    protected SearchRequest buildSearchRequest() {
+    protected Tuple<String, SearchRequest> buildSearchRequest() {
         assert nextCheckpoint != null;
 
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().runtimeMappings(getConfig().getSource().getRuntimeMappings());
         switch (runState) {
             case APPLY_RESULTS:
-                buildUpdateQuery(sourceBuilder);
-                break;
+                return new Tuple<>("apply_results", buildQueryToUpdateDestinationIndex());
             case IDENTIFY_CHANGES:
-                buildChangedBucketsQuery(sourceBuilder);
-                break;
+                return new Tuple<>("identify_changes", buildQueryToFindChanges());
             default:
                 // Any other state is a bug, should not happen
                 logger.warn("Encountered unexpected run state [" + runState + "]");
                 throw new IllegalStateException("Transform indexer job encountered an illegal state [" + runState + "]");
         }
-
-        return new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .source(sourceBuilder);
     }
 
-    private SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder) {
+    private SearchRequest buildQueryToFindChanges() {
         assert isContinuous();
 
         TransformIndexerPosition position = getPosition();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().runtimeMappings(getConfig().getSource().getRuntimeMappings());
+
+        // reduce the indexes to query to the ones that have changes
+        SearchRequest request = new SearchRequest(
+            TransformCheckpoint.getChangedIndices(getLastCheckpoint(), getNextCheckpoint()).toArray(new String[0])
+        );
+
+        request.allowPartialSearchResults(false) // shard failures should fail the request
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, pageSize);
 
@@ -1130,16 +1132,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         sourceBuilder.query(filteredQuery);
 
         logger.debug("[{}] Querying for changes: {}", getJobId(), sourceBuilder);
-        return sourceBuilder;
+        return request.source(sourceBuilder);
     }
 
-    private SearchSourceBuilder buildUpdateQuery(SearchSourceBuilder sourceBuilder) {
+    private SearchRequest buildQueryToUpdateDestinationIndex() {
         TransformIndexerPosition position = getPosition();
 
         TransformConfig config = getConfig();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().runtimeMappings(getConfig().getSource().getRuntimeMappings());
 
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
 
+        SearchRequest request = new SearchRequest();
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {
@@ -1148,22 +1152,27 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
             if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
-                QueryBuilder filter = changeCollector.buildFilterQuery(
-                    lastCheckpoint.getTimeUpperBound(),
-                    nextCheckpoint.getTimeUpperBound()
-                );
+                QueryBuilder filter = changeCollector.buildFilterQuery(lastCheckpoint, nextCheckpoint);
                 if (filter != null) {
                     filteredQuery.filter(filter);
                 }
+                request.indices(changeCollector.getIndicesToQuery(lastCheckpoint, nextCheckpoint).toArray(new String[0]));
+            } else {
+                request.indices(getConfig().getSource().getIndex());
             }
 
             queryBuilder = filteredQuery;
+
+        } else {
+            request.indices(getConfig().getSource().getIndex());
         }
 
         sourceBuilder.query(queryBuilder);
         logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
 
-        return sourceBuilder;
+        return request.source(sourceBuilder)
+            .allowPartialSearchResults(false) // shard failures should fail the request
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
     }
 
     /**

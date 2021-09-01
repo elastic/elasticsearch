@@ -43,6 +43,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_source";
     private final Function<Map<String, ?>, Map<String, Object>> filter;
 
+    private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
         public static final boolean ENABLED = true;
@@ -80,13 +82,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build() {
+            if (enabled.getValue() == Defaults.ENABLED && includes.getValue().isEmpty() && excludes.getValue().isEmpty()) {
+                return DEFAULT;
+            }
             return new SourceFieldMapper(enabled.getValue(),
                 includes.getValue().toArray(String[]::new),
                 excludes.getValue().toArray(String[]::new));
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new SourceFieldMapper(), c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DEFAULT, c -> new Builder());
 
     static final class SourceFieldType extends MappedFieldType {
 
@@ -121,10 +126,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private final String[] includes;
     private final String[] excludes;
-
-    private SourceFieldMapper() {
-        this(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-    }
 
     private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
         super(new SourceFieldType(enabled));

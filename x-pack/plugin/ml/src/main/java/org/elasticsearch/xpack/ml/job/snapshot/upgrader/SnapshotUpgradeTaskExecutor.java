@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -55,6 +56,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     private final AutodetectProcessManager autodetectProcessManager;
     private final AnomalyDetectionAuditor auditor;
     private final JobResultsProvider jobResultsProvider;
+    private final XPackLicenseState licenseState;
     private volatile ClusterState clusterState;
     private final Client client;
 
@@ -63,7 +65,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                                        AutodetectProcessManager autodetectProcessManager,
                                        MlMemoryTracker memoryTracker,
                                        IndexNameExpressionResolver expressionResolver,
-                                       Client client) {
+                                       Client client,
+                                       XPackLicenseState licenseState) {
         super(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             MachineLearning.UTILITY_THREAD_POOL_NAME,
             settings,
@@ -74,6 +77,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         this.auditor = new AnomalyDetectionAuditor(client, clusterService);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.client = client;
+        this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -233,7 +237,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             type,
             action,
             parentTaskId,
-            headers);
+            headers,
+            licenseState);
     }
 
     @Override

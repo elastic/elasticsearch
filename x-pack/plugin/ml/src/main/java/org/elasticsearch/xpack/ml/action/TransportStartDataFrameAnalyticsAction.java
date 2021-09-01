@@ -586,11 +586,13 @@ public class TransportStartDataFrameAnalyticsAction
         private final Client client;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
+        private final XPackLicenseState licenseState;
 
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
+                            XPackLicenseState licenseState) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 MachineLearning.UTILITY_THREAD_POOL_NAME,
                 settings,
@@ -600,6 +602,7 @@ public class TransportStartDataFrameAnalyticsAction
             this.client = Objects.requireNonNull(client);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
+            this.licenseState = licenseState;
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -609,7 +612,7 @@ public class TransportStartDataFrameAnalyticsAction
             PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
             Map<String, String> headers) {
             return new DataFrameAnalyticsTask(
-                id, type, action, parentTaskId, headers, client, manager, auditor, persistentTask.getParams());
+                id, type, action, parentTaskId, headers, client, manager, auditor, persistentTask.getParams(), licenseState);
         }
 
         @Override

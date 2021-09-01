@@ -42,11 +42,14 @@ import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -189,6 +192,7 @@ public final class PainlessLookupBuilder {
     // of the values of javaClassNamesToClasses.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
+    private final Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses;
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
@@ -198,6 +202,7 @@ public final class PainlessLookupBuilder {
         javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
+        classesToDirectSubClasses = new HashMap<>();
 
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
@@ -1255,7 +1260,7 @@ public final class PainlessLookupBuilder {
     }
 
     public PainlessLookup build() {
-        copyPainlessClassMembers();
+        buildPainlessClassHierarchy();
         setFunctionalInterfaceMethods();
         generateRuntimeMethods();
         cacheRuntimeHandles();
@@ -1286,71 +1291,66 @@ public final class PainlessLookupBuilder {
                 javaClassNamesToClasses,
                 canonicalClassNamesToClasses,
                 classesToPainlessClasses,
+                classesToDirectSubClasses,
                 painlessMethodKeysToImportedPainlessMethods,
                 painlessMethodKeysToPainlessClassBindings,
                 painlessMethodKeysToPainlessInstanceBindings);
     }
 
-    private void copyPainlessClassMembers() {
-        for (Class<?> parentClass : classesToPainlessClassBuilders.keySet()) {
-            copyPainlessInterfaceMembers(parentClass, parentClass);
+    private void buildPainlessClassHierarchy() {
+        for (Class<?> targetClass : classesToPainlessClassBuilders.keySet()) {
+            classesToDirectSubClasses.put(targetClass, new HashSet<>());
+        }
 
-            Class<?> childClass = parentClass.getSuperclass();
+        for (Class<?> subClass : classesToPainlessClassBuilders.keySet()) {
+            List<Class<?>> superInterfaces = new ArrayList<>(Arrays.asList(subClass.getInterfaces()));
 
-            while (childClass != null) {
-                if (classesToPainlessClassBuilders.containsKey(childClass)) {
-                    copyPainlessClassMembers(childClass, parentClass);
+            // we check for Object.class as part of the allow listed classes because
+            // it is possible for the compiler to work without Object
+            if (subClass.isInterface() && superInterfaces.isEmpty() && classesToPainlessClassBuilders.containsKey(Object.class)) {
+                classesToDirectSubClasses.get(Object.class).add(subClass);
+            } else {
+                Class<?> superClass = subClass.getSuperclass();
+
+                // this finds the nearest super class for a given sub class
+                // because the allow list may have gaps between classes
+                // example:
+                // class A {}        // allowed
+                // class B extends A // not allowed
+                // class C extends B // allowed
+                // in this case C is considered a direct sub class of A
+                while (superClass != null) {
+                    if (classesToPainlessClassBuilders.containsKey(superClass)) {
+                        break;
+                    } else {
+                        // this ensures all interfaces from a sub class that
+                        // is not allow listed are checked if they are
+                        // considered a direct super class of the sub class
+                        // because these interfaces may still be allow listed
+                        // even if their sub class is not
+                        superInterfaces.addAll(Arrays.asList(superClass.getInterfaces()));
+                    }
+
+                    superClass = superClass.getSuperclass();
                 }
 
-                copyPainlessInterfaceMembers(childClass, parentClass);
-                childClass = childClass.getSuperclass();
-            }
-        }
-
-        for (Class<?> javaClass : classesToPainlessClassBuilders.keySet()) {
-            if (javaClass.isInterface()) {
-                copyPainlessClassMembers(Object.class, javaClass);
-            }
-        }
-    }
-
-    private void copyPainlessInterfaceMembers(Class<?> parentClass, Class<?> targetClass) {
-        for (Class<?> childClass : parentClass.getInterfaces()) {
-            if (classesToPainlessClassBuilders.containsKey(childClass)) {
-                copyPainlessClassMembers(childClass, targetClass);
+                if (superClass != null) {
+                    classesToDirectSubClasses.get(superClass).add(subClass);
+                }
             }
 
-            copyPainlessInterfaceMembers(childClass, targetClass);
-        }
-    }
+            Set<Class<?>> resolvedInterfaces = new HashSet<>();
 
-    private void copyPainlessClassMembers(Class<?> originalClass, Class<?> targetClass) {
-        PainlessClassBuilder originalPainlessClassBuilder = classesToPainlessClassBuilders.get(originalClass);
-        PainlessClassBuilder targetPainlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
+            while (superInterfaces.isEmpty() == false) {
+                Class<?> superInterface = superInterfaces.remove(0);
 
-        Objects.requireNonNull(originalPainlessClassBuilder);
-        Objects.requireNonNull(targetPainlessClassBuilder);
-
-        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClassBuilder.methods.entrySet()) {
-            String painlessMethodKey = painlessMethodEntry.getKey();
-            PainlessMethod newPainlessMethod = painlessMethodEntry.getValue();
-            PainlessMethod existingPainlessMethod = targetPainlessClassBuilder.methods.get(painlessMethodKey);
-
-            if (existingPainlessMethod == null || existingPainlessMethod.targetClass != newPainlessMethod.targetClass &&
-                    existingPainlessMethod.targetClass.isAssignableFrom(newPainlessMethod.targetClass)) {
-                targetPainlessClassBuilder.methods.put(painlessMethodKey.intern(), newPainlessMethod);
-            }
-        }
-
-        for (Map.Entry<String, PainlessField> painlessFieldEntry : originalPainlessClassBuilder.fields.entrySet()) {
-            String painlessFieldKey = painlessFieldEntry.getKey();
-            PainlessField newPainlessField = painlessFieldEntry.getValue();
-            PainlessField existingPainlessField = targetPainlessClassBuilder.fields.get(painlessFieldKey);
-
-            if (existingPainlessField == null ||
-                    existingPainlessField.javaField.getDeclaringClass() != newPainlessField.javaField.getDeclaringClass() &&
-                    existingPainlessField.javaField.getDeclaringClass().isAssignableFrom(newPainlessField.javaField.getDeclaringClass())) {
-                targetPainlessClassBuilder.fields.put(painlessFieldKey.intern(), newPainlessField);
+                if (resolvedInterfaces.add(superInterface)) {
+                    if (classesToPainlessClassBuilders.containsKey(superInterface)) {
+                        classesToDirectSubClasses.get(superInterface).add(subClass);
+                    } else {
+                        superInterfaces.addAll(Arrays.asList(superInterface.getInterfaces()));
+                    }
+                }
             }
         }
     }

@@ -1,0 +1,26 @@
+# Synchronize all pushes to 'master' branch with 'main' branch to facilitate migration
+name: "Sync main branch"
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  sync_latest_from_upstream:
+    runs-on: ubuntu-latest
+    name: Sync latest commits from master branch
+
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v2
+        with:
+          ref: main
+
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.0
+        with:
+          target_sync_branch: main
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          upstream_sync_branch: master
+          upstream_sync_repo: elastic/elasticsearch

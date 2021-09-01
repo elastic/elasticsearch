@@ -87,12 +87,12 @@ your data, but can impact search performance based on the computation defined in
 the runtime script.
 
 To balance search performance and flexibility, index fields that you'll
-commonly search for and filter on, such as a timestamp. {es} automatically uses
-these indexed fields first when running a query, resulting in a fast response
-time. You can then use runtime fields to limit the number of fields that {es}
-needs to calculate values for. Using indexed fields in tandem with runtime
-fields provides flexibility in the data that you index and how you define
-queries for other fields.
+frequently search for and filter on, such as a timestamp. {es} automatically
+uses these indexed fields first when running a query, resulting in a fast 
+response time. You can then use runtime fields to limit the number of fields 
+that {es} needs to calculate values for. Using indexed fields in tandem with 
+runtime fields provides flexibility in the data that you index and how you
+define queries for other fields.
 
 Use the <<async-search,asynchronous search API>> to run searches that include
 runtime fields. This method of search helps to offset the performance impacts
@@ -810,8 +810,14 @@ can define runtime fields in the
 <<runtime-mapping-fields,`runtime` section>> of an index mapping. If you
 decide to index a runtime field for greater performance, just move the full
 runtime field definition (including the script) to the context of an index
-mapping. This capability means you can write a script only once, and apply
-it to any context that supports runtime fields.
+mapping. {es} automatically uses these indexed fields to drive queries,
+resulting in a fast response time. This capability means you can write a 
+script only once, and apply it to any context that supports runtime fields.
+
+You can then use runtime fields to limit the number of fields that {es} needs 
+to calculate values for. Using indexed fields in tandem with runtime fields 
+provides flexibility in the data that you index and how you define queries for 
+other fields.
 
 IMPORTANT: After indexing a runtime field, you cannot update the included
 script. If you need to change the script, create a new field with the updated

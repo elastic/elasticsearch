@@ -10,25 +10,34 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SentimentAnalysisResultsTests extends AbstractWireSerializingTestCase<SentimentAnalysisResults> {
+public class TextClassificationResultsTests extends AbstractWireSerializingTestCase<TextClassificationResults> {
     @Override
-    protected Writeable.Reader<SentimentAnalysisResults> instanceReader() {
-        return SentimentAnalysisResults::new;
+    protected Writeable.Reader<TextClassificationResults> instanceReader() {
+        return TextClassificationResults::new;
     }
 
     @Override
-    protected SentimentAnalysisResults createTestInstance() {
-        return new SentimentAnalysisResults(randomAlphaOfLength(6), randomDouble(),
-            randomAlphaOfLength(6), randomDouble());
+    protected TextClassificationResults createTestInstance() {
+        return new TextClassificationResults(
+            Stream.generate(TopClassEntryTests::createRandomTopClassEntry).limit(randomIntBetween(2, 5)).collect(Collectors.toList())
+        );
     }
 
     public void testAsMap() {
-        SentimentAnalysisResults testInstance = new SentimentAnalysisResults("foo", 1.0, "bar", 0.0);
+        TextClassificationResults testInstance = new TextClassificationResults(
+            List.of(
+                new TopClassEntry("foo", 1.0),
+                new TopClassEntry("bar", 0.0)
+            )
+        );
         Map<String, Object> asMap = testInstance.asMap();
         assertThat(asMap.keySet(), hasSize(2));
         assertThat(1.0, closeTo((Double)asMap.get("foo"), 0.0001));

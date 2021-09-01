@@ -58,9 +58,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
             initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-            // Re-create repo to clear repository data cache
-            assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
-            createRepository(repoName, "fs", repoPath);
         }
 
         final String indexName = "test-index";

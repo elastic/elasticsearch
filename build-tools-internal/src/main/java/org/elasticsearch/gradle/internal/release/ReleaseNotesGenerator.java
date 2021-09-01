@@ -8,16 +8,11 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import groovy.text.SimpleTemplateEngine;
-
 import com.google.common.annotations.VisibleForTesting;
-
-import org.gradle.api.GradleException;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -25,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
@@ -57,25 +51,19 @@ public class ReleaseNotesGenerator {
         final String templateString = Files.readString(templateFile.toPath());
 
         try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(templateString, changelogs, output);
+            output.write(generateFile(templateString, changelogs));
         }
     }
 
     @VisibleForTesting
-    static void generateFile(String template, Map<QualifiedVersion, Set<ChangelogEntry>> changelogs, Writer outputWriter)
-        throws IOException {
+    static String generateFile(String template, Map<QualifiedVersion, Set<ChangelogEntry>> changelogs) throws IOException {
         final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(changelogs);
 
         final Map<String, Object> bindings = new HashMap<>();
         bindings.put("changelogsByVersionByTypeByArea", changelogsByVersionByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
 
-        try {
-            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(template).make(bindings).writeTo(outputWriter);
-        } catch (ClassNotFoundException e) {
-            throw new GradleException("Failed to generate file from template", e);
-        }
+        return TemplateUtils.render(template, bindings);
     }
 
     private static Map<QualifiedVersion, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(

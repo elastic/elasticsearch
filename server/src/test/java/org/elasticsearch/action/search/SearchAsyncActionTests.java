@@ -722,5 +722,25 @@ public class SearchAsyncActionTests extends ESTestCase {
         public void close() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public void incRef() {
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "shouldn't release a mock connection";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
     }
 }

@@ -544,6 +544,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     public boolean isClosed() {
                         return false;
                     }
+
+                    @Override
+                    public void incRef() {
+                        // TODO
+                    }
+
+                    @Override
+                    public boolean tryIncRef() {
+                        // TODO
+                        return true;
+                    }
+
+                    @Override
+                    public boolean decRef() {
+                        // TODO
+                        return false;
+                    }
+
+                    @Override
+                    public boolean hasReferences() {
+                        // TODO
+                        return true;
+                    }
                 }));
             }
         }

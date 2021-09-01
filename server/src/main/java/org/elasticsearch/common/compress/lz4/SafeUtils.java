@@ -10,10 +10,18 @@ package org.elasticsearch.common.compress.lz4;
 
 import net.jpountz.util.Utils;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
 public enum SafeUtils {
     ;
+
+    private static final VarHandle asIntBigEndian = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+
+    private static final VarHandle asIntLittleEndian = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+
+    private static final VarHandle asShortLittleEndian = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.LITTLE_ENDIAN);
 
     public static void checkRange(byte[] buf, int off) {
         if (off < 0 || off >= buf.length) {
@@ -40,11 +48,11 @@ public enum SafeUtils {
     }
 
     public static int readIntBE(byte[] buf, int i) {
-        return ((buf[i] & 0xFF) << 24) | ((buf[i+1] & 0xFF) << 16) | ((buf[i+2] & 0xFF) << 8) | (buf[i+3] & 0xFF);
+        return (int) asIntBigEndian.get(buf, i);
     }
 
     public static int readIntLE(byte[] buf, int i) {
-        return (buf[i] & 0xFF) | ((buf[i+1] & 0xFF) << 8) | ((buf[i+2] & 0xFF) << 16) | ((buf[i+3] & 0xFF) << 24);
+        return (int) asIntLittleEndian.get(buf, i);
     }
 
     public static int readInt(byte[] buf, int i) {
@@ -61,8 +69,7 @@ public enum SafeUtils {
     }
 
     public static void writeShortLE(byte[] buf, int off, int v) {
-        buf[off++] = (byte) v;
-        buf[off++] = (byte) (v >>> 8);
+        asShortLittleEndian.set(buf, off, (short) v);
     }
 
     public static void writeInt(int[] buf, int off, int v) {
@@ -82,7 +89,7 @@ public enum SafeUtils {
     }
 
     public static int readShortLE(byte[] buf, int i) {
-        return (buf[i] & 0xFF) | ((buf[i+1] & 0xFF) << 8);
+        return (short) asShortLittleEndian.get(buf, i);
     }
 
     public static int readShort(short[] buf, int off) {

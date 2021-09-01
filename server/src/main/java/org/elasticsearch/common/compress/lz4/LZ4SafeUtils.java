@@ -10,6 +10,8 @@ package org.elasticsearch.common.compress.lz4;
 
 import net.jpountz.lz4.LZ4Exception;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.common.compress.lz4.LZ4Constants.LAST_LITERALS;
 import static org.elasticsearch.common.compress.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.common.compress.lz4.LZ4Constants.ML_MASK;
@@ -27,7 +29,7 @@ enum LZ4SafeUtils {
     }
 
     static boolean readIntEquals(byte[] buf, int i, int j) {
-        return buf[i] == buf[j] && buf[i+1] == buf[j+1] && buf[i+2] == buf[j+2] && buf[i+3] == buf[j+3];
+        return SafeUtils.readInt(buf, i) == SafeUtils.readInt(buf, j);
     }
 
     static void safeIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchLen) {
@@ -51,11 +53,9 @@ enum LZ4SafeUtils {
     }
 
     static int commonBytes(byte[] b, int o1, int o2, int limit) {
-        int count = 0;
-        while (o2 < limit && b[o1++] == b[o2++]) {
-            ++count;
-        }
-        return count;
+        // TODO: Check
+        int mismatch = Arrays.mismatch(b, o1, limit, b, o2, limit);
+        return mismatch == -1 ? limit : mismatch;
     }
 
     static int commonBytesBackward(byte[] b, int o1, int o2, int l1, int l2) {

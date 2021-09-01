@@ -66,7 +66,7 @@ public class TextClassificationConfig implements NlpConfig {
         this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
-        this.numTopClasses = Optional.ofNullable(numTopClasses).orElse(2);
+        this.numTopClasses = Optional.ofNullable(numTopClasses).orElse(-1);
     }
 
     public TextClassificationConfig(StreamInput in) throws IOException {

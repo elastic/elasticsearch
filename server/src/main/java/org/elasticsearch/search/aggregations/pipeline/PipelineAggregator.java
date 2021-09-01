@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -43,8 +42,7 @@ public abstract class PipelineAggregator {
          * @throws java.io.IOException
          *             When parsing fails
          */
-        PipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser)
-                throws IOException;
+        PipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser) throws IOException;
     }
 
     /**

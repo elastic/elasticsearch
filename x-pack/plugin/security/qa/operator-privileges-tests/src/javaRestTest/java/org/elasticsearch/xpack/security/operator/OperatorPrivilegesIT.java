@@ -49,12 +49,6 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         getShutdownStatus.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
-            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
-            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
-            // runner's JVM.
-            return;
-        }
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
         List<String> nodeIds = nodesArray.stream()
             .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))

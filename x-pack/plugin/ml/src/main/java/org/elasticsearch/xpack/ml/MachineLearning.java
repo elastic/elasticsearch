@@ -53,6 +53,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
@@ -193,6 +196,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAction;
 import org.elasticsearch.xpack.ml.action.TransportGetDatafeedRunningStateAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
@@ -364,6 +368,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -440,6 +445,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // This is for performance testing.  It's not exposed to the end user.
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
+
+    public static final LicensedFeature.Persistent ML_JOBS_FEATURE =
+        LicensedFeature.persistent("machine-learning", "anomaly-detection-job", License.OperationMode.PLATINUM);
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -942,7 +950,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     datafeedConfigProvider.get(),
                     memoryTracker.get(),
                     client,
-                    expressionResolver),
+                    expressionResolver,
+                    getLicenseState()),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings,
                     client,
@@ -1033,6 +1042,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestPutTrainedModelAliasAction(),
             new RestDeleteTrainedModelAliasAction(),
             new RestPreviewDataFrameAnalyticsAction(),
+            new RestGetTrainedModelDeploymentStatsAction(),
             new RestStartTrainedModelDeploymentAction(),
             new RestStopTrainedModelDeploymentAction(),
             new RestInferTrainedModelDeploymentAction(),
@@ -1127,6 +1137,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class),
                 new ActionHandler<>(StopTrainedModelDeploymentAction.INSTANCE, TransportStopTrainedModelDeploymentAction.class),
                 new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
+                new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
                 new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
                 new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
                 new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),

@@ -25,7 +25,7 @@ public class SettingsConfig implements ToXContentObject {
     private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     private static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     private static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
-    private static final ParseField INTERIM_RESULTS = new ParseField("interim_results");
+    private static final ParseField ALIGN_CHECKPOINTS = new ParseField("align_checkpoints");
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
 
@@ -33,12 +33,12 @@ public class SettingsConfig implements ToXContentObject {
     private static final int DEFAULT_DATES_AS_EPOCH_MILLIS = -1;
 
     // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
-    private static final int DEFAULT_INTERIM_RESULTS = -1;
+    private static final int DEFAULT_ALIGN_CHECKPOINTS = -1;
 
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
     private final Integer datesAsEpochMillis;
-    private final Integer interimResults;
+    private final Integer alignCheckpoints;
 
     private static final ConstructingObjectParser<SettingsConfig, Void> PARSER = new ConstructingObjectParser<>(
         "settings_config",
@@ -59,8 +59,8 @@ public class SettingsConfig implements ToXContentObject {
         // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_INTERIM_RESULTS : p.booleanValue() ? 1 : 0,
-            INTERIM_RESULTS,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_ALIGN_CHECKPOINTS : p.booleanValue() ? 1 : 0,
+            ALIGN_CHECKPOINTS,
             ValueType.BOOLEAN_OR_NULL
         );
     }
@@ -69,11 +69,11 @@ public class SettingsConfig implements ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer interimResults) {
+    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer alignCheckpoints) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
         this.datesAsEpochMillis = datesAsEpochMillis;
-        this.interimResults = interimResults;
+        this.alignCheckpoints = alignCheckpoints;
     }
 
     @Override
@@ -100,11 +100,11 @@ public class SettingsConfig implements ToXContentObject {
                 builder.field(DATES_AS_EPOCH_MILLIS.getPreferredName(), datesAsEpochMillis > 0 ? true : false);
             }
         }
-        if (interimResults != null) {
-            if (interimResults.equals(DEFAULT_INTERIM_RESULTS)) {
-                builder.field(INTERIM_RESULTS.getPreferredName(), (Boolean) null);
+        if (alignCheckpoints != null) {
+            if (alignCheckpoints.equals(DEFAULT_ALIGN_CHECKPOINTS)) {
+                builder.field(ALIGN_CHECKPOINTS.getPreferredName(), (Boolean) null);
             } else {
-                builder.field(INTERIM_RESULTS.getPreferredName(), interimResults > 0 ? true : false);
+                builder.field(ALIGN_CHECKPOINTS.getPreferredName(), alignCheckpoints > 0 ? true : false);
             }
         }
         builder.endObject();
@@ -123,8 +123,8 @@ public class SettingsConfig implements ToXContentObject {
         return datesAsEpochMillis != null ? datesAsEpochMillis > 0 : null;
     }
 
-    public Boolean getInterimResults() {
-        return interimResults != null ? interimResults > 0 : null;
+    public Boolean getAlignCheckpoints() {
+        return alignCheckpoints != null ? alignCheckpoints > 0 : null;
     }
 
     @Override
@@ -140,12 +140,12 @@ public class SettingsConfig implements ToXContentObject {
         return Objects.equals(maxPageSearchSize, that.maxPageSearchSize)
             && Objects.equals(docsPerSecond, that.docsPerSecond)
             && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis)
-            && Objects.equals(interimResults, that.interimResults);
+            && Objects.equals(alignCheckpoints, that.alignCheckpoints);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, interimResults);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints);
     }
 
     public static Builder builder() {
@@ -156,7 +156,7 @@ public class SettingsConfig implements ToXContentObject {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
         private Integer datesAsEpochMillis;
-        private Integer interimResults;
+        private Integer alignCheckpoints;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -203,20 +203,20 @@ public class SettingsConfig implements ToXContentObject {
         }
 
         /**
-         * Whether to write interim results in transform checkpoints.
+         * Whether to align transform checkpoint ranges with date histogram interval.
          *
          * An explicit `null` resets to default.
          *
-         * @param interimResults true if interim results should be written.
-         * @return the {@link Builder} with interimResults set.
+         * @param alignCheckpoints true if checkpoint ranges should be aligned with date histogram interval.
+         * @return the {@link Builder} with alignCheckpoints set.
          */
-        public Builder setInterimResults(Boolean interimResults) {
-            this.interimResults = interimResults == null ? DEFAULT_INTERIM_RESULTS : interimResults ? 1 : 0;
+        public Builder setAlignCheckpoints(Boolean alignCheckpoints) {
+            this.alignCheckpoints = alignCheckpoints == null ? DEFAULT_ALIGN_CHECKPOINTS : alignCheckpoints ? 1 : 0;
             return this;
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, interimResults);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints);
         }
     }
 }

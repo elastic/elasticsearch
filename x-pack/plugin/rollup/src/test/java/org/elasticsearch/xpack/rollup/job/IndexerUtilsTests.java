@@ -77,13 +77,13 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
-        int numDocs = randomIntBetween(1,10);
+        int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
-            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
+            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
             indexWriter.addDocument(document);
         }
 
@@ -96,11 +96,14 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
-        DateHistogramGroupConfig dateHistoGroupConfig
-            = new DateHistogramGroupConfig.CalendarInterval(timestampField, DateHistogramInterval.DAY);
-        CompositeAggregationBuilder compositeBuilder =
-            new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                RollupIndexer.createValueSourceBuilders(dateHistoGroupConfig));
+        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig.CalendarInterval(
+            timestampField,
+            DateHistogramInterval.DAY
+        );
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(
+            RollupIndexer.AGGREGATION_NAME,
+            RollupIndexer.createValueSourceBuilders(dateHistoGroupConfig)
+        );
         MetricConfig metricConfig = new MetricConfig("does_not_exist", singletonList("max"));
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
@@ -134,13 +137,13 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
-        int numDocs = randomIntBetween(1,10);
+        int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
-            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
+            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
             indexWriter.addDocument(document);
         }
 
@@ -153,14 +156,15 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
-        //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistogramValuesSourceBuilder dateHisto
-                = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
-                .field(timestampField)
-                .fixedInterval(new DateHistogramInterval("1ms"));
+        // TODO swap this over to DateHistoConfig.Builder once DateInterval is in
+        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(
+            "the_histo." + DateHistogramAggregationBuilder.NAME
+        ).field(timestampField).fixedInterval(new DateHistogramInterval("1ms"));
 
-        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                singletonList(dateHisto));
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(
+            RollupIndexer.AGGREGATION_NAME,
+            singletonList(dateHisto)
+        );
 
         MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
@@ -180,21 +184,21 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
             Map<String, Object> map = doc.sourceAsMap();
-            assertNotNull( map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
+            assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
             assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
         }
     }
 
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String valueField = "the_avg";
 
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
-        int numDocs = randomIntBetween(1,10);
+        int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             document.add(new SortedNumericDocValuesField(valueField, i));
@@ -210,10 +214,11 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
-        TermsValuesSourceBuilder terms
-                = new TermsValuesSourceBuilder("the_terms." + TermsAggregationBuilder.NAME).field(valueField);
-        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                singletonList(terms));
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("the_terms." + TermsAggregationBuilder.NAME).field(valueField);
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(
+            RollupIndexer.AGGREGATION_NAME,
+            singletonList(terms)
+        );
 
         MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
@@ -233,7 +238,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
             Map<String, Object> map = doc.sourceAsMap();
-            assertNotNull( map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
+            assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
             assertThat(map.get("the_terms." + TermsAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
         }
     }
@@ -248,13 +253,13 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
-        int numDocs = randomIntBetween(1,10);
+        int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
-            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
+            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
             indexWriter.addDocument(document);
         }
 
@@ -267,13 +272,14 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
-        DateHistogramValuesSourceBuilder dateHisto
-                = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
-                    .field(timestampField)
-                    .calendarInterval(new DateHistogramInterval("1d"));
+        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(
+            "the_histo." + DateHistogramAggregationBuilder.NAME
+        ).field(timestampField).calendarInterval(new DateHistogramInterval("1d"));
 
-        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                singletonList(dateHisto));
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(
+            RollupIndexer.AGGREGATION_NAME,
+            singletonList(dateHisto)
+        );
 
         MetricConfig metricConfig = new MetricConfig("another_field", Arrays.asList("avg", "sum"));
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
@@ -458,9 +464,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         // Setup the composite agg
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);
-        CompositeAggregationBuilder compositeBuilder =
-            new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME, RollupIndexer.createValueSourceBuilders(termsGroupConfig))
-                .size(numDocs*2);
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(
+            RollupIndexer.AGGREGATION_NAME,
+            RollupIndexer.createValueSourceBuilders(termsGroupConfig)
+        ).size(numDocs * 2);
 
         MetricConfig metricConfig = new MetricConfig(metricField, singletonList("max"));
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
@@ -524,14 +531,17 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
-        DateHistogramValuesSourceBuilder dateHisto
-            = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
-            .field(timestampField)
+        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(
+            "the_histo." + DateHistogramAggregationBuilder.NAME
+        ).field(timestampField)
             .calendarInterval(new DateHistogramInterval("1d"))
-            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));  // adds a timezone so that we aren't on default UTC
+            // adds a timezone so that we aren't on default UTC
+            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));
 
-        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-            singletonList(dateHisto));
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(
+            RollupIndexer.AGGREGATION_NAME,
+            singletonList(dateHisto)
+        );
 
         MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
@@ -553,16 +563,14 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Map<String, Object> map = docs.get(0).sourceAsMap();
         assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
-        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
-            equalTo(1443574800000L)); // 2015-09-30T00:00:00.000-01:00
+        // 2015-09-30T00:00:00.000-01:00
+        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP), equalTo(1443574800000L));
 
         map = docs.get(1).sourceAsMap();
         assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
-        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
-            equalTo(1443661200000L)); // 2015-10-01T00:00:00.000-01:00
-
-
+        // 2015-10-01T00:00:00.000-01:00
+        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP), equalTo(1443661200000L));
     }
 
     interface Mock {

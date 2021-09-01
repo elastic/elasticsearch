@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,8 +25,8 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -307,6 +308,11 @@ public class ModelLoadingService implements ClusterStateListener {
     private void loadModel(String modelId, Consumer consumer) {
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
             trainedModelConfig -> {
+                if (trainedModelConfig.isAllocateOnly()) {
+                    handleLoadFailure(modelId, new ElasticsearchException("model [{}] is allocate only", modelId));
+                    return;
+                }
+                auditNewReferencedModel(modelId);
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
                 provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(
                     inferenceDefinition -> {
@@ -693,8 +699,7 @@ public class ModelLoadingService implements ClusterStateListener {
         // Execute this on a utility thread as when the callbacks occur we don't want them tying up the cluster listener thread pool
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             for (String modelId : modelIds) {
-                auditNewReferencedModel(modelId);
-                this.loadModel(modelId, Consumer.PIPELINE);
+                loadModel(modelId, Consumer.PIPELINE);
             }
         });
     }

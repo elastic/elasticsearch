@@ -69,6 +69,7 @@ without requiring basic authentication:
 * <<security-api-invalidate-api-key,Invalidate API key>>
 * <<security-api-clear-api-key-cache,Clear API key cache>>
 * <<security-api-grant-api-key,Grant API key>>
+* <<security-api-query-api-key,Query API key>>
 
 [discrete]
 [[security-user-apis]]
@@ -172,6 +173,7 @@ include::security/invalidate-tokens.asciidoc[]
 include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
+include::security/query-api-key.asciidoc[]
 include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]

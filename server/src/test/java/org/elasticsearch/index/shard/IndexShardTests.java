@@ -3093,12 +3093,15 @@ public class IndexShardTests extends IndexShardTestCase {
         appender.start();
         Loggers.addAppender(LogManager.getLogger(IndexShard.class), appender);
         try {
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "expensive checks warning",
-                "org.elasticsearch.index.shard.IndexShard",
-                Level.WARN,
-                "performing expensive diagnostic checks during shard startup [index.shard.check_on_startup=*]; these checks should only " +
-                    "be enabled temporarily, you must remove this index setting as soon as possible"));
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expensive checks warning",
+                    "org.elasticsearch.index.shard.IndexShard",
+                    Level.WARN,
+                    "performing expensive diagnostic checks during shard startup [index.shard.check_on_startup=*]; these checks "
+                        + "should only be enabled temporarily, you must remove this index setting as soon as possible"
+                )
+            );
 
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "failure message",

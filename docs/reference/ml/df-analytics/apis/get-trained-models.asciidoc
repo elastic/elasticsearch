@@ -225,8 +225,7 @@ List of the available hyperparameters optimized during the
 `absolute_importance`::::
 (double)
 A positive number showing how much the parameter influences the variation of the 
-// {ml-docs}/dfa-regression-lossfunction.html[loss function]. 
-loss function. For 
+{ml-docs}/dfa-regression-lossfunction.html[loss function]. For 
 hyperparameters with values that are not specified by the user but tuned during 
 hyperparameter optimization. 
 

@@ -132,7 +132,12 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             .setConnectTimeout(timeout)
             .setSocketTimeout(timeout)
             .build();
-        return eqlClient.search(request, RequestOptions.DEFAULT.toBuilder().setRequestConfig(config).build());
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
+        if (ccsMinimizeRoundtrips != null) {
+            optionsBuilder.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
+        }
+        return eqlClient.search(request, optionsBuilder.setRequestConfig(config).build());
     }
 
     protected EqlClient eqlClient() {

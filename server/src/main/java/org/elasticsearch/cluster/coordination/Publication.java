@@ -163,6 +163,10 @@ public abstract class Publication {
         }
     }
 
+    protected final long getStartTime() {
+        return startTime;
+    }
+
     protected abstract void onCompletion(boolean committed);
 
     protected abstract boolean isPublishQuorum(CoordinationState.VoteCollection votes);

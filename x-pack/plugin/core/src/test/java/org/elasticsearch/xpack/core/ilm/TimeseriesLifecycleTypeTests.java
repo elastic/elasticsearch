@@ -801,10 +801,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
-            assertThat(err,
-                containsString("Your policy is configured to run the frozen phase "+
-                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
-                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+            assertThat(
+                err,
+                containsString(
+                    "Your policy is configured to run the frozen phase "
+                        + "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the"
+                        + " hot phase (min_age: 3d). You should change the phase timing so that the phases will execute"
+                        + " in the order of hot, warm, then cold."
+                )
+            );
         }
 
         {
@@ -817,10 +822,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
-            assertThat(err,
-                containsString("Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "+
-                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
-                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+            assertThat(
+                err,
+                containsString(
+                    "Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "
+                        + "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the"
+                        + " hot phase (min_age: 3d). You should change the phase timing so that the phases will execute"
+                        + " in the order of hot, warm, then cold."
+                )
+            );
         }
     }
 

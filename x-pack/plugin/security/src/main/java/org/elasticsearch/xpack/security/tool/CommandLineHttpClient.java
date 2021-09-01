@@ -16,12 +16,12 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
 
@@ -89,10 +89,10 @@ public class CommandLineHttpClient {
             final SSLService sslService = new SSLService(env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                final SSLConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                final SslConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 // Requires permission java.lang.RuntimePermission "setFactory";
                 httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
-                final boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+                final boolean isHostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
                 if (isHostnameVerificationEnabled == false) {
                     httpsConn.setHostnameVerifier((hostname, session) -> true);
                 }

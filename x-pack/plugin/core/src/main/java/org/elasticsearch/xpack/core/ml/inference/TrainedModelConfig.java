@@ -334,6 +334,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return licenseLevel;
     }
 
+    public boolean isAllocateOnly() {
+        return inferenceConfig.isAllocateOnly();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);

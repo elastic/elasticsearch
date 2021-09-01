@@ -57,11 +57,6 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
         return new BootstrapPasswordAndEnrollmentTokenForInitialNode(environment -> client, environment -> keyStoreWrapper,
             environment -> enrollmentTokenGenerator) {
             @Override
-            protected char[] generatePassword(int passwordLength) {
-                String password = "Aljngvodjb94j8HSY803";
-                return password.toCharArray();
-            }
-            @Override
             protected Environment readSecureSettings(Environment env, SecureString password) {
                 return new Environment(settings, tempDir);
             }
@@ -129,7 +124,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
         terminal.addSecretInput("password");
         String includeNodeEnrollmentToken = randomBoolean() ? "--include-node-enrollment-token" : "";
         String output = execute(includeNodeEnrollmentToken);
-        assertThat(output, containsString("elastic user password: Aljngvodjb94j8HSY803"));
+        assertThat(output, containsString("elastic user password: "));
         assertThat(output, containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
             "f8a91362d"));
         assertThat(output, containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wL" +

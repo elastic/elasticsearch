@@ -117,10 +117,8 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 } else {
                     listener = ActionListener.wrap(result -> {
                         LOGGER.debug("successfully executed policy [{}]", request.getName());
-                        // taskManager.storeResult(task, new Response(result), ActionListener.wrap(() -> {/*noop*/}));
                     }, e -> {
                         LOGGER.error("failed to execute policy [" + request.getName() + "]", e);
-                        // taskManager.storeResult(task, e, ActionListener.wrap(() -> {/*noop*/}));
                     });
                 }
                 policyExecutor.runPolicyLocally(task, request.getName(), ActionListener.wrap(result -> {

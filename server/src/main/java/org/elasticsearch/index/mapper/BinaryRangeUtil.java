@@ -9,13 +9,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,8 +29,7 @@ enum BinaryRangeUtil {
     ;
 
     static BytesRef encodeIPRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
-        final byte[] encoded = new byte[5 + (16 * 2) * ranges.size()];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+        BytesStreamOutput out = new BytesStreamOutput(5 + (16 * 2) * ranges.size());
         out.writeVInt(ranges.size());
         for (RangeFieldMapper.Range range : ranges) {
             InetAddress fromValue = (InetAddress) range.from;
@@ -40,7 +40,7 @@ enum BinaryRangeUtil {
             byte[] encodedToValue = InetAddressPoint.encode(toValue);
             out.writeBytes(encodedToValue, 0, encodedToValue.length);
         }
-        return new BytesRef(encoded, 0, out.getPosition());
+        return out.bytes().toBytesRef();
     }
 
     static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) {
@@ -59,8 +59,7 @@ enum BinaryRangeUtil {
         Comparator<RangeFieldMapper.Range> toComparator = Comparator.comparingLong(range -> ((Number) range.to).longValue());
         sortedRanges.sort(fromComparator.thenComparing(toComparator));
 
-        final byte[] encoded = new byte[5 + (9 * 2) * sortedRanges.size()];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+        BytesStreamOutput out = new BytesStreamOutput(5 + (9 * 2) * sortedRanges.size());
         out.writeVInt(sortedRanges.size());
         for (RangeFieldMapper.Range range : sortedRanges) {
             byte[] encodedFrom = encodeLong(((Number) range.from).longValue());
@@ -68,7 +67,7 @@ enum BinaryRangeUtil {
             byte[] encodedTo = encodeLong(((Number) range.to).longValue());
             out.writeBytes(encodedTo, encodedTo.length);
         }
-        return new BytesRef(encoded, 0, out.getPosition());
+        return out.bytes().toBytesRef();
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
@@ -82,8 +81,7 @@ enum BinaryRangeUtil {
         Comparator<RangeFieldMapper.Range> toComparator = Comparator.comparingDouble(range -> ((Number) range.to).doubleValue());
         sortedRanges.sort(fromComparator.thenComparing(toComparator));
 
-        final byte[] encoded = new byte[5 + (8 * 2) * sortedRanges.size()];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+        BytesStreamOutput out = new BytesStreamOutput(5 + (8 * 2) * sortedRanges.size());
         out.writeVInt(sortedRanges.size());
         for (RangeFieldMapper.Range range : sortedRanges) {
             byte[] encodedFrom = encodeDouble(((Number) range.from).doubleValue());
@@ -91,7 +89,7 @@ enum BinaryRangeUtil {
             byte[] encodedTo = encodeDouble(((Number) range.to).doubleValue());
             out.writeBytes(encodedTo, encodedTo.length);
         }
-        return new BytesRef(encoded, 0, out.getPosition());
+        return out.bytes().toBytesRef();
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
@@ -108,27 +106,30 @@ enum BinaryRangeUtil {
                                                      TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
         RangeType.LengthType lengthType = rangeType.lengthType;
-        ByteArrayDataInput in = new ByteArrayDataInput();
+        ByteArrayStreamInput in = new ByteArrayStreamInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
-        int numRanges = in.readVInt();
+        try {
+            int numRanges = in.readVInt();
+            List<RangeFieldMapper.Range> ranges = new ArrayList<>(numRanges);
 
-        List<RangeFieldMapper.Range> ranges = new ArrayList<>(numRanges);
+            final byte[] bytes = encodedRanges.bytes;
+            int offset = in.getPosition();
+            for (int i = 0; i < numRanges; i++) {
+                int length = lengthType.readLength(bytes, offset);
+                Object from = decodeBytes.apply(bytes, offset, length);
+                offset += length;
 
-        final byte[] bytes = encodedRanges.bytes;
-        int offset = in.getPosition();
-        for (int i = 0; i < numRanges; i++) {
-            int length = lengthType.readLength(bytes, offset);
-            Object from = decodeBytes.apply(bytes, offset, length);
-            offset += length;
-
-            length = lengthType.readLength(bytes, offset);
-            Object to = decodeBytes.apply(bytes, offset, length);
-            offset += length;
-            // TODO: Support for exclusive ranges, pending resolution of #40601
-            RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
-            ranges.add(decodedRange);
+                length = lengthType.readLength(bytes, offset);
+                Object to = decodeBytes.apply(bytes, offset, length);
+                offset += length;
+                // TODO: Support for exclusive ranges, pending resolution of #40601
+                RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
+                ranges.add(decodedRange);
+            }
+            return ranges;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return ranges;
     }
 
     static BytesRef encodeFloatRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
@@ -137,8 +138,7 @@ enum BinaryRangeUtil {
         Comparator<RangeFieldMapper.Range> toComparator = Comparator.comparingDouble(range -> ((Number) range.to).floatValue());
         sortedRanges.sort(fromComparator.thenComparing(toComparator));
 
-        final byte[] encoded = new byte[5 + (4 * 2) * sortedRanges.size()];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+        BytesStreamOutput out = new BytesStreamOutput(5 + (4 * 2) * sortedRanges.size());
         out.writeVInt(sortedRanges.size());
         for (RangeFieldMapper.Range range : sortedRanges) {
             byte[] encodedFrom = encodeFloat(((Number) range.from).floatValue());
@@ -146,7 +146,7 @@ enum BinaryRangeUtil {
             byte[] encodedTo = encodeFloat(((Number) range.to).floatValue());
             out.writeBytes(encodedTo, encodedTo.length);
         }
-        return new BytesRef(encoded, 0, out.getPosition());
+        return out.bytes().toBytesRef();
     }
 
     static byte[] encodeDouble(double number) {

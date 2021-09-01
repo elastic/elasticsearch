@@ -16,6 +16,8 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.util.Collections;
@@ -71,14 +73,22 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     /**
-     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
-     * Once a successful is established, it can be validated before being exposed.
-     * The ActionListener will be called on the calling thread or the generic thread pool.
+     * Connects to the given node, or acquires another reference to an existing connection to the given node if a connection already exists.
+     *
+     * @param connectionProfile   the profile to use if opening a new connection. Only used in tests, this is {@code null} in production.
+     * @param connectionValidator a callback to validate the connection before it is exposed (e.g. to {@link #nodeConnected}).
+     * @param listener            completed on the calling thread or by the {@link ConnectionValidator}; in production the
+     *                            {@link ConnectionValidator} will complete the listener on the generic thread pool (see
+     *                            {@link TransportService#connectionValidator}). If successful, completed with a {@link Releasable} which
+     *                            will release this connection (and close it if no other references to it are held).
      */
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              ConnectionValidator connectionValidator,
-                              ActionListener<Void> listener) throws ConnectTransportException {
+    public void connectToNode(
+        DiscoveryNode node,
+        @Nullable ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Releasable> listener
+    ) throws ConnectTransportException {
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
@@ -90,9 +100,11 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
+        final ActionListener<Void> TODO = listener.map(ignored -> () -> {}); // TODO this needs to yield a proper releasable
+
         if (connectedNodes.containsKey(node)) {
             connectingRefCounter.decRef();
-            listener.onResponse(null);
+            TODO.onResponse(null);
             return;
         }
 
@@ -101,14 +113,14 @@ public class ClusterConnectionManager implements ConnectionManager {
         if (existingListener != null) {
             try {
                 // wait on previous entry to complete connection attempt
-                existingListener.addListener(listener);
+                existingListener.addListener(TODO);
             } finally {
                 connectingRefCounter.decRef();
             }
             return;
         }
 
-        currentListener.addListener(listener);
+        currentListener.addListener(TODO);
 
         // It's possible that a connection completed, and the pendingConnections entry was removed, between the calls to
         // connectedNodes.containsKey and pendingConnections.putIfAbsent above, so we check again to make sure we don't open a redundant

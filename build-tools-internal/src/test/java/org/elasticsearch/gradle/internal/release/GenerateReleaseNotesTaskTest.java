@@ -206,7 +206,11 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         );
 
         // when:
-        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(gitWrapper, "8.0.0-beta1", allFiles);
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(
+            gitWrapper,
+            "8.0.0-beta1",
+            allFiles
+        );
 
         // then:
         verify(gitWrapper).listVersions("v8.0*");

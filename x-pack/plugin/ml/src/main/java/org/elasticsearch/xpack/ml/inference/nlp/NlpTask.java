@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,7 +36,7 @@ public class NlpTask {
 
     /**
      * Create and validate the NLP Processor
-     * @return
+     * @return the processor based on task type
      * @throws ValidationException if the validation fails
      */
     public Processor createProcessor() throws ValidationException {
@@ -42,7 +44,53 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        Request buildRequest(String inputs, String requestId) throws IOException;
+        @FunctionalInterface
+        interface IntToIntFunction {
+            int applyAsInt(int value);
+        }
+
+        @FunctionalInterface
+        interface TokenLookupFunction {
+            int apply(TokenizationResult.Tokenization tokenization, int index);
+        }
+
+        Request buildRequest(List<String> inputs, String requestId) throws IOException;
+
+        static void writePaddedTokens(String fieldName,
+                                      TokenizationResult tokenization,
+                                      int padToken,
+                                      TokenLookupFunction generator,
+                                      XContentBuilder builder) throws IOException {
+            builder.startArray(fieldName);
+            for (var inputTokens : tokenization.getTokenizations()) {
+                builder.startArray();
+                int i = 0;
+                for (; i < inputTokens.getTokenIds().length; i++) {
+                    builder.value(generator.apply(inputTokens, i));
+                }
+
+                for (; i < tokenization.getLongestSequenceLength(); i++) {
+                    builder.value(padToken);
+                }
+                builder.endArray();
+            }
+            builder.endArray();
+        }
+
+        static void writeNonPaddedArguments(String fieldName,
+                                            int numTokenizations, int longestSequenceLength,
+                                            IntToIntFunction generator,
+                                            XContentBuilder builder) throws IOException {
+            builder.startArray(fieldName);
+            for (int i = 0; i < numTokenizations; i++) {
+                builder.startArray();
+                for (int j = 0; j < longestSequenceLength; j++) {
+                    builder.value(generator.applyAsInt(j));
+                }
+                builder.endArray();
+            }
+            builder.endArray();
+        }
     }
 
     public interface ResultProcessor {
@@ -60,7 +108,7 @@ public class NlpTask {
          *
          * @param inputs Text to validate
          */
-        void validateInputs(String inputs);
+        void validateInputs(List<String> inputs);
 
         RequestBuilder getRequestBuilder();
         ResultProcessor getResultProcessor();

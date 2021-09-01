@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import groovy.text.SimpleTemplateEngine;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import org.elasticsearch.gradle.VersionProperties;
@@ -17,7 +15,6 @@ import org.elasticsearch.gradle.VersionProperties;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
@@ -36,18 +33,14 @@ public class BreakingChangesGenerator {
 
     static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
         try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(
-                QualifiedVersion.of(VersionProperties.getElasticsearch()),
-                Files.readString(templateFile.toPath()),
-                output,
-                entries
+            output.write(
+                generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries)
             );
         }
     }
 
     @VisibleForTesting
-    static void generateFile(QualifiedVersion version, String template, Writer outputWriter, List<ChangelogEntry> entries)
-        throws IOException {
+    static String generateFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
 
         final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingChangesByNotabilityByArea = entries.stream()
             .map(ChangelogEntry::getBreaking)
@@ -75,11 +68,6 @@ public class BreakingChangesGenerator {
         bindings.put("nextMajor", (version.getMajor() + 1) + ".0");
         bindings.put("version", version);
 
-        try {
-            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(template).make(bindings).writeTo(outputWriter);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        return TemplateUtils.render(template, bindings);
     }
 }

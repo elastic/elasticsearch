@@ -202,10 +202,10 @@ public class EnrollmentTokenGenerator {
 
     static List<String> getFilteredAddresses(List<String> addresses) throws Exception {
         List<String> filteredAddresses = new ArrayList<>();
-        for (String bound_address : addresses){
-            InetAddress inetAddress = getInetAddressFromString(bound_address);
+        for (String boundAddress : addresses){
+            InetAddress inetAddress = getInetAddressFromString(boundAddress);
             if (inetAddress.isLoopbackAddress() != true) {
-                filteredAddresses.add(bound_address);
+                filteredAddresses.add(boundAddress);
             }
         }
         if (filteredAddresses.isEmpty()) {

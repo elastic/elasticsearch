@@ -48,7 +48,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
             return new AutoscalingPolicy(
                 name,
                 roles.stream().collect(Sets.toUnmodifiableSortedSet()),
-                new TreeMap<>(deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, TreeMap::new))
             );
         });
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ROLES_FIELD);

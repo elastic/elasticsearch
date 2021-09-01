@@ -486,7 +486,7 @@ public class FollowingEngineTests extends ESTestCase {
             final long indexNewDocWithSameIdSeqNo = 4;
             FollowingEngine followingEngine = new FollowingEngine(followerConfig) {
                 @Override
-                protected void advanceMaxSeqNoOfUpdateOnPrimary(long seqNo) {
+                protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
                     if (seqNo == indexNewDocWithSameIdSeqNo) {
                         // wait until the concurrent delete finishes meaning that processedLocalCheckpoint == maxSeqNoOfUpdatesOrDeletes
                         try {
@@ -496,7 +496,7 @@ public class FollowingEngineTests extends ESTestCase {
                             throw new RuntimeException(exception);
                         }
                     }
-                    super.advanceMaxSeqNoOfUpdateOnPrimary(seqNo);
+                    super.advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
                 }
             };
             TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), followerConfig.getIndexSettings());

@@ -118,7 +118,7 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected void advanceMaxSeqNoOfDeleteOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfDeletesOnPrimary(long seqNo) {
         if (Assertions.ENABLED) {
             final long localCheckpoint = getProcessedLocalCheckpoint();
             final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
@@ -126,19 +126,19 @@ public class FollowingEngine extends InternalEngine {
                 "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
         }
 
-        super.advanceMaxSeqNoOfDeleteOnPrimary(seqNo);
+        super.advanceMaxSeqNoOfDeletesOnPrimary(seqNo);
     }
 
     @Override
-    protected void advanceMaxSeqNoOfUpdateOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
         // In some scenarios it is possible to advance maxSeqNoOfUpdatesOrDeletes over the leader
         // maxSeqNoOfUpdatesOrDeletes, since in this engine (effectively it is a replica) we don't check if the previous version
         // was a delete and it's possible to consider it as an update, advancing the max sequence number over the leader
         // maxSeqNoOfUpdatesOrDeletes.
-        // The goal of this marker it's just an optimization and it won't affect the correctness or durability of the indexed documents.
+        // We conservatively advance the seqno in this case, accepting a minor performance hit in this edge case.
 
         // See FollowingEngineTests#testConcurrentUpdateOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates or #72527 for more details.
-        super.advanceMaxSeqNoOfUpdateOnPrimary(seqNo);
+        super.advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
     }
 
     @Override

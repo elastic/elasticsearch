@@ -594,6 +594,7 @@ public class OsProbe {
      * @return the CPU statistics
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
+    @SuppressForbidden(reason = "Uses PathUtils.get to generate meaningful assertion messages")
     private Map<String, Long> getCgroupV2CpuStats(String controlGroup) throws IOException {
         final List<String> lines = readCgroupV2CpuStats(controlGroup);
         final Map<String, Long> stats = new HashMap<>();
@@ -611,7 +612,7 @@ public class OsProbe {
         });
 
         final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
-        expectedKeys.forEach(key -> {
+        optionalKeys.forEach(key -> {
             if (stats.containsKey(key) == false) {
                 stats.put(key, 0L);
             }

@@ -128,7 +128,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "\"transient\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"null\"\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n" +
             "    }" +
             "}");
         client().performRequest(loggingSettings);

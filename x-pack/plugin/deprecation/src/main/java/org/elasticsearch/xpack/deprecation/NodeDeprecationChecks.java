@@ -599,7 +599,7 @@ class NodeDeprecationChecks {
                                                     final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             JoinHelper.JOIN_TIMEOUT_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_cluster_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }

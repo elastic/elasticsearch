@@ -809,7 +809,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_cluster_changes",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 settingKey,

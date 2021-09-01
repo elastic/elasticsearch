@@ -128,6 +128,25 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public void incRef() {
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+
+        @Override
         public String toString() {
             return "local node connection";
         }

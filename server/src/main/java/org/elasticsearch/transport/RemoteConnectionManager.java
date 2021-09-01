@@ -219,5 +219,25 @@ public class RemoteConnectionManager implements ConnectionManager {
         Transport.Connection getConnection() {
             return connection;
         }
+
+        @Override
+        public void incRef() {
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "proxy connections must not be released";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
     }
 }

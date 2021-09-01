@@ -258,6 +258,26 @@ public class StubbableTransport implements Transport {
         public String toString() {
             return "WrappedConnection[" + connection + "]";
         }
+
+        @Override
+        public void incRef() {
+            connection.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return connection.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return connection.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return connection.hasReferences();
+        }
     }
 
     @FunctionalInterface

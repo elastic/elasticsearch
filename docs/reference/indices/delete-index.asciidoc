@@ -1,7 +1,7 @@
 [[indices-delete-index]]
 == Delete Index
 
-The delete index API allows to delete an existing index.
+The delete index API is used to delete an existing index.
 
 [source,js]
 --------------------------------------------------

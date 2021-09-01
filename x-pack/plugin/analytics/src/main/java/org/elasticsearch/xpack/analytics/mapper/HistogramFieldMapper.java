@@ -16,10 +16,10 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -341,7 +341,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         + "]"
                 );
             }
-            ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
             for (int i = 0; i < values.size(); i++) {
                 int count = counts.get(i);
                 if (count < 0) {
@@ -350,11 +350,11 @@ public class HistogramFieldMapper extends FieldMapper {
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
-                    dataOutput.writeVInt(count);
-                    dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                    streamOutput.writeVInt(count);
+                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
                 }
             }
-            BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
             Field field = new BinaryDocValuesField(name(), docValue);
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
@@ -386,25 +386,25 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         int count;
         boolean isExhausted;
-        ByteArrayDataInput dataInput;
+        ByteArrayStreamInput streamInput;
 
         InternalHistogramValue() {
-            dataInput = new ByteArrayDataInput();
+            streamInput = new ByteArrayStreamInput();
         }
 
         /** reset the value for the histogram */
         void reset(BytesRef bytesRef) {
-            dataInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             isExhausted = false;
             value = 0;
             count = 0;
         }
 
         @Override
-        public boolean next() {
-            if (dataInput.eof() == false) {
-                count = dataInput.readVInt();
-                value = Double.longBitsToDouble(dataInput.readLong());
+        public boolean next() throws IOException {
+            if (streamInput.available() > 0) {
+                count = streamInput.readVInt();
+                value = Double.longBitsToDouble(streamInput.readLong());
                 return true;
             }
             isExhausted = true;

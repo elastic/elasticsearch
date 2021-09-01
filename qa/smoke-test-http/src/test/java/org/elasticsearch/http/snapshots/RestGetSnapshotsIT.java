@@ -96,6 +96,11 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 GetSnapshotsRequest.SortBy.FAILED_SHARDS,
                 order
         );
+        assertSnapshotListSorted(
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.REPOSITORY, order),
+                GetSnapshotsRequest.SortBy.REPOSITORY,
+                order
+        );
     }
 
     public void testResponseSizeLimit() throws Exception {

@@ -315,7 +315,7 @@ public class OsProbeTests extends ESTestCase {
         // It doesn't really matter if cgroupsVersion == 0 here
 
         if (cgroupsVersion == 2) {
-            return List.of("0::/" + hierarchy);
+            return org.elasticsearch.core.List.of("0::/" + hierarchy);
         }
 
         return Arrays.asList(
@@ -430,7 +430,7 @@ public class OsProbeTests extends ESTestCase {
             @Override
             List<String> readCgroupV2CpuStats(String controlGroup) {
                 assertThat(controlGroup, equalTo("/" + hierarchy));
-                return List.of(
+                return org.elasticsearch.core.List.of(
                     "usage_usec 364869866063112",
                     "user_usec 34636",
                     "system_usec 9896",
@@ -453,7 +453,7 @@ public class OsProbeTests extends ESTestCase {
         final String hierarchy,
         List<String> procSelfCgroupLines
     ) {
-        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines, org.elasticsearch.core.List.of());
+        return buildStubOsProbe(availableCgroupsVersion, hierarchy, procSelfCgroupLines, org.elasticsearch.core.List.of());
     }
 
 }

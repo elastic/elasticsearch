@@ -867,7 +867,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             ? new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD).calendarInterval(interval)
             : new CompositeAggregationBuilder(
                 "my_date",
-                List.of(new DateHistogramValuesSourceBuilder("my_date").field(DATE_FIELD).calendarInterval(interval))
+                Arrays.asList(new DateHistogramValuesSourceBuilder("my_date").field(DATE_FIELD).calendarInterval(interval))
             );
         return dateHistogramAggregationBuilder.subAggregation(rateAggregationBuilder);
     }

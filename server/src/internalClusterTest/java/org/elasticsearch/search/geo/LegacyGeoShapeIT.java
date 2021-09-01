@@ -8,13 +8,11 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 

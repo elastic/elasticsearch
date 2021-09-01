@@ -8,7 +8,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Matchers;
@@ -27,7 +26,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76960")
 public class HotThreadsTests extends ESTestCase {
 
     public void testSupportedThreadsReportType() {

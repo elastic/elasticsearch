@@ -97,10 +97,12 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Double to = rangeType.doubleValue(range.getTo());
-                            final double effectiveFrom = (hardBounds != null && hardBounds.getMin() != null) ?
-                                Double.max(from, hardBounds.getMin()) : from;
-                            final double effectiveTo = (hardBounds != null && hardBounds.getMax() != null) ?
-                                Double.min(to, hardBounds.getMax()) : to;
+                            final double effectiveFrom = (hardBounds != null && hardBounds.getMin() != null)
+                                ? Double.max(from, hardBounds.getMin())
+                                : from;
+                            final double effectiveTo = (hardBounds != null && hardBounds.getMax() != null)
+                                ? Double.min(to, hardBounds.getMax())
+                                : to;
                             final double startKey = Math.floor((effectiveFrom - offset) / interval);
                             final double endKey = Math.floor((effectiveTo - offset) / interval);
                             for (double key = Math.max(startKey, previousKey); key <= endKey; key++) {

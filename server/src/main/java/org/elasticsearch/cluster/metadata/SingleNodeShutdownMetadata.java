@@ -316,13 +316,16 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
      */
     public enum Type {
         REMOVE,
-        RESTART;
+        RESTART,
+        REPLACE;
 
         public static Type parse(String type) {
             if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
                 return REMOVE;
             } else if ("restart".equals(type.toLowerCase(Locale.ROOT))) {
                 return RESTART;
+            } else if ("replace".equals(type.toLowerCase(Locale.ROOT))) {
+                return REPLACE;
             } else {
                 throw new IllegalArgumentException("unknown shutdown type: " + type);
             }

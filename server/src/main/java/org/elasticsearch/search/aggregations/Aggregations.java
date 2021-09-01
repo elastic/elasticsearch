@@ -132,8 +132,10 @@ public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
                 if (typedAgg.get() != null) {
                     aggregations.add(typedAgg.get());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField));
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField)
+                    );
                 }
             }
         }

@@ -361,15 +361,17 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                             ".p12"));
                     bw.newLine();
 
+                    // we have configured TLS on the transport layer with newly generated certs and keys,
+                    // hence this node cannot form a multi-node cluster
+                    // if we don't set the following the node might trip the discovery bootstrap check
                     if (false == DiscoveryModule.isSingleNodeDiscovery(env.settings()) &&
                             false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(env.settings())) {
                         bw.newLine();
-                        bw.write("# The initial node with security auto-configured must form a cluster by its own,");
+                        bw.write("# The initial node with security auto-configured must form a cluster on its own,");
                         bw.newLine();
                         bw.write("# and all the subsequent nodes should be added via the node enrollment flow");
                         bw.newLine();
-                        bw.write(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey() + ": [" +
-                                Node.NODE_NAME_SETTING.get(env.settings()) + "]");
+                        bw.write(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey() + ": [\"${HOSTNAME}\"]");
                         bw.newLine();
                     }
 
@@ -457,16 +459,20 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                     "Skipping security auto configuration because enrollment is explicitly disabled.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // Silently skip security auto configuration because the node is configured for multi-node cluster formation (bootstrap or join).
-        // Security auto-configuration for the initial node enables transport TLS with newly generated certificates,
-        // which the other cluster nodes can't know about and trust
+        // Security auto configuration must not run if the node is configured for multi-node cluster formation (bootstrap or join).
+        // This is because transport TLS with newly generated certs will hinder cluster formation because the other nodes cannot trust yet.
         if (false == DiscoveryModule.isSingleNodeDiscovery(environment.settings()) &&
+                (false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings()).isEmpty() ||
+                 false == SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(environment.settings()).isEmpty() ||
+                 false == DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(environment.settings()).isEmpty()) &&
                 false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings())
-                        .equals(List.of(Node.NODE_NAME_SETTING.get(environment.settings()))) &&
-                (SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(environment.settings()).isEmpty() == false ||
-                        DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(environment.settings()).isEmpty() == false)) {
-            // the node is probably configured to form (join or bootstrap) a multi-node cluster(there's no way to know for sure)
-            // in this case security auto-configuration yields
+                        .equals(List.of(Node.NODE_NAME_SETTING.get(environment.settings())))) {
+            // Unfortunately, we cannot tell, for every configuration, if it is going to result in a multi node cluster, as it depends
+            // on the addresses that this node, and the others, will bind to when starting (and this runs on a single node before it
+            // starts).
+            // Here we take a conservative approach: if any of the discovery or initial master nodes setting are set to a non-empty
+            // value, we assume the admin intended a multi-node cluster configuration. There is only one exception: if the initial master
+            // nodes setting contains just the current node name.
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because this node is configured to bootstrap or to join a " +
                             "multi-node cluster, which is not supported.");

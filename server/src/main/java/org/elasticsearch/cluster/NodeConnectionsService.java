@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -300,9 +301,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     onConnected();
                 } else {
                     logger.debug("connecting to {}", discoveryNode);
-                    transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
+                    transportService.connectToNode(discoveryNode, new ActionListener<Releasable>() {
                         @Override
-                        public void onResponse(Void aVoid) {
+                        public void onResponse(Releasable TODO) {
                             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
                             logger.debug("connected to {}", discoveryNode);
                             onConnected();

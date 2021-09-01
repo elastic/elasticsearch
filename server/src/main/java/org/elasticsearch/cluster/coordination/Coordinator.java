@@ -447,7 +447,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap((Releasable TODO) -> {
             final ClusterState stateForJoinValidation = getStateForMasterService();
 
             if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {

@@ -335,7 +335,7 @@ public class TransportService extends AbstractLifecycleComponent
      * @param node the node to connect to
      * @param listener the action listener to notify
      */
-    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ActionListener<Releasable> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
     }
 
@@ -347,7 +347,7 @@ public class TransportService extends AbstractLifecycleComponent
      * @param connectionProfile the connection profile to use when connecting to this node
      * @param listener the action listener to notify
      */
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Releasable> listener) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;

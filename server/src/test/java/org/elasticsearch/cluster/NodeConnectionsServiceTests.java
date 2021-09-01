@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -469,7 +470,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+        public void connectToNode(DiscoveryNode node, ActionListener<Releasable> listener) throws ConnectTransportException {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (connectionBlock != null) {
                 getThreadPool().generic().execute(() -> {

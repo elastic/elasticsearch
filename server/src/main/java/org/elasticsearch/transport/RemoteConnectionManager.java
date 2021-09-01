@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,8 +52,9 @@ public class RemoteConnectionManager implements ConnectionManager {
         DiscoveryNode node,
         ConnectionProfile connectionProfile,
         ConnectionValidator connectionValidator,
-        ActionListener<Void> listener
+        ActionListener<Releasable> listener
     ) throws ConnectTransportException {
+        // it's a mistake to call this expecting a useful Releasable back, we never release remote cluster connections today.
         assert false : "use connectToRemoteClusterNode instead";
         listener.onFailure(new UnsupportedOperationException("use connectToRemoteClusterNode instead"));
     }
@@ -62,7 +64,12 @@ public class RemoteConnectionManager implements ConnectionManager {
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
     ) throws ConnectTransportException {
-        delegate.connectToNode(node, null, connectionValidator, listener);
+        delegate.connectToNode(node, null, connectionValidator, listener.map(connectionReleasable -> {
+            // We drop the connectionReleasable here but it's not really a leak: we never close individual connections to a remote cluster
+            // ourselves - instead we close the whole connection manager if the remote cluster is removed, which bypasses any refcounting
+            // and just closes the underlying channels.
+            return null;
+        }));
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -249,9 +250,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onFailure(new ConnectTransportException(node, ""));
 
-        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+        PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
         connectionManager.connectToNode(node, connectionProfile, validator, fut);
-        expectThrows(ConnectTransportException.class, () -> fut.actionGet());
+        expectThrows(ConnectTransportException.class, fut::actionGet);
 
         assertTrue(connection.isClosed());
         assertFalse(connectionManager.nodeConnected(node));
@@ -289,9 +290,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
 
-        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+        PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
         connectionManager.connectToNode(node, connectionProfile, validator, fut);
-        expectThrows(ConnectTransportException.class, () -> fut.actionGet());
+        expectThrows(ConnectTransportException.class, fut::actionGet);
 
         assertFalse(connectionManager.nodeConnected(node));
         expectThrows(NodeNotConnectedException.class, () -> connectionManager.getConnection(node));

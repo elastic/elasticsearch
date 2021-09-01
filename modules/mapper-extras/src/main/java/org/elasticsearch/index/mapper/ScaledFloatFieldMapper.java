@@ -111,10 +111,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ScaledFloatFieldMapper build(ContentPath contentPath) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+        public ScaledFloatFieldMapper build(MapperBuilderContext context) {
+            ScaledFloatFieldType type = new ScaledFloatFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                 hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue(), nullValue.getValue());
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 

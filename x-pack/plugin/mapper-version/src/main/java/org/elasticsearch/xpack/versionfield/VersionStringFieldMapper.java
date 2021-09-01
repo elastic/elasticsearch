@@ -34,11 +34,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -96,18 +96,18 @@ public class VersionStringFieldMapper extends FieldMapper {
             super(name);
         }
 
-        private VersionStringFieldType buildFieldType(ContentPath contentPath, FieldType fieldtype) {
-            return new VersionStringFieldType(buildFullName(contentPath), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
+            return new VersionStringFieldType(context.buildFullName(name), fieldtype, meta.getValue());
         }
 
         @Override
-        public VersionStringFieldMapper build(ContentPath contentPath) {
+        public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
-                buildFieldType(contentPath, fieldtype),
-                multiFieldsBuilder.build(this, contentPath),
+                buildFieldType(context, fieldtype),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
         }

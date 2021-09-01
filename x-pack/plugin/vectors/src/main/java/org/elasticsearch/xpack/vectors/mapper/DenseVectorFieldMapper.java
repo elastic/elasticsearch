@@ -16,10 +16,10 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -79,13 +79,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DenseVectorFieldMapper build(ContentPath contentPath) {
+        public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(buildFullName(contentPath), indexVersionCreated, dims.getValue(), meta.getValue()),
+                new DenseVectorFieldType(context.buildFullName(name), indexVersionCreated, dims.getValue(), meta.getValue()),
                 dims.getValue(),
                 indexVersionCreated,
-                multiFieldsBuilder.build(this, contentPath),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build());
         }
     }

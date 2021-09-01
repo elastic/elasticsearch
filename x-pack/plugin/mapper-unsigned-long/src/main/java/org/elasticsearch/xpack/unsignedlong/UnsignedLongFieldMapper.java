@@ -25,10 +25,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -122,16 +122,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public UnsignedLongFieldMapper build(ContentPath contentPath) {
+        public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
                 parsedNullValue(),
                 meta.getValue()
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 

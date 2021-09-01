@@ -55,7 +55,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         Parameter<Integer> dims
             = new Parameter<>("dims", false, () -> null, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), m -> toType(m).dims)
-            .setValidator(dims -> {
+            .addValidator(dims -> {
                 if (dims == null) {
                     throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
                 }

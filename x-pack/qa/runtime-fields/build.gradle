@@ -80,6 +80,9 @@ subprojects {
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
           'search.aggregation/170_cardinality_metric/profiler string',
           'search.aggregation/235_composite_sorted/*',
+          // The error messages are different
+          'search/330_fetch_fields/error includes field name',
+          'search/330_fetch_fields/error includes glob pattern',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

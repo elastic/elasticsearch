@@ -24,12 +24,12 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
         when:
         def result = gradleRunner("dependencies").build()
-
+        def output = normalized(result.output)
         then:
-        normalized(result.output).contains("""
+        output.contains("""
 restTestSpecs
 /--- org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch} FAILED""")
-        normalized(result.output).contains(normalized("""
+        output.contains(normalized("""
 yamlRestTestImplementation - Implementation only dependencies for source set 'yaml rest test'. (n)
 /--- org.elasticsearch.test:framework:${VersionProperties.elasticsearch} (n)"""))
     }

@@ -30,7 +30,7 @@ package org.elasticsearch.common.compress.lz4;
  * There are no modifications. It is copied to this package for reuse as the original implementation is
  * package private.
  */
-public enum LZ4Constants {
+enum LZ4Constants {
     ;
 
     static final int DEFAULT_COMPRESSION_LEVEL = 8+1;

@@ -7,27 +7,12 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.UNSIGNED_LONG;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
@@ -41,6 +26,21 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.UNSIGNED_LONG;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class InternalMultiTermsTests extends InternalAggregationTestCase<InternalMultiTerms> {
 
@@ -261,10 +261,8 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     public void testReduceWithDoublePromotion() {
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService mockScriptService = mockScriptService();
-        List<DocValueFormat> formats1 =
-            org.elasticsearch.core.List.of(DocValueFormat.RAW, UNSIGNED_LONG_SHIFTED, DocValueFormat.RAW);
-        List<DocValueFormat> formats2 =
-            org.elasticsearch.core.List.of(DocValueFormat.RAW, DocValueFormat.RAW, DocValueFormat.RAW);
+        List<DocValueFormat> formats1 = org.elasticsearch.core.List.of(DocValueFormat.RAW, UNSIGNED_LONG_SHIFTED, DocValueFormat.RAW);
+        List<DocValueFormat> formats2 = org.elasticsearch.core.List.of(DocValueFormat.RAW, DocValueFormat.RAW, DocValueFormat.RAW);
         List<InternalMultiTerms.KeyConverter> keyConverters1 = org.elasticsearch.core.List.of(LONG, UNSIGNED_LONG, LONG);
         List<InternalMultiTerms.KeyConverter> keyConverters2 = org.elasticsearch.core.List.of(LONG, LONG, DOUBLE);
         BucketOrder order = BucketOrder.compound(BucketOrder.count(false), BucketOrder.key(true));
@@ -280,14 +278,42 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             false,
             0,
             org.elasticsearch.core.List.of(
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    3L, ul("9223372036854775813"), 3L), 1, subs, false, 0, formats1, keyConverters1),
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    4L, ul("9223372036854775805"), 1L), 1, subs, false, 0, formats1, keyConverters1),
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    4L, ul("9223372036854775805"), 1L), 1, subs, false, 0, formats1, keyConverters1),
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    4L, ul("9223372036854775814"), 1L), 1, subs, false, 0, formats1, keyConverters1)
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(3L, ul("9223372036854775813"), 3L),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats1,
+                    keyConverters1
+                ),
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(4L, ul("9223372036854775805"), 1L),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats1,
+                    keyConverters1
+                ),
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(4L, ul("9223372036854775805"), 1L),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats1,
+                    keyConverters1
+                ),
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(4L, ul("9223372036854775814"), 1L),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats1,
+                    keyConverters1
+                )
             ),
             0,
             formats1,
@@ -305,14 +331,42 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             false,
             0,
             org.elasticsearch.core.List.of(
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    3L, 9223372036854775803L, 3.0), 1, subs, false, 0, formats2, keyConverters2),
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    4L, 9223372036854775804L, 4.0), 1, subs, false, 0, formats2, keyConverters2),
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    4L, 9223372036854775805L, 4.0), 1, subs, false, 0, formats2, keyConverters2),
-                new InternalMultiTerms.Bucket(org.elasticsearch.core.List.of(
-                    4L, 9223372036854775805L, 4.0), 1, subs, false, 0, formats2, keyConverters2)
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(3L, 9223372036854775803L, 3.0),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats2,
+                    keyConverters2
+                ),
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(4L, 9223372036854775804L, 4.0),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats2,
+                    keyConverters2
+                ),
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(4L, 9223372036854775805L, 4.0),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats2,
+                    keyConverters2
+                ),
+                new InternalMultiTerms.Bucket(
+                    org.elasticsearch.core.List.of(4L, 9223372036854775805L, 4.0),
+                    1,
+                    subs,
+                    false,
+                    0,
+                    formats2,
+                    keyConverters2
+                )
 
             ),
             0,
@@ -326,8 +380,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             () -> PipelineAggregator.PipelineTree.EMPTY
         );
 
-        InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(
-            org.elasticsearch.core.List.of(terms1, terms2), context);
+        InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(org.elasticsearch.core.List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));
         assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
         assertThat(result.buckets.get(0).getDocCount(), equalTo(3L));

@@ -67,6 +67,7 @@ public class SuggestionSearchContext {
             this.regex = regex;
         }
 
+        @SuppressWarnings("unchecked")
         public Suggester<SuggestionContext> getSuggester() {
             return ((Suggester<SuggestionContext>) suggester);
         }

@@ -130,7 +130,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         // Create a string that is too large and will not be indexed
-        String docContent = randomABString(MAX_FIELD_LENGTH + 1);
+        String docContent = "a" + randomABString(MAX_FIELD_LENGTH);
         Document doc = new Document();
         LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, docContent);

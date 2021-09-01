@@ -126,7 +126,7 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
+    public static class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
 
         public BooleanSimplification() {
             super(TransformDirection.UP);
@@ -238,8 +238,9 @@ public final class OptimizerRules {
                 return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
             }
 
-            if (c instanceof Negatable) {
-                return ((Negatable) c).negate();
+            Expression negated = maybeSimplifyNegatable(c);
+            if (negated != null) {
+                return negated;
             }
 
             if (c instanceof Not) {
@@ -247,6 +248,17 @@ public final class OptimizerRules {
             }
 
             return n;
+        }
+
+        /**
+         * @param e
+         * @return the negated expression or {@code null} if the parameter is not an instance of {@code Negatable}
+         */
+        protected Expression maybeSimplifyNegatable(Expression e) {
+            if (e instanceof Negatable) {
+                return ((Negatable<?>) e).negate();
+            }
+            return null;
         }
     }
 
@@ -344,7 +356,8 @@ public final class OptimizerRules {
                 } else if (ex instanceof Equals || ex instanceof NullEquals) {
                     BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
-                    if (otherEq.right().foldable()) {
+                    // ignore date/time fields as equality comparison might actually be a range check
+                    if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
                                     Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());

@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
@@ -305,6 +306,10 @@ public final class BlobStoreTestUtil {
                             hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
                         assertThat(shardPathContents.keySet().stream()
                             .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)).count(), lessThanOrEqualTo(2L));
+                        final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots = repository.getBlobStoreIndexShardSnapshots(
+                                indexId, shardId, repositoryData.shardGenerations().getShardGen(indexId, shardId));
+                        assertTrue(blobStoreIndexShardSnapshots.snapshots().stream()
+                                .anyMatch(snapshotFiles -> snapshotFiles.snapshot().equals(snapshotId.getName())));
                     }
                 }
             }

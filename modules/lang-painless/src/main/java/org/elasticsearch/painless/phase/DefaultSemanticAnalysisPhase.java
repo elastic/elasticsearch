@@ -1769,7 +1769,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
                             if (instanceBinding == null) {
                                 throw userCallLocalNode.createError(new IllegalArgumentException(
-                                        "Unknown call [" + methodName + "] with [" + userArgumentNodes + "] arguments."));
+                                        "Unknown call [" + methodName + "] with [" + userArgumentsSize + "] arguments."));
                             }
                         }
                     }

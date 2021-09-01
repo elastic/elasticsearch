@@ -488,8 +488,9 @@ public final class IndexModule {
         return factory;
     }
 
+    // By default we flush first so that the snapshot is as up-to-date as possible.
     public static final IndexStorePlugin.SnapshotCommitSupplier DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
-            = e -> e.acquireLastIndexCommit(true); // by default we flush first so that the snapshot is as up-to-date as possible.
+            = e -> e.acquireLastIndexCommit(true);
 
     private static IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier(
             final IndexSettings indexSettings,

@@ -323,7 +323,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 if (allocateAction.getNumberOfReplicas() != null) {
                     // keep the number of replicas configuration
                     AllocateAction updatedAllocateAction =
-                        new AllocateAction(allocateAction.getNumberOfReplicas(), null, null, null);
+                        new AllocateAction(allocateAction.getNumberOfReplicas(), allocateAction.getTotalShardsPerNode(),
+                            null, null, null);
                     actionMap.put(allocateAction.getWriteableName(), updatedAllocateAction);
                     logger.debug("ILM policy [{}], phase [{}]: updated the allocate action to [{}]", lifecyclePolicy.getName(),
                         phase.getName(), allocateAction);

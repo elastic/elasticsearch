@@ -47,40 +47,50 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         } else {
             textMappings = "type=text,fielddata=true";
         }
-        assertAcked(prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping(type, "text", textMappings));
+        assertAcked(
+            prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping(type, "text", textMappings)
+        );
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
-        addTermsDocs("1", 1, 0, indexBuilders);//high score but low doc freq
+        addTermsDocs("1", 1, 0, indexBuilders);// high score but low doc freq
         addTermsDocs("2", 1, 0, indexBuilders);
         addTermsDocs("3", 1, 0, indexBuilders);
         addTermsDocs("4", 1, 0, indexBuilders);
-        addTermsDocs("5", 3, 1, indexBuilders);//low score but high doc freq
+        addTermsDocs("5", 3, 1, indexBuilders);// low score but high doc freq
         addTermsDocs("6", 3, 1, indexBuilders);
         addTermsDocs("7", 0, 3, indexBuilders);// make sure the terms all get score > 0 except for this one
         indexRandom(true, false, indexBuilders);
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
-                .addAggregation(
-                        (filter("inclass", QueryBuilders.termQuery("class", true)))
-                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2).shardSize(2)
-                                        .executionHint(randomExecutionHint()))
+            .addAggregation(
+                (filter("inclass", QueryBuilders.termQuery("class", true))).subAggregation(
+                    significantTerms("mySignificantTerms").field("text")
+                        .minDocCount(2)
+                        .size(2)
+                        .shardSize(2)
+                        .executionHint(randomExecutionHint())
                 )
-                .get();
+            )
+            .get();
         assertSearchResponse(response);
         InternalFilter filteredBucket = response.getAggregations().get("inclass");
         SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(0));
 
-
         response = client().prepareSearch(index)
-                .addAggregation(
-                        (filter("inclass", QueryBuilders.termQuery("class", true)))
-                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).shardSize(2)
-                                        .shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
+            .addAggregation(
+                (filter("inclass", QueryBuilders.termQuery("class", true))).subAggregation(
+                    significantTerms("mySignificantTerms").field("text")
+                        .minDocCount(2)
+                        .shardSize(2)
+                        .shardMinDocCount(2)
+                        .size(2)
+                        .executionHint(randomExecutionHint())
                 )
-                .get();
+            )
+            .get();
         assertSearchResponse(response);
         filteredBucket = response.getAggregations().get("inclass");
         sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
@@ -100,41 +110,52 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
     // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountTermsTest() throws Exception {
-        final String [] termTypes = {"text", "long", "integer", "float", "double"};
+        final String[] termTypes = { "text", "long", "integer", "float", "double" };
         String termtype = termTypes[randomInt(termTypes.length - 1)];
         String termMappings = "type=" + termtype;
         if (termtype.equals("text")) {
             termMappings += ",fielddata=true";
         }
-        assertAcked(prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .addMapping(type, "text", termMappings));
+        assertAcked(
+            prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping(type, "text", termMappings)
+        );
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
-        addTermsDocs("1", 1, indexBuilders);//low doc freq but high score
+        addTermsDocs("1", 1, indexBuilders);// low doc freq but high score
         addTermsDocs("2", 1, indexBuilders);
         addTermsDocs("3", 1, indexBuilders);
         addTermsDocs("4", 1, indexBuilders);
-        addTermsDocs("5", 3, indexBuilders);//low score but high doc freq
+        addTermsDocs("5", 3, indexBuilders);// low score but high doc freq
         addTermsDocs("6", 3, indexBuilders);
         indexRandom(true, false, indexBuilders);
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
-                .addAggregation(
-                        terms("myTerms").field("text").minDocCount(2).size(2).shardSize(2).executionHint(randomExecutionHint())
-                            .order(BucketOrder.key(true))
-                )
-                .get();
+            .addAggregation(
+                terms("myTerms").field("text")
+                    .minDocCount(2)
+                    .size(2)
+                    .shardSize(2)
+                    .executionHint(randomExecutionHint())
+                    .order(BucketOrder.key(true))
+            )
+            .get();
         assertSearchResponse(response);
         Terms sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(0));
 
         response = client().prepareSearch(index)
-                .addAggregation(
-                        terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).shardSize(2)
-                            .executionHint(randomExecutionHint()).order(BucketOrder.key(true))
-                )
-                .get();
+            .addAggregation(
+                terms("myTerms").field("text")
+                    .minDocCount(2)
+                    .shardMinDocCount(2)
+                    .size(2)
+                    .shardSize(2)
+                    .executionHint(randomExecutionHint())
+                    .order(BucketOrder.key(true))
+            )
+            .get();
         assertSearchResponse(response);
         sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));

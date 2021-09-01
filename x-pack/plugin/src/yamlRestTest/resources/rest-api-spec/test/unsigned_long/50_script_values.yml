@@ -1,8 +1,8 @@
 setup:
 
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/64361"
+      version: " - 7.14.99"
+      reason: "unsigned long script fields api was added in 7.15.0"
 
   - do:
       indices.create:
@@ -25,12 +25,42 @@ setup:
           { "index": {"_id" : "3"} }
           { "ul": 9223372036854775808 }
           { "index": {"_id" : "4"} }
-          { "ul": 18446744073709551614 }
+          { "ul": 18446744073709551613 }
           { "index": {"_id" : "5"} }
           { "ul": 18446744073709551615 }
 
 ---
-"Scripted fields values return BigInteger or Long":
+"Scripted fields values return Long":
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "field('ul').getValue(1000L)"
+
+  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
+  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
+  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
+  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
+  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "field('ul').getLong(1000L)"
+
+  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
+  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
+  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
+  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
+  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
   - do:
       search:
         index: test1
@@ -41,9 +71,9 @@ setup:
               script:
                 source: "doc['ul'].value"
 
-  - match: { hits.hits.0.fields.scripted_ul.0: 18446744073709551615 }
-  - match: { hits.hits.1.fields.scripted_ul.0: 18446744073709551614 }
-  - match: { hits.hits.2.fields.scripted_ul.0: 9223372036854775808 }
+  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
+  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
+  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
   - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
   - match: { hits.hits.4.fields.scripted_ul.0: 0 }
 
@@ -58,13 +88,48 @@ setup:
               order: desc
               type: number
               script:
-                source: "doc['ul'].value"
+                source: "field('ul').as(Field.BigInteger).getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.hits.0.sort: [1.8446744073709552E19] }
   - match: { hits.hits.1.sort: [1.8446744073709552E19] }
   - match: { hits.hits.2.sort: [9.223372036854776E18] }
   - match: { hits.hits.3.sort: [9.223372036854776E18] }
   - match: { hits.hits.4.sort: [0.0] }
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "doc['ul'].value"
+
+
+  - match: { hits.hits.0.sort: [9.223372036854776E18] }
+  - match: { hits.hits.1.sort: [0.0] }
+  - match: { hits.hits.2.sort: [-1.0] }
+  - match: { hits.hits.3.sort: [-3.0] }
+  - match: { hits.hits.4.sort: [-9.223372036854776E18] }
+---
+"Scripted sort values via doc":
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "doc['ul'].value"
+
+  - match: { hits.hits.0.sort: [9.223372036854776E18] }
+  - match: { hits.hits.1.sort: [0.0] }
+  - match: { hits.hits.2.sort: [-1.0] }
+  - match: { hits.hits.3.sort: [-3.0] }
+  - match: { hits.hits.4.sort: [-9.223372036854776E18] }
 
 ---
 "Script query":
@@ -77,11 +142,36 @@ setup:
               filter:
                script:
                  script:
-                   source: "doc['ul'].value.doubleValue() > 10E18"
+                   source: "field('ul').as(Field.BigInteger).getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
           sort: [ { ul: asc } ]
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "4" }
   - match: { hits.hits.1._id: "5" }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "field('ul').isEmpty() == false"
+  - match: { hits.total.value: 5 }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "doc['ul'].value.doubleValue() > 9E18"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
 
   - do:
       search:
@@ -106,6 +196,17 @@ setup:
             script_score:
               query: {match_all: {}}
               script:
-                source: "doc['ul'].value"
+                source: "field('ul').as(Field.BigInteger).getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.total.value: 5 }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "Math.abs(doc['ul'].value)"
 
   - match: { hits.total.value: 5 }

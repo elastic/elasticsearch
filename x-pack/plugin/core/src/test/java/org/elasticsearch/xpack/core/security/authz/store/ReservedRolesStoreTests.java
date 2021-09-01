@@ -404,8 +404,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".apm-agent-configuration",
             ".apm-custom-link",
-            ReservedRolesStore.LEGACY_ALERTS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ReservedRolesStore.ALERTS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13))
+            ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(true));

@@ -24,19 +24,19 @@ public final class TcpTransportChannel implements TransportChannel {
     private final long requestId;
     private final Version version;
     private final Set<String> features;
-    private final boolean compressResponse;
+    private final Compression.Scheme compressionScheme;
     private final boolean isHandshake;
     private final Releasable breakerRelease;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        Set<String> features, boolean compressResponse, boolean isHandshake, Releasable breakerRelease) {
+                        Set<String> features, Compression.Scheme compressionScheme, boolean isHandshake, Releasable breakerRelease) {
         this.version = version;
         this.features = features;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;
         this.requestId = requestId;
-        this.compressResponse = compressResponse;
+        this.compressionScheme = compressionScheme;
         this.isHandshake = isHandshake;
         this.breakerRelease = breakerRelease;
     }
@@ -49,7 +49,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            outboundHandler.sendResponse(version, features, channel, requestId, action, response, compressResponse, isHandshake);
+            outboundHandler.sendResponse(version, features, channel, requestId, action, response, compressionScheme, isHandshake);
         } finally {
             release(false);
         }

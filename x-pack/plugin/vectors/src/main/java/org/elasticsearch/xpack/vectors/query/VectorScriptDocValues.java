@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.script.Field;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;
@@ -94,6 +95,16 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
         public float getMagnitude() {
             return VectorEncoderDecoder.getMagnitude(indexVersion, value);
         }
+
+        @Override
+        public BytesRef getNonPrimitiveValue() {
+            return value;
+        }
+
+        @Override
+        public Field<BytesRef> toField(String fieldName) {
+            throw new IllegalStateException("not implemented");
+        }
     }
 
     // not final, as it needs to be extended by Mockito for tests
@@ -105,6 +116,11 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
         // package private access only for {@link ScoreScriptUtils}
         Version indexVersion() {
             return indexVersion;
+        }
+
+        @Override
+        public Field<BytesRef> toField(String fieldName) {
+            throw new IllegalStateException("not implemented");
         }
     }
 

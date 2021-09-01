@@ -230,7 +230,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }, FIELDS);
         }
 
-        private final String index;
+        private String index;
         private final String id;
         private final BytesReference source;
         private final Map<String, DocumentField> fetchFields;
@@ -290,6 +290,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         public static Event fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
+        }
+
+        public void index(String index) {
+            this.index = index;
         }
 
         public String index() {

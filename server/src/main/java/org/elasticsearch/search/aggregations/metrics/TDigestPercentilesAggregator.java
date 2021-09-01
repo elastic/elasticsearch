@@ -18,15 +18,17 @@ import java.util.Map;
 
 class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator {
 
-    TDigestPercentilesAggregator(String name,
-                                 ValuesSource valuesSource,
-                                 AggregationContext context,
-                                    Aggregator parent,
-                                    double[] percents,
-                                    double compression,
-                                    boolean keyed,
-                                    DocValueFormat formatter,
-                                    Map<String, Object> metadata) throws IOException {
+    TDigestPercentilesAggregator(
+        String name,
+        ValuesSource valuesSource,
+        AggregationContext context,
+        Aggregator parent,
+        double[] percents,
+        double compression,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metadata);
     }
 

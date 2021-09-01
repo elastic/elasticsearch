@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
@@ -21,8 +21,8 @@ import java.util.Objects;
 /**
  * Base implementation of a {@link PipelineAggregationBuilder}.
  */
-public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>>
-        extends PipelineAggregationBuilder {
+public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>> extends
+    PipelineAggregationBuilder {
 
     /**
      * Field shared by many parsers.
@@ -125,6 +125,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
+        @SuppressWarnings("unchecked")
         AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
         return Objects.equals(type, other.type)
             && Objects.equals(name, other.name)

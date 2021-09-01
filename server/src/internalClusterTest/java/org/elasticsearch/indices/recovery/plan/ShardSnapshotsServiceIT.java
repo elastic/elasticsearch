@@ -123,7 +123,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         @Override
         public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId,
-                                                                            ShardId shardId,
+                                                                            int shardId,
                                                                             ShardGeneration shardGen) throws IOException {
             if (failLoadShardSnapshots) {
                 throw new FileNotFoundException("Failed to get blob store index shard snapshots");

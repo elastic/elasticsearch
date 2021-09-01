@@ -76,15 +76,17 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     private final int numBuckets;
     private RoundingInfo[] roundingInfos;
 
-    public AutoDateHistogramAggregatorFactory(String name,
-                                              ValuesSourceConfig config,
-                                              int numBuckets,
-                                              RoundingInfo[] roundingInfos,
-                                              AggregationContext context,
-                                              AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metadata,
-                                              AutoDateHistogramAggregatorSupplier aggregatorSupplier) throws IOException {
+    public AutoDateHistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int numBuckets,
+        RoundingInfo[] roundingInfos,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        AutoDateHistogramAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -93,20 +95,9 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        return aggregatorSupplier.build(
-            name,
-            factories,
-            numBuckets,
-            roundingInfos,
-            config,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, factories, numBuckets, roundingInfos, config, context, parent, cardinality, metadata);
     }
 
     @Override

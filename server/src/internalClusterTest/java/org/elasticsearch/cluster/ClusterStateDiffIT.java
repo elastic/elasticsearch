@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -58,7 +59,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
-import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
+import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -270,7 +271,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
-                    unassignedInfo = new UnassignedInfo(randomReason(), randomAlphaOfLength(10));
+                    unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(10));
                 }
                 if (availableNodeIds.isEmpty()) {
                     break;

@@ -59,10 +59,13 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.sort(sort);
         final int size = request.paramAsInt("size", getSnapshotsRequest.size());
         getSnapshotsRequest.size(size);
+        final int offset = request.paramAsInt("offset", getSnapshotsRequest.offset());
+        getSnapshotsRequest.offset(offset);
         final String afterString = request.param("after");
         if (afterString != null) {
             getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
         }
+
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));

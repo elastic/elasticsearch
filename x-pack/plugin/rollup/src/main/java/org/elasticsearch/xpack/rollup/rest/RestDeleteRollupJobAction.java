@@ -27,8 +27,9 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(Route.builder(DELETE, "/_rollup/job/{id}")
-            .replaces(DELETE, "/_xpack/rollup/job/{id}/", RestApiVersion.V_7).build());
+        return singletonList(
+            Route.builder(DELETE, "/_rollup/job/{id}").replaces(DELETE, "/_xpack/rollup/job/{id}/", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -36,16 +37,19 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         DeleteRollupJobAction.Request request = new DeleteRollupJobAction.Request(id);
 
-        return channel -> client.execute(DeleteRollupJobAction.INSTANCE, request,
+        return channel -> client.execute(
+            DeleteRollupJobAction.INSTANCE,
+            request,
             new RestToXContentListener<DeleteRollupJobAction.Response>(channel) {
-            @Override
-            protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
-                if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
-                    return RestStatus.INTERNAL_SERVER_ERROR;
+                @Override
+                protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
+                    if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
+                        return RestStatus.INTERNAL_SERVER_ERROR;
+                    }
+                    return RestStatus.OK;
                 }
-                return RestStatus.OK;
             }
-        });
+        );
     }
 
     @Override

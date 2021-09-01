@@ -75,6 +75,48 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         assertTrue(first.shouldRebuildConnection(newBuilder.build()));
     }
 
+    public void testCompressionSchemeDefaults() {
+        // Test explicit default
+        Settings.Builder explicitBuilder = Settings.builder();
+        explicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "proxy");
+        explicitBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "127.0.0.1:9300");
+        explicitBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            randomFrom("true", "indexing_data", "false"));
+        explicitBuilder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "lz4");
+        ConnectionProfile connectionProfileExplicit = FakeConnectionStrategy.buildConnectionProfile("cluster-alias",
+            explicitBuilder.build());
+        assertEquals(Compression.Scheme.DEFLATE, connectionProfileExplicit.getCompressionScheme());
+
+        // Test explicit set
+        Settings.Builder explicit2Builder = Settings.builder();
+        explicit2Builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "proxy");
+        explicit2Builder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "127.0.0.1:9300");
+        explicit2Builder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            randomFrom("true", "indexing_data", "false"));
+        explicit2Builder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
+            .getConcreteSettingForNamespace("cluster-alias").getKey(), "lz4");
+        explicit2Builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "deflate");
+        ConnectionProfile connectionProfileExplicit2 = FakeConnectionStrategy.buildConnectionProfile("cluster-alias",
+            explicit2Builder.build());
+        assertEquals(Compression.Scheme.LZ4, connectionProfileExplicit2.getCompressionScheme());
+
+        // Test implicit
+        Settings.Builder implicitBuilder = Settings.builder();
+        implicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "proxy");
+        implicitBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "127.0.0.1:9300");
+        implicitBuilder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), randomFrom("true", "indexing_data", "false"));
+        implicitBuilder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "lz4");
+        ConnectionProfile connectionProfileImplicit = FakeConnectionStrategy.buildConnectionProfile("cluster-alias",
+            implicitBuilder.build());
+        assertEquals(Compression.Scheme.LZ4, connectionProfileImplicit.getCompressionScheme());
+    }
+
     public void testCorrectChannelNumber() {
         String clusterAlias = "cluster-alias";
 

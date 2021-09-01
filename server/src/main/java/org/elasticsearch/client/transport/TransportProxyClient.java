@@ -25,12 +25,13 @@ import static java.util.Collections.unmodifiableMap;
 final class TransportProxyClient {
 
     private final TransportClientNodesService nodesService;
-    private final Map<ActionType, TransportActionNodeProxy> proxies;
+    private final Map<ActionType<?>, TransportActionNodeProxy<?, ?>> proxies;
 
-    TransportProxyClient(TransportService transportService, TransportClientNodesService nodesService, List<ActionType> actions) {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    TransportProxyClient(TransportService transportService, TransportClientNodesService nodesService, List<ActionType<?>> actions) {
         this.nodesService = nodesService;
-        Map<ActionType, TransportActionNodeProxy> proxies = new HashMap<>();
-        for (ActionType action : actions) {
+        Map<ActionType<?>, TransportActionNodeProxy<?, ?>> proxies = new HashMap<>();
+        for (ActionType<?> action : actions) {
             proxies.put(action, new TransportActionNodeProxy(action, transportService));
         }
         this.proxies = unmodifiableMap(proxies);
@@ -39,7 +40,8 @@ final class TransportProxyClient {
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
         ActionRequestBuilder<Request, Response>> void execute(final ActionType<Response> action,
                                                                               final Request request, ActionListener<Response> listener) {
-        final TransportActionNodeProxy<Request, Response> proxy = proxies.get(action);
+        @SuppressWarnings("unchecked")
+        final TransportActionNodeProxy<Request, Response> proxy = (TransportActionNodeProxy<Request, Response>) proxies.get(action);
         assert proxy != null : "no proxy found for action: " + action;
         nodesService.execute((n, l) -> proxy.execute(n, request, l), listener);
     }

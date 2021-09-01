@@ -289,20 +289,18 @@ public class XContentHelper {
                 if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
                     mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
                 } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    List defaultList = (List) defaultEntry.getValue();
-                    List contentList = (List) content.get(defaultEntry.getKey());
+                    List<Map<String, Object>> defaultList = (List<Map<String, Object>>) defaultEntry.getValue();
+                    List<Map<String, Object>> contentList = (List<Map<String, Object>>) content.get(defaultEntry.getKey());
 
-                    List mergedList = new ArrayList();
+                    List<Map<String, Object>> mergedList = new ArrayList<>();
                     if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
                         // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
                         Map<String, Map<String, Object>> processed = new LinkedHashMap<>();
-                        for (Object o : contentList) {
-                            Map<String, Object> map = (Map<String, Object>) o;
+                        for (Map<String, Object> map : contentList) {
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             processed.put(entry.getKey(), map);
                         }
-                        for (Object o : defaultList) {
-                            Map<String, Object> map = (Map<String, Object>) o;
+                        for (Map<String, Object> map : defaultList) {
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             if (processed.containsKey(entry.getKey())) {
                                 mergeDefaults(processed.get(entry.getKey()), map);
@@ -318,7 +316,7 @@ public class XContentHelper {
                         // if both are lists, simply combine them, first the defaults, then the content
                         // just make sure not to add the same value twice
                         mergedList.addAll(defaultList);
-                        for (Object o : contentList) {
+                        for (Map<String, Object> o : contentList) {
                             if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
@@ -330,6 +328,7 @@ public class XContentHelper {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private static boolean allListValuesAreMapsOfOne(List list) {
         for (Object o : list) {
             if ((o instanceof Map) == false) {

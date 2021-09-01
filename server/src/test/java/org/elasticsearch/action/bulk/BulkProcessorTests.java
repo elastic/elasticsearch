@@ -217,7 +217,7 @@ public class BulkProcessorTests extends ESTestCase {
             String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
             BytesReference bytesReference =
                 BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
-            List<Future> futures = new ArrayList<>();
+            List<Future<?>> futures = new ArrayList<>();
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
                 futures.add(executorService.submit(() -> {
                     try {
@@ -238,7 +238,7 @@ public class BulkProcessorTests extends ESTestCase {
             startGate.countDown();
             startGate.await();
 
-            for (Future f : futures) {
+            for (Future<?> f : futures) {
                 try {
                     f.get();
                 } catch (Exception e) {
@@ -321,7 +321,7 @@ public class BulkProcessorTests extends ESTestCase {
             String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
             BytesReference bytesReference =
                 BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
-            List<Future> futures = new ArrayList<>();
+            List<Future<?>> futures = new ArrayList<>();
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
                 futures.add(executorService.submit(() -> {
@@ -343,7 +343,7 @@ public class BulkProcessorTests extends ESTestCase {
             startGate.countDown();
             startGate.await();
 
-            for (Future f : futures) {
+            for (Future<?> f : futures) {
                 try {
                     f.get();
                 } catch (Exception e) {

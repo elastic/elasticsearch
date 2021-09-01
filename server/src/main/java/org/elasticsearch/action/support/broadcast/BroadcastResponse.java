@@ -45,6 +45,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     private DefaultShardOperationFailedException[] shardFailures = EMPTY;
 
     protected static <T extends BroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
+        @SuppressWarnings("unchecked")
         ConstructingObjectParser<BroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>("_shards", true,
             arg -> new BroadcastResponse((int) arg[0], (int) arg[1], (int) arg[2], (List<DefaultShardOperationFailedException>) arg[3]));
         shardsParser.declareInt(constructorArg(), TOTAL_FIELD);

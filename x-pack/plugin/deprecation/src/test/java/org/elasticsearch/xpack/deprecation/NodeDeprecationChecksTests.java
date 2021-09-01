@@ -817,7 +817,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         DeprecationIssue issue = NodeDeprecationChecks.checkSearchRemoteSettings(settings, null, null , licenseState);
 
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
         String joinedNames = Arrays
             .stream(clusterNames)
             .map(s -> "search.remote." + s + ".seeds")

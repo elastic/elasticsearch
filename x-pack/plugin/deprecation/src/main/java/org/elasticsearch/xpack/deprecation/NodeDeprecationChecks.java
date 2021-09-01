@@ -625,8 +625,8 @@ class NodeDeprecationChecks {
             "replace search.remote settings [%s] with their secure 'cluster.remote' replacements",
             remoteClusterSeedSettings
         );
-        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0" +
-            ".html#breaking_80_settings_changes";
+        final String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 

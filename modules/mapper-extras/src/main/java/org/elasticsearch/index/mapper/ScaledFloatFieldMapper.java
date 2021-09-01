@@ -70,7 +70,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final Parameter<Double> scalingFactor = new Parameter<>("scaling_factor", false, () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o), m -> toType(m).scalingFactor)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v == null) {
                     throw new IllegalArgumentException("Field [scaling_factor] is required");
                 }

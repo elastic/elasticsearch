@@ -588,7 +588,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private final TriFunction<String, MappingParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
-        private Consumer<T> validator = null;
+        private List<Consumer<T>> validators = new ArrayList<>();
         private Serializer<T> serializer = XContentBuilder::field;
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
@@ -683,10 +683,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         /**
-         * Adds validation to a parameter, called after parsing and merging
+         * Adds validation to a parameter, called after parsing and merging. Multiple
+         * validators can be added and all of them will be executed.
          */
-        public Parameter<T> setValidator(Consumer<T> validator) {
-            this.validator = validator;
+        public Parameter<T> addValidator(Consumer<T> validator) {
+            this.validators.add(validator);
             return this;
         }
 
@@ -743,8 +744,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         void validate() {
-            if (validator != null) {
-                validator.accept(getValue());
+            // Iterate over the list of validators and execute them one by one.
+            for (Consumer<T> v : validators) {
+                v.accept(getValue());
             }
             if (this.isConfigured()) {
                 for (Parameter<?> p : requires) {
@@ -895,7 +897,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             assert values.length > 0;
             Set<String> acceptedValues = new LinkedHashSet<>(Arrays.asList(values));
             return stringParam(name, updateable, initializer, values[0])
-                .setValidator(v -> {
+                .addValidator(v -> {
                     if (acceptedValues.contains(v)) {
                         return;
                     }
@@ -1079,7 +1081,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Parameter<Boolean> indexParam,
             Parameter<Boolean> docValuesParam
         ) {
-            scriptParam.setValidator(s -> {
+            scriptParam.addValidator(s -> {
                 if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
                     throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
                 }

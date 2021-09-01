@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.analytics.rate;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;

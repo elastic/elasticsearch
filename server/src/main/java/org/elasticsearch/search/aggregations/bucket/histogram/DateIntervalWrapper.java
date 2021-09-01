@@ -40,8 +40,8 @@ import static org.elasticsearch.core.RestApiVersion.equalTo;
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregationBuilder.class);
-    private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or " +
-        "[calendar_interval] in the future.";
+    private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or "
+        + "[calendar_interval] in the future.";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
     private static final ParseField CALENDAR_INTERVAL_FIELD = new ParseField("calendar_interval");
 
@@ -89,6 +89,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         }
 
         private String preferredName;
+
         IntervalTypeEnum(String preferredName) {
             this.preferredName = preferredName;
         }
@@ -121,11 +122,19 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             }
         }, Histogram.INTERVAL_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.LONG);
 
-        parser.declareField(DateIntervalConsumer::calendarInterval,
-            p -> new DateHistogramInterval(p.text()), CALENDAR_INTERVAL_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareField(
+            DateIntervalConsumer::calendarInterval,
+            p -> new DateHistogramInterval(p.text()),
+            CALENDAR_INTERVAL_FIELD,
+            ObjectParser.ValueType.STRING
+        );
 
-        parser.declareField(DateIntervalConsumer::fixedInterval,
-            p -> new DateHistogramInterval(p.text()), FIXED_INTERVAL_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareField(
+            DateIntervalConsumer::fixedInterval,
+            p -> new DateHistogramInterval(p.text()),
+            FIXED_INTERVAL_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public DateIntervalWrapper() {}
@@ -163,8 +172,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-            throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
-                "as a calendar interval.");
+            throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval.");
         }
         setIntervalType(IntervalTypeEnum.CALENDAR);
         this.dateHistogramInterval = interval;
@@ -254,8 +262,9 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         if (type.isValid() == false || intervalType.isValid() == false) {
             throw new IllegalArgumentException("Unknown interval type.");
         }
-        throw new IllegalArgumentException("Cannot use [" + type.getPreferredName() + "] with [" + intervalType.getPreferredName() +
-            "] configuration option.");
+        throw new IllegalArgumentException(
+            "Cannot use [" + type.getPreferredName() + "] with [" + intervalType.getPreferredName() + "] configuration option."
+        );
     }
 
     public boolean isEmpty() {
@@ -273,7 +282,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (intervalType.equals(IntervalTypeEnum.FIXED)){
+        if (intervalType.equals(IntervalTypeEnum.FIXED)) {
             builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());
         } else if (intervalType.equals(IntervalTypeEnum.CALENDAR)) {
             builder.field(CALENDAR_INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());

@@ -342,7 +342,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_REQUIRE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -350,7 +350,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_INCLUDE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -358,7 +358,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_EXCLUDE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }

@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="modules-scripting-other-layers"]
+=== Other security layers
+
+Refer to <<modules-scripting-security>>.
+
 [role="exclude",id="grok-basics"]
 === Grok basics
 

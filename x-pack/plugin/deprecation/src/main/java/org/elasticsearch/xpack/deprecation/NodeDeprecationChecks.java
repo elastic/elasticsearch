@@ -597,11 +597,18 @@ class NodeDeprecationChecks {
         );
     }
 
+    /*
+     * This is here so that the unit test can simulate setting a system property without actually having to set the system property,
+     * which requires disabling the security manager for the unit test.
+     */
+    static String permitsHandshakesFromIncompatibleBuildsSupplier =
+        System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
+
     static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(final Settings settings,
                                                                          final PluginsAndModules pluginsAndModules,
                                                                          final ClusterState clusterState,
                                                                          final XPackLicenseState licenseState) {
-        if (System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
+        if (permitsHandshakesFromIncompatibleBuildsSupplier != null) {
             final String message = String.format(
                 Locale.ROOT,
                 "the [%s] system property is deprecated and will be removed in the next major release",
@@ -618,4 +625,5 @@ class NodeDeprecationChecks {
         }
         return null;
     }
+
 }

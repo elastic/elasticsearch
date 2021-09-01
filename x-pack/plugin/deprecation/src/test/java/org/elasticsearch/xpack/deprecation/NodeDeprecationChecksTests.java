@@ -873,7 +873,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 new XPackLicenseState(Settings.EMPTY, () -> 0));
         assertEquals(null, expectedNullIssue);
-        System.setProperty("es.unsafely_permit_handshake_from_incompatible_builds", randomAlphaOfLengthBetween(1, 10));
+        NodeDeprecationChecks.permitsHandshakesFromIncompatibleBuildsSupplier = randomAlphaOfLengthBetween(1, 10);
         try {
             final DeprecationIssue issue =
                 NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(Settings.EMPTY,
@@ -885,7 +885,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             assertThat(issue.getUrl(),
                 equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes"));
         } finally {
-            System.clearProperty("es.unsafely_permit_handshake_from_incompatible_builds");
+            // Setting this back so that other tests don't fail
+            NodeDeprecationChecks.permitsHandshakesFromIncompatibleBuildsSupplier = null;
         }
     }
 }

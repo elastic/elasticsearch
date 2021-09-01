@@ -22,8 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
-
 public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
 
     private final SingleNodeShutdownMetadata metadata;

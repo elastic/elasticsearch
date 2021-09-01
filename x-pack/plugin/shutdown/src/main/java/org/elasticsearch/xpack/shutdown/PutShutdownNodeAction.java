@@ -155,8 +155,13 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             }
 
             if (targetNodeName != null && type != SingleNodeShutdownMetadata.Type.REPLACE) {
-                arve.addValidationError(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
-                    "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
+                arve.addValidationError(
+                    new ParameterizedMessage(
+                        "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
+                        type,
+                        targetNodeName
+                    ).getFormattedMessage()
+                );
             } else if (targetNodeName == null && type == SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError("target node name is required for REPLACE type shutdowns");
             }

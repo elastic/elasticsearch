@@ -15,7 +15,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class SentimentAnalysisConfigTests extends InferenceConfigItemTestCase<SentimentAnalysisConfig> {
+public class TextClassificationConfigTests extends InferenceConfigItemTestCase<TextClassificationConfig> {
 
     private boolean lenient;
 
@@ -25,32 +25,33 @@ public class SentimentAnalysisConfigTests extends InferenceConfigItemTestCase<Se
     }
 
     @Override
-    protected SentimentAnalysisConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? SentimentAnalysisConfig.fromXContentLenient(parser) : SentimentAnalysisConfig.fromXContentStrict(parser);
+    protected TextClassificationConfig doParseInstance(XContentParser parser) throws IOException {
+        return lenient ? TextClassificationConfig.fromXContentLenient(parser) : TextClassificationConfig.fromXContentStrict(parser);
     }
 
     @Override
-    protected Writeable.Reader<SentimentAnalysisConfig> instanceReader() {
-        return SentimentAnalysisConfig::new;
+    protected Writeable.Reader<TextClassificationConfig> instanceReader() {
+        return TextClassificationConfig::new;
     }
 
     @Override
-    protected SentimentAnalysisConfig createTestInstance() {
+    protected TextClassificationConfig createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected SentimentAnalysisConfig mutateInstanceForVersion(SentimentAnalysisConfig instance, Version version) {
+    protected TextClassificationConfig mutateInstanceForVersion(TextClassificationConfig instance, Version version) {
         return instance;
     }
 
-    public static SentimentAnalysisConfig createRandom() {
-        return new SentimentAnalysisConfig(
+    public static TextClassificationConfig createRandom() {
+        return new TextClassificationConfig(
             VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :
                 randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),
-            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
+            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomIntBetween(-1, 10)
         );
     }
 }

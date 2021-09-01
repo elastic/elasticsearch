@@ -233,15 +233,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoTimeZone(timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
-            } else {
-                return new DocValueFormat.Decimal(format);
             }
+            return new DocValueFormat.Decimal(format);
         }
 
         /**

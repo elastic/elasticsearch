@@ -4,5 +4,3 @@ area: "Security"
 type: enhancement
 issues:
  - 75704
-versions:
- - v8.0.0

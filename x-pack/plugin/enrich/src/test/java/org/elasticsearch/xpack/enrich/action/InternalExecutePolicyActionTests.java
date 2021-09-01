@@ -106,6 +106,21 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("no suitable node was found to perform enrich policy execution"));
     }
 
+    public void testSelectNodeForPolicyExecutionPickLocalNodeIfNotElectedMaster() {
+        var node1 = newNode(randomAlphaOfLength(4));
+        var node2 = newNode(randomAlphaOfLength(4));
+        var node3 = newNode(randomAlphaOfLength(4));
+        var discoNodes = DiscoveryNodes.builder()
+            .add(node1)
+            .add(node2)
+            .add(node3)
+            .masterNodeId(node1.getId())
+            .localNodeId(node2.getId())
+            .build();
+        var result = transportAction.selectNodeForPolicyExecution(discoNodes);
+        assertThat(result, equalTo(node2));
+    }
+
     private static DiscoveryNode newNode(String nodeId) {
         return newNode(nodeId, Version.V_8_0_0);
     }

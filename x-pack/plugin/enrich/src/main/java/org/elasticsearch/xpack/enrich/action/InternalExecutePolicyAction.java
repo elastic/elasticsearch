@@ -81,10 +81,10 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
         @Override
         protected void doExecute(Task transportTask, Request request, ActionListener<Response> actionListener) {
             var clusterState = clusterService.state();
-            var node = selectNodeForPolicyExecution(clusterState.nodes());
-            if (clusterState.nodes().getLocalNode().equals(node) == false) {
+            var targetNode = selectNodeForPolicyExecution(clusterState.nodes());
+            if (clusterState.nodes().getLocalNode().equals(targetNode) == false) {
                 var handler = new ActionListenerResponseHandler<>(actionListener, Response::new);
-                transportService.sendRequest(node, NAME, request, handler);
+                transportService.sendRequest(targetNode, NAME, request, handler);
                 return;
             }
 
@@ -147,7 +147,16 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 // (EnrichPolicyRunner uses a pipeline with reindex)
                 throw new IllegalStateException("no ingest nodes in this cluster");
             }
+            // In case of a single node cluster:
             if (discoNodes.getSize() == 1) {
+                return discoNodes.getLocalNode();
+            }
+            // This check exists to avoid redirecting potentially many times:
+            if (discoNodes.isLocalNodeElectedMaster() == false) {
+                // This method is first executed on the elected master node (via execute enrich policy action)
+                // a node is picked and the request is redirected to that node.
+                // Whatever node has been picked in the previous execution of the filters below should execute and
+                // attempt not pick another node.
                 return discoNodes.getLocalNode();
             }
 

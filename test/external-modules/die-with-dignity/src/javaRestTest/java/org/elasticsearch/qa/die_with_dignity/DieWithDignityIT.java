@@ -27,6 +27,24 @@ import static org.hamcrest.Matchers.not;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
+        // there should be an Elasticsearch process running with the die.with.dignity.test system property
+        assertBusy(() -> {
+            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
+            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
+
+            boolean found = false;
+            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+                String line;
+                while ((line = in.readLine()) != null) {
+                    if (line.contains("-Ddie.with.dignity.test=true")) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            assertTrue(found);
+        });
+
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
@@ -37,7 +55,7 @@ public class DieWithDignityIT extends ESRestTestCase {
             try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
                 String line;
                 while ((line = in.readLine()) != null) {
-                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test")));
+                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test=true")));
                 }
             }
         });

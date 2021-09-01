@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.junit.Test;
 
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -32,12 +31,10 @@ public class ReleaseHighlightsGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/ReleaseHighlightsGeneratorTest.generateFile.asciidoc"
         );
-        final StringWriter writer = new StringWriter();
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
-        ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries, writer);
-        final String actualOutput = writer.toString();
+        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

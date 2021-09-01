@@ -8,14 +8,11 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import groovy.text.SimpleTemplateEngine;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
@@ -34,12 +31,12 @@ public class ReleaseNotesIndexGenerator {
 
     static void update(Set<QualifiedVersion> versions, File indexTemplate, File indexFile) throws IOException {
         try (FileWriter indexFileWriter = new FileWriter(indexFile)) {
-            generateFile(versions, Files.readString(indexTemplate.toPath()), indexFileWriter);
+            indexFileWriter.write(generateFile(versions, Files.readString(indexTemplate.toPath())));
         }
     }
 
     @VisibleForTesting
-    static void generateFile(Set<QualifiedVersion> versionsSet, String indexTemplate, Writer outputWriter) throws IOException {
+    static String generateFile(Set<QualifiedVersion> versionsSet, String template) throws IOException {
         final Set<QualifiedVersion> versions = new TreeSet<>(reverseOrder());
 
         // For the purpose of generating the index, snapshot versions are the same as released versions. Prerelease versions are not.
@@ -54,11 +51,6 @@ public class ReleaseNotesIndexGenerator {
         bindings.put("versions", versions);
         bindings.put("includeVersions", includeVersions);
 
-        try {
-            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(indexTemplate).make(bindings).writeTo(outputWriter);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        return TemplateUtils.render(template, bindings);
     }
 }

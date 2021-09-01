@@ -28,7 +28,6 @@ import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
-import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
 import java.io.BufferedReader;
@@ -68,7 +67,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         ProviderFactory providers
     ) {
         this.javaInstallationRegistry = javaInstallationRegistry;
-        this.metadataDetector = metadataDetector;
+        this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
     }
 
@@ -364,5 +363,21 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
+    private static class ErrorTraceMetadataDetector implements JvmMetadataDetector {
+        private final JvmMetadataDetector delegate;
+
+        ErrorTraceMetadataDetector(JvmMetadataDetector delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public JvmInstallationMetadata getMetadata(File file) {
+            JvmInstallationMetadata metadata = delegate.getMetadata(file);
+            if(metadata instanceof JvmInstallationMetadata.FailureInstallationMetadata) {
+                throw new GradleException("Jvm Metadata cannot be resolved for " + metadata.getJavaHome().toString());
+            }
+            return metadata;
+        }
+    }
 
 }

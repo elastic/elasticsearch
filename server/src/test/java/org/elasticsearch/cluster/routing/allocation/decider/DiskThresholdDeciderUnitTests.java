@@ -239,9 +239,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             "there is enough disk on this node for the shard to remain, free: [10b]"));
         decision = decider.canRemain(test_1, new RoutingNode("node_1", node_1), allocation);
         assertEquals(Decision.Type.NO, decision.type());
-        assertThat(((Decision.Single) decision).getExplanation(), containsString("the shard cannot remain on this node because it is " +
-            "above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%] and there is less than " +
-            "the required [10.0%] free disk on node, actual free: [9.0%]"));
+        assertThat(
+            ((Decision.Single) decision).getExplanation(),
+            containsString(
+                "the shard cannot remain on this node because it is above the high watermark cluster setting "
+                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10.0%] "
+                    + "free disk on node, actual free: [9.0%]"
+            )
+        );
         try {
             decider.canRemain(test_0, new RoutingNode("node_1", node_1), allocation);
             fail("not allocated on this node");

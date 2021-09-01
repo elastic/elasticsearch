@@ -60,6 +60,7 @@ public class IteratorsTests extends ESTestCase {
         int numberOfIterators = randomIntBetween(1, 1000);
         int singletonIndex = randomIntBetween(0, numberOfIterators - 1);
         int value = randomInt();
+        @SuppressWarnings({"rawtypes", "unchecked"})
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
             iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
@@ -69,6 +70,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testRandomIterators() {
         int numberOfIterators = randomIntBetween(1, 1000);
+        @SuppressWarnings({"rawtypes", "unchecked"})
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         List<Integer> values = new ArrayList<>();
         for (int i = 0; i < numberOfIterators; i++) {
@@ -113,7 +115,9 @@ public class IteratorsTests extends ESTestCase {
         return Collections.singleton(value).iterator();
     }
 
-    private <T> void assertSingleton(T value, Iterator<T>... iterators) {
+    @SafeVarargs
+    @SuppressWarnings({"unchecked", "varargs"})
+    private final <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
     }
@@ -132,7 +136,9 @@ public class IteratorsTests extends ESTestCase {
         };
     }
 
-    private <T> void assertContainsInOrder(Iterator<T> iterator, T... values) {
+    @SafeVarargs
+    @SuppressWarnings({"varargs"})
+    private final <T> void assertContainsInOrder(Iterator<T> iterator, T... values) {
         for (T value : values) {
             assertTrue(iterator.hasNext());
             assertEquals(value, iterator.next());

@@ -48,35 +48,36 @@ public class BooleanTermsIT extends ESIntegTestCase {
                     break;
                 case 1:
                     numMultiFalses++;
-                    multiValue = new boolean[] {false};
+                    multiValue = new boolean[] { false };
                     break;
                 case 2:
                     numMultiTrues++;
-                    multiValue = new boolean[] {true};
+                    multiValue = new boolean[] { true };
                     break;
                 case 3:
                     numMultiFalses++;
                     numMultiTrues++;
-                    multiValue = new boolean[] {false, true};
+                    multiValue = new boolean[] { false, true };
                     break;
                 default:
                     throw new AssertionError();
             }
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, singleValue)
-                    .array(MULTI_VALUED_FIELD_NAME, multiValue)
-                    .endObject());
+            builders[i] = client().prepareIndex("idx", "type")
+                .setSource(
+                    jsonBuilder().startObject()
+                        .field(SINGLE_VALUED_FIELD_NAME, singleValue)
+                        .array(MULTI_VALUED_FIELD_NAME, multiValue)
+                        .endObject()
+                );
         }
         indexRandom(true, builders);
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setTypes("type")
+            .addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
 
         assertSearchResponse(response);
 
@@ -106,11 +107,10 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testMultiValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                        .field(MULTI_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setTypes("type")
+            .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
 
         assertSearchResponse(response);
 
@@ -140,12 +140,12 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .size(between(1, 5))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+            .setTypes("type")
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME).size(between(1, 5)).collectMode(randomFrom(SubAggCollectionMode.values()))
+            )
+            .get();
 
         assertSearchResponse(response);
 

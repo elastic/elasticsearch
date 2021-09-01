@@ -16,10 +16,10 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -61,28 +61,31 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private final SignificanceHeuristic significanceHeuristic;
     private final boolean filterDuplicateText;
 
-    public SignificantTextAggregatorFactory(String name,
-                                                IncludeExclude includeExclude,
-                                                QueryBuilder backgroundFilter,
-                                                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                                                SignificanceHeuristic significanceHeuristic,
-                                                AggregationContext context,
-                                                AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder,
-                                                String fieldName,
-                                                String[] sourceFieldNames,
-                                                boolean filterDuplicateText,
-                                                Map<String, Object> metadata) throws IOException {
+    public SignificantTextAggregatorFactory(
+        String name,
+        IncludeExclude includeExclude,
+        QueryBuilder backgroundFilter,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        SignificanceHeuristic significanceHeuristic,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        String fieldName,
+        String[] sourceFieldNames,
+        boolean filterDuplicateText,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
 
         this.fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
             if (supportsAgg(fieldType) == false) {
-                throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
-                    "requires an analyzed field");
+                throw new IllegalArgumentException(
+                    "Field [" + fieldType.name() + "] has no analyzer, but SignificantText " + "requires an analyzed field"
+                );
             }
             String indexedFieldName = fieldType.name();
-            this.sourceFieldNames = sourceFieldNames == null ? new String[] {indexedFieldName} : sourceFieldNames;
+            this.sourceFieldNames = sourceFieldNames == null ? new String[] { indexedFieldName } : sourceFieldNames;
         } else {
             this.sourceFieldNames = new String[0];
         }
@@ -95,8 +98,12 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata);
+        final InternalAggregation aggregation = new UnmappedSignificantTerms(
+            name,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata
+        );
         return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -106,8 +113,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     private static boolean supportsAgg(MappedFieldType ft) {
-        return ft.getTextSearchInfo() != TextSearchInfo.NONE
-            && ft.getTextSearchInfo() != TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
+        return ft.getTextSearchInfo() != TextSearchInfo.NONE && ft.getTextSearchInfo() != TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override
@@ -132,11 +138,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-//        TODO - need to check with mapping that this is indeed a text field....
+        // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
-            includeExclude.convertToStringFilter(DocValueFormat.RAW);
-
+        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
         SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
         return new MapStringTermsAggregator(
@@ -179,9 +183,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
      * While we're at it we count the number of values we fetch from source.
      */
     private CollectorSource createCollectorSource() {
-        Analyzer analyzer = context.getIndexAnalyzer(f -> {
-            throw new IllegalArgumentException("No analyzer configured for field " + f);
-        });
+        Analyzer analyzer = context.getIndexAnalyzer(f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); });
         if (context.profiling()) {
             return new ProfilingSignificantTextCollectorSource(
                 context.lookup().source(),
@@ -233,8 +235,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         }
 
         @Override
-        public void collectDebugInfo(BiConsumer<String, Object> add) {
-        }
+        public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
         @Override
         public boolean needsScores() {
@@ -272,17 +273,15 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
                     try {
                         for (String sourceField : sourceFieldNames) {
-                            Iterator<String> itr = extractRawValues(sourceField).stream()
-                                .map(obj -> {
-                                    if (obj == null) {
-                                        return null;
-                                    }
-                                    if (obj instanceof BytesRef) {
-                                        return fieldType.valueForDisplay(obj).toString();
-                                    }
-                                    return obj.toString();
-                                })
-                                .iterator();
+                            Iterator<String> itr = extractRawValues(sourceField).stream().map(obj -> {
+                                if (obj == null) {
+                                    return null;
+                                }
+                                if (obj instanceof BytesRef) {
+                                    return fieldType.valueForDisplay(obj).toString();
+                                }
+                                return obj.toString();
+                            }).iterator();
                             while (itr.hasNext()) {
                                 String text = itr.next();
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), text);

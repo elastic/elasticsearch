@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -29,7 +30,7 @@ public class TopBucketBuilderTests extends ESTestCase {
         int count = between(1, 1000);
         ReduceContext context = mock(ReduceContext.class);
         List<String> nonCompetitive = new ArrayList<>();
-        TopBucketBuilder<InternalBucket> builder = new TopBucketBuilder<>(1, BucketOrder.key(true), b -> nonCompetitive.add(b.toString()));
+        TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(1, BucketOrder.key(true), b -> nonCompetitive.add(b.toString()));
 
         for (int i = 0; i < count; i++) {
             builder.add(new DelayedBucket<>(mockReduce(context), context, org.elasticsearch.core.List.of(bucket(i))));
@@ -37,7 +38,7 @@ public class TopBucketBuilderTests extends ESTestCase {
 
         List<InternalBucket> top = builder.build();
         assertThat(top, hasSize(1));
-        assertThat(top.get(0).getKeyAsString(), equalTo("0000"));
+        assertThat(top.get(0).getKeyAsString(), equalTo("000000"));
         assertThat(top.get(0).getDocCount(), equalTo(1L));
         for (int i = 1; i < count; i++) {
             assertThat(nonCompetitive.get(i - 1), equalTo("Delayed[" + bucketKey(i) + "]"));
@@ -48,7 +49,7 @@ public class TopBucketBuilderTests extends ESTestCase {
         int size = between(3, 1000);
         int count = between(1, size);
         ReduceContext context = mock(ReduceContext.class);
-        TopBucketBuilder<InternalBucket> builder = new TopBucketBuilder<>(
+        TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             size,
             BucketOrder.key(true),
             b -> fail("unexpected uncompetitive bucket " + b)
@@ -66,12 +67,11 @@ public class TopBucketBuilderTests extends ESTestCase {
         }
     }
 
-    public void testSomNonCompetitive() {
-        int size = between(3, 1000);
-        int count = between(size + 1, size * 1000);
+    public void someNonCompetitiveTestCase(int size) {
+        int count = between(size + 1, size * 30);
         ReduceContext context = mock(ReduceContext.class);
         List<String> nonCompetitive = new ArrayList<>();
-        TopBucketBuilder<InternalBucket> builder = new TopBucketBuilder<>(
+        TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             size,
             BucketOrder.key(true),
             b -> nonCompetitive.add(b.toString())
@@ -93,8 +93,51 @@ public class TopBucketBuilderTests extends ESTestCase {
         }
     }
 
+    public void testSomeNonCompetitiveSmall() {
+        someNonCompetitiveTestCase(between(2, TopBucketBuilder.USE_BUFFERING_BUILDER - 1));
+    }
+
+    public void testSomeNonCompetitiveLarge() {
+        someNonCompetitiveTestCase(between(TopBucketBuilder.USE_BUFFERING_BUILDER, TopBucketBuilder.USE_BUFFERING_BUILDER * 5));
+    }
+
+    public void testHuge() {
+        int count = between(1, 1000);
+        ReduceContext context = mock(ReduceContext.class);
+        TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
+            Integer.MAX_VALUE,
+            BucketOrder.key(true),
+            b -> fail("unexpected uncompetitive bucket " + b)
+        );
+
+        for (int i = 0; i < count; i++) {
+            builder.add(new DelayedBucket<>(mockReduce(context), context, org.elasticsearch.core.List.of(bucket(i))));
+        }
+
+        List<InternalBucket> top = builder.build();
+        assertThat(top, hasSize(count));
+        assertThat(top.get(0).getKeyAsString(), equalTo("000000"));
+        assertThat(top.get(0).getDocCount(), equalTo(1L));
+        for (int i = 0; i < count; i++) {
+            assertThat(top.get(i).getKeyAsString(), equalTo(bucketKey(i)));
+            assertThat(top.get(i).getDocCount(), equalTo(1L));
+        }
+    }
+
+    public void testHugeQueueError() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TopBucketBuilder.PriorityQueueTopBucketBuilder<>(
+                ArrayUtil.MAX_ARRAY_LENGTH,
+                BucketOrder.key(true),
+                b -> fail("unexpected uncompetitive bucket " + b)
+            )
+        );
+        assertThat(e.getMessage(), equalTo("can't reduce more than [" + ArrayUtil.MAX_ARRAY_LENGTH + "] buckets"));
+    }
+
     private String bucketKey(int index) {
-        return String.format(Locale.ROOT, "%04d", index);
+        return String.format(Locale.ROOT, "%06d", index);
     }
 
     private InternalBucket bucket(int index) {

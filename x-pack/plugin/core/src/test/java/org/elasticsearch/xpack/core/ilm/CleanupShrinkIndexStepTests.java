@@ -70,10 +70,9 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
         CleanupShrinkIndexStep cleanupShrinkIndexStep = createRandomInstance();
-        cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<Boolean>() {
+        cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
             @Override
-            public void onResponse(Boolean complete) {
-                assertThat(complete, is(true));
+            public void onResponse(Void unused) {
             }
 
             @Override
@@ -101,9 +100,9 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<Boolean>() {
+            step.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                 }
 
                 @Override
@@ -113,7 +112,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         }
     }
 
-    public void testDeleteSkippedIfManagedIndexIsShrunkAndSourceDoesntExist() throws Exception {
+    public void testDeleteSkippedIfManagedIndexIsShrunkAndSourceDoesntExist() {
         String sourceIndex = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         String shrinkIndexName = generateValidIndexName("shrink-", sourceIndex);
@@ -134,10 +133,9 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getFailingIfCalledClient()) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<Boolean>() {
+            step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<Void>() {
                 @Override
-                public void onResponse(Boolean complete) {
-                    assertThat(complete, is(true));
+                public void onResponse(Void complete) {
                 }
 
                 @Override

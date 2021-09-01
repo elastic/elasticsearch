@@ -34,11 +34,19 @@ import java.util.Objects;
  */
 public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
 
+    private static final int UNKNOWN_COUNT = -1;
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
         GetSnapshotsResponse.class.getName(),
         true,
-        (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0], (Map<String, ElasticsearchException>) args[1], (String) args[2])
+        (args) -> new GetSnapshotsResponse(
+            (List<SnapshotInfo>) args[0],
+            (Map<String, ElasticsearchException>) args[1],
+            (String) args[2],
+            args[3] == null ? UNKNOWN_COUNT : (int) args[3],
+            args[4] == null ? UNKNOWN_COUNT : (int) args[4]
+        )
     );
 
     static {
@@ -53,6 +61,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             new ParseField("failures")
         );
         GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
+        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("total"));
+        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("remaining"));
     }
 
     private final List<SnapshotInfo> snapshots;
@@ -62,10 +72,22 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     @Nullable
     private final String next;
 
-    public GetSnapshotsResponse(List<SnapshotInfo> snapshots, Map<String, ElasticsearchException> failures, @Nullable String next) {
+    private final int total;
+
+    private final int remaining;
+
+    public GetSnapshotsResponse(
+        List<SnapshotInfo> snapshots,
+        Map<String, ElasticsearchException> failures,
+        @Nullable String next,
+        final int total,
+        final int remaining
+    ) {
         this.snapshots = org.elasticsearch.core.List.copyOf(snapshots);
         this.failures = failures == null ? org.elasticsearch.core.Map.of() : org.elasticsearch.core.Map.copyOf(failures);
         this.next = next;
+        this.total = total;
+        this.remaining = remaining;
     }
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
@@ -77,6 +99,13 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         } else {
             this.failures = Collections.emptyMap();
             this.next = null;
+        }
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
+            this.total = in.readVInt();
+            this.remaining = in.readVInt();
+        } else {
+            this.total = UNKNOWN_COUNT;
+            this.remaining = UNKNOWN_COUNT;
         }
     }
 
@@ -108,6 +137,14 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         return failures.isEmpty() == false;
     }
 
+    public int totalCount() {
+        return total;
+    }
+
+    public int remaining() {
+        return remaining;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(snapshots);
@@ -119,6 +156,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 assert false : "transport action should have thrown directly for old version but saw " + failures;
                 throw failures.values().iterator().next();
             }
+        }
+        if (out.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
+            out.writeVInt(total);
+            out.writeVInt(remaining);
         }
     }
 
@@ -144,6 +185,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         }
         if (next != null) {
             builder.field("next", next);
+        }
+        if (total >= 0) {
+            builder.field("total", total);
+        }
+        if (remaining >= 0) {
+            builder.field("remaining", remaining);
         }
         builder.endObject();
         return builder;

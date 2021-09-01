@@ -233,8 +233,7 @@ public class MovingFunctions {
      * @param period the expected periodicity of the data
      * @param multiplicative true if multiplicative HW should be used. False for additive
      */
-    public static double holtWinters(double[] values, double alpha, double beta, double gamma,
-                                           int period, boolean multiplicative) {
+    public static double holtWinters(double[] values, double alpha, double beta, double gamma, int period, boolean multiplicative) {
 
         if (values.length == 0) {
             return Double.NaN;
@@ -248,13 +247,28 @@ public class MovingFunctions {
      * Version of holt-winters that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
-    public static double[] holtWintersForecast(double[] values, double alpha, double beta, double gamma,
-                                             int period, double padding, boolean multiplicative, int numForecasts) {
+    public static double[] holtWintersForecast(
+        double[] values,
+        double alpha,
+        double beta,
+        double gamma,
+        int period,
+        double padding,
+        boolean multiplicative,
+        int numForecasts
+    ) {
         if (values.length < period * 2) {
             // We need at least two full "seasons" to use HW
             // This should have been caught earlier, we can't do anything now...bail
-            throw new IllegalArgumentException("Holt-Winters aggregation requires at least (2 * period == 2 * "
-                + period + " == "+(2 * period)+") data-points to function.  Only [" + values.length + "] were provided.");
+            throw new IllegalArgumentException(
+                "Holt-Winters aggregation requires at least (2 * period == 2 * "
+                    + period
+                    + " == "
+                    + (2 * period)
+                    + ") data-points to function.  Only ["
+                    + values.length
+                    + "] were provided."
+            );
         }
 
         // Smoothed value
@@ -311,9 +325,9 @@ public class MovingFunctions {
             b = beta * (s - last_s) + (1 - beta) * last_b;
 
             if (multiplicative) {
-                seasonal[i] = gamma * (vs[i] / (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
+                seasonal[i] = gamma * (vs[i] / (last_s + last_b)) + (1 - gamma) * seasonal[i - period];
             } else {
-                seasonal[i] = gamma * (vs[i] - (last_s - last_b )) + (1 - gamma) * seasonal[i - period];
+                seasonal[i] = gamma * (vs[i] - (last_s - last_b)) + (1 - gamma) * seasonal[i - period];
             }
 
             last_s = s;
@@ -326,9 +340,9 @@ public class MovingFunctions {
 
             // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
             if (multiplicative) {
-                forecastValues[i-1] = (s + (i * b)) * seasonal[idx];
+                forecastValues[i - 1] = (s + (i * b)) * seasonal[idx];
             } else {
-                forecastValues[i-1] = s + (i * b) + seasonal[idx];
+                forecastValues[i - 1] = s + (i * b) + seasonal[idx];
             }
         }
 

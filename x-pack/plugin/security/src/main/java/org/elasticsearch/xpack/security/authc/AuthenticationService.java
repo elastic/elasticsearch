@@ -305,7 +305,7 @@ public class AuthenticationService {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
             this.fallbackToAnonymous = fallbackToAnonymous;
-            this.defaultOrderedRealmList = realms.asList();
+            this.defaultOrderedRealmList = realms.getActiveRealms();
             this.listener = listener;
         }
 

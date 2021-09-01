@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -139,6 +140,15 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         for (BlobStoreCacheService blobStoreCacheService : internalCluster().getDataNodeInstances(BlobStoreCacheService.class)) {
             assertTrue(blobStoreCacheService.waitForInFlightCacheFillsToComplete(30L, TimeUnit.SECONDS));
         }
+    }
+
+    @Override
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        // add use for peer recovery setting randomly to verify that these features work together.
+        Settings.Builder newSettings = randomBoolean()
+            ? settings
+            : Settings.builder().put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true).put(settings.build());
+        super.createRepository(repoName, type, newSettings, verify);
     }
 
     protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)

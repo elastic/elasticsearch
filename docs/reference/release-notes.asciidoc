@@ -6,6 +6,7 @@
 
 This section summarizes the changes in each release.
 
+* <<release-notes-7.14.1>>
 * <<release-notes-7.14.0>>
 * <<release-notes-7.13.2>>
 * <<release-notes-7.13.1>>

@@ -276,10 +276,10 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> creating test index ...");
         prepareCreate(
                 "test",
+                // set refresh_interval because we want to control refreshes
                 Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
-                        // we want to control refreshes
                         .put("index.refresh_interval", -1)
                ).get();
 
@@ -563,10 +563,10 @@ public class RelocationIT extends ESIntegTestCase {
         final String node1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.refresh_interval", -1) // we want to control refreshes
+        prepareCreate(
+            "test",
+            // we want to control refreshes
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1)
         ).get();
 
         logger.info("--> index 10 docs");

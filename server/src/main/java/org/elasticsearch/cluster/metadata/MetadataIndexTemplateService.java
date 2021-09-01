@@ -1095,38 +1095,33 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into an ordered list of aliases
-     *
-     * @param failIfTemplateHasDataStream Whether to skip validating if a template has a data stream definition and an alias definition.
-     *                                    This validation is needed so that no template gets created that creates data stream and also
-     *                                    an alias pointing to the backing indices of a data stream. Unfortunately this validation
-     *                                    was missing in versions prior to 7.11, which mean that there are cluster states out there
-     *                                    that have this malformed templates. This method is used when rolling over a data stream
-     *                                    or creating new data streams. In order for these clusters to avoid failing these operations
-     *                                    immediately after an upgrade the failure should be optional. So that there is time to change
-     *                                    these templates. The logic that adds/updates index and component templates shouldn't skip this
-     *                                    validation.
+     * Resolve the given v2 template name into an ordered list of aliases
      */
     public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata,
-                                                                  final String templateName,
-                                                                  final boolean failIfTemplateHasDataStream) {
+                                                                  final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
+        return resolveAliases(metadata, template);
+    }
+
+    /**
+     * Resolve the given v2 template into an ordered list of aliases
+     */
+    static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata,
+                                                           final ComposableIndexTemplate template) {
         if (template == null) {
             return Collections.emptyList();
         }
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
-        return resolveAliases(template, componentTemplates, failIfTemplateHasDataStream, templateName);
+        return resolveAliases(template, componentTemplates);
     }
 
     /**
      * Resolve the given v2 template and component templates into an ordered list of aliases
      */
     static List<Map<String, AliasMetadata>> resolveAliases(final ComposableIndexTemplate template,
-                                                           final Map<String, ComponentTemplate> componentTemplates,
-                                                           final boolean failIfTemplateHasDataStream,
-                                                           @Nullable String templateName) {
+                                                           final Map<String, ComponentTemplate> componentTemplates) {
         Objects.requireNonNull(template, "attempted to resolve aliases for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve aliases with null component templates");
         List<Map<String, AliasMetadata>> aliases = template.composedOf().stream()
@@ -1193,7 +1188,7 @@ public class MetadataIndexTemplateService {
             tempIndexService -> {
                 // Validate aliases
                 MetadataCreateIndexService.resolveAndValidateAliases(temporaryIndexName, Collections.emptySet(),
-                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName, true), stateWithIndex.metadata(),
+                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName), stateWithIndex.metadata(),
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp

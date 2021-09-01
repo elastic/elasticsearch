@@ -41,6 +41,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
         public SyncedFlushResponse result;
     }
 
+    @SuppressWarnings("unchecked")
     public void testIndicesSyncedFlushResult() throws IOException {
         final TestPlan testPlan = createTestPlan();
         assertThat(testPlan.result.totalShards(), equalTo(testPlan.totalCounts.total));

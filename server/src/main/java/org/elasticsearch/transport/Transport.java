@@ -17,7 +17,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -165,8 +164,8 @@ public interface Transport extends LifecycleComponent {
      * This class is a registry that allows
      */
     final class ResponseHandlers {
-        private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
-            .newConcurrentMapLongWithAggressiveConcurrency();
+        private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
+            .newConcurrentMapWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
         /**

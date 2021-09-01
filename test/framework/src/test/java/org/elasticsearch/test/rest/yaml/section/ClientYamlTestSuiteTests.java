@@ -36,22 +36,20 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         final boolean includeTeardown = randomBoolean();
         StringBuilder testSpecBuilder = new StringBuilder();
         if (includeSetup) {
-            testSpecBuilder
-                .append("---\n" +
-                        "setup:\n" +
-                        "  - do:\n" +
-                        "        indices.create:\n" +
-                        "          index: test_index\n" +
-                        "\n");
+            testSpecBuilder.append("---\n")
+                .append("setup:\n")
+                .append("  - do:\n")
+                .append("        indices.create:\n")
+                .append("          index: test_index\n")
+                .append("\n");
         }
         if (includeTeardown) {
-            testSpecBuilder
-                .append("---\n" +
-                        "teardown:\n" +
-                        "  - do:\n" +
-                        "      indices.delete:\n" +
-                        "        index: test_index\n" +
-                        "\n");
+            testSpecBuilder.append("---\n")
+                .append("teardown:\n")
+                .append("  - do:\n")
+                .append("      indices.delete:\n")
+                .append("        index: test_index\n")
+                .append("\n");
         }
         parser = createParser(YamlXContent.yamlXContent,
                         testSpecBuilder.toString() +
@@ -447,8 +445,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(),
             containsString("api/name:\nattempted to add a [do] with a [warnings_regex] section without a corresponding " +
-            "[\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] section can skip the test " +
-            "at line [" + lineNumber + "]"));
+            "[\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] section can " +
+            "skip the test at line [" + lineNumber + "]"));
     }
 
     public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
@@ -485,8 +483,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [headers] section without a corresponding " +
-            "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at line ["
-            + lineNumber + "]"));
+            "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the " +
+            "test at line [" + lineNumber + "]"));
     }
 
     public void testAddingDoWithNodeSelectorWithoutSkipNodeSelector() {
@@ -498,8 +496,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [node_selector] section without a " +
-            "corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can " +
-            "skip the test at line [" + lineNumber + "]"));
+            "corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] " +
+            "section can skip the test at line [" + lineNumber + "]"));
     }
 
     public void testAddingContainsWithoutSkipContains() {
@@ -546,14 +544,23 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals("api/name:\n" +
-            "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners " +
-                "that do not support the [contains] assertion can skip the test at line [" + firstLineNumber + "],\n" +
-            "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so " +
-                "runners that do not support the [warnings] section can skip the test at line [" + secondLineNumber + "],\n" +
-            "attempted to add a [do] with a [node_selector] section without a corresponding [\"skip\": \"features\": \"node_selector\"] " +
-                "so runners that do not support the [node_selector] section can skip the test at line [" + thirdLineNumber + "]",
-            e.getMessage());
+        assertEquals(
+            "api/name:\n"
+                + "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners "
+                + "that do not support the [contains] assertion can skip the test at line ["
+                + firstLineNumber
+                + "],\n"
+                + "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so "
+                + "runners that do not support the [warnings] section can skip the test at line ["
+                + secondLineNumber
+                + "],\n"
+                + "attempted to add a [do] with a [node_selector] section without a corresponding "
+                + "[\"skip\": \"features\": \"node_selector\"] "
+                + "so runners that do not support the [node_selector] section can skip the test at line ["
+                + thirdLineNumber
+                + "]",
+            e.getMessage()
+        );
     }
 
     public void testAddingDoWithWarningWithSkip() {

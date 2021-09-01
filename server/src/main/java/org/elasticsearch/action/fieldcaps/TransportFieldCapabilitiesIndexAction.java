@@ -12,24 +12,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -69,8 +66,6 @@ public class TransportFieldCapabilitiesIndexAction
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
     private static final String ACTION_SHARD_NAME = ACTION_NAME + "[s]";
-    public static final ActionType<FieldCapabilitiesIndexResponse> TYPE =
-        new ActionType<>(ACTION_NAME, FieldCapabilitiesIndexResponse::new);
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -140,10 +135,13 @@ public class TransportFieldCapabilitiesIndexAction
                         if (searchExecutionContext.getFieldType(parentField) == null) {
                             // no field type, it must be an object field
                             ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                            String type = mapper.isNested() ? "nested" : "object";
-                            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                                false, false, false, Collections.emptyMap());
-                            responseMap.put(parentField, fieldCap);
+                            // Composite runtime fields do not have a mapped type for the root - check for null
+                            if (mapper != null) {
+                                String type = mapper.isNested() ? "nested" : "object";
+                                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
+                                    false, false, false, Collections.emptyMap());
+                                responseMap.put(parentField, fieldCap);
+                            }
                         }
                         dotIndex = parentField.lastIndexOf('.');
                     }
@@ -161,14 +159,6 @@ public class TransportFieldCapabilitiesIndexAction
         ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), null, req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
-    }
-
-    private static ClusterBlockException checkGlobalBlock(ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
-    }
-
-    private static ClusterBlockException checkRequestBlock(ClusterState state, String concreteIndex) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, concreteIndex);
     }
 
     /**
@@ -197,17 +187,7 @@ public class TransportFieldCapabilitiesIndexAction
                 logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
             }
             nodes = clusterState.nodes();
-            ClusterBlockException blockException = checkGlobalBlock(clusterState);
-            if (blockException != null) {
-                throw blockException;
-            }
-
             this.request = request;
-            blockException = checkRequestBlock(clusterState, request.index());
-            if (blockException != null) {
-                throw blockException;
-            }
-
             shardsIt = clusterService.operationRouting().searchShards(clusterService.state(),
                 new String[]{request.index()}, null, null, null, null);
         }

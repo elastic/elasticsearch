@@ -65,7 +65,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                     + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());
-                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError: die with dignity"));
+                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError: Requested array size exceeds VM limit"));
                 }
             }
 

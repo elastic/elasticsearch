@@ -545,6 +545,7 @@ public final class Settings implements ToXContentFragment {
         return builder.build();
     }
 
+    @SuppressWarnings("unchecked")
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
         Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
@@ -555,12 +556,12 @@ public final class Settings implements ToXContentFragment {
                 out.writeGenericValue(entry.getValue());
             }
         } else {
-            int size = entries.stream().mapToInt(e -> e.getValue() instanceof List ? ((List)e.getValue()).size() : 1).sum();
+            int size = entries.stream().mapToInt(e -> e.getValue() instanceof List ? ((List<?>) e.getValue()).size() : 1).sum();
             out.writeVInt(size);
             for (Map.Entry<String, Object> entry : entries) {
                 if (entry.getValue() instanceof List) {
                     int idx = 0;
-                    for (String value : (List<String>)entry.getValue()) {
+                    for (String value : (List<String>) entry.getValue()) {
                         out.writeString(entry.getKey() + "." + idx++);
                         out.writeOptionalString(value);
                     }

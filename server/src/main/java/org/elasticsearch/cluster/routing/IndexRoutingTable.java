@@ -120,14 +120,19 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (shardRouting.index().equals(index) == false) {
-                    throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
-                                                    "from the routing table");
+                    throw new IllegalStateException(
+                        "shard routing has an index [" + shardRouting.index() + "] that is different from the routing table"
+                    );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
                 if (shardRouting.active() &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
-                    throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the in-sync " +
-                        "allocation set " + inSyncAllocationIds);
+                    throw new IllegalStateException(
+                        "active shard routing "
+                            + shardRouting
+                            + " has no corresponding entry in the in-sync allocation set "
+                            + inSyncAllocationIds
+                    );
                 }
 
                 if (shardRouting.primary() && shardRouting.initializing() &&
@@ -139,9 +144,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                                 "allocation set " + inSyncAllocationIds);
                         }
                     } else if (inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
-                        throw new IllegalStateException("a primary shard routing " + shardRouting
-                            + " is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync " +
-                            "allocation set " + inSyncAllocationIds);
+                        throw new IllegalStateException(
+                            "a primary shard routing "
+                                + shardRouting
+                                + " is a primary that is recovering from a known allocation id but has no corresponding "
+                                + "entry in the in-sync allocation set "
+                                + inSyncAllocationIds
+                        );
                     }
                 }
             }

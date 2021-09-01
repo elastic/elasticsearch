@@ -124,6 +124,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        @SuppressWarnings("unchecked")
         protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode,
                                                                      MappingParserContext parserContext,
                                                                      ObjectMapper.Builder builder) {
@@ -142,7 +143,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals("properties")) {
-                if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
+                if (fieldNode instanceof Collection && ((Collection<?>) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
                 } else if ((fieldNode instanceof Map) == false) {
                     throw new ElasticsearchParseException("properties must be a map type");

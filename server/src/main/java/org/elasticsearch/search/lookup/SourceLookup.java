@@ -228,7 +228,7 @@ public class SourceLookup implements Map<String, Object> {
     }
 
     @Override
-    public void putAll(Map m) {
+    public void putAll(Map<? extends String, ? extends Object> m) {
         throw new UnsupportedOperationException();
     }
 

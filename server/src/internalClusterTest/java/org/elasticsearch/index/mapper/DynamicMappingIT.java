@@ -95,6 +95,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         MappingMetadata typeMappings = indexMappings.get(type);
         assertNotNull(typeMappings);
         Map<String, Object> typeMappingsMap = typeMappings.getSourceAsMap();
+        @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
     }

@@ -244,6 +244,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 throw new AssertionError(e);
             }
             assertNotNull(properties);
+            @SuppressWarnings("unchecked")
             Object fieldMapping = ((Map<String, Object>) properties).get("field");
             assertNotNull(fieldMapping);
         });

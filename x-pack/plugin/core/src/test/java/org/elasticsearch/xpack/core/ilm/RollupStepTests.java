@@ -78,7 +78,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         assertThat(request.getRollupIndex(), equalTo("rollup-index"));
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         String index = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = getIndexMetadata(index);
 
@@ -92,7 +92,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }
 
     public void testPerformActionFailureInvalidExecutionState() {
@@ -103,9 +103,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         RollupStep step = createRandomInstance();
-        step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<Boolean>() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<Void>() {
             @Override
-            public void onResponse(Boolean complete) {
+            public void onResponse(Void unused) {
                 fail("expecting a failure as the index doesn't have any rollup index name in its ILM execution state");
             }
 
@@ -118,7 +118,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         });
     }
 
-    public void testPerformActionOnDataStream() {
+    public void testPerformActionOnDataStream() throws Exception {
         String dataStreamName = "test-datastream";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         IndexMetadata indexMetadata = getIndexMetadata(backingIndexName);
@@ -135,7 +135,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }
 
     private void mockClientRollupCall(String sourceIndex) {

@@ -18,9 +18,15 @@ import java.util.Map;
 public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles implements Percentiles {
     public static final String NAME = "hdr_percentiles";
 
-    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                   Map<String, Object> metadata) {
-        super(name, percents, state, keyed, formatter,  metadata);
+    public InternalHDRPercentiles(
+        String name,
+        double[] percents,
+        DoubleHistogram state,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
+        super(name, percents, state, keyed, formatter, metadata);
     }
 
     /**
@@ -59,8 +65,13 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     }
 
     @Override
-    protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            Map<String, Object> metadata) {
+    protected AbstractInternalHDRPercentiles createReduced(
+        String name,
+        double[] keys,
+        DoubleHistogram merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    ) {
         return new InternalHDRPercentiles(name, keys, merged, keyed, format, metadata);
     }
 

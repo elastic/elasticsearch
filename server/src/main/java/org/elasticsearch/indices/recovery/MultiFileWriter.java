@@ -90,7 +90,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             long bytesWritten = 0;
             while ((length = stream.read(buffer)) > 0) {
                 indexOutput.writeBytes(buffer, length);
-                indexState.addRecoveredBytesToFile(fileName, length);
+                indexState.addRecoveredFromSnapshotBytesToFile(fileName, length);
                 bytesWritten += length;
             }
 

@@ -103,6 +103,8 @@ public abstract class TransportClient extends AbstractClient {
         return new PluginsService(settingsBuilder.build(), null, null, null, plugins);
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     protected static Collection<Class<? extends Plugin>> addPlugins(Collection<Class<? extends Plugin>> collection,
                                                                     Class<? extends Plugin>... plugins) {
         return addPlugins(collection, Arrays.asList(plugins));
@@ -206,7 +208,7 @@ public abstract class TransportClient extends AbstractClient {
 
             // construct the list of client actions
             final List<ActionPlugin> actionPlugins = pluginsService.filterPlugins(ActionPlugin.class);
-            final List<ActionType> clientActions =
+            final List<ActionType<?>> clientActions =
                     actionPlugins.stream().flatMap(p -> p.getClientActions().stream()).collect(Collectors.toList());
             // add all the base actions
             final List<? extends ActionType<?>> baseActions =

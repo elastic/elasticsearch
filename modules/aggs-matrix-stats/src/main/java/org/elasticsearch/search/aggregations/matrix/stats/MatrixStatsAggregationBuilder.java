@@ -31,8 +31,11 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
         super(name);
     }
 
-    protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected MatrixStatsAggregationBuilder(
+        MatrixStatsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.multiValueMode = clone.multiValueMode;
     }
@@ -64,10 +67,12 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     }
 
     @Override
-    protected MatrixStatsAggregatorFactory innerBuild(AggregationContext context,
-                                                        Map<String, ValuesSourceConfig> configs,
-                                                        AggregatorFactory parent,
-                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected MatrixStatsAggregatorFactory innerBuild(
+        AggregationContext context,
+        Map<String, ValuesSourceConfig> configs,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metadata);
     }
 

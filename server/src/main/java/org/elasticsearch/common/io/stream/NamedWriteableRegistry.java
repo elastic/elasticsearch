@@ -62,7 +62,7 @@ public class NamedWriteableRegistry {
 
         Map<Class<?>, Map<String, Writeable.Reader<?>>> registry = new HashMap<>();
         Map<String, Writeable.Reader<?>> readers = null;
-        Class currentCategory = null;
+        Class<?> currentCategory = null;
         for (Entry entry : entries) {
             if (currentCategory != entry.categoryClass) {
                 if (currentCategory != null) {

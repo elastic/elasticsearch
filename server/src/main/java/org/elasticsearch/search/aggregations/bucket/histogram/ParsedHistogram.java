@@ -27,12 +27,17 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogra
         return buckets;
     }
 
-    private static final ObjectParser<ParsedHistogram, Void> PARSER =
-            new ObjectParser<>(ParsedHistogram.class.getSimpleName(), true, ParsedHistogram::new);
+    private static final ObjectParser<ParsedHistogram, Void> PARSER = new ObjectParser<>(
+        ParsedHistogram.class.getSimpleName(),
+        true,
+        ParsedHistogram::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedHistogram fromXContent(XContentParser parser, String name) throws IOException {

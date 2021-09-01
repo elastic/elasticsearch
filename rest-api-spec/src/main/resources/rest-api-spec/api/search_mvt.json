@@ -8,10 +8,10 @@
     "visibility": "public",
     "headers": {
       "accept": [
-        "application/json"
+        "application/vnd.mapbox-vector-tile"
       ],
       "content_type": [
-        "application/vnd.mapbox-vector-tile"
+        "application/json"
       ]
     },
     "url": {
@@ -32,15 +32,15 @@
               "description": "Field containing geospatial data to return"
             },
             "zoom": {
-              "type": "integer",
+              "type": "int",
               "description": "Zoom level for the vector tile to search"
             },
             "x": {
-              "type": "integer",
+              "type": "int",
               "description": "X coordinate for the vector tile to search"
             },
             "y": {
-              "type": "integer",
+              "type": "int",
               "description": "Y coordinate for the vector tile to search"
             }
           }
@@ -54,12 +54,12 @@
         "default":false
       },
       "extent":{
-        "type":"number",
+        "type":"int",
         "description":"Size, in pixels, of a side of the vector tile.",
         "default":4096
       },
       "grid_precision":{
-        "type":"number",
+        "type":"int",
         "description":"Additional zoom levels available through the aggs layer. Accepts 0-8.",
         "default":8
       },
@@ -73,7 +73,7 @@
         "default":"grid"
       },
       "size":{
-        "type":"number",
+        "type":"int",
         "description":"Maximum number of features to return in the hits layer. Accepts 0-10000.",
         "default":10000
       }

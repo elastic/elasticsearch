@@ -66,7 +66,6 @@ public class ValuesSourceRegistry {
             this.usageServiceBuilder = new AggregationUsageService.Builder();
         }
 
-
         /**
          * Register a ValuesSource to Aggregator mapping. This method registers mappings that only apply to a
          * single {@link ValuesSourceType}
@@ -82,7 +81,8 @@ public class ValuesSourceRegistry {
             RegistryKey<T> registryKey,
             ValuesSourceType valuesSourceType,
             T aggregatorSupplier,
-            boolean registerUsage) {
+            boolean registerUsage
+        ) {
             if (aggregatorRegistry.containsKey(registryKey) == false) {
                 aggregatorRegistry.put(registryKey, new ArrayList<>());
             }
@@ -107,7 +107,8 @@ public class ValuesSourceRegistry {
             RegistryKey<T> registryKey,
             List<ValuesSourceType> valuesSourceTypes,
             T aggregatorSupplier,
-            boolean registerUsage) {
+            boolean registerUsage
+        ) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
                 register(registryKey, valuesSourceType, aggregatorSupplier, registerUsage);
             }
@@ -134,8 +135,7 @@ public class ValuesSourceRegistry {
          into a Map.of(), which is more read optimized than just using a hash map.
          */
         Map<RegistryKey<?>, Map<ValuesSourceType, ?>> tmp = new HashMap<>();
-        mutableMap.forEach((key, value) -> tmp.put(key, value.stream().collect(
-            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+        mutableMap.forEach((key, value) -> tmp.put(key, value.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
         return Collections.unmodifiableMap(tmp);
     }
 

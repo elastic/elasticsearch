@@ -33,11 +33,11 @@ or `manage` <<privileges-list-indices,index privilege>> for the target index.
 (Required, string) Comma-separated list of indices to delete. You cannot specify
 <<alias,index aliases>>.
 
-By default, this parameter does not support wildcards (`*`) or `_all`. To use
-wildcards or `_all`, change the `action.destructive_requires_name` setting to
-`false`. You can update this setting in the `elasticsearch.yml` file or using
-the <<cluster-update-settings,cluster update settings>> API. Wildcard patterns
-only match open, concrete indices.
+To delete all indices, use `_all` or `*` . To disallow the deletion of indices
+with `_all` or wildcard expressions, change the
+`action.destructive_requires_name` cluster setting to `true`. You can update
+this setting in the `elasticsearch.yml` file or using the
+<<cluster-update-settings,cluster update settings>> API.
 
 NOTE: You cannot delete the current write index of a data stream. To delete the
 index, you must <<data-streams-rollover,roll over>> the data stream so a new

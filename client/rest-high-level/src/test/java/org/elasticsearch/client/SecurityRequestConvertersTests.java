@@ -38,6 +38,8 @@ import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.QueryApiKeyRequest;
+import org.elasticsearch.client.security.QueryApiKeyRequestTests;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
@@ -502,6 +504,19 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
         assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
+    }
+
+    public void testQueryApiKey() throws IOException {
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            QueryApiKeyRequestTests.randomQueryBuilder(),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            QueryApiKeyRequestTests.randomFieldSortBuilders(),
+            QueryApiKeyRequestTests.randomSearchAfterBuilder());
+        final Request request = SecurityRequestConverters.queryApiKey(queryApiKeyRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/_query/api_key", request.getEndpoint());
+        assertToXContentBody(queryApiKeyRequest, request.getEntity());
     }
 
     public void testGetServiceAccounts() throws IOException {

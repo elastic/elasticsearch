@@ -61,8 +61,7 @@ public class MaxBucketIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "tag", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -78,17 +77,25 @@ public class MaxBucketIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
-            builders.add(client().prepareIndex("idx", "type").setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval))
-                            .endObject()));
+            builders.add(
+                client().prepareIndex("idx", "type")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
+                            .field("tag", "tag" + (i % interval))
+                            .endObject()
+                    )
+            );
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
         }
 
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -96,9 +103,11 @@ public class MaxBucketIT extends ESIntegTestCase {
 
     public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(maxBucket("max_bucket", "histo>_count")).get();
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+            )
+            .addAggregation(maxBucket("max_bucket", "histo>_count"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -132,16 +141,16 @@ public class MaxBucketIT extends ESIntegTestCase {
     }
 
     public void testDocCountAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(maxBucket("max_bucket", "histo>_count"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(maxBucket("max_bucket", "histo>_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -185,10 +194,10 @@ public class MaxBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricTopLevel() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(maxBucket("max_bucket", "terms>sum")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(maxBucket("max_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -224,17 +233,19 @@ public class MaxBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(maxBucket("max_bucket", "histo>sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -282,15 +293,16 @@ public class MaxBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricAsSubAggOfSingleBucketAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        filter("filter", termQuery("tag", "tag0"))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                filter("filter", termQuery("tag", "tag0")).subAggregation(
+                    histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                        .interval(interval)
+                        .extendedBounds(minRandomValue, maxRandomValue)
+                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                ).subAggregation(maxBucket("max_bucket", "histo>sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -329,18 +341,19 @@ public class MaxBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricAsSubAggWithInsertZeros() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(maxBucket("max_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -387,9 +400,13 @@ public class MaxBucketIT extends ESIntegTestCase {
 
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
-                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(maxBucket("max_bucket", "terms>sum")).get();
+            .addAggregation(
+                terms("terms").field("tag")
+                    .includeExclude(new IncludeExclude(null, "tag.*"))
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .addAggregation(maxBucket("max_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -407,17 +424,17 @@ public class MaxBucketIT extends ESIntegTestCase {
     }
 
     public void testNested() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(maxBucket("max_histo_bucket", "histo>_count")))
-                .addAggregation(maxBucket("max_terms_bucket", "terms>max_histo_bucket")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(maxBucket("max_histo_bucket", "histo>_count"))
+            )
+            .addAggregation(maxBucket("max_terms_bucket", "terms>max_histo_bucket"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -491,19 +508,36 @@ public class MaxBucketIT extends ESIntegTestCase {
         // so that there is an UnmappedTerms in the list to reduce.
         createIndex("foo_1");
 
-        XContentBuilder builder = jsonBuilder().startObject().startObject("properties")
-            .startObject("@timestamp").field("type", "date").endObject()
-            .startObject("license").startObject("properties")
-            .startObject("count").field("type", "long").endObject()
-            .startObject("partnumber").field("type", "text").startObject("fields").startObject("keyword")
-            .field("type", "keyword").field("ignore_above", 256)
-            .endObject().endObject().endObject()
-            .endObject().endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate("foo_2")
-            .addMapping("doc", builder).get());
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("@timestamp")
+            .field("type", "date")
+            .endObject()
+            .startObject("license")
+            .startObject("properties")
+            .startObject("count")
+            .field("type", "long")
+            .endObject()
+            .startObject("partnumber")
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("keyword")
+            .field("type", "keyword")
+            .field("ignore_above", 256)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertAcked(client().admin().indices().prepareCreate("foo_2").addMapping("doc", builder).get());
 
         XContentBuilder docBuilder = jsonBuilder().startObject()
-            .startObject("license").field("partnumber", "foobar").field("count", 2).endObject()
+            .startObject("license")
+            .field("partnumber", "foobar")
+            .field("count", 2)
+            .endObject()
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
             .endObject();
 
@@ -513,11 +547,14 @@ public class MaxBucketIT extends ESIntegTestCase {
 
         TermsAggregationBuilder groupByLicenseAgg = AggregationBuilders.terms("group_by_license_partnumber")
             .field("license.partnumber.keyword");
-        MaxBucketPipelineAggregationBuilder peakPipelineAggBuilder =
-            PipelineAggregatorBuilders.maxBucket("peak", "licenses_per_day>total_licenses");
+        MaxBucketPipelineAggregationBuilder peakPipelineAggBuilder = PipelineAggregatorBuilders.maxBucket(
+            "peak",
+            "licenses_per_day>total_licenses"
+        );
         SumAggregationBuilder sumAggBuilder = AggregationBuilders.sum("total_licenses").field("license.count");
-        DateHistogramAggregationBuilder licensePerDayBuilder =
-            AggregationBuilders.dateHistogram("licenses_per_day").field("@timestamp").dateHistogramInterval(DateHistogramInterval.DAY);
+        DateHistogramAggregationBuilder licensePerDayBuilder = AggregationBuilders.dateHistogram("licenses_per_day")
+            .field("@timestamp")
+            .dateHistogramInterval(DateHistogramInterval.DAY);
         licensePerDayBuilder.subAggregation(sumAggBuilder);
         groupByLicenseAgg.subAggregation(licensePerDayBuilder);
         groupByLicenseAgg.subAggregation(peakPipelineAggBuilder);

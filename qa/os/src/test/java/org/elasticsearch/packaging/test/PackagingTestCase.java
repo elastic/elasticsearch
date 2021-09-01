@@ -23,12 +23,13 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
+import org.elasticsearch.packaging.util.docker.Docker;
+import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -61,10 +62,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
-import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.docker.Docker.ensureImageIsLoaded;
+import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -146,7 +147,7 @@ public abstract class PackagingTestCase extends Assert {
         // create shell
         if (distribution().isDocker()) {
             ensureImageIsLoaded(distribution);
-            sh = new Docker.DockerShell();
+            sh = new DockerShell();
         } else {
             sh = new Shell();
         }
@@ -225,6 +226,8 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation);
                 break;
@@ -307,6 +310,8 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -327,6 +332,8 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -348,6 +355,8 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:

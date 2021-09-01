@@ -58,6 +58,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
+@SuppressWarnings("rawtypes")
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
     private final String clusterAlias;
     private final ShardId shardId;

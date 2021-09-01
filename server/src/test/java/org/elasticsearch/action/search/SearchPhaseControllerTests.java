@@ -78,7 +78,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -107,7 +106,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     @Before
     public void setup() {
         reductions = new CopyOnWriteArrayList<>();
-        searchPhaseController = new SearchPhaseController(writableRegistry(), s -> new InternalAggregation.ReduceContextBuilder() {
+        searchPhaseController = new SearchPhaseController(s -> new InternalAggregation.ReduceContextBuilder() {
             @Override
             public ReduceContext forPartialReduction() {
                 reductions.add(false);
@@ -244,9 +243,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
             }
             int suggestSize = 0;
-            for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
-                Stream<CompletionSuggestion.Entry> stream = s.getEntries().stream();
-                suggestSize += stream.collect(Collectors.summingInt(e -> e.getOptions().size()));
+            for (Suggest.Suggestion<?> s : reducedQueryPhase.suggest) {
+                suggestSize += s.getEntries().stream().mapToInt(e -> e.getOptions().size()).sum();
             }
             assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
             assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs.scoreDocs.length - suggestSize));

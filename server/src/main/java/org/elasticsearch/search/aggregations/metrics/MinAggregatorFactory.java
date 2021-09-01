@@ -31,13 +31,19 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             MinAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             MinAggregator::new,
-            true);
+            true
+        );
     }
 
-    MinAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
-                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata,
-                         MetricAggregatorSupplier aggregatorSupplier) throws IOException {
+    MinAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        MetricAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
     }
@@ -48,12 +54,8 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(name, config, context, parent, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound bucketCardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

@@ -139,9 +139,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
             if (shouldPrompt) {
                 terminal.println("******************************************************************************");
-                terminal.println("Note: The 'elasticsearch-setup-passwords' tool has been deprecated");
-                terminal.println("      and might be removed in a future release.");
-                terminal.println("      Use the 'elasticsearch-reset-elastic-password' tool instead. ");
+                terminal.println("Note: The 'elasticsearch-setup-passwords' tool has been deprecated. This " +
+                                 "      command will be removed in a future release.");
                 terminal.println("******************************************************************************");
                 terminal.println("");
                 terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
@@ -191,9 +190,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
             if (shouldPrompt) {
                 terminal.println("******************************************************************************");
-                terminal.println("Note: The 'elasticsearch-setup-passwords' tool has been deprecated");
-                terminal.println("      and might be removed in a future release.");
-                terminal.println("      Use the 'elasticsearch-reset-elastic-password' tool instead. ");
+                terminal.println("Note: The 'elasticsearch-setup-passwords' tool has been deprecated. This " +
+                                 "      command will be removed in a future release.");
                 terminal.println("******************************************************************************");
                 terminal.println("");
                 terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");

@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -447,21 +448,44 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap((Releasable TODO) -> {
-            final ClusterState stateForJoinValidation = getStateForMasterService();
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(connectionReference -> {
+            boolean retainConnection = false;
+            try {
+                final JoinHelper.JoinCallback wrappedJoinCallback = new JoinHelper.JoinCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Releasables.close(connectionReference);
+                        joinCallback.onSuccess();
+                    }
 
-            if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
-                onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-                if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                    // we do this in a couple of places including the cluster update thread. This one here is really just best effort
-                    // to ensure we fail as fast as possible.
-                    JoinTaskExecutor.ensureVersionBarrier(
-                        joinRequest.getSourceNode().getVersion(),
-                        stateForJoinValidation.getNodes().getMinNodeVersion());
+                    @Override
+                    public void onFailure(Exception e) {
+                        Releasables.close(connectionReference);
+                        joinCallback.onFailure(e);
+                    }
+                };
+
+                final ClusterState stateForJoinValidation = getStateForMasterService();
+
+                if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+                    onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+                    if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                        // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+                        // to ensure we fail as fast as possible.
+                        JoinTaskExecutor.ensureVersionBarrier(
+                            joinRequest.getSourceNode().getVersion(),
+                            stateForJoinValidation.getNodes().getMinNodeVersion());
+                    }
+                    sendValidateJoinRequest(stateForJoinValidation, joinRequest, wrappedJoinCallback);
+                } else {
+                    processJoinRequest(joinRequest, wrappedJoinCallback);
                 }
-                sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
-            } else {
-                processJoinRequest(joinRequest, joinCallback);
+
+                retainConnection = true;
+            } finally {
+                if (retainConnection == false) {
+                    Releasables.close(connectionReference);
+                }
             }
         }, joinCallback::onFailure));
     }

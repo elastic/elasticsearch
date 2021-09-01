@@ -33,9 +33,11 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -46,6 +48,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -61,7 +64,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
-final class CompositeAggregator extends BucketsAggregator {
+public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -71,6 +74,7 @@ final class CompositeAggregator extends BucketsAggregator {
     private final CompositeValuesSourceConfig[] sourceConfigs;
     private final SingleDimensionValuesSource<?>[] sources;
     private final CompositeValuesCollectorQueue queue;
+    private final DateHistogramValuesSource[] innerSizedBucketAggregators;
 
     private final List<Entry> entries = new ArrayList<>();
     private LeafReaderContext currentLeaf;
@@ -111,6 +115,7 @@ final class CompositeAggregator extends BucketsAggregator {
             );
         }
         this.sourceConfigs = sourceConfigs;
+        List<DateHistogramValuesSource> dateHistogramValuesSources = new ArrayList<>();
         for (int i = 0; i < sourceConfigs.length; i++) {
             this.sources[i] = sourceConfigs[i].createValuesSource(
                 context.bigArrays(),
@@ -118,7 +123,11 @@ final class CompositeAggregator extends BucketsAggregator {
                 size,
                 this::addRequestCircuitBreakerBytes
             );
+            if (this.sources[i] instanceof DateHistogramValuesSource) {
+                dateHistogramValuesSources.add((DateHistogramValuesSource) this.sources[i]);
+            }
         }
+        this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
         if (rawAfterKey != null) {
             try {
@@ -545,6 +554,30 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    public double bucketSize(long bucket, Rounding.DateTimeUnit unit) {
+        if (innerSizedBucketAggregators.length != 1) {
+            throw new AggregationExecutionException(
+                "aggregation ["
+                    + name()
+                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
+            );
+        }
+        return innerSizedBucketAggregators[0].bucketSize(bucket, unit);
+    }
+
+    @Override
+    public double bucketSize(Rounding.DateTimeUnit unit) {
+        if (innerSizedBucketAggregators.length != 1) {
+            throw new AggregationExecutionException(
+                "aggregation ["
+                    + name()
+                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
+            );
+        }
+        return innerSizedBucketAggregators[0].bucketSize(unit);
     }
 
     private static class Entry {

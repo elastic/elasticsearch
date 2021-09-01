@@ -81,8 +81,8 @@ subprojects {
           'search.aggregation/170_cardinality_metric/profiler string',
           'search.aggregation/235_composite_sorted/*',
           // The error messages are different
-          'search/330_fetch_fields/error includes field name',
-          'search/330_fetch_fields/error includes glob pattern',
+          // 'search/330_fetch_fields/error includes field name',
+          // 'search/330_fetch_fields/error includes glob pattern',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

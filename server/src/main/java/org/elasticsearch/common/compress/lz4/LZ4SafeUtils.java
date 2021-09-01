@@ -80,6 +80,7 @@ enum LZ4SafeUtils {
         longPlatformNative.set(dest, dOff, (long) longPlatformNative.get(src, sOff));
     }
 
+    // Modified to add copy 8 bytes method that is incremental
     static void copy8BytesIncremental(byte[] src, int sOff, byte[] dest, int dOff) {
         for (int i = 0; i < 8; ++i) {
             dest[dOff + i] = src[sOff + i];

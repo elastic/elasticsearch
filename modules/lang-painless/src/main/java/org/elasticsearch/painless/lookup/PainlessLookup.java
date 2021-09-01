@@ -11,6 +11,10 @@ package org.elasticsearch.painless.lookup;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.lang.invoke.MethodHandle;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,6 +31,7 @@ public final class PainlessLookup {
     private final Map<String, Class<?>> javaClassNamesToClasses;
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
+    private final Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses;
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
@@ -36,6 +41,7 @@ public final class PainlessLookup {
             Map<String, Class<?>> javaClassNamesToClasses,
             Map<String, Class<?>> canonicalClassNamesToClasses,
             Map<Class<?>, PainlessClass> classesToPainlessClasses,
+            Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses,
             Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
             Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
             Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings) {
@@ -43,6 +49,7 @@ public final class PainlessLookup {
         Objects.requireNonNull(javaClassNamesToClasses);
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
+        Objects.requireNonNull(classesToDirectSubClasses);
 
         Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
         Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
@@ -51,6 +58,7 @@ public final class PainlessLookup {
         this.javaClassNamesToClasses = javaClassNamesToClasses;
         this.canonicalClassNamesToClasses = CollectionUtils.copyMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = CollectionUtils.copyMap(classesToPainlessClasses);
+        this.classesToDirectSubClasses = CollectionUtils.copyMap(classesToDirectSubClasses);
 
         this.painlessMethodKeysToImportedPainlessMethods = CollectionUtils.copyMap(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = CollectionUtils.copyMap(painlessMethodKeysToPainlessClassBindings);
@@ -75,6 +83,10 @@ public final class PainlessLookup {
 
     public Set<Class<?>> getClasses() {
         return classesToPainlessClasses.keySet();
+    }
+
+    public Set<Class<?>> getDirectSubClasses(Class<?> superClass) {
+        return classesToDirectSubClasses.get(superClass);
     }
 
     public Set<String> getImportedPainlessMethodsKeys() {
@@ -140,20 +152,79 @@ public final class PainlessLookup {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
 
-        if (targetClass.isPrimitive()) {
-            targetClass = typeToBoxedType(targetClass);
-        }
-
-        PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
-        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-
-        if (targetPainlessClass == null) {
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
             return null;
         }
 
-        return isStatic ?
-                targetPainlessClass.staticMethods.get(painlessMethodKey) :
-                targetPainlessClass.methods.get(painlessMethodKey);
+        if (targetClass.isPrimitive()) {
+            targetClass = typeToBoxedType(targetClass);
+
+            if (classesToPainlessClasses.containsKey(targetClass) == false) {
+                return null;
+            }
+        }
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, PainlessMethod> objectLookup = isStatic ?
+                targetPainlessClass -> targetPainlessClass.staticMethods.get(painlessMethodKey) :
+                targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
+
+        return lookupPainlessObject(targetClass, objectLookup);
+    }
+
+    public List<PainlessMethod> lookupPainlessSubClassesMethod(String targetCanonicalClassName, String methodName, int methodArity) {
+        Objects.requireNonNull(targetCanonicalClassName);
+
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
+
+        if (targetClass == null) {
+            return null;
+        }
+
+        return lookupPainlessSubClassesMethod(targetClass, methodName, methodArity);
+    }
+
+    public List<PainlessMethod> lookupPainlessSubClassesMethod(Class<?> targetClass, String methodName, int methodArity) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(methodName);
+
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
+            return null;
+        }
+
+        if (targetClass.isPrimitive()) {
+            targetClass = typeToBoxedType(targetClass);
+
+            if (classesToPainlessClasses.containsKey(targetClass) == false) {
+                return null;
+            }
+        }
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        List<Class<?>> subClasses = new ArrayList<>(classesToDirectSubClasses.get(targetClass));
+        Set<Class<?>> resolvedSubClasses = new HashSet<>();
+        List<PainlessMethod> subMethods = null;
+
+        while (subClasses.isEmpty() == false) {
+            Class<?> subClass = subClasses.remove(0);
+
+            if (resolvedSubClasses.add(subClass)) {
+                subClasses.addAll(classesToDirectSubClasses.get(subClass));
+
+                PainlessClass painlessClass = classesToPainlessClasses.get(subClass);
+                PainlessMethod painlessMethod = painlessClass.methods.get(painlessMethodKey);
+
+                if (painlessMethod != null) {
+                    if (subMethods == null) {
+                        subMethods = new ArrayList<>();
+                    }
+
+                    subMethods.add(painlessMethod);
+                }
+            }
+        }
+
+        return subMethods;
     }
 
     public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
@@ -172,22 +243,16 @@ public final class PainlessLookup {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(fieldName);
 
-        PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
+            return null;
+        }
+
         String painlessFieldKey = buildPainlessFieldKey(fieldName);
+        Function<PainlessClass, PainlessField> objectLookup = isStatic ?
+                targetPainlessClass -> targetPainlessClass.staticFields.get(painlessFieldKey) :
+                targetPainlessClass -> targetPainlessClass.fields.get(painlessFieldKey);
 
-        if (targetPainlessClass == null) {
-            return null;
-        }
-
-        PainlessField painlessField = isStatic ?
-                targetPainlessClass.staticFields.get(painlessFieldKey) :
-                targetPainlessClass.fields.get(painlessFieldKey);
-
-        if (painlessField == null) {
-            return null;
-        }
-
-        return painlessField;
+        return lookupPainlessObject(targetClass, objectLookup);
     }
 
     public PainlessMethod lookupImportedPainlessMethod(String methodName, int arity) {
@@ -232,7 +297,7 @@ public final class PainlessLookup {
         Function<PainlessClass, PainlessMethod> objectLookup =
                 targetPainlessClass -> targetPainlessClass.runtimeMethods.get(painlessMethodKey);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+        return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {
@@ -241,7 +306,7 @@ public final class PainlessLookup {
 
         Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+        return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeSetterMethodHandle(Class<?> originalTargetClass, String setterName) {
@@ -250,10 +315,13 @@ public final class PainlessLookup {
 
         Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+        return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
-    private <T> T lookupRuntimePainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
+    private <T> T lookupPainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(objectLookup);
+
         Class<?> currentTargetClass = originalTargetClass;
 
         while (currentTargetClass != null) {
@@ -270,17 +338,38 @@ public final class PainlessLookup {
             currentTargetClass = currentTargetClass.getSuperclass();
         }
 
+        if (originalTargetClass.isInterface()) {
+            PainlessClass targetPainlessClass = classesToPainlessClasses.get(Object.class);
+
+            if (targetPainlessClass != null) {
+                T painlessObject = objectLookup.apply(targetPainlessClass);
+
+                if (painlessObject != null) {
+                    return painlessObject;
+                }
+            }
+        }
+
         currentTargetClass = originalTargetClass;
+        Set<Class<?>> resolvedInterfaces = new HashSet<>();
 
         while (currentTargetClass != null) {
-            for (Class<?> targetInterface : currentTargetClass.getInterfaces()) {
-                PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetInterface);
+            List<Class<?>> targetInterfaces = new ArrayList<>(Arrays.asList(currentTargetClass.getInterfaces()));
 
-                if (targetPainlessClass != null) {
-                    T painlessObject = objectLookup.apply(targetPainlessClass);
+            while (targetInterfaces.isEmpty() == false) {
+                Class<?> targetInterface = targetInterfaces.remove(0);
 
-                    if (painlessObject != null) {
-                        return painlessObject;
+                if (resolvedInterfaces.add(targetInterface)) {
+                    PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetInterface);
+
+                    if (targetPainlessClass != null) {
+                        T painlessObject = objectLookup.apply(targetPainlessClass);
+
+                        if (painlessObject != null) {
+                            return painlessObject;
+                        }
+
+                        targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                     }
                 }
             }

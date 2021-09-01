@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -37,7 +37,8 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
             PercentileRanksAggregationBuilder.NAME,
             PercentileRanksAggregationBuilder::new,
             PercentilesConfig.TDigest::new,
-            VALUES_FIELD);
+            VALUES_FIELD
+        );
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -60,9 +61,11 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
         super(VALUES_FIELD, in);
     }
 
-    private PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
-                                              AggregatorFactories.Builder factoriesBuilder,
-                                              Map<String, Object> metadata) {
+    private PercentileRanksAggregationBuilder(
+        PercentileRanksAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -84,16 +87,27 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
 
-        PercentilesAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        PercentilesAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, context,
-                    parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new PercentileRanksAggregatorFactory(
+            name,
+            config,
+            values,
+            configOrDefault(),
+            keyed,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

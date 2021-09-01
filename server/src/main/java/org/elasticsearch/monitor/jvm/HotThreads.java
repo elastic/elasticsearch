@@ -76,11 +76,11 @@ public class HotThreads {
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect();
+            return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
         }
     }
 
-    private static boolean isIdleThread(ThreadInfo threadInfo) {
+    static boolean isIdleThread(ThreadInfo threadInfo) {
         String threadName = threadInfo.getThreadName();
 
         // NOTE: these are likely JVM dependent
@@ -118,8 +118,7 @@ public class HotThreads {
         return false;
     }
 
-    private String innerDetect() throws Exception {
-        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -138,7 +137,7 @@ public class HotThreads {
         Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -154,7 +153,7 @@ public class HotThreads {
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -279,7 +278,7 @@ public class HotThreads {
 
     private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
 
-    private int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
+    int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
         StackTraceElement[] s1 = threadInfo == null ? EMPTY : threadInfo.getStackTrace();
         StackTraceElement[] s2 = threadInfo0 == null ? EMPTY : threadInfo0.getStackTrace();
         int i = s1.length - 1;

@@ -31,17 +31,19 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     protected GeoDistanceAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         Point origin = GeometryTestUtils.randomPoint();
-        GeoDistanceAggregationBuilder factory =
-            new GeoDistanceAggregationBuilder(randomAlphaOfLengthBetween(3, 10), new GeoPoint(origin.getLat(), origin.getLon()));
+        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(
+            randomAlphaOfLengthBetween(3, 10),
+            new GeoPoint(origin.getLat(), origin.getLon())
+        );
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
                 key = randomAlphaOfLengthBetween(1, 20);
             }
             double from = randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE - 1000);
-            double to = randomBoolean() ? Double.POSITIVE_INFINITY
-                    : (Double.compare(from, 0) == 0 ? randomIntBetween(0, Integer.MAX_VALUE)
-                            : randomIntBetween((int) from, Integer.MAX_VALUE));
+            double to = randomBoolean()
+                ? Double.POSITIVE_INFINITY
+                : (Double.compare(from, 0) == 0 ? randomIntBetween(0, Integer.MAX_VALUE) : randomIntBetween((int) from, Integer.MAX_VALUE));
             factory.addRange(new Range(key, from, to));
         }
         factory.field(randomAlphaOfLengthBetween(1, 20));
@@ -61,17 +63,19 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     }
 
     public void testParsingRangeStrict() throws IOException {
-        final String rangeAggregation = "{\n" +
-                "\"field\" : \"location\",\n" +
-                "\"origin\" : \"52.3760, 4.894\",\n" +
-                "\"unit\" : \"m\",\n" +
-                "\"ranges\" : [\n" +
-                "    { \"from\" : 10000, \"to\" : 20000, \"badField\" : \"abcd\" }\n" +
-                "]\n" +
-            "}";
+        final String rangeAggregation = "{\n"
+            + "\"field\" : \"location\",\n"
+            + "\"origin\" : \"52.3760, 4.894\",\n"
+            + "\"unit\" : \"m\",\n"
+            + "\"ranges\" : [\n"
+            + "    { \"from\" : 10000, \"to\" : 20000, \"badField\" : \"abcd\" }\n"
+            + "]\n"
+            + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
-        XContentParseException ex = expectThrows(XContentParseException.class,
-            () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
+        XContentParseException ex = expectThrows(
+            XContentParseException.class,
+            () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser)
+        );
         assertThat(ex.getCause(), notNullValue());
         assertThat(ex.getCause().getMessage(), containsString("badField"));
     }
@@ -80,17 +84,19 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
      * We never render "null" values to xContent, but we should test that we can parse them (and they return correct defaults)
      */
     public void testParsingNull() throws IOException {
-        final String rangeAggregation = "{\n" +
-                "\"field\" : \"location\",\n" +
-                "\"origin\" : \"52.3760, 4.894\",\n" +
-                "\"unit\" : \"m\",\n" +
-                "\"ranges\" : [\n" +
-                "    { \"from\" : null, \"to\" : null }\n" +
-                "]\n" +
-            "}";
+        final String rangeAggregation = "{\n"
+            + "\"field\" : \"location\",\n"
+            + "\"origin\" : \"52.3760, 4.894\",\n"
+            + "\"unit\" : \"m\",\n"
+            + "\"ranges\" : [\n"
+            + "    { \"from\" : null, \"to\" : null }\n"
+            + "]\n"
+            + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
-        GeoDistanceAggregationBuilder aggregationBuilder = (GeoDistanceAggregationBuilder) GeoDistanceAggregationBuilder
-                .parse("aggregationName", parser);
+        GeoDistanceAggregationBuilder aggregationBuilder = (GeoDistanceAggregationBuilder) GeoDistanceAggregationBuilder.parse(
+            "aggregationName",
+            parser
+        );
         assertEquals(1, aggregationBuilder.range().size());
         assertEquals(0.0, aggregationBuilder.range().get(0).getFrom(), 0.0);
         assertEquals(Double.POSITIVE_INFINITY, aggregationBuilder.range().get(0).getTo(), 0.0);

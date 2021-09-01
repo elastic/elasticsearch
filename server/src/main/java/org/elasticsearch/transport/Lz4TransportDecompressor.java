@@ -120,7 +120,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     private boolean hasSkippedESHeader = false;
 
     public Lz4TransportDecompressor(PageCacheRecycler recycler) {
-        this.decompressor = LZ4Factory.safeInstance().fastDecompressor();
+        this.decompressor = Compression.Scheme.lz4Decompressor();
         this.recycler = recycler;
         this.pages = new ArrayDeque<>(4);
     }

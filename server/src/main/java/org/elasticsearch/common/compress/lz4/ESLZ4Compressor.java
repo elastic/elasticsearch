@@ -16,6 +16,9 @@ import java.util.Arrays;
 
 public class ESLZ4Compressor extends LZ4Compressor {
 
+    private static final ThreadLocal<short[]> sixtyFourKBHashTable = ThreadLocal.withInitial(() -> new short[8192]);
+    private static final ThreadLocal<int[]> biggerHashTable = ThreadLocal.withInitial(() -> new int[4096]);
+
     public static final LZ4Compressor INSTANCE = new ESLZ4Compressor();
 
     ESLZ4Compressor() {
@@ -28,7 +31,8 @@ public class ESLZ4Compressor extends LZ4Compressor {
         int dOff = destOff;
         int anchor = srcOff;
         if (srcLen >= 13) {
-            short[] hashTable = new short[8192];
+            short[] hashTable = sixtyFourKBHashTable.get();
+            Arrays.fill(hashTable, (short) 0);
             int sOff = srcOff + 1;
 
             label53:
@@ -126,7 +130,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
             int dOff = destOff;
             int sOff = srcOff + 1;
             int anchor = srcOff;
-            int[] hashTable = new int[4096];
+            int[] hashTable = biggerHashTable.get();
             Arrays.fill(hashTable, srcOff);
 
             label63:

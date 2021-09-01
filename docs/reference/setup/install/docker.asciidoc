@@ -404,13 +404,39 @@ file is obfuscated but not encrypted. If you want to encrypt your
 bind-mount it to the container as
 `/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
 the Docker container with the password at startup, set the Docker environment
-value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker
-run` command might have the following options:
+value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker run` 
+command might have the following options:
 
 [source, sh]
 --------------------------------------------
--v full_path_to/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
+-v full_path_to/config:/usr/share/elasticsearch/config
 -E KEYSTORE_PASSWORD=mypassword
+--------------------------------------------
+
+If the keystore is mounted incorrectly, it will induce example Docker errors from attempting to
+
+- add keystore to running container without full reference
+
+    [source,sh]
+    --------------------------------------------
+    Exception in thread "main" java.nio.file.FileSystemException: /usr/share/elasticsearch/config/elasticsearch.keystore.tmp -> /usr/share/elasticsearch/config/elasticsearch.keystore: Device or resource busy
+    --------------------------------------------
+
+- mount direct file rather than parent directory
+
+    [source,sh]
+    --------------------------------------------
+    Exception in thread "main" org.elasticsearch.bootstrap.BootstrapException: java.io.IOException: Is a directory: SimpleFSIndexInput(path="/usr/share/elasticsearch/config/elasticsearch.keystore")
+    Likely root cause: java.io.IOException: Is a directory
+    --------------------------------------------
+
+Versus a working example keystore mounting with update example would be
+
+
+[source,sh]
+--------------------------------------------
+docker run -it --rm -v /amex/elasticsearch/config:/usr/share/elasticsearch/config dockerproxy.aexp.com/elasticsearch:6.8.3 bin/elasticsearch-keystore create
+docker run -it --rm -v /amex/elasticsearch/config:/usr/share/elasticsearch/config dockerproxy.aexp.com/elasticsearch:6.8.3 bin/elasticsearch-keystore add xpack.ssl.key_passphrase
 --------------------------------------------
 
 [[_c_customized_image]]

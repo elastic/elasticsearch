@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -17,12 +18,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -42,6 +46,9 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -54,6 +61,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -61,6 +69,9 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -68,6 +79,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -98,7 +110,8 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin, IndexStorePlugin,
+        SystemIndexPlugin, SearchPlugin, ShutdownAwarePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -164,7 +177,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, null))
+                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver,
+                repositoriesServiceSupplier))
         );
         return components;
     }
@@ -364,10 +378,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        Set<DiscoveryNodeRole> roles = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
-        return roles;
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        Set<IndexSettingProvider> providers = new HashSet<>();
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
+        providers.addAll(super.getAdditionalIndexSettingProviders());
+        return providers;
+
     }
 
     @Override
@@ -425,11 +441,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                           ClusterService clusterService, BigArrays bigArrays,
+                                                           RecoverySettings recoverySettings) {
         HashMap<String, Repository.Factory> repositories =
-            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService, recoverySettings));
+            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
         filterPlugins(RepositoryPlugin.class).forEach(
-            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService, recoverySettings)));
+            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)));
         return repositories;
     }
 
@@ -480,15 +497,105 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return filterPlugins(ClusterPlugin.class)
+        Set<AllocationDecider> deciders = new HashSet<>();
+        deciders.addAll(filterPlugins(ClusterPlugin.class)
             .stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
-            .collect(Collectors.toList());
+            .collect(Collectors.toList()));
+        deciders.addAll(super.createAllocationDeciders(settings, clusterSettings));
+        return deciders;
     }
 
+    @Override
+    public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
+        final Map<String, ExistingShardsAllocator> allocators = new HashMap<>();
+        filterPlugins(ClusterPlugin.class).stream().forEach(p -> allocators.putAll(p.getExistingShardsAllocators()));
+        return allocators;
+    }
+
+    @Override
+    public Map<String, IndexStorePlugin.DirectoryFactory> getDirectoryFactories() {
+        final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getDirectoryFactories()));
+        return factories;
+    }
+
+    @Override
+    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        final Map<String, RecoveryStateFactory> factories = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
+        return factories;
+    }
+
+    @Override
+    public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        final List<IndexFoldersDeletionListener> listeners = new ArrayList<>();
+        filterPlugins(IndexStorePlugin.class).forEach(p -> listeners.addAll(p.getIndexFoldersDeletionListeners()));
+        return Collections.unmodifiableList(listeners);
+    }
+
+    @Override
+    public Map<String, IndexStorePlugin.SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        final Map<String, IndexStorePlugin.SnapshotCommitSupplier> suppliers = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).forEach(p -> suppliers.putAll(p.getSnapshotCommitSuppliers()));
+        return suppliers;
+    }
+
+    @SuppressWarnings("unchecked")
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return this.filterPlugins(SystemIndexPlugin.class)
+            .stream()
+            .flatMap(p -> p.getSystemIndexDescriptors(this.settings).stream())
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return filterPlugins(MapperPlugin.class).stream()
+            .map(MapperPlugin::getMetadataMappers)
+            .flatMap (map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
+    }
+
+    @Override
+    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators =
+            filterPlugins(SearchPlugin.class).stream()
+                .map(SearchPlugin::getRequestCacheKeyDifferentiator)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableList());
+
+        if (differentiators.size() > 1) {
+            throw new UnsupportedOperationException("Only the security SearchPlugin should provide the request cache key differentiator");
+        } else if (differentiators.size() == 1) {
+            return differentiators.get(0);
+        } else {
+            return null;
+        }
+
+    }
+
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        return filterPlugins(ShutdownAwarePlugin.class).stream().allMatch(plugin -> plugin.safeToShutdown(nodeId, shutdownType));
+    }
+
+    public void signalShutdown(Collection<String> shutdownNodeIds) {
+        filterPlugins(ShutdownAwarePlugin.class).forEach(plugin -> plugin.signalShutdown(shutdownNodeIds));
+    }
 }

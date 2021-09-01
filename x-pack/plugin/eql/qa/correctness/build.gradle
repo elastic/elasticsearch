@@ -1,0 +1,62 @@
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.internal-testclusters'
+tasks.named("test").configure { enabled = false }
+
+import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+dependencies {
+  javaRestTestImplementation project(':test:framework')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+  javaRestTestImplementation 'io.ous:jtoml:2.0.0'
+}
+
+File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
+  .forUseAtConfigurationTime()
+  .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
+  .map { s -> new File(s)}
+  .getOrNull()
+
+Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
+  .forUseAtConfigurationTime()
+  .map { s -> Boolean.parseBoolean(s) }
+  .getOrElse(false)
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+testClusters {
+  all {
+    plugin ':plugins:repository-gcs'
+    if (serviceAccountFile) {
+      keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+    }
+    if (preserveData) {
+      preserveDataDir = true
+    }
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'basic'
+    jvmArgs '-Xms4g', '-Xmx4g'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+  }
+  runTask {
+    jvmArgs '-Xms8g', '-Xmx8g'
+  }
+}
+
+tasks.named('javaRestTest').configure {
+  onlyIf { serviceAccountFile }
+
+  testLogging {
+    showStandardStreams = true
+  }
+}
+
+tasks.register("runEqlCorrectnessNode", RunTask) {
+  useCluster testClusters.runTask
+  description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
+}

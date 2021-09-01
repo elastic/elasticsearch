@@ -5,6 +5,10 @@
       "description":"Provides low-level information about the segments in the shards of an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

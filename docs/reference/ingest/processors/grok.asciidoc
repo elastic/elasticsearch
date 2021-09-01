@@ -1,53 +1,19 @@
 [[grok-processor]]
-=== Grok Processor
+=== Grok processor
+++++
+<titleabbrev>Grok</titleabbrev>
+++++
 
 Extracts structured fields out of a single text field within a document. You choose which field to
 extract matched fields from, as well as the grok pattern you expect will match. A grok pattern is like a regular
 expression that supports aliased expressions that can be reused.
 
-This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
-that is generally written for humans and not computer consumption.
 This processor comes packaged with many
 https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
-If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The https://grokconstructor.appspot.com[Grok Constructor] is also a useful tool.
-
-[[grok-basics]]
-==== Grok Basics
-
-Grok sits on top of regular expressions, so any regular expressions are valid in grok as well.
-The regular expression library is Oniguruma, and you can see the full supported regexp syntax
-https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Oniguruma site].
-
-Grok works by leveraging this regular expression language to allow naming existing patterns and combining them into more
-complex patterns that match your fields.
-
-The syntax for reusing a grok pattern comes in three forms: `%{SYNTAX:SEMANTIC}`, `%{SYNTAX}`, `%{SYNTAX:SEMANTIC:TYPE}`.
-
-The `SYNTAX` is the name of the pattern that will match your text. For example, `3.44` will be matched by the `NUMBER`
-pattern and `55.3.244.1` will be matched by the `IP` pattern. The syntax is how you match. `NUMBER` and `IP` are both
-patterns that are provided within the default patterns set.
-
-The `SEMANTIC` is the identifier you give to the piece of text being matched. For example, `3.44` could be the
-duration of an event, so you could call it simply `duration`. Further, a string `55.3.244.1` might identify
-the `client` making a request.
-
-The `TYPE` is the type you wish to cast your named field. `int`, `long`, `double`, `float` and `boolean` are supported types for coercion.
-
-For example, you might want to match the following text:
-
-[source,txt]
---------------------------------------------------
-3.44 55.3.244.1
---------------------------------------------------
-
-You may know that the message in the example is a number followed by an IP address. You can match this text by using the following
-Grok expression.
-
-[source,txt]
---------------------------------------------------
-%{NUMBER:duration} %{IP:client}
---------------------------------------------------
+If you need help building patterns to match your logs, you will find the
+{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! 
+The https://grokconstructor.appspot.com[Grok Constructor] is also a useful tool.
 
 [[using-grok]]
 ==== Using the Grok Processor in a Pipeline
@@ -301,6 +267,33 @@ The above request will return a response body containing a key-value representat
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+By default, the API returns patterns in the order they are read from disk. This
+sort order preserves groupings of related patterns. For example, all patterns
+related to parsing Linux syslog lines stay grouped together.
+
+You can use the optional boolean `s` query parameter to sort returned patterns
+by key name instead.
+
+[source,console]
+--------------------------------------------------
+GET _ingest/processor/grok?s
+--------------------------------------------------
+
+The API returns the following response.
+
+[source,js]
+--------------------------------------------------
+{
+  "patterns" : {
+    "BACULA_CAPACITY" : "%{INT}{1,3}(,%{INT}{3})*",
+    "BACULA_DEVICE" : "%{USER}",
+    "BACULA_DEVICEPATH" : "%{UNIXPATH}",
+    ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 
 This can be useful to reference as the built-in patterns change across versions.
 

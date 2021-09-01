@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,12 +36,23 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
     static final InstantiatingObjectParser<DoubleBounds, Void> PARSER;
 
     static {
-        InstantiatingObjectParser.Builder<DoubleBounds, Void> parser =
-            InstantiatingObjectParser.builder("double_bounds", false, DoubleBounds.class);
-        parser.declareField(optionalConstructorArg(), p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
-            MIN_FIELD, ObjectParser.ValueType.DOUBLE_OR_NULL);
-        parser.declareField(optionalConstructorArg(), p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
-            MAX_FIELD, ObjectParser.ValueType.DOUBLE_OR_NULL);
+        InstantiatingObjectParser.Builder<DoubleBounds, Void> parser = InstantiatingObjectParser.builder(
+            "double_bounds",
+            false,
+            DoubleBounds.class
+        );
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
+            MIN_FIELD,
+            ObjectParser.ValueType.DOUBLE_OR_NULL
+        );
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
+            MAX_FIELD,
+            ObjectParser.ValueType.DOUBLE_OR_NULL
+        );
         PARSER = parser.build();
     }
 
@@ -70,6 +70,15 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
      * Construct with bounds.
      */
     public DoubleBounds(Double min, Double max) {
+        if (min != null && Double.isFinite(min) == false) {
+            throw new IllegalArgumentException("min bound must be finite, got: " + min);
+        }
+        if (max != null && Double.isFinite(max) == false) {
+            throw new IllegalArgumentException("max bound must be finite, got: " + max);
+        }
+        if (max != null && min != null && max < min) {
+            throw new IllegalArgumentException("max bound [" + max + "] must be greater than min bound [" + min + "]");
+        }
         this.min = min;
         this.max = max;
     }
@@ -113,8 +122,7 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
             return false;
         }
         DoubleBounds other = (DoubleBounds) obj;
-        return Objects.equals(min, other.min)
-                && Objects.equals(max, other.max);
+        return Objects.equals(min, other.min) && Objects.equals(max, other.max);
     }
 
     public Double getMin() {
@@ -123,6 +131,20 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
 
     public Double getMax() {
         return max;
+    }
+
+    /**
+     * returns bounds min if it is defined or POSITIVE_INFINITY otherwise
+     */
+    public static double getEffectiveMin(DoubleBounds bounds) {
+        return bounds == null || bounds.min == null ? Double.POSITIVE_INFINITY : bounds.min;
+    }
+
+    /**
+     * returns bounds max if it is defined or NEGATIVE_INFINITY otherwise
+     */
+    public static Double getEffectiveMax(DoubleBounds bounds) {
+        return bounds == null || bounds.max == null ? Double.NEGATIVE_INFINITY : bounds.max;
     }
 
     public boolean contain(double value) {

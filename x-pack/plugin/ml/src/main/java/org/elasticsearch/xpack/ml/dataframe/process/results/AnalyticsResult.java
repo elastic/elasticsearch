@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +34,7 @@ public class AnalyticsResult implements ToXContentObject {
     private static final ParseField OUTLIER_DETECTION_STATS = new ParseField("outlier_detection_stats");
     private static final ParseField CLASSIFICATION_STATS = new ParseField("classification_stats");
     private static final ParseField REGRESSION_STATS = new ParseField("regression_stats");
+    private static final ParseField MODEL_METADATA = new ParseField("model_metadata");
 
     public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
             a -> new AnalyticsResult(
@@ -43,7 +45,8 @@ public class AnalyticsResult implements ToXContentObject {
                 (ClassificationStats) a[4],
                 (RegressionStats) a[5],
                 (ModelSizeInfo) a[6],
-                (TrainedModelDefinitionChunk) a[7]
+                (TrainedModelDefinitionChunk) a[7],
+                (ModelMetadata) a[8]
             ));
 
     static {
@@ -55,6 +58,7 @@ public class AnalyticsResult implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), RegressionStats.STRICT_PARSER, REGRESSION_STATS);
         PARSER.declareObject(optionalConstructorArg(), ModelSizeInfo.PARSER, MODEL_SIZE_INFO);
         PARSER.declareObject(optionalConstructorArg(), TrainedModelDefinitionChunk.PARSER, COMPRESSED_INFERENCE_MODEL);
+        PARSER.declareObject(optionalConstructorArg(), ModelMetadata.PARSER, MODEL_METADATA);
     }
 
     private final RowResults rowResults;
@@ -65,6 +69,7 @@ public class AnalyticsResult implements ToXContentObject {
     private final RegressionStats regressionStats;
     private final ModelSizeInfo modelSizeInfo;
     private final TrainedModelDefinitionChunk trainedModelDefinitionChunk;
+    private final ModelMetadata modelMetadata;
 
     private AnalyticsResult(@Nullable RowResults rowResults,
                             @Nullable PhaseProgress phaseProgress,
@@ -73,7 +78,8 @@ public class AnalyticsResult implements ToXContentObject {
                             @Nullable ClassificationStats classificationStats,
                             @Nullable RegressionStats regressionStats,
                             @Nullable ModelSizeInfo modelSizeInfo,
-                            @Nullable TrainedModelDefinitionChunk trainedModelDefinitionChunk) {
+                            @Nullable TrainedModelDefinitionChunk trainedModelDefinitionChunk,
+                            @Nullable ModelMetadata modelMetadata) {
         this.rowResults = rowResults;
         this.phaseProgress = phaseProgress;
         this.memoryUsage = memoryUsage;
@@ -82,6 +88,7 @@ public class AnalyticsResult implements ToXContentObject {
         this.regressionStats = regressionStats;
         this.modelSizeInfo = modelSizeInfo;
         this.trainedModelDefinitionChunk = trainedModelDefinitionChunk;
+        this.modelMetadata = modelMetadata;
     }
 
     public RowResults getRowResults() {
@@ -116,6 +123,10 @@ public class AnalyticsResult implements ToXContentObject {
         return trainedModelDefinitionChunk;
     }
 
+    public ModelMetadata getModelMetadata() {
+        return modelMetadata;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -143,6 +154,9 @@ public class AnalyticsResult implements ToXContentObject {
         if (trainedModelDefinitionChunk != null) {
             builder.field(COMPRESSED_INFERENCE_MODEL.getPreferredName(), trainedModelDefinitionChunk);
         }
+        if (modelMetadata != null) {
+            builder.field(MODEL_METADATA.getPreferredName(), modelMetadata);
+        }
         builder.endObject();
         return builder;
     }
@@ -164,13 +178,14 @@ public class AnalyticsResult implements ToXContentObject {
             && Objects.equals(classificationStats, that.classificationStats)
             && Objects.equals(modelSizeInfo, that.modelSizeInfo)
             && Objects.equals(trainedModelDefinitionChunk, that.trainedModelDefinitionChunk)
+            && Objects.equals(modelMetadata, that.modelMetadata)
             && Objects.equals(regressionStats, that.regressionStats);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(rowResults, phaseProgress, memoryUsage, outlierDetectionStats, classificationStats,
-            regressionStats, modelSizeInfo, trainedModelDefinitionChunk);
+            regressionStats, modelSizeInfo, trainedModelDefinitionChunk, modelMetadata);
     }
 
     public static Builder builder() {
@@ -187,6 +202,7 @@ public class AnalyticsResult implements ToXContentObject {
         private RegressionStats regressionStats;
         private ModelSizeInfo modelSizeInfo;
         private TrainedModelDefinitionChunk trainedModelDefinitionChunk;
+        private ModelMetadata modelMetadata;
 
         private Builder() {}
 
@@ -230,6 +246,11 @@ public class AnalyticsResult implements ToXContentObject {
             return this;
         }
 
+        public Builder setModelMetadata(ModelMetadata modelMetadata) {
+            this.modelMetadata = modelMetadata;
+            return this;
+        }
+
         public AnalyticsResult build() {
             return new AnalyticsResult(
                 rowResults,
@@ -239,7 +260,8 @@ public class AnalyticsResult implements ToXContentObject {
                 classificationStats,
                 regressionStats,
                 modelSizeInfo,
-                trainedModelDefinitionChunk
+                trainedModelDefinitionChunk,
+                modelMetadata
             );
         }
     }

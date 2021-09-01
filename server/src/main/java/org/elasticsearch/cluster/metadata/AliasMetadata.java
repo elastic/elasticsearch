@@ -1,31 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -197,10 +184,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(writeIndex());
-
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden);
-        }
+        out.writeOptionalBoolean(isHidden);
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -223,12 +207,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             searchRoutingValues = emptySet();
         }
         writeIndex = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        } else {
-            isHidden = null;
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -244,6 +223,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         AliasMetadata.Builder.toXContent(this, builder, params);
         return builder;
+    }
+
+    public static AliasMetadata getFirstAliasMetadata(IndexAbstraction ia) {
+        if (ia.getType() != IndexAbstraction.Type.ALIAS) {
+            throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
+        }
+
+        return ia.getIndices().get(0).getAliases().get(ia.getName());
     }
 
     public static class Builder {
@@ -276,7 +263,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public Builder filter(String filter) {
-            if (!Strings.hasLength(filter)) {
+            if (Strings.hasLength(filter) == false) {
                 this.filter = null;
                 return this;
             }
@@ -336,7 +323,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 if (binary) {
                     builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetadata.filter().uncompressed()), true).v2());
+                    builder.field("filter", XContentHelper.convertToMap(aliasMetadata.filter().uncompressed(), true).v2());
                 }
             }
             if (aliasMetadata.indexRouting() != null) {

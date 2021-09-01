@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -24,7 +13,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -52,6 +42,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -81,7 +72,7 @@ public class RandomSearchRequestGenerator {
      * Build a random search request.
      *
      * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
-     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
+     *        {@link #randomSearchSourceBuilder}.
      */
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
         SearchRequest searchRequest = new SearchRequest();
@@ -121,7 +112,8 @@ public class RandomSearchRequestGenerator {
             Supplier<SuggestBuilder> randomSuggestBuilder,
             Supplier<RescorerBuilder<?>> randomRescoreBuilder,
             Supplier<List<SearchExtBuilder>> randomExtBuilders,
-            Supplier<CollapseBuilder> randomCollapseBuilder) {
+            Supplier<CollapseBuilder> randomCollapseBuilder,
+            Supplier<Map<String, Object>> randomRuntimeMappings) {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
@@ -177,6 +169,13 @@ public class RandomSearchRequestGenerator {
                 break;
             default:
                 throw new IllegalStateException();
+        }
+
+        if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+            }
         }
 
         if (randomBoolean()) {
@@ -362,6 +361,16 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.collapse(randomCollapseBuilder.get());
+        }
+        if (randomBoolean()) {
+            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
+            }
+            builder.pointInTimeBuilder(pit);
+        }
+        if (randomBoolean()) {
+            builder.runtimeMappings(randomRuntimeMappings.get());
         }
         return builder;
     }

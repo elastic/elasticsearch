@@ -45,6 +45,7 @@ are prompted to enter the password when you run the
 `elasticsearch-saml-metadata` command.
 
 [discrete]
+[[saml-metadata-parameters]]
 === Parameters
 
 `--attribute <name>`:: Specifies a SAML attribute that should be

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
@@ -24,12 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -52,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.is;
 
 public class FsHealthServiceTests extends ESTestCase {
@@ -61,8 +49,7 @@ public class FsHealthServiceTests extends ESTestCase {
 
     @Before
     public void createObjects() {
-        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
     }
 
     public void testSchedulesHealthCheckAtRefreshIntervals() throws Exception {
@@ -115,10 +102,8 @@ public class FsHealthServiceTests extends ESTestCase {
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            for (Path path : env.nodeDataPaths()) {
-                assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
-            }
-            assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
+            Path path = env.nodeDataPath();
+            assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
         } finally {
             disruptFileSystemProvider.injectIOException.set(false);
             PathUtilsForTesting.teardown();
@@ -147,19 +132,17 @@ public class FsHealthServiceTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
-            for(Path path : env.nodeDataPaths()){
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
-                        "test" + ++counter,
-                        FsHealthService.class.getCanonicalName(),
-                        Level.WARN,
-                        "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
-            }
+            Path path = env.nodeDataPath();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test" + ++counter,
+                    FsHealthService.class.getCanonicalName(),
+                    Level.WARN,
+                    "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
 
             //disrupt file system
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, mockAppender);
@@ -178,7 +161,7 @@ public class FsHealthServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            Path[] paths = env.nodeDataPaths();
+            Path[] paths = new Path[] { env.nodeDataPath() };
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
@@ -209,7 +192,7 @@ public class FsHealthServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            Path[] paths = env.nodeDataPaths();
+            Path[] paths = new Path[] { env.nodeDataPath() };
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
@@ -226,6 +209,36 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals(1, disruptWritesFileSystemProvider.getInjectedPathCount());
         } finally {
             disruptWritesFileSystemProvider.injectIOException.set(false);
+            PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testFailsHealthOnUnexpectedLockFileSize() throws IOException {
+        FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        final Settings settings = Settings.EMPTY;
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        FileSystemUnexpectedLockFileSizeProvider unexpectedLockFileSizeFileSystemProvider = new FileSystemUnexpectedLockFileSizeProvider(
+            fileSystem, 1, testThreadPool);
+        fileSystem = unexpectedLockFileSizeFileSystemProvider.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
+
+            // enabling unexpected file size injection
+            unexpectedLockFileSizeFileSystemProvider.injectUnexpectedFileSize.set(true);
+
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService.new FsHealthMonitor().run();
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed due to broken node lock"));
+            assertEquals(1, unexpectedLockFileSizeFileSystemProvider.getInjectedPathCount());
+        } finally {
+            unexpectedLockFileSizeFileSystemProvider.injectUnexpectedFileSize.set(false);
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
@@ -254,7 +267,8 @@ public class FsHealthServiceTests extends ESTestCase {
         public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
             if (injectIOException.get()){
                 assert pathPrefix != null : "must set pathPrefix before starting disruptions";
-                if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
+                if (path.toString().startsWith(pathPrefix) && path.toString().
+                    endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                     injectedPaths.incrementAndGet();
                     throw new IOException("fake IOException");
                 }
@@ -289,7 +303,8 @@ public class FsHealthServiceTests extends ESTestCase {
                 public void force(boolean metaData) throws IOException {
                     if (injectIOException.get()) {
                         assert pathPrefix != null : "must set pathPrefix before starting disruptions";
-                        if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
+                        if (path.toString().startsWith(pathPrefix) && path.toString().
+                            endsWith(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                             injectedPaths.incrementAndGet();
                             throw new IOException("fake IOException");
                         }
@@ -337,6 +352,41 @@ public class FsHealthServiceTests extends ESTestCase {
                         }
                     }
                     super.force(metaData);
+                }
+            };
+        }
+    }
+
+    private static class FileSystemUnexpectedLockFileSizeProvider extends FilterFileSystemProvider {
+
+        AtomicBoolean injectUnexpectedFileSize = new AtomicBoolean();
+        AtomicInteger injectedPaths = new AtomicInteger();
+
+        private final long size;
+        private final ThreadPool threadPool;
+
+        FileSystemUnexpectedLockFileSizeProvider(FileSystem inner, long size, ThreadPool threadPool) {
+            super("disrupt_fs_health://", inner);
+            this.size = size;
+            this.threadPool = threadPool;
+        }
+
+        public int getInjectedPathCount(){
+            return injectedPaths.get();
+        }
+
+        @Override
+        public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
+                @Override
+                public long size() throws IOException {
+                    if (injectUnexpectedFileSize.get()) {
+                        if (path.getFileName().toString().equals(NodeEnvironment.NODE_LOCK_FILENAME)) {
+                            injectedPaths.incrementAndGet();
+                            return size;
+                        }
+                    }
+                    return super.size();
                 }
             };
         }

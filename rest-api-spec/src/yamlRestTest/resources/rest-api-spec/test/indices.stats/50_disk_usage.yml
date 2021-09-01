@@ -1,0 +1,105 @@
+---
+setup:
+  - skip:
+      version: " - 7.14.99"
+      reason: analyze index disk usage API is introduced in 7.15
+
+---
+"Disk usage stats":
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          mappings:
+            properties:
+              name:
+                type: text
+              quantity:
+                type: long
+                doc_values: false
+              genre:
+                type: keyword
+                doc_values: true
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foo", "quantity": 0, "genre": [ "rock", "pop" ] }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar", "quantity": 99, "genre": "pop" }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "baz", "quantity": 50, "genre": "jazz" }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar & baz", "quantity": 1000, "genre": "blue" }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foobar", "quantity": 1000, "genre": "country" }
+  - do:
+      indices.disk_usage: { index: "testindex", "run_expensive_tasks": true }
+
+  - gt: { testindex.store_size_in_bytes: 100 }
+  # all_fields
+  - gt: { testindex.all_fields.total_in_bytes: 0 }
+  - gt: { testindex.all_fields.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.all_fields.stored_fields_in_bytes: 0 }
+  - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
+  - gt: { testindex.all_fields.points_in_bytes: 0 }
+  - match: { testindex.all_fields.term_vectors_in_bytes: 0 }
+
+  # genre
+  - gt: { testindex.fields.genre.total_in_bytes: 0 }
+  - gt: { testindex.fields.genre.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields.genre.stored_fields_in_bytes: 0 }
+  - gt: { testindex.fields.genre.doc_values_in_bytes: 0 }
+  - match: { testindex.fields.genre.points_in_bytes: 0 }
+  - match: { testindex.fields.genre.norms_in_bytes: 0 }
+  - match: { testindex.fields.genre.term_vectors_in_bytes: 0 }
+
+  # name
+  - gt: { testindex.fields.name.total_in_bytes: 0 }
+  - gt: { testindex.fields.name.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields.name.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields.name.doc_values_in_bytes: 0 }
+  - match: { testindex.fields.name.points_in_bytes: 0 }
+  - match: { testindex.fields.name.term_vectors_in_bytes: 0 }
+
+  # quantity
+  - gt: { testindex.fields.quantity.total_in_bytes: 0 }
+  - match: { testindex.fields.quantity.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields.quantity.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields.quantity.doc_values_in_bytes: 0 }
+  - gt: { testindex.fields.quantity.points_in_bytes: 0 }
+  - match: { testindex.fields.quantity.norms_in_bytes: 0 }
+  - match: { testindex.fields.quantity.term_vectors_in_bytes: 0 }
+
+  # _source
+  - gt: { testindex.fields._source.total_in_bytes: 0 }
+  - match: { testindex.fields._source.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.fields._source.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields._source.doc_values_in_bytes: 0 }
+  - match: { testindex.fields._source.points_in_bytes: 0 }
+  - match: { testindex.fields._source.norms_in_bytes: 0 }
+  - match: { testindex.fields._source.term_vectors_in_bytes: 0 }
+
+  # _id
+  - gt: { testindex.fields._id.total_in_bytes: 0 }
+  - gt: { testindex.fields._id.inverted_index.total_in_bytes: 0 }
+  - gt: { testindex.fields._id.stored_fields_in_bytes: 0 }
+  - match: { testindex.fields._id.doc_values_in_bytes: 0 }
+  - match: { testindex.fields._id.points_in_bytes: 0 }
+  - match: { testindex.fields._id.norms_in_bytes: 0 }
+  - match: { testindex.fields._id.term_vectors_in_bytes: 0 }
+
+  # _seq_no
+  - gt: { testindex.fields._seq_no.total_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.stored_fields_in_bytes: 0 }
+  - gt: { testindex.fields._seq_no.points_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.norms_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.term_vectors_in_bytes: 0 }

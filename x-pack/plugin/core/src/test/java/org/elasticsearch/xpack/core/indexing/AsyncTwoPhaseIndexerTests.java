@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.indexing;
@@ -12,13 +13,12 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,9 +58,9 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         private volatile int step;
         private final boolean stoppedBeforeFinished;
 
-        protected MockIndexer(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
+        protected MockIndexer(ThreadPool threadPool, AtomicReference<IndexerState> initialState,
                               Integer initialPosition, CountDownLatch latch, boolean stoppedBeforeFinished) {
-            super(threadPool, executorName, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats());
             this.latch = latch;
             this.stoppedBeforeFinished = stoppedBeforeFinished;
         }
@@ -72,9 +73,9 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         @Override
         protected IterationResult<Integer> doProcess(SearchResponse searchResponse) {
             assertFalse("should not be called as stoppedBeforeFinished is false", stoppedBeforeFinished);
-            assertThat(step, equalTo(3));
+            assertThat(step, equalTo(2));
             ++step;
-            return new IterationResult<>(Collections.emptyList(), 3, true);
+            return new IterationResult<>(Stream.empty(), 3, true);
         }
 
         private void awaitForLatch() {
@@ -86,13 +87,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            assertThat(step, equalTo(1));
-            ++step;
-            return new SearchRequest();
-        }
-
-        @Override
         protected void onStart(long now, ActionListener<Boolean> listener) {
             assertThat(step, equalTo(0));
             ++step;
@@ -100,8 +94,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-            assertThat(step, equalTo(2));
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
+            assertThat(step, equalTo(1));
             ++step;
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
@@ -121,7 +115,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
             // for stop before finished we do not know if its stopped before are after the search
             if (stoppedBeforeFinished == false) {
-                assertThat(step, equalTo(5));
+                assertThat(step, equalTo(4));
             }
             ++step;
             next.run();
@@ -134,7 +128,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void onFinish(ActionListener<Void> listener) {
-            assertThat(step, equalTo(4));
+            assertThat(step, equalTo(3));
             ++step;
             listener.onResponse(null);
             assertTrue(isFinished.compareAndSet(false, true));
@@ -164,14 +158,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         // counters
         private volatile boolean started = false;
         private volatile boolean waitingForLatch = false;
-        private volatile int searchRequests = 0;
         private volatile int searchOps = 0;
         private volatile int processOps = 0;
         private volatile int bulkOps = 0;
 
-        protected MockIndexerFiveRuns(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
+        protected MockIndexerFiveRuns(ThreadPool threadPool, AtomicReference<IndexerState> initialState,
                 Integer initialPosition, float maxDocsPerSecond, CountDownLatch latch) {
-            super(threadPool, executorName, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats());
             startTime = System.nanoTime();
             this.latch = latch;
             this.maxDocsPerSecond = maxDocsPerSecond;
@@ -199,19 +192,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ++processOps;
             if (processOps == 5) {
-                return new IterationResult<>(Collections.singletonList(new IndexRequest()), processOps, true);
+                return new IterationResult<>(Stream.of(new IndexRequest()), processOps, true);
             }
             else if (processOps % 2 == 0) {
-                return new IterationResult<>(Collections.emptyList(), processOps, false);
+                return new IterationResult<>(Stream.empty(), processOps, false);
             }
 
-            return new IterationResult<>(Collections.singletonList(new IndexRequest()), processOps, false);
-        }
-
-        @Override
-        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            ++searchRequests;
-            return new SearchRequest();
+            return new IterationResult<>(Stream.of(new IndexRequest()), processOps, false);
         }
 
         @Override
@@ -238,7 +225,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             ++searchOps;
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
@@ -289,7 +276,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         public void assertCounters() {
             assertTrue(started);
-            assertEquals(5L, searchRequests);
             assertEquals(5L, searchOps);
             assertEquals(5L, processOps);
             assertEquals(2L, bulkOps);
@@ -304,7 +290,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         protected MockIndexerThrowsFirstSearch(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
                                                Integer initialPosition) {
-            super(threadPool, executorName, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats());
         }
 
         @Override
@@ -319,13 +305,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            assertThat(step, equalTo(1));
-            ++step;
-            return new SearchRequest();
-        }
-
-        @Override
         protected void onStart(long now, ActionListener<Boolean> listener) {
             assertThat(step, equalTo(0));
             ++step;
@@ -333,7 +312,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             throw new RuntimeException("Failed to build search request");
         }
 
@@ -349,7 +328,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void onFailure(Exception exc) {
-            assertThat(step, equalTo(2));
+            assertThat(step, equalTo(1));
             ++step;
             assertTrue(isFinished.compareAndSet(false, true));
         }
@@ -402,7 +381,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             CountDownLatch countDownLatch = new CountDownLatch(1);
-            MockIndexer indexer = new MockIndexer(threadPool, ThreadPool.Names.GENERIC, state, 2, countDownLatch, false);
+            MockIndexer indexer = new MockIndexer(threadPool, state, 2, countDownLatch, false);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -414,7 +393,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getPosition(), equalTo(3));
 
             assertFalse(isStopped.get());
-            assertThat(indexer.getStep(), equalTo(6));
+            assertThat(indexer.getStep(), equalTo(5));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
@@ -434,7 +413,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertBusy(() -> assertTrue(isFinished.get()), 10000, TimeUnit.SECONDS);
-            assertThat(indexer.getStep(), equalTo(3));
+            assertThat(indexer.getStep(), equalTo(2));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
@@ -445,7 +424,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             CountDownLatch countDownLatch = new CountDownLatch(1);
-            MockIndexer indexer = new MockIndexer(threadPool, ThreadPool.Names.GENERIC, state, 2, countDownLatch, true);
+            MockIndexer indexer = new MockIndexer(threadPool, state, 2, countDownLatch, true);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -489,7 +468,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
         try {
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, docsPerSecond,
+            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, state, 2, docsPerSecond,
                 null);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -528,7 +507,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final MockThreadPool threadPool = new MockThreadPool(getTestName());
         try {
             CountDownLatch latch = new CountDownLatch(1);
-            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, ThreadPool.Names.GENERIC, state, 2, docsPerSecond,
+            MockIndexerFiveRuns indexer = new MockIndexerFiveRuns (threadPool, state, 2, docsPerSecond,
                 latch);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -40,7 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -54,14 +43,12 @@ import org.elasticsearch.transport.TransportSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -142,17 +129,16 @@ public class RareClusterStateIT extends ESIntegTestCase {
             ActionRequestBuilder<Req, Res> req) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.
-        assertBusy(
-            () -> {
-                assertFalse(((Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class)).publicationInProgress());
-                assertThat(StreamSupport.stream(
-                    internalCluster().getInstances(Discovery.class).spliterator(), false)
-                    .map(coordinator -> ((Coordinator) coordinator).getLastAcceptedState().version())
-                    .distinct().toArray(), arrayWithSize(1));
-            });
+        final Coordinator masterCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
+        assertBusy(() -> {
+            assertFalse(masterCoordinator.publicationInProgress());
+            final long applierVersion = masterCoordinator.getApplierState().version();
+            for (Discovery instance : internalCluster().getInstances(Discovery.class)) {
+                assertEquals(((Coordinator) instance).getApplierState().version(), applierVersion);
+            }
+        });
         ActionFuture<Res> future = req.execute();
-        assertBusy(
-            () -> assertTrue(((Coordinator)internalCluster().getCurrentMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
+        assertBusy(() -> assertTrue(masterCoordinator.cancelCommittedPublication()));
         return future;
     }
 
@@ -255,6 +241,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 throw new AssertionError(e);
             }
             assertNotNull(properties);
+            @SuppressWarnings("unchecked")
             Object fieldMapping = ((Map<String, Object>) properties).get("field");
             assertNotNull(fieldMapping);
         });

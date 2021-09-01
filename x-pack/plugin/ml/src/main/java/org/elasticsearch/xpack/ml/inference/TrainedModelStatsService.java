@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference;
 
@@ -13,14 +14,16 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -102,7 +106,12 @@ public class TrainedModelStatsService {
                 stop();
             }
         });
-        clusterService.addListener((event) -> this.clusterState = event.state());
+        clusterService.addListener(this::setClusterState);
+    }
+
+    // visible for testing
+    void setClusterState(ClusterChangedEvent event) {
+        clusterState = event.state();
     }
 
     /**
@@ -134,6 +143,10 @@ public class TrainedModelStatsService {
         }
     }
 
+    private boolean shouldStop() {
+        return stopped || MlMetadata.getMlMetadata(clusterState).isResetMode() || MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
+    }
+
     void start() {
         logger.debug("About to start TrainedModelStatsService");
         stopped = false;
@@ -146,6 +159,18 @@ public class TrainedModelStatsService {
         if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
+
+        boolean isInUpgradeMode = MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
+        if (isInUpgradeMode) {
+            logger.debug("Model stats not persisted as ml upgrade mode is enabled");
+            return;
+        }
+
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            logger.debug("Model stats not persisted as ml reset_mode is enabled");
+            return;
+        }
+
         if (verifyIndicesExistAndPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
                 logger.debug("About to create the stats index as it does not exist yet");
@@ -174,18 +199,18 @@ public class TrainedModelStatsService {
         if (stats.isEmpty()) {
             return;
         }
-        BulkRequest bulkRequest = new BulkRequest().requireAlias(true);
+        BulkRequest bulkRequest = new BulkRequest();
         stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         if (bulkRequest.requests().isEmpty()) {
             return;
         }
-        if (stopped) {
+        if (shouldStop()) {
             return;
         }
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
-            () -> stopped == false,
+            () -> shouldStop() == false,
             (msg) -> {});
     }
 
@@ -211,12 +236,15 @@ public class TrainedModelStatsService {
 
     private void createStatsIndexIfNecessary() {
         final PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, ActionListener.wrap(
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver,
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlStatsIndex.writeAlias(),
-                MlStatsIndex::mapping,
+                MlStatsIndex::wrappedMapping,
                 client,
                 clusterState,
+                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 listener),
             listener::onFailure
         ));
@@ -240,7 +268,8 @@ public class TrainedModelStatsService {
                 // out of band. If there is MANY more than that, something strange is happening and it should fail.
                 .retryOnConflict(3)
                 .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
-                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params));
+                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
+                .setRequireAlias(true);
             return updateRequest;
         } catch (IOException ex) {
             logger.error(
@@ -251,5 +280,4 @@ public class TrainedModelStatsService {
         }
         return null;
     }
-
 }

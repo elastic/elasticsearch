@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.fieldvisitor;
 
@@ -26,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -38,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -46,7 +35,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
-public class FieldsVisitor extends StoredFieldVisitor {
+public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
             IdFieldMapper.NAME,
             RoutingFieldMapper.NAME));
@@ -87,13 +76,14 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService) {
+    @Override
+    public Set<String> getFieldNames() {
+        return requiredFields;
+    }
+
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
-            if (fieldType == null) {
-                throw new IllegalStateException("Field [" + entry.getKey()
-                    + "] exists in the index but not in mappings");
-            }
+            MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));

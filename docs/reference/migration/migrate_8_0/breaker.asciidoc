@@ -1,6 +1,9 @@
 [discrete]
 [[breaking_80_breaker_changes]]
-=== Circuit breaker changes
+==== Circuit breaker changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
 .The `in_flight_requests` stat has been renamed `inflight_requests` in logs and diagnostic APIs.

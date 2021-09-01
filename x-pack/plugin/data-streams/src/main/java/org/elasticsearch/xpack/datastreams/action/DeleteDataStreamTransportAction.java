@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -24,10 +26,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
@@ -35,15 +35,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
-import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
-public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<DeleteDataStreamAction.Request, AcknowledgedResponse> {
+import static org.elasticsearch.xpack.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
+
+public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
     private static final Logger LOGGER = LogManager.getLogger(DeleteDataStreamTransportAction.class);
 
     private final MetadataDeleteIndexService deleteIndexService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public DeleteDataStreamTransportAction(
@@ -52,7 +57,8 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataDeleteIndexService deleteIndexService
+        MetadataDeleteIndexService deleteIndexService,
+        SystemIndices systemIndices
     ) {
         super(
             DeleteDataStreamAction.NAME,
@@ -61,19 +67,11 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
             threadPool,
             actionFilters,
             DeleteDataStreamAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.deleteIndexService = deleteIndexService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -83,14 +81,16 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        // resolve the names in the request early
+        List<String> names = getDataStreamNames(indexNameExpressionResolver, state, request.getNames(), request.indicesOptions());
+        for (String name : names) {
+            systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+        }
+        request.indices(names.toArray(Strings.EMPTY_ARRAY));
+
         clusterService.submitStateUpdateTask(
             "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.getNames()) + "]",
-            new ClusterStateUpdateTask(Priority.HIGH) {
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
-                }
+            new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -99,12 +99,18 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return removeDataStream(deleteIndexService, currentState, request);
+                    return removeDataStream(
+                        deleteIndexService,
+                        indexNameExpressionResolver,
+                        currentState,
+                        request,
+                        ds -> systemIndices.validateDataStreamAccess(ds, threadPool.getThreadContext())
+                    );
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             }
         );
@@ -112,19 +118,24 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
 
     static ClusterState removeDataStream(
         MetadataDeleteIndexService deleteIndexService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState currentState,
-        DeleteDataStreamAction.Request request
+        DeleteDataStreamAction.Request request,
+        Consumer<String> systemDataStreamAccessValidator
     ) {
-        Set<String> dataStreams = new HashSet<>();
-        Set<String> snapshottingDataStreams = new HashSet<>();
-        for (String name : request.getNames()) {
-            for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
-                if (Regex.simpleMatch(name, dataStreamName)) {
-                    dataStreams.add(dataStreamName);
-                }
-            }
+        List<String> names = getDataStreamNames(indexNameExpressionResolver, currentState, request.getNames(), request.indicesOptions());
+        Set<String> dataStreams = new HashSet<>(names);
+        for (String dataStreamName : dataStreams) {
+            systemDataStreamAccessValidator.accept(dataStreamName);
+        }
+        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
-            snapshottingDataStreams.addAll(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
+        if (dataStreams.isEmpty()) {
+            if (request.isWildcardExpressionsOriginallySpecified()) {
+                return currentState;
+            } else {
+                throw new ResourceNotFoundException("data streams " + Arrays.toString(request.getNames()) + " not found");
+            }
         }
 
         if (snapshottingDataStreams.isEmpty() == false) {

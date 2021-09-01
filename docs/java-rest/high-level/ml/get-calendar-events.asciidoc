@@ -6,12 +6,13 @@
 [role="xpack"]
 [id="{upid}-{api}"]
 === Get calendar events API
+
 Retrieves a calendar's events.
 It accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get calendars request
+==== Get calendar events request
 
 A +{request}+ requires a non-null calendar ID.
 Using the literal `_all` returns the events for all calendars.
@@ -54,7 +55,7 @@ include-tagged::{doc-tests-file}[{api}-jobid]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get calendars response
+==== Get calendar events response
 
 The returned +{response}+ contains the requested events:
 

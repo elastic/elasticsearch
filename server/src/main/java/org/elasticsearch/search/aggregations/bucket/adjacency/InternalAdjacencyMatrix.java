@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
@@ -35,9 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalAdjacencyMatrix
-    extends InternalMultiBucketAggregation<InternalAdjacencyMatrix,InternalAdjacencyMatrix.InternalBucket>
-    implements AdjacencyMatrix {
+public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
+    implements
+        AdjacencyMatrix {
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
         private final String key;
@@ -106,8 +95,8 @@ public class InternalAdjacencyMatrix
             }
             InternalBucket that = (InternalBucket) other;
             return Objects.equals(key, that.key)
-                    && Objects.equals(docCount, that.docCount)
-                    && Objects.equals(aggregations, that.aggregations);
+                && Objects.equals(docCount, that.docCount)
+                && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -184,7 +173,7 @@ public class InternalAdjacencyMatrix
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
             for (InternalBucket bucket : filters.buckets) {
                 List<InternalBucket> sameRangeList = bucketsMap.get(bucket.key);
-                if(sameRangeList == null){
+                if (sameRangeList == null) {
                     sameRangeList = new ArrayList<>(aggregations.size());
                     bucketsMap.put(bucket.key, sameRangeList);
                 }
@@ -195,7 +184,7 @@ public class InternalAdjacencyMatrix
         ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
             InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
-            if(reducedBucket.docCount >= 1){
+            if (reducedBucket.docCount >= 1) {
                 reducedBuckets.add(reducedBucket);
             }
         }

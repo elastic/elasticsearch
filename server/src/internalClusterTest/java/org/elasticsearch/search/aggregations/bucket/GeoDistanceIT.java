@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -80,18 +69,15 @@ public class GeoDistanceIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        prepareCreate("idx").setSettings(settings)
-                .setMapping("location", "type=geo_point", "city", "type=keyword")
-                .get();
+        prepareCreate("idx").setSettings(settings).setMapping("location", "type=geo_point", "city", "type=keyword").get();
 
-        prepareCreate("idx-multi")
-                .setMapping("location", "type=geo_point", "city", "type=keyword")
-                .get();
+        prepareCreate("idx-multi").setMapping("location", "type=geo_point", "city", "type=keyword").get();
 
         createIndex("idx_unmapped");
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
-        cities.addAll(Arrays.asList(
+        cities.addAll(
+            Arrays.asList(
                 // below 500km
                 indexCity("idx", "utrecht", "52.0945, 5.116"),
                 indexCity("idx", "haarlem", "52.3890, 4.637"),
@@ -99,7 +85,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 indexCity("idx", "berlin", "52.540, 13.409"),
                 indexCity("idx", "prague", "50.097679, 14.441314"),
                 // above 1000km
-                indexCity("idx", "tel-aviv", "32.0741, 34.777")));
+                indexCity("idx", "tel-aviv", "32.0741, 34.777")
+            )
+        );
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
@@ -110,28 +98,30 @@ public class GeoDistanceIT extends ESIntegTestCase {
         indexRandom(true, cities);
 
         cities.clear();
-        cities.addAll(Arrays.asList(
+        cities.addAll(
+            Arrays.asList(
                 // first point is within the ~17.5km, the second is ~710km
                 indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"),
                 // first point is ~576km, the second is within the ~35km
                 indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"),
                 // above 1000km
-                indexCity("idx-multi", "city3", "32.0741, 34.777")));
+                indexCity("idx-multi", "city3", "32.0741, 34.777")
+            )
+        );
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
             cities.add(indexCity("idx-multi", cityName));
         }
         indexRandom(true, cities);
-        prepareCreate("empty_bucket_idx")
-                .setMapping("value", "type=integer", "location", "type=geo_point").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "location", "type=geo_point").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i * 2)
-                    .field("location", "52.0945, 5.116")
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).field("location", "52.0945, 5.116").endObject())
+            );
         }
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
         ensureSearchable();
@@ -139,16 +129,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
-                        .field("location")
-                        .unit(DistanceUnit.KILOMETERS)
-                        .addUnboundedTo(500)
-                        .addRange(500, 1000)
-                        .addUnboundedFrom(1000))
-                        .get();
+            .addAggregation(
+                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                    .unit(DistanceUnit.KILOMETERS)
+                    .addUnboundedTo(500)
+                    .addRange(500, 1000)
+                    .addUnboundedFrom(1000)
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -186,16 +176,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testSimpleWithCustomKeys() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
-                        .field("location")
-                        .unit(DistanceUnit.KILOMETERS)
-                        .addUnboundedTo("ring1", 500)
-                        .addRange("ring2", 500, 1000)
-                        .addUnboundedFrom("ring3", 1000))
-                .get();
+            .addAggregation(
+                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                    .unit(DistanceUnit.KILOMETERS)
+                    .addUnboundedTo("ring1", 500)
+                    .addRange("ring2", 500, 1000)
+                    .addUnboundedFrom("ring3", 1000)
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -235,16 +225,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
-                .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
-                        .field("location")
-                        .unit(DistanceUnit.KILOMETERS)
-                        .addUnboundedTo(500)
-                        .addRange(500, 1000)
-                        .addUnboundedFrom(1000))
-                .get();
+            .addAggregation(
+                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                    .unit(DistanceUnit.KILOMETERS)
+                    .addUnboundedTo(500)
+                    .addRange(500, 1000)
+                    .addUnboundedFrom(1000)
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -282,16 +272,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-                .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
-                        .field("location")
-                        .unit(DistanceUnit.KILOMETERS)
-                        .addUnboundedTo(500)
-                        .addRange(500, 1000)
-                        .addUnboundedFrom(1000))
-                .get();
+            .addAggregation(
+                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                    .unit(DistanceUnit.KILOMETERS)
+                    .addUnboundedTo(500)
+                    .addRange(500, 1000)
+                    .addUnboundedFrom(1000)
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -329,28 +319,27 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
-                        .field("location")
-                        .unit(DistanceUnit.KILOMETERS)
-                        .addUnboundedTo(500)
-                        .addRange(500, 1000)
-                        .addUnboundedFrom(1000)
-                        .subAggregation(terms("cities").field("city")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))))
-                .get();
+            .addAggregation(
+                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                    .unit(DistanceUnit.KILOMETERS)
+                    .addUnboundedTo(500)
+                    .addRange(500, 1000)
+                    .addUnboundedFrom(1000)
+                    .subAggregation(terms("cities").field("city").collectMode(randomFrom(SubAggCollectionMode.values())))
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
         assertThat(geoDist.getName(), equalTo("amsterdam_rings"));
         List<? extends Bucket> buckets = geoDist.getBuckets();
         assertThat(geoDist.getBuckets().size(), equalTo(3));
-        assertThat(((InternalAggregation)geoDist).getProperty("_bucket_count"), equalTo(3));
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoDist).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoDist).getProperty("_count");
-        Object[] propertiesCities = (Object[]) ((InternalAggregation)geoDist).getProperty("cities");
+        assertThat(((InternalAggregation) geoDist).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation) geoDist).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) geoDist).getProperty("_count");
+        Object[] propertiesCities = (Object[]) ((InternalAggregation) geoDist).getProperty("cities");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
@@ -415,11 +404,14 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")
-                                .addRange("0-100", 0.0, 100.0)))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field("value")
+                    .interval(1L)
+                    .minDocCount(0)
+                    .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location").addRange("0-100", 0.0, 100.0))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -441,13 +433,11 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(buckets.get(0).getDocCount(), equalTo(0L));
     }
 
-    public void testNoRangesInQuery()  {
+    public void testNoRangesInQuery() {
         try {
-            client().prepareSearch("idx")
-                .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location"))
-                .get();
+            client().prepareSearch("idx").addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")).get();
             fail();
-        } catch (SearchPhaseExecutionException spee){
+        } catch (SearchPhaseExecutionException spee) {
             Throwable rootCause = spee.getCause().getCause();
             assertThat(rootCause, instanceOf(IllegalArgumentException.class));
             assertEquals(rootCause.getMessage(), "No [ranges] specified for the [geo_dist] aggregation");
@@ -456,14 +446,15 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testMultiValues() throws Exception {
         SearchResponse response = client().prepareSearch("idx-multi")
-                .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
-                        .field("location")
-                        .unit(DistanceUnit.KILOMETERS)
-                        .distanceType(org.elasticsearch.common.geo.GeoDistance.ARC)
-                        .addUnboundedTo(500)
-                        .addRange(500, 1000)
-                        .addUnboundedFrom(1000))
-                .get();
+            .addAggregation(
+                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                    .unit(DistanceUnit.KILOMETERS)
+                    .distanceType(org.elasticsearch.common.geo.GeoDistance.ARC)
+                    .addUnboundedTo(500)
+                    .addRange(500, 1000)
+                    .addUnboundedFrom(1000)
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -500,7 +491,5 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(1L));
     }
-
-
 
 }

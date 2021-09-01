@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -90,11 +78,9 @@ public class RestNodesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
-        if (request.hasParam("local") && Version.CURRENT.major == Version.V_7_0_0.major + 1) { // only needed in v8 to catch breaking usages
-            throw new IllegalArgumentException("parameter [local] is not supported");
-        }
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
+        final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
@@ -115,6 +101,7 @@ public class RestNodesAction extends AbstractCatAction {
                             NodesStatsRequest.Metric.PROCESS.metricName(),
                             NodesStatsRequest.Metric.SCRIPT.metricName()
                         );
+                        nodesStatsRequest.indices().includeUnloadedSegments(includeUnloadedSegments);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -179,8 +166,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("query_cache.miss_count",
             "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
-        table.addCell("request_cache.memory_size",
-            "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("request_cache.evictions",
             "alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
         table.addCell("request_cache.hit_count",
@@ -341,11 +327,11 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
             boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
@@ -435,7 +421,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            table.addCell(segmentsStats == null ? null : segmentsStats.getMemory());
+            table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -92,6 +81,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
+        defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
@@ -299,16 +289,13 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
+        Method docFieldsReflect = null;
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
                 reflect = method;
-
-                break;
             } else if ("newFactory".equals(method.getName())) {
                 reflect = method;
-
-                break;
             }
         }
 
@@ -387,7 +374,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 }
             }, COMPILATION_CONTEXT);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
+        } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
         }
     }
@@ -403,6 +390,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             // Except regexes enabled - this is a node level setting and can't be changed in the request.
             compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
+
+            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getRegexLimitFactor());
 
             Map<String, String> copy = new HashMap<>(params);
 
@@ -426,7 +415,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
             }
 
-            if (!copy.isEmpty()) {
+            value = copy.remove(CompilerSettings.REGEX_LIMIT_FACTOR.getKey());
+            if (value != null) {
+                throw new IllegalArgumentException("[painless.regex.limit-factor] can only be set on node startup.");
+            }
+
+            if (copy.isEmpty() == false) {
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
             }
         }

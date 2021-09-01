@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
@@ -26,22 +15,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.TreeSet;
 
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
@@ -54,15 +38,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     static final String COORDINATING_ONLY = "coordinating_only";
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
-        /*
-         * This method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized. We do not want to trigger
-         * initialization prematurely because that will bake the default roles before plugins have had a chance to register them. Therefore,
-         * to avoid initializing this setting prematurely, we avoid using the actual node roles setting instance here.
-         */
+        // this method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized
         if (settings.hasValue("node.roles")) {
             return settings.getAsList("node.roles").contains(role.roleName());
-        } else if (role.legacySetting() != null && settings.hasValue(role.legacySetting().getKey())) {
-            return role.legacySetting().get(settings);
         } else {
             return role.isEnabledByDefault(settings);
         }
@@ -72,8 +50,29 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE);
     }
 
-    public static boolean isDataNode(final Settings settings) {
+    /**
+     * Check if the given settings are indicative of having the top-level data role.
+     *
+     * Note that if you want to test for whether or not the given settings are indicative of any role that can contain data, you should use
+     * {@link #canContainData(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having the top-level data role, otherwise false
+     */
+    public static boolean hasDataRole(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+    }
+
+    /**
+     * Check if the given settings are indicative of any role that can contain data.
+     *
+     * Note that if you want to test for exactly the data role, you should use {@link #hasDataRole(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having any role that can contain data, otherwise false
+     */
+    public static boolean canContainData(final Settings settings) {
+        return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     public static boolean isIngestNode(final Settings settings) {
@@ -82,6 +81,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean isRemoteClusterClient(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    private static boolean isDedicatedFrozenRoles(Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
+            roles.stream().filter(DiscoveryNodeRole::canContainData)
+                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+    }
+
+    /**
+     * Check if the settings are for a dedicated frozen node, i.e. has frozen role and no other data roles.
+     */
+    public static boolean isDedicatedFrozenNode(final Settings settings) {
+        return isDedicatedFrozenRoles(getRolesFromSettings(settings));
     }
 
     private final String nodeName;
@@ -108,7 +120,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
     /**
@@ -189,17 +201,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.version = version;
         }
         this.attributes = Collections.unmodifiableMap(attributes);
-        //verify that no node roles are being provided as attributes
-        Predicate<Map<String, String>> predicate =  (attrs) -> {
-            boolean success = true;
-            for (final DiscoveryNodeRole role : DiscoveryNode.roleMap.values()) {
-                success &= attrs.containsKey(role.roleName()) == false;
-                assert success : role.roleName();
-            }
-            return success;
-        };
-        assert predicate.test(attributes) : attributes;
-        this.roles = roles.stream().collect(Sets.toUnmodifiableSortedSet());
+        assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey) :
+                "Node roles must not be provided as attributes but saw attributes " + attributes;
+        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
 
     /** Creates a DiscoveryNode representing the local node. */
@@ -211,29 +215,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
-        if (NODE_ROLES_SETTING.exists(settings)) {
-            validateLegacySettings(settings, roleMap);
-            return Set.copyOf(NODE_ROLES_SETTING.get(settings));
-        } else {
-            return roleMap.values()
-                .stream()
-                .filter(s -> s.legacySetting() != null && s.legacySetting().get(settings))
-                .collect(Collectors.toUnmodifiableSet());
-        }
-    }
-
-    private static void validateLegacySettings(final Settings settings, final Map<String, DiscoveryNodeRole> roleMap) {
-        for (final DiscoveryNodeRole role : roleMap.values()) {
-            if (role.legacySetting() != null && role.legacySetting().exists(settings)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "can not explicitly configure node roles and use legacy role setting [%s]=[%s]",
-                    role.legacySetting().getKey(),
-                    role.legacySetting().get(settings)
-                );
-                throw new IllegalArgumentException(message);
-            }
-        }
+        return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
     /**
@@ -250,21 +232,23 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.address = new TransportAddress(in);
         this.attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         int rolesSize = in.readVInt();
-        final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
+        final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
-            final DiscoveryNodeRole role = roleMap.get(roleName);
-            if (role == null) {
-                roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation));
+            final boolean canContainData = in.readBoolean();
+            final Optional<DiscoveryNodeRole> maybeRole = DiscoveryNodeRole.maybeGetRoleFromRoleName(roleName);
+            if (maybeRole.isEmpty()) {
+                roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
             } else {
+                final DiscoveryNodeRole role = maybeRole.get();
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
                         : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
                 roles.add(role);
             }
         }
-        this.roles = roles.stream().collect(Sets.toUnmodifiableSortedSet());
+        this.roles = Collections.unmodifiableSortedSet(roles);
         this.version = Version.readVersion(in);
     }
 
@@ -281,6 +265,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (final DiscoveryNodeRole role : roles) {
             out.writeString(role.roleName());
             out.writeString(role.roleNameAbbreviation());
+            out.writeBoolean(role.canContainData());
         }
         Version.writeVersion(version, out);
     }
@@ -327,8 +312,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean isDataNode() {
-        return roles.contains(DiscoveryNodeRole.DATA_ROLE);
+    public boolean canContainData() {
+        return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     /**
@@ -352,6 +337,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isRemoteClusterClient() {
         return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    /**
+     * Returns whether or not the node is a frozen only node, i.e., has data frozen role and no other data roles.
+     * @return
+     */
+    public boolean isDedicatedFrozenNode() {
+        return isDedicatedFrozenRoles(getRoles());
     }
 
     /**
@@ -402,22 +395,26 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (nodeName.length() > 0) {
-            sb.append('{').append(nodeName).append('}');
-        }
-        sb.append('{').append(nodeId).append('}');
-        sb.append('{').append(ephemeralId).append('}');
-        sb.append('{').append(hostName).append('}');
-        sb.append('{').append(address).append('}');
-        if (roles.isEmpty() == false) {
-            sb.append('{');
-            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(sb::append);
-            sb.append('}');
-        }
-        if (!attributes.isEmpty()) {
+        appendDescriptionWithoutAttributes(sb);
+        if (attributes.isEmpty() == false) {
             sb.append(attributes);
         }
         return sb.toString();
+    }
+
+    public void appendDescriptionWithoutAttributes(StringBuilder stringBuilder) {
+        if (nodeName.length() > 0) {
+            stringBuilder.append('{').append(nodeName).append('}');
+        }
+        stringBuilder.append('{').append(nodeId).append('}');
+        stringBuilder.append('{').append(ephemeralId).append('}');
+        stringBuilder.append('{').append(hostName).append('}');
+        stringBuilder.append('{').append(address).append('}');
+        if (roles.isEmpty() == false) {
+            stringBuilder.append('{');
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+            stringBuilder.append('}');
+        }
     }
 
     @Override
@@ -433,41 +430,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         builder.endObject();
 
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : roles) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
+
         builder.endObject();
         return builder;
     }
 
-    private static Map<String, DiscoveryNodeRole> rolesToMap(final Stream<DiscoveryNodeRole> roles) {
-        return roles.collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
-    }
-
-    private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
-
-    public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
-        if (roleMap.containsKey(roleName) == false) {
-            throw new IllegalArgumentException("unknown role [" + roleName + "]");
-        }
-        return roleMap.get(roleName);
-    }
-
-    public static Set<DiscoveryNodeRole> getPossibleRoles() {
-        return Set.copyOf(roleMap.values());
-    }
-
-    public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {
-        assert additionalRoles.stream().allMatch(r -> r.legacySetting() == null || r.legacySetting().isDeprecated()) : additionalRoles;
-        final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles =
-            rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()));
-        // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
-        final Map<String, DiscoveryNodeRole> roleNameAbbreviationToPossibleRoles = roleNameToPossibleRoles.values()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
-        assert roleNameToPossibleRoles.size() == roleNameAbbreviationToPossibleRoles.size() :
-                "roles by name [" + roleNameToPossibleRoles + "], roles by name abbreviation [" + roleNameAbbreviationToPossibleRoles + "]";
-        roleMap = roleNameToPossibleRoles;
-    }
-
-    public static Set<String> getPossibleRoleNames() {
-        return roleMap.keySet();
-    }
 }

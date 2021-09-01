@@ -1,0 +1,376 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+            {
+              "cluster": ["manage_api_key"],
+              "indices": [
+                {
+                  "names": "*",
+                  "privileges": ["all"]
+                }
+              ],
+              "applications": [
+                {
+                  "application": "myapp",
+                  "privileges": ["*"],
+                  "resources": ["*"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "api_key_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "API key user"
+          }
+
+  # Create app privileges
+  - do:
+      security.put_privileges:
+        body: >
+          {
+            "myapp": {
+              "read": {
+                "application": "myapp",
+                "name": "read",
+                "actions": [ "data:read/*" ]
+              },
+              "write": {
+                "application": "myapp",
+                "name": "write",
+                "actions": [ "data:write/*" ]
+              }
+            }
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_user"
+        ignore: 404
+
+  - do:
+      security.delete_privileges:
+        application: myapp
+        name: "read,write"
+        ignore: 404
+
+---
+"Test create api key":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+
+  - match: { username: "api_key_user" }
+  - length: { roles: 0 }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { authentication_realm.type: "_es_api_key" }
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "${api_key_id}"
+
+  - match: { _nodes.failed: 0 }
+
+
+---
+"Test get api key":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - set: { name: api_key_name }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        id: "$api_key_id"
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "api_key_user" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys" : 1 }
+  - match: { "api_keys.0.username": "api_key_user" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "*"
+
+  - match: { _nodes.failed: 0 }
+
+
+---
+"Test invalidate api keys":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key-1",
+              "expiration": "1d",
+              "role_descriptors": {
+              }
+            }
+  - match: { name: "my-api-key-1" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id_1 }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-api-key-2",
+            "expiration": "1d",
+            "role_descriptors": {
+            }
+          }
+  - match: { name: "my-api-key-2" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id_2 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-api-key-3",
+            "expiration": "1d",
+            "role_descriptors": {
+            }
+          }
+  - match: { name: "my-api-key-3" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id_3 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.invalidate_api_key:
+        body:  >
+          {
+            "ids": [ "${api_key_id_1}", "${api_key_id_2}", "${api_key_id_3}" ]
+          }
+  - length: { "invalidated_api_keys" : 3 }
+  - match: { "invalidated_api_keys.0" : "/^(${api_key_id_1}|${api_key_id_2}|${api_key_id_3})$/" }
+  - match: { "invalidated_api_keys.1" : "/^(${api_key_id_1}|${api_key_id_2}|${api_key_id_3})$/" }
+  - match: { "invalidated_api_keys.2" : "/^(${api_key_id_1}|${api_key_id_2}|${api_key_id_3})$/" }
+  - length: { "previously_invalidated_api_keys" : 0 }
+  - match: { "error_count" : 0 }
+
+---
+"Test has privileges API for api key":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ],
+                  "applications": [
+                    {
+                      "application": "myapp",
+                      "privileges": ["read"],
+                      "resources": ["*"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              {
+                "names" :[ "*", "index-a" ],
+                "privileges" : [ "read", "index", "write" ]
+              },
+              {
+                "names" :[ "index-a", "index-b" ],
+                "privileges" : [ "read", "write" ]
+              }
+            ],
+            "application": [
+              {
+                "application" : "myapp",
+                "resources" : [ "*", "some-other-res" ],
+                "privileges" : [ "data:read/me", "data:write/me" ]
+              }
+            ]
+          }
+  - match: { "username" : "api_key_user" }
+  - match: { "has_all_requested" : false }
+  - match: { "index" : {
+      "*" : {
+        "read": false,
+        "index": false,
+        "write": false
+      },
+      "index-a" : {
+        "read": true,
+        "index": false,
+        "write": false
+      },
+      "index-b" : {
+        "read": true,
+        "write": true
+      }
+    } }
+  - match: { "application" : {
+      "myapp" : {
+        "*" : {
+          "data:read/me" : true,
+          "data:write/me" : false
+        },
+        "some-other-res" : {
+          "data:read/me" : true,
+          "data:write/me" : false
+        }
+      }
+    } }

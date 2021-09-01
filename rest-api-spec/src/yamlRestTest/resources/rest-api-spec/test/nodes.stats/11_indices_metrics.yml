@@ -1,0 +1,390 @@
+---
+"Metric - blank":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: {}
+
+  - is_true:  nodes.$node_id.indices.docs
+  - is_true:  nodes.$node_id.indices.store
+  - is_true:  nodes.$node_id.indices.indexing
+  - is_true:  nodes.$node_id.indices.get
+  - is_true:  nodes.$node_id.indices.search
+  - is_true:  nodes.$node_id.indices.merges
+  - is_true:  nodes.$node_id.indices.refresh
+  - is_true:  nodes.$node_id.indices.flush
+  - is_true:  nodes.$node_id.indices.warmer
+  - is_true:  nodes.$node_id.indices.query_cache
+  - is_true:  nodes.$node_id.indices.fielddata
+  - is_true:  nodes.$node_id.indices.completion
+  - is_true:  nodes.$node_id.indices.segments
+  - is_true:  nodes.$node_id.indices.translog
+  - is_true:  nodes.$node_id.indices.recovery
+
+---
+"Metric - _all":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all }
+
+  - is_true:  nodes.$node_id.indices.docs
+  - is_true:  nodes.$node_id.indices.store
+  - is_true:  nodes.$node_id.indices.indexing
+  - is_true:  nodes.$node_id.indices.get
+  - is_true:  nodes.$node_id.indices.search
+  - is_true:  nodes.$node_id.indices.merges
+  - is_true:  nodes.$node_id.indices.refresh
+  - is_true:  nodes.$node_id.indices.flush
+  - is_true:  nodes.$node_id.indices.warmer
+  - is_true:  nodes.$node_id.indices.query_cache
+  - is_true:  nodes.$node_id.indices.fielddata
+  - is_true:  nodes.$node_id.indices.completion
+  - is_true:  nodes.$node_id.indices.segments
+  - is_true:  nodes.$node_id.indices.translog
+  - is_true:  nodes.$node_id.indices.recovery
+
+---
+"Metric - indices _all":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: _all }
+
+  - is_true:  nodes.$node_id.indices.docs
+  - is_true:  nodes.$node_id.indices.store
+  - is_true:  nodes.$node_id.indices.indexing
+  - is_true:  nodes.$node_id.indices.get
+  - is_true:  nodes.$node_id.indices.search
+  - is_true:  nodes.$node_id.indices.merges
+  - is_true:  nodes.$node_id.indices.refresh
+  - is_true:  nodes.$node_id.indices.flush
+  - is_true:  nodes.$node_id.indices.warmer
+  - is_true:  nodes.$node_id.indices.query_cache
+  - is_true:  nodes.$node_id.indices.fielddata
+  - is_true:  nodes.$node_id.indices.completion
+  - is_true:  nodes.$node_id.indices.segments
+  - is_true:  nodes.$node_id.indices.translog
+  - is_true:  nodes.$node_id.indices.recovery
+
+---
+"Metric - one":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: docs }
+
+  - is_true:   nodes.$node_id.indices.docs
+  - is_false:  nodes.$node_id.indices.store
+  - is_false:  nodes.$node_id.indices.indexing
+  - is_false:  nodes.$node_id.indices.get
+  - is_false:  nodes.$node_id.indices.search
+  - is_false:  nodes.$node_id.indices.merges
+  - is_false:  nodes.$node_id.indices.refresh
+  - is_false:  nodes.$node_id.indices.flush
+  - is_false:  nodes.$node_id.indices.warmer
+  - is_false:  nodes.$node_id.indices.query_cache
+  - is_false:  nodes.$node_id.indices.fielddata
+  - is_false:  nodes.$node_id.indices.completion
+  - is_false:  nodes.$node_id.indices.segments
+  - is_false:  nodes.$node_id.indices.translog
+  - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
+
+---
+"Metric - multi":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: [ store, get, merge ] }
+
+  - is_false:  nodes.$node_id.indices.docs
+  - is_true:   nodes.$node_id.indices.store
+  - is_false:  nodes.$node_id.indices.indexing
+  - is_true:   nodes.$node_id.indices.get
+  - is_false:  nodes.$node_id.indices.search
+  - is_true:   nodes.$node_id.indices.merges
+  - is_false:  nodes.$node_id.indices.refresh
+  - is_false:  nodes.$node_id.indices.flush
+  - is_false:  nodes.$node_id.indices.warmer
+  - is_false:  nodes.$node_id.indices.query_cache
+  - is_false:  nodes.$node_id.indices.fielddata
+  - is_false:  nodes.$node_id.indices.completion
+  - is_false:  nodes.$node_id.indices.segments
+  - is_false:  nodes.$node_id.indices.translog
+  - is_false:  nodes.$node_id.indices.recovery
+
+
+---
+"Metric - recovery":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: [ recovery ] }
+
+  - is_false:  nodes.$node_id.indices.docs
+  - is_false:  nodes.$node_id.indices.store
+  - is_false:  nodes.$node_id.indices.indexing
+  - is_false:  nodes.$node_id.indices.get
+  - is_false:  nodes.$node_id.indices.search
+  - is_false:  nodes.$node_id.indices.merges
+  - is_false:  nodes.$node_id.indices.refresh
+  - is_false:  nodes.$node_id.indices.flush
+  - is_false:  nodes.$node_id.indices.warmer
+  - is_false:  nodes.$node_id.indices.query_cache
+  - is_false:  nodes.$node_id.indices.fielddata
+  - is_false:  nodes.$node_id.indices.completion
+  - is_false:  nodes.$node_id.indices.segments
+  - is_false:  nodes.$node_id.indices.translog
+  - is_true:   nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
+
+---
+"Metric - _all include_segment_file_sizes":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: _all, include_segment_file_sizes: true }
+
+  - is_true:   nodes.$node_id.indices.docs
+  - is_true:   nodes.$node_id.indices.store
+  - is_true:   nodes.$node_id.indices.indexing
+  - is_true:   nodes.$node_id.indices.get
+  - is_true:   nodes.$node_id.indices.search
+  - is_true:   nodes.$node_id.indices.merges
+  - is_true:   nodes.$node_id.indices.refresh
+  - is_true:   nodes.$node_id.indices.flush
+  - is_true:   nodes.$node_id.indices.warmer
+  - is_true:   nodes.$node_id.indices.query_cache
+  - is_true:   nodes.$node_id.indices.fielddata
+  - is_true:   nodes.$node_id.indices.completion
+  - is_true:   nodes.$node_id.indices.segments
+  - is_true:   nodes.$node_id.indices.translog
+  - is_true:   nodes.$node_id.indices.recovery
+  - is_true:   nodes.$node_id.indices.segments.file_sizes
+
+---
+"Metric - segments include_segment_file_sizes":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: segments, include_segment_file_sizes: true }
+
+  - is_false:  nodes.$node_id.indices.docs
+  - is_false:  nodes.$node_id.indices.store
+  - is_false:  nodes.$node_id.indices.indexing
+  - is_false:  nodes.$node_id.indices.get
+  - is_false:  nodes.$node_id.indices.search
+  - is_false:  nodes.$node_id.indices.merges
+  - is_false:  nodes.$node_id.indices.refresh
+  - is_false:  nodes.$node_id.indices.flush
+  - is_false:  nodes.$node_id.indices.warmer
+  - is_false:  nodes.$node_id.indices.query_cache
+  - is_false:  nodes.$node_id.indices.fielddata
+  - is_false:  nodes.$node_id.indices.completion
+  - is_true:   nodes.$node_id.indices.segments
+  - is_false:  nodes.$node_id.indices.translog
+  - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
+  - is_true:   nodes.$node_id.indices.segments.file_sizes
+
+---
+"Metric - segments include_unloaded_segments":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.12.99"
+      reason: "support for include_unloaded_segments only added in 7.13"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: segments, include_unloaded_segments: true }
+
+  - is_false:  nodes.$node_id.indices.docs
+  - is_false:  nodes.$node_id.indices.store
+  - is_false:  nodes.$node_id.indices.indexing
+  - is_false:  nodes.$node_id.indices.get
+  - is_false:  nodes.$node_id.indices.search
+  - is_false:  nodes.$node_id.indices.merges
+  - is_false:  nodes.$node_id.indices.refresh
+  - is_false:  nodes.$node_id.indices.flush
+  - is_false:  nodes.$node_id.indices.warmer
+  - is_false:  nodes.$node_id.indices.query_cache
+  - is_false:  nodes.$node_id.indices.fielddata
+  - is_false:  nodes.$node_id.indices.completion
+  - is_true:   nodes.$node_id.indices.segments
+  - is_false:  nodes.$node_id.indices.translog
+  - is_false:  nodes.$node_id.indices.recovery
+  - is_false:  nodes.$node_id.indices.shards
+
+---
+"Metric - _all include_unloaded_segments":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.12.99"
+      reason: "support for include_unloaded_segments only added in 7.13"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: _all, include_unloaded_segments: true }
+
+  - is_true:   nodes.$node_id.indices.docs
+  - is_true:   nodes.$node_id.indices.store
+  - is_true:   nodes.$node_id.indices.indexing
+  - is_true:   nodes.$node_id.indices.get
+  - is_true:   nodes.$node_id.indices.search
+  - is_true:   nodes.$node_id.indices.merges
+  - is_true:   nodes.$node_id.indices.refresh
+  - is_true:   nodes.$node_id.indices.flush
+  - is_true:   nodes.$node_id.indices.warmer
+  - is_true:   nodes.$node_id.indices.query_cache
+  - is_true:   nodes.$node_id.indices.fielddata
+  - is_true:   nodes.$node_id.indices.completion
+  - is_true:   nodes.$node_id.indices.segments
+  - is_true:   nodes.$node_id.indices.translog
+  - is_true:   nodes.$node_id.indices.recovery
+
+---
+"Metric - http":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.12.99"
+      reason: "HTTP client stats added in 7.13.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: http }
+
+  - is_true:  nodes.$node_id
+  # in rare test scenarios, the value of current_open can be zero
+  - gte: { nodes.$node_id.http.current_open: 0 }
+  - gte: { nodes.$node_id.http.total_opened: 1 }
+  - is_true:  nodes.$node_id.http.clients
+  - gte: { nodes.$node_id.http.clients.0.id: 1 }
+  - match: { nodes.$node_id.http.clients.0.agent: "/.*/" }
+  - match: { nodes.$node_id.http.clients.0.local_address: "/.*/" }
+  - match: { nodes.$node_id.http.clients.0.remote_address: "/.*/" }
+  - is_true:  nodes.$node_id.http.clients.0.last_uri
+  - gte: { nodes.$node_id.http.clients.0.opened_time_millis: 1614028911317 }
+  - gte: { nodes.$node_id.http.clients.0.last_request_time_millis: 1614028911317 }
+  - gte: { nodes.$node_id.http.clients.0.request_count: 1 }
+  - gte: { nodes.$node_id.http.clients.0.request_size_bytes: 0 }
+  # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
+  # null and cannot be tested here
+
+---
+"Metric - blank for indices shards":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.14.99"
+      reason:  "total shard count added in version 7.15.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: {}
+
+  - is_true:  nodes.$node_id.indices.shards
+  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+
+---
+"Metric - _all for indices shards":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 7.14.99"
+      reason:  "total shard count added in version 7.15.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all }
+
+  - is_true:  nodes.$node_id.indices.shards
+  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+
+
+---
+"indices shards total count test":
+
+  - skip:
+      features: ["allowed_warnings", arbitrary_key]
+      version: " - 7.14.99"
+      reason:  "total shard count added in version 7.15.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "5"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "1"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all }
+
+  - gte: { nodes.$node_id.indices.shards.total_count: 1 }

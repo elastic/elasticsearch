@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support;
 
@@ -48,7 +49,7 @@ public class FilterXContentTests extends ESTestCase {
             boolean added;
             do {
                 added = keys.add("key" + randomInt(7));
-            } while (!added);
+            } while (added == false);
         }
 
         Map<String, Object> filteredData = XContentFilterKeysUtils.filterMapOrdered(keys, parser);
@@ -133,6 +134,7 @@ public class FilterXContentTests extends ESTestCase {
         assertThat(filteredData.get("buckets"), instanceOf(List.class));
 
         // both buckets have to include the following keys
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) filteredData.get("buckets");
         assertThat(buckets, hasSize(2));
         assertThat(buckets.get(0).keySet(), containsInAnyOrder("foo"));

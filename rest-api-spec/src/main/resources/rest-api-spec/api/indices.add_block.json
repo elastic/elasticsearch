@@ -1,10 +1,14 @@
 {
   "indices.add_block":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-blocks.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/index-modules-blocks.html",
       "description":"Adds a block to an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

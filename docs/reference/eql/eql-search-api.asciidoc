@@ -7,42 +7,30 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-experimental::[]
-
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in a data stream or index corresponds to an
+EQL assumes each document in a data stream or index corresponds to an
 event.
 
 ////
 [source,console]
 ----
-PUT /my-index-000001/_bulk?refresh
-{"index":{ }}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
-{"index":{ }}
-{ "@timestamp": "2020-12-07T11:07:10.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
+DELETE /_data_stream/*
+DELETE /_index_template/*
 ----
-// TESTSETUP
+// TEARDOWN
 ////
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
-    process where process.name = "regsvr32.exe"
+    process where process.name == "regsvr32.exe"
   """
 }
 ----
+// TEST[setup:sec_logs]
 
 [[eql-search-api-request]]
 ==== {api-request-title}
@@ -54,36 +42,76 @@ GET /my-index-000001/_eql/search
 [[eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-See <<eql-requirements,EQL requirements>>.
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
+* See <<eql-required-fields>>.
+
+* experimental:[] For cross-cluster search, the local and remote clusters must
+use the same {es} version. For security, see <<cross-cluster-configuring>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations
 
-See <<eql-limitations,EQL limitations>>.
+See <<eql-syntax-limitations,EQL limitations>>.
 
 [[eql-search-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Required, string)
-Comma-separated list of data streams, indices, or <<indices-aliases,index
-aliases>> used to limit the request. Accepts wildcard (`*`) expressions.
+(Required, string) Comma-separated list of data streams, indices, or aliases
+used to limit the request. Supports wildcards (`*`). To search all data streams
+and indices, use `*` or `_all`.
 +
-To search all data streams and indices in a cluster, use
-`_all` or `*`.
+experimental:[] To search a remote cluster, use the `<cluster>:<target>` syntax.
+See <<run-eql-search-across-clusters>>.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+`allow_no_indices`::
+(Optional, Boolean)
 +
-Defaults to `false`.
+NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
+used in other <<multi-index,multi-target APIs>>.
++
+If `false`, the request returns an error if any wildcard pattern, alias, or
+`_all` value targets only missing or closed indices. This behavior applies even
+if the request targets other open indices. For example, a request targeting
+`foo*,bar*` returns an error if an index starts with `foo` but no index starts
+with `bar`.
++
+If `true`, only requests that exclusively target missing or closed indices
+return an error. For example, a request targeting `foo*,bar*` does not return an
+error if an index starts with `foo` but no index starts with `bar`. However, a
+request that targets only `bar*` still returns an error.
++
+Defaults to `true`.
+
+`ccs_minimize_roundtrips`::
+(Optional, Boolean) If `true`, network round-trips between the local and the
+remote cluster are minimized when running cross-cluster search (CCS) requests.
++
+This option is effective for requests that target data fully contained in one
+remote cluster; when data is spread across multiple clusters, the setting is
+ignored.
++
+Defaults to `true`.
+
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`filter_path`::
+(Optional, string)
+Comma-separated list of filters for the API response. See
+<<common-options-response-filtering>>.
+
+`ignore_unavailable`::
+(Optional, Boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `true`.
 
 `keep_alive`::
 +
@@ -111,7 +139,7 @@ If both parameters are specified, only the query parameter is used.
 `keep_on_completion`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the search and its results are stored on the cluster.
 
 If `false`, the search and its results are stored on the cluster only if the
@@ -147,13 +175,9 @@ used.
 ====
 --
 
+[role="child_attributes"]
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
-
-`case_sensitive`::
-(Optional, boolean)
-If `true`, matching for the <<eql-search-api-request-query-param,EQL query>> is
-case sensitive. Defaults to `false`.
 
 `event_category_field`::
 (Required*, string)
@@ -163,6 +187,9 @@ Field containing the event classification, such as `process`, `file`, or
 Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
++
+The event category field must be mapped as a field type in the
+<<keyword,`keyword`>> family.
 
 `fetch_size`::
 (Optional, integer)
@@ -180,9 +207,22 @@ returned.
 +
 A greater `fetch_size` value often increases search speed but uses more memory.
 
+`fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The response returns values for field names
+matching these patterns in the `fields` property of each hit.
++
+You can specify items in the array as a string or object.
++
+.Properties of `fields` objects
+[%collapsible%open]
+====
+include::{es-repo-dir}/search/search.asciidoc[tag=fields-api-props]
+====
+
 `filter`::
-(Optional, <<query-dsl,query DSL object>>)
-Query, written in query DSL, used to filter the events on which the EQL query
+(Optional, <<query-dsl,Query DSL object>>)
+Query, written in Query DSL, used to filter the events on which the EQL query
 runs.
 
 `keep_alive`::
@@ -212,7 +252,7 @@ If both parameters are specified, only the query parameter is used.
 `keep_on_completion`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the search and its results are stored on the cluster.
 
 If `false`, the search and its results are stored on the cluster only if the
@@ -231,10 +271,30 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
-+
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
 
+`result_position`::
+(Optional, enum)
+Set of matching events or sequences to return.
++
+.Valid values for `result_position`
+[%collapsible%open]
+====
+`tail`::
+(Default)
+Return the most recent matches, similar to the {wikipedia}/Tail_(Unix)[Unix tail
+command].
+
+`head`::
+Return the earliest matches, similar to the {wikipedia}/Head_(Unix)[Unix head
+command].
+====
++
+NOTE: This parameter may change the set of returned hits. However, it does not
+change the sort order of hits in the response.
+
+include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+
+[[eql-search-api-params-size]]
 `size`::
 (Optional, integer or float)
 For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to
@@ -251,15 +311,9 @@ this value.
 [[eql-search-api-tiebreaker-field]]
 `tiebreaker_field`::
 (Optional, string)
-Field used to sort events with the same
-<<eql-search-api-timestamp-field,timestamp field>> value. Defaults to
-`event.sequence`, as defined in the {ecs-ref}/ecs-event.html[Elastic Common
-Schema (ECS)].
-+
-By default, matching events in the search response are sorted by timestamp,
-converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
-epoch], in ascending order. If two or more events share the same timestamp, this
-field is used to sort the events in ascending, lexicographic order.
+Field used to sort hits with the same
+<<eql-search-api-timestamp-field,timestamp>> in ascending order. See
+<<eql-search-specify-a-sort-tiebreaker>>.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::
@@ -273,8 +327,11 @@ Defaults to `@timestamp`, as defined in the
 does not contain the `@timestamp` field, this value is required.
 
 Events in the API response are sorted by this field's value, converted to
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
+
+The timestamp field should be mapped as a <<date,`date`>>. The
+<<date_nanos,`date_nanos`>> field type is not supported.
 --
 
 [[eql-search-api-wait-for-completion-timeout]]
@@ -314,22 +371,24 @@ This search ID is only provided if one of the following conditions is met:
 * A search request does not return complete results during the
   <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
   parameter's timeout period, becoming an <<eql-search-async,async search>>.
-  
+
 * The search request's <<eql-search-api-keep-on-completion,`keep_on_completion`>>
   parameter is `true`.
 
 You can use this ID with the <<get-async-eql-search-api,get async EQL search
-API>> to get the current status and available results for the search.
+API>> to get the current status and available results for the search or
+<<get-async-eql-status-api,get async EQL status API>> to get only
+the current status.
 --
 
 `is_partial`::
-(boolean)
+(Boolean)
 If `true`, the response does not contain complete search results.
 
 `is_running`::
 +
 --
-(boolean)
+(Boolean)
 If `true`, the search request is still executing.
 
 [IMPORTANT]
@@ -369,7 +428,7 @@ Took time does *not* include:
 --
 
 `timed_out`::
-(boolean)
+(Boolean)
 If `true`, the request timed out before completion.
 
 `hits`::
@@ -418,7 +477,7 @@ a <<eql-sequences,sequence>>.
 [%collapsible%open]
 =====
 `join_keys`::
-(array of strings)
+(array of values)
 Shared field values used to constrain matches in the sequence. These are defined
 using the <<eql-sequences,`by` keyword>> in the EQL query syntax.
 
@@ -438,27 +497,6 @@ Name of the index containing the event.
 (string)
 Unique identifier for the event.
 This ID is only unique within the index.
-
-`_version`::
-(integer)
-Version of the document (event). This version is incremented each time the document is
-updated.
-
-`_seq_no`::
-(integer)
-Sequence number assigned to the document (event).
-+
-Sequence numbers are used to ensure an older version of a document
-doesn’t overwrite a newer version. See <<optimistic-concurrency-control>>.
-
-`_primary_term`::
-(integer)
-Primary term assigned to the document. See <<optimistic-concurrency-control>>.
-
-`_score`::
-(float)
-Positive 32-bit floating point number used to determine the relevance of the
- event. See <<relevance-scores>>.
 
 `_source`::
 (object)
@@ -485,11 +523,6 @@ Name of the index containing the event.
 Unique identifier for the event.
 This ID is only unique within the index.
 
-`_score`::
-(float)
-Positive 32-bit floating point number used to determine the relevance of the
- event. See <<relevance-scores>>.
-
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
@@ -503,30 +536,30 @@ Original JSON body passed for the event at index time.
 ===== Basic query example
 
 The following EQL search request searches for events with an `event.category` of
-`file` that meet the following conditions:
+`process` that meet the following conditions:
 
-* A `file.name` of `cmd.exe`
-* An `agent.id` other than `my_user`
+* A `process.name` of `cmd.exe`
+* An `process.pid` other than `2013`
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
-    file where (file.name == "cmd.exe" and agent.id != "my_user")
+    process where (process.name == "cmd.exe" and process.pid != 2013)
   """
 }
 ----
-// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
+// TEST[setup:sec_logs]
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
-to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
+to milliseconds since the {wikipedia}/Unix_time[Unix epoch],
 in ascending order.
 
 If two or more events share the same timestamp, the
 <<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
-the events in ascending, lexicographic order.
+the events in ascending order.
 
 [source,console-result]
 ----
@@ -542,54 +575,34 @@ the events in ascending, lexicographic order.
     },
     "events": [
       {
-        "_index": "my-index-000001",
-        "_id": "fwGeywNsBl8Y9Ys1x51b",
-        "_score": null,
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "babI3XMBI9IjHuIqU0S_",
         "_source": {
-          "@timestamp": "2020-12-06T11:04:07.000Z",
-          "agent": {
-            "id": "8a4f500d"
-          },
+          "@timestamp": "2099-12-06T11:04:05.000Z",
           "event": {
-            "category": "file",
-            "id": "dGCHwoeS",
-            "sequence": 2,
-          },
-          "file": {
-            "accessed": "2020-12-07T11:07:08.000Z",
-            "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe",
-            "type": "file",
-            "size": 16384
+            "category": "process",
+            "id": "edwCRnyD",
+            "sequence": 1
           },
           "process": {
+            "pid": 2012,
             "name": "cmd.exe",
             "executable": "C:\\Windows\\System32\\cmd.exe"
           }
         }
       },
       {
-        "_index": "my-index-000001",
-        "_id": "AtOJ4UjUBAAx3XR5kcCM",
-        "_score": null,
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "b6bI3XMBI9IjHuIqU0S_",
         "_source": {
-          "@timestamp": "2020-12-07T11:07:08.000Z",
-          "agent": {
-            "id": "8a4f500d"
-          },
+          "@timestamp": "2099-12-07T11:06:07.000Z",
           "event": {
-            "category": "file",
-            "id": "bYA7gPay",
-            "sequence": 4
-          },
-          "file": {
-            "accessed": "2020-12-07T11:07:08.000Z",
-            "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe",
-            "type": "file",
-            "size": 16384
+            "category": "process",
+            "id": "cMyt5SZ2",
+            "sequence": 3
           },
           "process": {
+            "pid": 2012,
             "name": "cmd.exe",
             "executable": "C:\\Windows\\System32\\cmd.exe"
           }
@@ -600,8 +613,9 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
-// TESTRESPONSE[s/"_id": "fwGeywNsBl8Y9Ys1x51b"/"_id": $body.hits.events.0._id/]
-// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.events.1._id/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
+// TESTRESPONSE[s/"_id": "babI3XMBI9IjHuIqU0S_"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "b6bI3XMBI9IjHuIqU0S_"/"_id": $body.hits.events.1._id/]
 
 [[eql-search-api-sequence-ex]]
 ===== Sequence query example
@@ -614,7 +628,7 @@ that:
 --
 * An `event.category` of `file`
 * A `file.name` of `cmd.exe`
-* An `agent.id` other than `my_user`
+* An `process.pid` other than `2013`
 --
 . Followed by an event with:
 +
@@ -623,29 +637,24 @@ that:
 * A `process.executable` that contains the substring `regsvr32`
 --
 
-These events must also share the same `agent.id` value.
+These events must also share the same `process.pid` value.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
-    sequence by agent.id
-      [ file where file.name == "cmd.exe" and agent.id != "my_user" ]
+    sequence by process.pid
+      [ file where file.name == "cmd.exe" and process.pid != 2013 ]
       [ process where stringContains(process.executable, "regsvr32") ]
   """
 }
 ----
+// TEST[setup:sec_logs]
 
-The API returns the following response. The `hits.sequences.join_keys` property
-contains the shared `agent.id` value for each matching event. Matching events in
-the `hits.sequences.events` property are sorted by
-<<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
-the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
-
-If two or more events share the same timestamp, the
-<<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
-the events in ascending, lexicographic order.
+The API returns the following response. Matching sequences are included in the
+`hits.sequences` property. The `hits.sequences.join_keys` property contains the
+shared `process.pid` value for each matching event.
 
 [source,console-result]
 ----
@@ -662,58 +671,47 @@ the events in ascending, lexicographic order.
     "sequences": [
       {
         "join_keys": [
-          "8a4f500d"
+          2012
         ],
         "events": [
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:08.000Z",
-              "agent": {
-                "id": "8a4f500d"
-              },
+              "@timestamp": "2099-12-06T11:04:07.000Z",
               "event": {
                 "category": "file",
-                "id": "bYA7gPay",
-                "sequence": 4
+                "id": "dGCHwoeS",
+                "sequence": 2
               },
               "file": {
-                "accessed": "2020-12-07T11:07:08.000Z",
+                "accessed": "2099-12-07T11:07:08.000Z",
                 "name": "cmd.exe",
                 "path": "C:\\Windows\\System32\\cmd.exe",
                 "type": "file",
                 "size": 16384
               },
               "process": {
+                "pid": 2012,
                 "name": "cmd.exe",
                 "executable": "C:\\Windows\\System32\\cmd.exe"
               }
             }
           },
           {
-            "_index": "my-index-000001",
-            "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_version": 1,
-            "_seq_no": 4,
-            "_primary_term": 1,
-            "_score": null,
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
+            "_id": "OQmfCaduce8zoHT93o4H",
             "_source": {
-              "@timestamp": "2020-12-07T11:07:09.000Z",
-              "agent": {
-                "id": "8a4f500d"
-              },
+              "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
                 "category": "process",
                 "id": "aR3NWVOs",
-                "sequence": 5
+                "sequence": 4
               },
               "process": {
+                "pid": 2012,
                 "name": "regsvr32.exe",
+                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
                 "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
             }
@@ -725,5 +723,6 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
-// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.1._id/]

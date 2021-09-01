@@ -1,0 +1,149 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "x_cluster_role" ]
+          }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        body:  >
+          {
+            "cluster": [],
+            "indices": [
+              {
+                "names": ["local_pit", "my_remote_cluster:point_in_time_index"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "remote_ccs" ]
+          }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+          {
+          }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "x_cluster_role"
+        ignore: 404
+---
+"Search with point in time":
+
+  - do:
+      indices.create:
+        index: local_pit
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+          mappings:
+            properties:
+              created_at:
+                type: date
+                format: "yyyy-MM-dd"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "local_pit"}}'
+          - '{"f": "l1", "created_at" : "2020-01-01"}'
+          - '{"index": {"_index": "local_pit"}}'
+          - '{"f": "l2", "created_at" : "2021-01-02"}'
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      open_point_in_time:
+        index: my_remote_cluster:point_in_time_index,local_pit
+        keep_alive: 5m
+  - set: {id: pit_id}
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        sort: created_at
+        body:
+          query:
+            range:
+              created_at:
+                gte: "2020-01-03"
+          pit:
+            id: "$pit_id"
+            keep_alive: 1m
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._index: "my_remote_cluster:point_in_time_index" }
+  - match: { hits.hits.0._source.f: "r3" }
+  - match: { hits.hits.1._index: "my_remote_cluster:point_in_time_index" }
+  - match: { hits.hits.1._source.f: "r4" }
+  - match: { hits.hits.2._index: "local_pit" }
+  - match: { hits.hits.2._source.f: "l2" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      close_point_in_time:
+        body:
+          id: "$pit_id"
+
+---
+"Point in time CCS with only remote indices requires no privileges on local cluster":
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      open_point_in_time:
+        index: "my_*:point_in_time_index"
+        keep_alive: 5m
+  - set: {id: pit_id}
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        sort: created_at
+        body:
+          query:
+            range:
+              created_at:
+                gte: "2020-01-03"
+          pit:
+            id: "$pit_id"
+            keep_alive: 1m
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "my_remote_cluster:point_in_time_index" }
+  - match: { hits.hits.0._source.f: "r3" }
+  - match: { hits.hits.1._index: "my_remote_cluster:point_in_time_index" }
+  - match: { hits.hits.1._source.f: "r4" }
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      close_point_in_time:
+        body:
+          id: "$pit_id"

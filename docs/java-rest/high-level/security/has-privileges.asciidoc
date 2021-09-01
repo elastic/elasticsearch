@@ -7,6 +7,8 @@
 [id="{upid}-{api}"]
 === Has Privileges API
 
+Determines whether the logged in user has a specified list of privileges.
+
 [id="{upid}-{api}-request"]
 ==== Has Privileges Request
 The +{request}+ supports checking for any or all of the following privilege types:
@@ -62,7 +64,7 @@ if the privilege was not part of the request).
 A `Map<String, Map<String, Map<String, Boolean>>>>` where each key is the
 name of an application (as specified in the +{request}+).
 For each application, the value is a `Map` keyed by resource name, with
-each value  being another `Map` from privilege name to a `Boolean`.
+each value being another `Map` from privilege name to a `Boolean`.
 The `Boolean` value is `true` if the user has that privilege on that 
 resource for that application, and `false` otherwise.
 +

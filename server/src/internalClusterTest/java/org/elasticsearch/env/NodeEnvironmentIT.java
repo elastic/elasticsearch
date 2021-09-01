@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -37,10 +26,8 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -79,7 +66,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) {
-                        return NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+                        return NodeRoles.removeRoles(nonDataNode(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
                     }
                 }));
         if (writeDanglingIndices) {
@@ -108,15 +95,15 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
-    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path[], Exception> onNodeStopped) {
+    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path, Exception> onNodeStopped) {
         internalCluster().startNode();
-        final Path[] dataPaths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
+        final Path dataPath = internalCluster().getInstance(NodeEnvironment.class).nodeDataPath();
         return expectThrows(IllegalStateException.class,
             () -> internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     try {
-                        onNodeStopped.accept(dataPaths);
+                        onNodeStopped.accept(dataPath);
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
@@ -149,8 +136,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         // simulate older data path layout by moving data under "nodes/0" folder
-        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings)
-            .stream().map(PathUtils::get).collect(Collectors.toList());
+        final List<Path> dataPaths = List.of(PathUtils.get(Environment.PATH_DATA_SETTING.get(dataPathSettings)));
         dataPaths.forEach(path -> {
                 final Path targetPath = path.resolve("nodes").resolve("0");
                 try {
@@ -213,39 +199,5 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertTrue(indexExists("test"));
         ensureYellow("test");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-    }
-
-    public void testFailsToStartOnDataPathsFromMultipleNodes() throws IOException {
-        final List<String> nodes = internalCluster().startNodes(2);
-        ensureStableCluster(2);
-
-        final List<String> node0DataPaths = Environment.PATH_DATA_SETTING.get(internalCluster().dataPathSettings(nodes.get(0)));
-        final List<String> node1DataPaths = Environment.PATH_DATA_SETTING.get(internalCluster().dataPathSettings(nodes.get(1)));
-
-        final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
-        allDataPaths.addAll(node1DataPaths);
-
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
-
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> PersistedClusterStateService.nodeMetadata(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
-
-        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
-
-        illegalStateException = expectThrows(IllegalStateException.class,
-            () -> internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), allDataPaths)));
-
-        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
-
-        final List<String> node0DataPathsPlusOne = new ArrayList<>(node0DataPaths);
-        node0DataPathsPlusOne.add(createTempDir().toString());
-        internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), node0DataPathsPlusOne));
-
-        final List<String> node1DataPathsPlusOne = new ArrayList<>(node1DataPaths);
-        node1DataPathsPlusOne.add(createTempDir().toString());
-        internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), node1DataPathsPlusOne));
-
-        ensureStableCluster(2);
     }
 }

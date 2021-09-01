@@ -1,10 +1,9 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[xpack-autoscaling]]
-[chapter]
 = Autoscaling
 
-experimental[]
+NOTE: {cloud-only}
 
 The autoscaling feature enables an operator to configure tiers of nodes that
 self-monitor whether or not they need to scale based on an operator-defined
@@ -17,3 +16,15 @@ allocate existing and future shard copies due to disk space, then the
 autoscaling API would report that the cluster needs to scale due to disk space.
 It remains the responsibility of the operator to add the additional resources
 that the cluster signals it requires.
+
+A policy is composed of a list of roles and a list of deciders. Nodes matching
+the roles are governed by the policy. The deciders provide independent estimates
+of the capacity required. See <<autoscaling-deciders,Autoscaling deciders>> for
+more information on the deciders available.
+
+Autoscaling supports the scale-up and scale-down of dedicated {ml}
+nodes. Autoscaling also supports the scale-up of data nodes based on storage.
+[NOTE]
+Autoscaling is not supported on Debian 8.
+
+include::autoscaling-deciders.asciidoc[]

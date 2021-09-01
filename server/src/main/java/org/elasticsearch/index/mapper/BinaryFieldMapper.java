@@ -1,30 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -34,10 +21,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -45,8 +32,9 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
-public class BinaryFieldMapper extends ParametrizedFieldMapper {
+public class BinaryFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
 
@@ -54,7 +42,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         return (BinaryFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
@@ -75,9 +63,9 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), hasDocValues.getValue(), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public BinaryFieldMapper build(ContentPath contentPath) {
+            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(contentPath), stored.getValue(),
+                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -85,17 +73,22 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final class BinaryFieldType extends MappedFieldType {
 
-        public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
+        private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {
-            this(name, true, Collections.emptyMap());
+            this(name, false, true, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -123,23 +116,14 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Binary fields do not support searching");
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Binary fields do not support searching");
         }
     }
 
@@ -154,18 +138,17 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         }
+        indexValue(context, context.parser().binaryValue());
+    }
+
+    public void indexValue(DocumentParserContext context, byte[] value) {
         if (value == null) {
             return;
         }
@@ -185,20 +168,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return value;
-    }
-
-    @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new BinaryFieldMapper.Builder(simpleName()).init(this);
     }
 

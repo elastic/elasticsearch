@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -27,14 +16,14 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -65,15 +54,20 @@ public class InboundPipelineTests extends ESTestCase {
                 final Version version = header.getVersion();
                 final boolean isRequest = header.isRequest();
                 final long requestId = header.getRequestId();
-                final boolean isCompressed = header.isCompressed();
+                final Compression.Scheme compressionScheme = header.getCompressionScheme();
+                if (header.isCompressed()) {
+                    assertNotNull(compressionScheme);
+                } else {
+                    assertNull(compressionScheme);
+                }
                 if (m.isShortCircuit()) {
-                    actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), null);
+                    actualData = new MessageData(version, requestId, isRequest, compressionScheme, header.getActionName(), null);
                 } else if (isRequest) {
                     final TestRequest request = new TestRequest(m.openOrGetStreamInput());
-                    actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), request.value);
+                    actualData = new MessageData(version, requestId, isRequest, compressionScheme, header.getActionName(), request.value);
                 } else {
                     final TestResponse response = new TestResponse(m.openOrGetStreamInput());
-                    actualData = new MessageData(version, requestId, isRequest, isCompressed, null, response.value);
+                    actualData = new MessageData(version, requestId, isRequest, compressionScheme, null, response.value);
                 }
                 actual.add(new Tuple<>(actualData, m.getException()));
             } catch (IOException e) {
@@ -104,9 +98,9 @@ public class InboundPipelineTests extends ESTestCase {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
                     final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-                    final String value = randomAlphaOfLength(randomIntBetween(10, 200));
+                    final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
-                    final boolean isCompressed = randomBoolean();
+                    Compression.Scheme compressionScheme = getCompressionScheme(version);
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
@@ -115,19 +109,19 @@ public class InboundPipelineTests extends ESTestCase {
                     OutboundMessage message;
                     if (isRequest) {
                         if (rarely()) {
-                            messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
+                            messageData = new MessageData(version, requestId, true, compressionScheme, breakThisAction, null);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, breakThisAction, requestId, false, isCompressed);
+                                version, breakThisAction, requestId, false, compressionScheme);
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
-                            messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
+                            messageData = new MessageData(version, requestId, true, compressionScheme, actionName, value);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, actionName, requestId, false, isCompressed);
+                                version, actionName, requestId, false, compressionScheme);
                         }
                     } else {
-                        messageData = new MessageData(version, requestId, false, isCompressed, null, value);
+                        messageData = new MessageData(version, requestId, false, compressionScheme, null, value);
                         message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                            version, requestId, false, isCompressed);
+                            version, requestId, false, compressionScheme);
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
@@ -157,7 +151,7 @@ public class InboundPipelineTests extends ESTestCase {
                     final MessageData actualMessageData = actualTuple.v1();
                     assertEquals(expectedMessageData.requestId, actualMessageData.requestId);
                     assertEquals(expectedMessageData.isRequest, actualMessageData.isRequest);
-                    assertEquals(expectedMessageData.isCompressed, actualMessageData.isCompressed);
+                    assertEquals(expectedMessageData.compressionScheme, actualMessageData.compressionScheme);
                     assertEquals(expectedMessageData.actionName, actualMessageData.actionName);
                     assertEquals(expectedMessageData.value, actualMessageData.value);
                     if (expectedTuple.v2() != null) {
@@ -173,6 +167,18 @@ public class InboundPipelineTests extends ESTestCase {
 
             assertEquals(bytesReceived, statsTracker.getBytesRead());
             assertEquals(totalMessages, statsTracker.getMessagesReceived());
+        }
+    }
+
+    private static Compression.Scheme getCompressionScheme(Version version) {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            if (version.before(Compression.Scheme.LZ4_VERSION)) {
+                return Compression.Scheme.DEFLATE;
+            } else {
+                return randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+            }
         }
     }
 
@@ -195,10 +201,10 @@ public class InboundPipelineTests extends ESTestCase {
             OutboundMessage message;
             if (isRequest) {
                 message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    invalidVersion, actionName, requestId, false, false);
+                    invalidVersion, actionName, requestId, false, null);
             } else {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    invalidVersion, requestId, false, false);
+                    invalidVersion, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -232,10 +238,10 @@ public class InboundPipelineTests extends ESTestCase {
             OutboundMessage message;
             if (isRequest) {
                 message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    version, actionName, requestId, false, false);
+                    version, actionName, requestId, false, null);
             } else {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    version, requestId, false, false);
+                    version, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -268,15 +274,16 @@ public class InboundPipelineTests extends ESTestCase {
         private final Version version;
         private final long requestId;
         private final boolean isRequest;
-        private final boolean isCompressed;
+        private final Compression.Scheme compressionScheme;
         private final String value;
         private final String actionName;
 
-        private MessageData(Version version, long requestId, boolean isRequest, boolean isCompressed, String actionName, String value) {
+        private MessageData(Version version, long requestId, boolean isRequest, Compression.Scheme compressionScheme, String actionName,
+                            String value) {
             this.version = version;
             this.requestId = requestId;
             this.isRequest = isRequest;
-            this.isCompressed = isCompressed;
+            this.compressionScheme = compressionScheme;
             this.actionName = actionName;
             this.value = value;
         }
@@ -289,7 +296,7 @@ public class InboundPipelineTests extends ESTestCase {
             MessageData that = (MessageData) o;
             return requestId == that.requestId &&
                 isRequest == that.isRequest &&
-                isCompressed == that.isCompressed &&
+                Objects.equals(compressionScheme, that.compressionScheme) &&
                 Objects.equals(version, that.version) &&
                 Objects.equals(value, that.value) &&
                 Objects.equals(actionName, that.actionName);
@@ -297,7 +304,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         @Override
         public int hashCode() {
-            return Objects.hash(version, requestId, isRequest, isCompressed, value, actionName);
+            return Objects.hash(version, requestId, isRequest, compressionScheme, value, actionName);
         }
     }
 }

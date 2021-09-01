@@ -1,0 +1,86 @@
+{
+  "search_mvt": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-vector-tile-api.html",
+      "description": "Searches a vector tile for geospatial values. Returns results as a binary Mapbox vector tile."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/vnd.mapbox-vector-tile"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_mvt/{field}/{zoom}/{x}/{y}",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list of data streams, indices, or aliases to search"
+            },
+            "field": {
+              "type": "string",
+              "description": "Field containing geospatial data to return"
+            },
+            "zoom": {
+              "type": "int",
+              "description": "Zoom level for the vector tile to search"
+            },
+            "x": {
+              "type": "int",
+              "description": "X coordinate for the vector tile to search"
+            },
+            "y": {
+              "type": "int",
+              "description": "Y coordinate for the vector tile to search"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "exact_bounds":{
+        "type":"boolean",
+        "description":"If false, the meta layer's feature is the bounding box of the tile. If true, the meta layer's feature is a bounding box resulting from a `geo_bounds` aggregation.",
+        "default":false
+      },
+      "extent":{
+        "type":"int",
+        "description":"Size, in pixels, of a side of the vector tile.",
+        "default":4096
+      },
+      "grid_precision":{
+        "type":"int",
+        "description":"Additional zoom levels available through the aggs layer. Accepts 0-8.",
+        "default":8
+      },
+      "grid_type":{
+        "type":"enum",
+        "options":[
+          "grid",
+          "point"
+        ],
+        "description":"Determines the geometry type for features in the aggs layer.",
+        "default":"grid"
+      },
+      "size":{
+        "type":"int",
+        "description":"Maximum number of features to return in the hits layer. Accepts 0-10000.",
+        "default":10000
+      }
+    },
+    "body":{
+      "description":"Search request body.",
+      "required":false
+    }
+  }
+}

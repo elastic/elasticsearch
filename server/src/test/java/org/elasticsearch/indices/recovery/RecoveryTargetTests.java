@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices.recovery;
 
@@ -28,7 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState.File;
+import org.elasticsearch.indices.recovery.RecoveryState.FileDetail;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Timer;
@@ -40,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -52,6 +42,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -180,8 +171,8 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testIndex() throws Throwable {
-        File[] files = new File[randomIntBetween(1, 20)];
-        ArrayList<File> filesToRecover = new ArrayList<>();
+        FileDetail[] files = new FileDetail[randomIntBetween(1, 20)];
+        ArrayList<FileDetail> filesToRecover = new ArrayList<>();
         long totalFileBytes = 0;
         long totalReusedBytes = 0;
         int totalReused = 0;
@@ -189,7 +180,7 @@ public class RecoveryTargetTests extends ESTestCase {
             final int fileLength = randomIntBetween(1, 1000);
             final boolean reused = randomBoolean();
             totalFileBytes += fileLength;
-            files[i] = new RecoveryState.File("f_" + i, fileLength, reused);
+            files[i] = new FileDetail("f_" + i, fileLength, reused);
             if (reused) {
                 totalReused++;
                 totalReusedBytes += fileLength;
@@ -230,7 +221,7 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.targetThrottling().nanos(), equalTo(Index.UNKNOWN));
 
         index.start();
-        for (File file : files) {
+        for (FileDetail file : files) {
             index.addFileDetail(file.name(), file.length(), file.reused());
         }
 
@@ -270,8 +261,43 @@ public class RecoveryTargetTests extends ESTestCase {
         long recoveredBytes = 0;
         long sourceThrottling = Index.UNKNOWN;
         long targetThrottling = Index.UNKNOWN;
+
+        List<FileDetail> filesToRecoverFromSnapshot = randomSubsetOf(filesToRecover);
+        for (FileDetail fileDetail : filesToRecoverFromSnapshot) {
+            if (bytesToRecover <= 0) {
+                break;
+            }
+
+            final long throttledOnTarget = rarely() ? randomIntBetween(10, 200) : 0;
+            if (targetThrottling == Index.UNKNOWN) {
+                targetThrottling = throttledOnTarget;
+            } else {
+                targetThrottling += throttledOnTarget;
+            }
+            index.addTargetThrottling(throttledOnTarget);
+
+            if (fileDetail.length() <= bytesToRecover && randomBoolean()) {
+                index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), fileDetail.length());
+                fileDetail.addRecoveredFromSnapshotBytes(fileDetail.length());
+
+                assertThat(fileDetail.recovered(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.fullyRecovered(), is(equalTo(true)));
+
+                bytesToRecover -= fileDetail.length();
+                recoveredBytes += fileDetail.length();
+                filesToRecover.remove(fileDetail);
+            } else {
+                long bytesRecoveredFromSnapshot = randomLongBetween(0, fileDetail.length());
+                index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), bytesRecoveredFromSnapshot);
+                index.resetRecoveredBytesOfFile(fileDetail.name());
+                fileDetail.addRecoveredFromSnapshotBytes(bytesRecoveredFromSnapshot);
+                fileDetail.resetRecoveredBytes();
+            }
+        }
+
         while (bytesToRecover > 0) {
-            File file = randomFrom(filesToRecover);
+            FileDetail file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
             final long throttledOnSource = rarely() ? randomIntBetween(10, 200) : 0;
             index.addSourceThrottling(throttledOnSource);
@@ -534,14 +560,14 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testFileHashCodeAndEquals() {
-        File f = new File("foo", randomIntBetween(0, 100), randomBoolean());
-        File anotherFile = new File(f.name(), f.length(), f.reused());
+        FileDetail f = new FileDetail("foo", randomIntBetween(0, 100), randomBoolean());
+        FileDetail anotherFile = new FileDetail(f.name(), f.length(), f.reused());
         assertEquals(f, anotherFile);
         assertEquals(f.hashCode(), anotherFile.hashCode());
         int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
-            f = new File("foo", randomIntBetween(0, 100), randomBoolean());
-            anotherFile = new File(f.name(), randomIntBetween(0, 100), randomBoolean());
+            f = new FileDetail("foo", randomIntBetween(0, 100), randomBoolean());
+            anotherFile = new FileDetail(f.name(), randomIntBetween(0, 100), randomBoolean());
             if (f.equals(anotherFile)) {
                 assertEquals(f.hashCode(), anotherFile.hashCode());
             } else if (f.hashCode() != anotherFile.hashCode()) {

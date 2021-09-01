@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -19,11 +20,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -68,6 +69,7 @@ public class TransportPutDataFrameAnalyticsAction
     private final Client client;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final Settings settings;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -77,13 +79,15 @@ public class TransportPutDataFrameAnalyticsAction
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 DataFrameAnalyticsConfigProvider configProvider, DataFrameAnalyticsAuditor auditor) {
         super(PutDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+                PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, PutDataFrameAnalyticsAction.Response::new,
+                ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
         this.auditor = Objects.requireNonNull(auditor);
+        this.settings = settings;
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -93,6 +97,7 @@ public class TransportPutDataFrameAnalyticsAction
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             null,
+            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -100,16 +105,6 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
         this.maxModelMemoryLimit = maxModelMemoryLimit;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutDataFrameAnalyticsAction.Response read(StreamInput in) throws IOException {
-        return new PutDataFrameAnalyticsAction.Response(in);
     }
 
     @Override
@@ -124,22 +119,23 @@ public class TransportPutDataFrameAnalyticsAction
         final DataFrameAnalyticsConfig config = request.getConfig();
 
         ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
-            aBoolean -> putValidatedConfig(config, listener),
+            aBoolean -> putValidatedConfig(config, request.masterNodeTimeout(), listener),
             listener::onFailure
         );
 
-        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(),
+        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(), null,
             SourceDestValidations.ALL_VALIDATIONS, sourceDestValidationListener);
     }
 
-    private void putValidatedConfig(DataFrameAnalyticsConfig config, ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
+    private void putValidatedConfig(DataFrameAnalyticsConfig config, TimeValue masterNodeTimeout,
+                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
         DataFrameAnalyticsConfig preparedForPutConfig =
             new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimit)
                 .setCreateTime(Instant.now())
                 .setVersion(Version.CURRENT)
                 .build();
 
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
                 RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -158,7 +154,7 @@ public class TransportPutDataFrameAnalyticsAction
                 privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
+                    r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),
                     listener::onFailure);
 
                 client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
@@ -167,6 +163,7 @@ public class TransportPutDataFrameAnalyticsAction
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
+                masterNodeTimeout,
                 ActionListener.wrap(
                     unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
                     listener::onFailure
@@ -176,11 +173,13 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void handlePrivsResponse(String username, DataFrameAnalyticsConfig memoryCappedConfig,
                                      HasPrivilegesResponse response,
+                                     TimeValue masterNodeTimeout,
                                      ActionListener<PutDataFrameAnalyticsAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
             updateDocMappingAndPutConfig(
                 memoryCappedConfig,
                 threadPool.getThreadContext().getHeaders(),
+                masterNodeTimeout,
                 ActionListener.wrap(
                     unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure
@@ -202,11 +201,12 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
                                               Map<String, String> headers,
+                                              TimeValue masterNodeTimeout,
                                               ActionListener<DataFrameAnalyticsConfig> listener) {
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, listener);
+            configProvider.put(config, headers, masterNodeTimeout, listener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -214,8 +214,9 @@ public class TransportPutDataFrameAnalyticsAction
             MlConfigIndex::mapping,
             client,
             clusterState,
+            masterNodeTimeout,
             ActionListener.wrap(
-                unused -> configProvider.put(config, headers, ActionListener.wrap(
+                unused -> configProvider.put(config, headers, masterNodeTimeout, ActionListener.wrap(
                     indexResponse -> {
                         auditor.info(
                             config.getId(),

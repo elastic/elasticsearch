@@ -6,7 +6,7 @@ getting the artifact to using it in an application.
 
 [[java-rest-high-compatibility]]
 === Compatibility
-The Java High Level REST Client requires Java 1.8 and depends on the Elasticsearch
+The Java High Level REST Client requires at least Java 1.8 and depends on the Elasticsearch
 core project. The client version is the same as the Elasticsearch version that the
 client was developed for. It accepts the same request arguments as the `TransportClient`
 and returns the same response objects. See the <<java-rest-high-level-migration>>
@@ -46,8 +46,27 @@ Central]. The minimum Java version required is `1.8`.
 The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
-If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
-at https://snapshots.elastic.co/maven/.
+If you are looking for a SNAPSHOT version, you should add our snapshot repository to your Maven config:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<repositories>
+    <repository>
+        <id>es-snapshots</id>
+        <name>elasticsearch snapshot repo</name>
+        <url>https://snapshots.elastic.co/maven/</url>
+    </repository>
+</repositories>
+--------------------------------------------------
+
+or in Gradle:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+maven {
+        url "https://snapshots.elastic.co/maven/"
+}
+--------------------------------------------------
 
 [[java-rest-high-getting-started-maven-maven]]
 ==== Maven configuration
@@ -158,7 +177,7 @@ more examples of customizing the options.
 [[java-rest-high-getting-started-asynchronous-usage]]
 === Asynchronous usage
 
-All of the the methods across the different clients exist in a traditional synchronous and 
+All of the methods across the different clients exist in a traditional synchronous and 
 asynchronous variant. The difference is that the asynchronous ones use asynchronous requests 
 in the REST Low Level Client. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.

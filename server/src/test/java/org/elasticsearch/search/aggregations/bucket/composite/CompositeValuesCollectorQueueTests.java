@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.composite;
 
@@ -75,21 +64,25 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     }
 
     public void testRandomLong() throws IOException {
-        testRandomCase(new ClassAndName(createNumber("long", LONG) , Long.class));
+        testRandomCase(new ClassAndName(createNumber("long", LONG), Long.class));
     }
 
     public void testRandomDouble() throws IOException {
-        testRandomCase(new ClassAndName(createNumber("double", DOUBLE) , Double.class));
+        testRandomCase(new ClassAndName(createNumber("double", DOUBLE), Double.class));
     }
 
     public void testRandomDoubleAndLong() throws IOException {
-        testRandomCase(new ClassAndName(createNumber("double", DOUBLE), Double.class),
-            new ClassAndName(createNumber("long", LONG),  Long.class));
+        testRandomCase(
+            new ClassAndName(createNumber("double", DOUBLE), Double.class),
+            new ClassAndName(createNumber("long", LONG), Long.class)
+        );
     }
 
     public void testRandomDoubleAndKeyword() throws IOException {
-        testRandomCase(new ClassAndName(createNumber("double", DOUBLE), Double.class),
-            new ClassAndName(createKeyword("keyword"), BytesRef.class));
+        testRandomCase(
+            new ClassAndName(createNumber("double", DOUBLE), Double.class),
+            new ClassAndName(createKeyword("keyword"), BytesRef.class)
+        );
     }
 
     public void testRandomKeyword() throws IOException {
@@ -97,23 +90,31 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     }
 
     public void testRandomLongAndKeyword() throws IOException {
-        testRandomCase(new ClassAndName(createNumber("long", LONG),  Long.class),
-            new ClassAndName(createKeyword("keyword"), BytesRef.class));
+        testRandomCase(
+            new ClassAndName(createNumber("long", LONG), Long.class),
+            new ClassAndName(createKeyword("keyword"), BytesRef.class)
+        );
     }
 
     public void testRandomLongAndDouble() throws IOException {
-        testRandomCase(new ClassAndName(createNumber("long", LONG),  Long.class),
-            new ClassAndName(createNumber("double", DOUBLE) , Double.class));
+        testRandomCase(
+            new ClassAndName(createNumber("long", LONG), Long.class),
+            new ClassAndName(createNumber("double", DOUBLE), Double.class)
+        );
     }
 
     public void testRandomKeywordAndLong() throws IOException {
-        testRandomCase(new ClassAndName(createKeyword("keyword"), BytesRef.class),
-            new ClassAndName(createNumber("long", LONG), Long.class));
+        testRandomCase(
+            new ClassAndName(createKeyword("keyword"), BytesRef.class),
+            new ClassAndName(createNumber("long", LONG), Long.class)
+        );
     }
 
     public void testRandomKeywordAndDouble() throws IOException {
-        testRandomCase(new ClassAndName(createKeyword("keyword"), BytesRef.class),
-            new ClassAndName(createNumber("double", DOUBLE), Double.class));
+        testRandomCase(
+            new ClassAndName(createKeyword("keyword"), BytesRef.class),
+            new ClassAndName(createNumber("double", DOUBLE), Double.class)
+        );
     }
 
     public void testRandom() throws IOException {
@@ -132,7 +133,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     types[i] = new ClassAndName(createKeyword(Integer.toString(i)), BytesRef.class);
                     break;
                 default:
-                    assert(false);
+                    assert (false);
             }
         }
         testRandomCase(types);
@@ -147,10 +148,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
     }
 
-    private void testRandomCase(boolean forceMerge,
-                                boolean missingBucket,
-                                int indexSortSourcePrefix,
-                                ClassAndName... types) throws IOException {
+    private void testRandomCase(boolean forceMerge, boolean missingBucket, int indexSortSourcePrefix, ClassAndName... types)
+        throws IOException {
         final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         int numDocs = randomIntBetween(50, 100);
         List<Comparable<?>[]> possibleValues = new ArrayList<>();
@@ -159,7 +158,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             ClassAndName type = types[i];
             final Comparable<?>[] values;
             int numValues = randomIntBetween(1, numDocs * 2);
-            values = new Comparable[numValues];
+            values = new Comparable<?>[numValues];
             if (type.clazz == Long.class) {
                 if (i < indexSortSourcePrefix) {
                     indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.LONG);
@@ -199,7 +198,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     List<List<Comparable<?>>> docValues = new ArrayList<>();
                     boolean hasAllField = true;
                     for (int j = 0; j < types.length; j++) {
-                        int numValues = indexSortSourcePrefix-1 >= j ? 1 : randomIntBetween(0, 5);
+                        int numValues = indexSortSourcePrefix - 1 >= j ? 1 : randomIntBetween(0, 5);
                         List<Comparable<?>> values = new ArrayList<>();
                         if (numValues == 0) {
                             hasAllField = false;
@@ -214,8 +213,12 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                     document.add(new SortedNumericDocValuesField(types[j].fieldType.name(), value));
                                     document.add(new LongPoint(types[j].fieldType.name(), value));
                                 } else if (types[j].clazz == Double.class) {
-                                    document.add(new SortedNumericDocValuesField(types[j].fieldType.name(),
-                                        NumericUtils.doubleToSortableLong((Double) values.get(k))));
+                                    document.add(
+                                        new SortedNumericDocValuesField(
+                                            types[j].fieldType.name(),
+                                            NumericUtils.doubleToSortableLong((Double) values.get(k))
+                                        )
+                                    );
                                 } else if (types[j].clazz == BytesRef.class) {
                                     BytesRef value = (BytesRef) values.get(k);
                                     document.add(new SortedSetDocValuesField(types[j].fieldType.name(), (BytesRef) values.get(k)));
@@ -239,7 +242,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             }
             IndexReader reader = DirectoryReader.open(directory);
             int size = keys.size() > 1 ? randomIntBetween(1, keys.size()) : 1;
-            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource[types.length];
+            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource<?>[types.length];
             for (int i = 0; i < types.length; i++) {
                 final MappedFieldType fieldType = types[i].fieldType;
                 if (types[i].clazz == Long.class) {
@@ -265,10 +268,9 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     );
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
-                        // we don't create global ordinals but we test this mode when the reader has a single segment
-                        // since ordinals are global in this case.
-                        sources[i] = new GlobalOrdinalValuesSource(
+                        sources[i] = new OrdinalValuesSource(
                             bigArrays,
+                            (b) -> {},
                             fieldType,
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
@@ -289,27 +291,35 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         );
                     }
                 } else {
-                    assert(false);
+                    assert (false);
                 }
             }
             CompositeKey[] expected = keys.toArray(new CompositeKey[0]);
             Arrays.sort(expected, (a, b) -> compareKey(a, b));
-            for (boolean withProducer : new boolean[] {true, false}) {
+            for (boolean withProducer : new boolean[] { true, false }) {
                 int pos = 0;
                 CompositeKey last = null;
                 while (pos < size) {
-                    final CompositeValuesCollectorQueue queue =
-                        new CompositeValuesCollectorQueue(BigArrays.NON_RECYCLING_INSTANCE, sources, size, last);
+                    final CompositeValuesCollectorQueue queue = new CompositeValuesCollectorQueue(
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        sources,
+                        size
+                    );
+                    if (last != null) {
+                        queue.setAfterKey(last);
+                    }
                     final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
                     for (LeafReaderContext leafReaderContext : reader.leaves()) {
                         if (docsProducer != null && withProducer) {
-                            assertEquals(DocIdSet.EMPTY,
-                                docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, false));
+                            assertEquals(
+                                DocIdSet.EMPTY,
+                                docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, false)
+                            );
                         } else {
                             final LeafBucketCollector leafCollector = new LeafBucketCollector() {
                                 @Override
                                 public void collect(int doc, long bucket) throws IOException {
-                                    queue.addIfCompetitive(indexSortSourcePrefix);
+                                    queue.addIfCompetitive(indexSortSourcePrefix, 1);
                                 }
                             };
                             final LeafBucketCollector queueCollector = queue.getLeafCollector(leafReaderContext, leafCollector);
@@ -361,6 +371,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             } else if (key2.get(i) == null) {
                 return 1;
             }
+            @SuppressWarnings("unchecked")
             Comparable<Object> cmp1 = (Comparable<Object>) key1.get(i);
             int cmp = cmp1.compareTo(key2.get(i));
             if (cmp != 0) {
@@ -372,12 +383,17 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
 
     private static List<CompositeKey> createListCombinations(List<List<Comparable<?>>> values) {
         List<CompositeKey> keys = new ArrayList<>();
-        createListCombinations(new Comparable[values.size()], values, 0, values.size(), keys);
+        createListCombinations(new Comparable<?>[values.size()], values, 0, values.size(), keys);
         return keys;
     }
 
-    private static void createListCombinations(Comparable<?>[] key, List<List<Comparable<?>>> values,
-                                               int pos, int maxPos, List<CompositeKey> keys) {
+    private static void createListCombinations(
+        Comparable<?>[] key,
+        List<List<Comparable<?>>> values,
+        int pos,
+        int maxPos,
+        List<CompositeKey> keys
+    ) {
         if (pos == maxPos) {
             keys.add(new CompositeKey(key.clone()));
         } else {

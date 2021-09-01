@@ -39,7 +39,7 @@ Returns documents that contain terms within a provided range.
 
 <<query-dsl-regexp-query,`regexp` query>>::
 Returns documents that contain terms matching a
-https://en.wikipedia.org/wiki/Regular_expression[regular expression].
+{wikipedia}/Regular_expression[regular expression].
 
 <<query-dsl-term-query,`term` query>>::
 Returns documents that contain an exact term in a provided field.

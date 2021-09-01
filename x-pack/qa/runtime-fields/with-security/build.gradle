@@ -1,0 +1,32 @@
+apply plugin: 'elasticsearch.java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user clusterCredentials
+  user username: "test", password: "x-pack-test-password", role: "test"
+}

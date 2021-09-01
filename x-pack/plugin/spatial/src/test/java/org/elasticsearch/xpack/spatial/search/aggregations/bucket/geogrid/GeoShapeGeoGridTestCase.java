@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
@@ -17,8 +18,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
@@ -36,12 +38,10 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -55,11 +55,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.triangleTreeReader;
+import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.binaryGeoShapeDocValuesField;
+import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>> extends AggregatorTestCase {
+public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
     private static final String FIELD_NAME = "location";
 
     /**
@@ -76,6 +76,11 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
      * Return a point within the bounds of the tile grid
      */
     protected abstract Point randomPoint();
+
+    /**
+     * Return a random {@link GeoBoundingBox} within the bounds of the tile grid.
+     */
+    protected abstract GeoBoundingBox randomBBox();
 
     /**
      * Return the bounding tile as a {@link Rectangle} for a given point
@@ -112,9 +117,9 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
     public void testUnmapped() throws IOException {
         testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, iw -> {
-            iw.addDocument(Collections.singleton(
-                new BinaryGeoShapeDocValuesField(FIELD_NAME, GeoTestUtils.toDecodedTriangles(new Point(10D, 10D)),
-                    new CentroidCalculator(new Point(10D, 10D)))));
+            iw.addDocument(
+                Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D)))
+            );
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
         });
@@ -128,9 +133,9 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             .missing("-34.0,53.4");
         testCase(new MatchAllDocsQuery(), 1, null,
             iw -> {
-                iw.addDocument(Collections.singleton(
-                    new BinaryGeoShapeDocValuesField(FIELD_NAME, GeoTestUtils.toDecodedTriangles(new Point(10D, 10D)),
-                        new CentroidCalculator(new Point(10D, 10D)))));
+                iw.addDocument(
+                    Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D)))
+                );
             },
             geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
     }
@@ -154,7 +159,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
-
         GeoBoundingBox bbox = randomBBox();
         final double boundsTop = bbox.top();
         final double boundsBottom = bbox.bottom();
@@ -178,7 +182,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         }
 
         List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
-        List<Point> points = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Point p;
             p = randomPoint();
@@ -186,23 +189,16 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             double y = GeoTestUtils.encodeDecodeLat(p.getY());
             Rectangle pointTile = getTile(x, y, precision);
 
-
-            TriangleTreeReader reader = triangleTreeReader(p, GeoShapeCoordinateEncoder.INSTANCE);
-            GeoRelation tileRelation = reader.relateTile(GeoShapeCoordinateEncoder.INSTANCE.encodeX(pointTile.getMinX()),
-                GeoShapeCoordinateEncoder.INSTANCE.encodeY(pointTile.getMinY()),
-                GeoShapeCoordinateEncoder.INSTANCE.encodeX(pointTile.getMaxX()),
-                GeoShapeCoordinateEncoder.INSTANCE.encodeY(pointTile.getMaxY()));
-            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
-                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
-                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
+            GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
+            GeoRelation tileRelation =  value.relate(pointTile);
+            boolean intersectsBounds = boundsTop > pointTile.getMinY() && boundsBottom < pointTile.getMaxY()
+                && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
+                || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
             if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
                 numDocsWithin += 1;
             }
 
-
-            points.add(p);
-            docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
-                GeoTestUtils.toDecodedTriangles(p), new CentroidCalculator(p)));
+            docs.add(binaryGeoShapeDocValuesField(FIELD_NAME, p));
         }
 
         final long numDocsInBucket = numDocsWithin;
@@ -250,8 +246,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
                 distinctHashesPerDoc.add(hash);
                 if (usually()) {
                     Geometry geometry = new MultiPoint(new ArrayList<>(shapes));
-                    document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
-                        GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+                    document.add(binaryGeoShapeDocValuesField(FIELD_NAME, geometry));
                     iw.addDocument(document);
                     shapes.clear();
                     distinctHashesPerDoc.clear();
@@ -260,8 +255,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             }
             if (shapes.size() != 0) {
                 Geometry geometry = new MultiPoint(new ArrayList<>(shapes));
-                document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,
-                    GeoTestUtils.toDecodedTriangles(geometry), new CentroidCalculator(geometry)));
+                document.add(binaryGeoShapeDocValuesField(FIELD_NAME, geometry));
                 iw.addDocument(document);
             }
         }, geoHashGrid -> {
@@ -299,7 +293,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         }
 
         MappedFieldType fieldType
-            = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Collections.emptyMap());
+            = new GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();

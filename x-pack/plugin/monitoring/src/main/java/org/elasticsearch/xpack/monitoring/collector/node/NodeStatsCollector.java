@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for nodes statistics.
@@ -65,7 +68,7 @@ public class NodeStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+                                                  final ClusterState clusterState) {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.addMetrics(
@@ -74,8 +77,10 @@ public class NodeStatsCollector extends Collector {
             NodesStatsRequest.Metric.PROCESS.metricName(),
             NodesStatsRequest.Metric.THREAD_POOL.metricName(),
             NodesStatsRequest.Metric.FS.metricName());
+        request.timeout(getCollectionTimeout());
 
-        final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet(getCollectionTimeout());
+        final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
+        ensureNoTimeouts(getCollectionTimeout(), response);
 
         // if there's a failure, then we failed to work with the
         // _local node (guaranteed a single exception)

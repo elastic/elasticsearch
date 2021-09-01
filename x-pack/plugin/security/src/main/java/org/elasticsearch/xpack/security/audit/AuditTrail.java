@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -81,4 +83,9 @@ public interface AuditTrail {
     void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String indices,
                                   String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo);
 
+    // this is the only audit method that is called *after* the action executed, when the response is available
+    // it is however *only called for coordinating actions*, which are the actions that a client invokes as opposed to
+    // the actions that a node invokes in order to service a client request
+    void coordinatingActionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
+                                    TransportResponse transportResponse);
 }

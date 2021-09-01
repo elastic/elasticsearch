@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.List;
@@ -72,15 +60,6 @@ public final class HttpTransportSettings {
         intSetting("http.publish_port", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED =
         Setting.boolSetting("http.detailed_errors.enabled", true, Property.NodeScope);
-    public static final Setting<Boolean> SETTING_HTTP_CONTENT_TYPE_REQUIRED =
-        new Setting<>("http.content_type.required", (s) -> Boolean.toString(true), (s) -> {
-            final boolean value = Booleans.parseBoolean(s);
-            if (value == false) {
-                throw new IllegalArgumentException("http.content_type.required cannot be set to false. It exists only to make a rolling" +
-                    " upgrade easier");
-            }
-            return true;
-        }, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =
         Setting.byteSizeSetting(
                 "http.max_content_length",
@@ -132,6 +111,9 @@ public final class HttpTransportSettings {
     public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE =
         Setting.listSetting("http.tracer.exclude",
             Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<Boolean> SETTING_HTTP_CLIENT_STATS_ENABLED =
+        boolSetting("http.client_stats.enabled", true, Property.Dynamic, Property.NodeScope);
 
     private HttpTransportSettings() {
     }

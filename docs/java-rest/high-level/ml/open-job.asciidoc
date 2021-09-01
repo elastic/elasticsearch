@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Open {anomaly-job} API
+=== Open {anomaly-jobs} API
 
 Opens {anomaly-jobs} in the cluster. It accepts a +{request}+ object and
 responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Open {anomaly-job} request
+==== Open {anomaly-jobs} request
 
 An +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -24,7 +24,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 execution should wait for the job to be opened.
 
 [id="{upid}-{api}-response"]
-==== Open {anomaly-job} response
+==== Open {anomaly-jobs} response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

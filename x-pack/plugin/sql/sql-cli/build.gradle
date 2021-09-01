@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
@@ -42,7 +42,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jline-.*/, to: 'jline'
 }
 
-shadowJar {
+tasks.named("shadowJar").configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
   }
@@ -59,10 +59,10 @@ tasks.register("runcli") {
   dependsOn "shadowJar"
   doLast {
     List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
-    if ('true'.equals(System.getProperty('debug', 'false'))) {
+    if ('true'.equals(providers.systemProperty('debug').orElse('false').forUseAtConfigurationTime().get())) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
-    command += ['-jar', shadowJar.archivePath.absolutePath]
+    command += ['-jar', shadowJar.archiveFile.get().asFile.absolutePath]
     logger.info("running the cli with: ${command}")
 
     new ProcessBuilder(command)

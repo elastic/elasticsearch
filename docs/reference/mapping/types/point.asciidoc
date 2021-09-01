@@ -1,7 +1,7 @@
 [[point]]
 [role="xpack"]
 [testenv="basic"]
-=== Point data type
+=== Point field type
 ++++
 <titleabbrev>Point</titleabbrev>
 ++++

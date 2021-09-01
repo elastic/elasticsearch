@@ -30,9 +30,9 @@ POST /_security/role/test_role1
 }
 --------------------------------------------------
 
-Access to the following meta fields is always allowed: `_id`,
+Access to the following metadata fields is always allowed: `_id`,
 `_type`, `_parent`, `_routing`, `_timestamp`, `_ttl`, `_size` and `_index`. If
-you specify an empty list of fields, only these meta fields are accessible.
+you specify an empty list of fields, only these metadata fields are accessible.
 
 NOTE: Omitting the fields entry entirely disables field level security.
 
@@ -217,7 +217,7 @@ The resulting permission is equal to:
 --------------------------------------------------
 // NOTCONSOLE
 
-NOTE: Field-level security should not be set on <<alias,`alias`>> fields.
+NOTE: Field-level security should not be set on <<field-alias,`alias`>> fields.
 To secure a
 concrete field, its field name must be used directly.
 

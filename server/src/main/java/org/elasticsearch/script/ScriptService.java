@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -38,7 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -57,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class ScriptService implements Closeable, ClusterStateApplier {
+public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
@@ -116,8 +105,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        this.engines = Objects.requireNonNull(engines);
-        this.contexts = Objects.requireNonNull(contexts);
+        this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
+        this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with " +
@@ -257,6 +246,13 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         IOUtils.close(engines.values());
     }
 
+    /**
+     * @return an unmodifiable {@link Map} of available script context names to {@link ScriptContext}s
+     */
+    public Map<String, ScriptContext<?>> getScriptContexts() {
+        return contexts;
+    }
+
     private ScriptEngine getEngine(String lang) {
         ScriptEngine scriptEngine = engines.get(lang);
         if (scriptEngine == null) {
@@ -281,7 +277,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         maxSizeInBytes = newMaxSizeInBytes;
     }
 
-    /*
+    /**
      * Compiles a script using the given context.
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
@@ -413,6 +409,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 if (context == null) {
                     throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
                 }
+                if (context.allowStoredScript == false) {
+                    throw new IllegalArgumentException("cannot store a script for context [" + request.context() + "]");
+                }
                 scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }
         } catch (ScriptException good) {
@@ -421,16 +420,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
+        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
                 Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
@@ -443,22 +435,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                    smd = ScriptMetadata.deleteStoredScript(smd, request.id());
+                    Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
-                smd = ScriptMetadata.deleteStoredScript(smd, request.id());
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
-
-                return ClusterState.builder(currentState).metadata(mdb).build();
-            }
-        });
+                    return ClusterState.builder(currentState).metadata(mdb).build();
+                }
+            });
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {

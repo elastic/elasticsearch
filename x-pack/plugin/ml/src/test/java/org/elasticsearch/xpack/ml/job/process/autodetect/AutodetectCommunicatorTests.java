@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -52,6 +52,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -117,7 +118,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
             communicator.flushJob(params, (f, e) -> flushAcknowledgementHolder.set(f));
             assertThat(flushAcknowledgementHolder.get(), equalTo(flushAcknowledgement));
-            Mockito.verify(process).flushJob(params);
+            verify(process).flushJob(params);
         }
     }
 
@@ -145,7 +146,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
-        AutodetectResultProcessor autodetectResultProcessor = Mockito.mock(AutodetectResultProcessor.class);
+        AutodetectResultProcessor autodetectResultProcessor = mock(AutodetectResultProcessor.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(autodetectResultProcessor.waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1))))
                 .thenReturn(null).thenReturn(flushAcknowledgement);
@@ -168,8 +169,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         communicator.close();
 
         verify(process).close();
-        verify(process, never()).kill();
-        Mockito.verifyNoMoreInteractions(stateStreamer);
+        verify(process, never()).kill(anyBoolean());
+        verifyNoMoreInteractions(stateStreamer);
     }
 
     public void testCloseGivenProcessIsNotReady() throws IOException {
@@ -179,7 +180,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
 
         communicator.close();
 
-        verify(process).kill();
+        verify(process).kill(false);
         verify(process, never()).close();
         verify(stateStreamer).cancel();
     }
@@ -195,13 +196,13 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         boolean awaitCompletion = randomBoolean();
         boolean finish = randomBoolean();
         communicator.killProcess(awaitCompletion, finish);
-        Mockito.verify(resultProcessor).setProcessKilled();
-        Mockito.verify(process).kill();
-        Mockito.verify(executorService).shutdown();
+        verify(resultProcessor).setProcessKilled();
+        verify(process).kill(awaitCompletion);
+        verify(executorService).shutdown();
         if (awaitCompletion) {
-            Mockito.verify(resultProcessor).awaitCompletion();
+            verify(resultProcessor).awaitCompletion();
         } else {
-            Mockito.verify(resultProcessor, never()).awaitCompletion();
+            verify(resultProcessor, never()).awaitCompletion();
         }
         assertEquals(finish, finishCalled.get());
     }
@@ -223,7 +224,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     }
 
     private AutodetectProcess mockAutodetectProcessWithOutputStream() throws IOException {
-        AutodetectProcess process = Mockito.mock(AutodetectProcess.class);
+        AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.isProcessAlive()).thenReturn(true);
         return process;
     }

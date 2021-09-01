@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.List;
@@ -34,10 +35,12 @@ class ChunkedDataExtractorContext {
     final boolean hasAggregations;
     final Long histogramInterval;
     final IndicesOptions indicesOptions;
+    final Map<String, Object> runtimeMappings;
 
     ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, QueryBuilder query, int scrollSize, long start,
                                 long end, @Nullable TimeValue chunkSpan, TimeAligner timeAligner, Map<String, String> headers,
-                                boolean hasAggregations, @Nullable Long histogramInterval, IndicesOptions indicesOptions) {
+                                boolean hasAggregations, @Nullable Long histogramInterval, IndicesOptions indicesOptions,
+                                Map<String, Object> runtimeMappings) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -51,5 +54,6 @@ class ChunkedDataExtractorContext {
         this.hasAggregations = hasAggregations;
         this.histogramInterval = histogramInterval;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 }

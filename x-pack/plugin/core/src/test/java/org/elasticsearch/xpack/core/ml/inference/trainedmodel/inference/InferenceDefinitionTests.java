@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
+import com.unboundid.util.Base64;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -18,10 +20,12 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,7 +61,7 @@ public class InferenceDefinitionTests extends ESTestCase {
         assertThat(definition.getTrainedModel().getClass(), equalTo(TreeInferenceModel.class));
     }
 
-    public void testMultiClassIrisInference() throws IOException {
+    public void testMultiClassIrisInference() throws IOException, ParseException {
         // Fairly simple, random forest classification model built to fit in our format
         // Trained on the well known Iris dataset
         String compressedDef = "H4sIAPbiMl4C/+1b246bMBD9lVWet8jjG3b/oN9QVYgmToLEkghIL6r23wukl90" +
@@ -81,7 +85,8 @@ public class InferenceDefinitionTests extends ESTestCase {
             "aLbAYWcAdpeweKa2IfIT2jz5QzXxD6AoP+DrdXtxeluV7pdWrvkcKqPp7rjS19d+wp/fff/5Ez3FPjzFNy" +
             "fdpTi9JB0sDp2JR7b309mn5HuPkEAAA==";
 
-        InferenceDefinition definition = InferenceToXContentCompressor.inflate(compressedDef,
+        byte[] bytes = Base64.decode(compressedDef);
+        InferenceDefinition definition = InferenceToXContentCompressor.inflate(new BytesArray(bytes),
             InferenceDefinition::fromXContent,
             xContentRegistry());
 
@@ -137,9 +142,9 @@ public class InferenceDefinitionTests extends ESTestCase {
         ClassificationInferenceResults results = (ClassificationInferenceResults) inferenceDefinition.infer(featureMap, config);
         assertThat(results.valueAsString(), equalTo("second"));
         assertThat(results.getFeatureImportance().get(0).getFeatureName(), equalTo("col2"));
-        assertThat(results.getFeatureImportance().get(0).getImportance(), closeTo(0.944, 0.001));
+        assertThat(results.getFeatureImportance().get(0).getTotalImportance(), closeTo(0.944, 0.001));
         assertThat(results.getFeatureImportance().get(1).getFeatureName(), equalTo("col1"));
-        assertThat(results.getFeatureImportance().get(1).getImportance(), closeTo(0.199, 0.001));
+        assertThat(results.getFeatureImportance().get(1).getTotalImportance(), closeTo(0.199, 0.001));
     }
 
     public void testComplexInferenceDefinitionInferWithCustomPreProcessor() throws IOException {
@@ -158,10 +163,26 @@ public class InferenceDefinitionTests extends ESTestCase {
 
         ClassificationInferenceResults results = (ClassificationInferenceResults) inferenceDefinition.infer(featureMap, config);
         assertThat(results.valueAsString(), equalTo("second"));
-        assertThat(results.getFeatureImportance().get(0).getFeatureName(), equalTo("col2"));
-        assertThat(results.getFeatureImportance().get(0).getImportance(), closeTo(0.944, 0.001));
-        assertThat(results.getFeatureImportance().get(1).getFeatureName(), equalTo("col1_male"));
-        assertThat(results.getFeatureImportance().get(1).getImportance(), closeTo(0.199, 0.001));
+        ClassificationFeatureImportance featureImportance1 = results.getFeatureImportance().get(0);
+        assertThat(featureImportance1.getFeatureName(), equalTo("col2"));
+        assertThat(featureImportance1.getTotalImportance(), closeTo(0.944, 0.001));
+        for (ClassificationFeatureImportance.ClassImportance classImportance : featureImportance1.getClassImportance()) {
+            if (classImportance.getClassName().equals("second")) {
+                assertThat(classImportance.getImportance(), closeTo(0.944, 0.001));
+            } else {
+                assertThat(classImportance.getImportance(), closeTo(-0.944, 0.001));
+            }
+        }
+        ClassificationFeatureImportance featureImportance2 = results.getFeatureImportance().get(1);
+        assertThat(featureImportance2.getFeatureName(), equalTo("col1_male"));
+        assertThat(featureImportance2.getTotalImportance(), closeTo(0.199, 0.001));
+        for (ClassificationFeatureImportance.ClassImportance classImportance : featureImportance2.getClassImportance()) {
+            if (classImportance.getClassName().equals("second")) {
+                assertThat(classImportance.getImportance(), closeTo(0.199, 0.001));
+            } else {
+                assertThat(classImportance.getImportance(), closeTo(-0.199, 0.001));
+            }
+        }
     }
 
     public static String getClassificationDefinition(boolean customPreprocessor) {

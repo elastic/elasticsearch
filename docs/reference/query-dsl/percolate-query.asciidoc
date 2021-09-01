@@ -660,7 +660,7 @@ evaluate. The reason the `percolate` query can do this is because during indexin
 terms are being extracted and indexed with the percolator query. Unfortunately the percolator cannot extract terms from
 all queries (for example the `wildcard` or `geo_shape` query) and as a result of that in certain cases the percolator
 can't do the selecting optimization (for example if an unsupported query is defined in a required clause of a boolean query
-or the unsupported query is the only query in the percolator document).  These queries are marked by the percolator and
+or the unsupported query is the only query in the percolator document). These queries are marked by the percolator and
 can be found by running the following search:
 
 
@@ -687,7 +687,8 @@ allows for fields to be stored in a denser, more efficient way.
 - Percolate queries do not scale in the same way as other queries, so percolation performance may benefit from using
 a different index configuration, like the number of primary shards.
 
-=== Notes
-==== Allow expensive queries
+[[percolate-query-notes]]
+==== Notes
+===== Allow expensive queries
 Percolate queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
 is set to false.

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar]]
-= Delete calendar API
+= Delete calendars API
 ++++
-<titleabbrev>Delete calendar</titleabbrev>
+<titleabbrev>Delete calendars</titleabbrev>
 ++++
 
 Deletes a calendar.
@@ -16,9 +16,8 @@ Deletes a calendar.
 [[ml-delete-calendar-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-delete-calendar-desc]]
 == {api-description-title}

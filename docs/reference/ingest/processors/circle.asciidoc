@@ -1,7 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[ingest-circle-processor]]
-=== Circle Processor
+=== Circle processor
+++++
+<titleabbrev>Circle</titleabbrev>
+++++
+
 Converts circle definitions of shapes to regular polygons which approximate them.
 
 [[circle-processor-options]]
@@ -52,6 +56,8 @@ Using the above pipeline, we can attempt to index a document into the `circles` 
 The circle can be represented as either a WKT circle or a GeoJSON circle. The resulting
 polygon will be represented and indexed using the same format as the input circle. WKT will
 be translated to a WKT polygon, and GeoJSON circles will be translated to GeoJSON polygons.
+
+IMPORTANT: Circles that contain a pole are not supported.
 
 ==== Example: Circle defined in Well Known Text
 
@@ -135,7 +141,7 @@ The response from the above index request:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
-
+[[circle-processor-notes]]
 ==== Notes on Accuracy
 
 Accuracy of the polygon that represents the circle is defined as `error_distance`. The smaller this

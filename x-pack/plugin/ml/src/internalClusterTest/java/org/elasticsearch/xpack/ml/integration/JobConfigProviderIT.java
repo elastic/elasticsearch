@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -20,8 +21,10 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -153,7 +156,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
         blockingCall(actionListener -> jobConfigProvider.updateJob
-                (jobId, jobUpdate, new ByteSizeValue(32), actionListener), updateJobResponseHolder, exceptionHolder);
+                (jobId, jobUpdate, ByteSizeValue.ofBytes(32), actionListener), updateJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertEquals("This job has been updated", updateJobResponseHolder.get().getDescription());
 
@@ -210,7 +213,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 .build();
 
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, new ByteSizeValue(32),
+        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, ByteSizeValue.ofBytes(32),
             actionListener), updateJobResponseHolder, exceptionHolder);
         assertNull(updateJobResponseHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -235,7 +238,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
         // update with the no-op validator
         blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(
-            jobId, jobUpdate, new ByteSizeValue(32), validator, actionListener), updateJobResponseHolder, exceptionHolder);
+            jobId, jobUpdate, ByteSizeValue.ofBytes(32), validator, actionListener), updateJobResponseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertNotNull(updateJobResponseHolder.get());
@@ -247,7 +250,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         updateJobResponseHolder.set(null);
         // Update with a validator that errors
-        blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, new ByteSizeValue(32),
+        blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, ByteSizeValue.ofBytes(32),
                 validatorWithAnError, actionListener),
                 updateJobResponseHolder, exceptionHolder);
 
@@ -257,7 +260,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("I don't like this update"));
     }
 
-    public void testAllowNoJobs() throws InterruptedException {
+    public void testAllowNoMatch() throws InterruptedException {
         AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -414,8 +417,9 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         putJob(createJob("foo-deleting", null));
         putJob(createJob("bar", null));
 
-        Boolean marked = blockingCall(actionListener -> jobConfigProvider.markJobAsDeleting("foo-deleting", actionListener));
-        assertTrue(marked);
+        PutJobAction.Response marked = blockingCall(actionListener -> jobConfigProvider.updateJobBlockReason(
+            "foo-deleting", new Blocked(Blocked.Reason.DELETE, null), actionListener));
+        assertThat(marked.getResponse().getBlocked().getReason(), equalTo(Blocked.Reason.DELETE));
 
         client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
@@ -558,27 +562,30 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertEquals(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, exceptionHolder.get().getMessage());
     }
 
-    public void testMarkAsDeleting() throws Exception {
-        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+    public void testUpdateJobBlockReason() throws Exception {
+        AtomicReference<PutJobAction.Response> responseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(listener -> jobConfigProvider.markJobAsDeleting("missing-job", listener), responseHolder, exceptionHolder);
+        blockingCall(listener -> jobConfigProvider.updateJobBlockReason(
+            "missing-job", new Blocked(Blocked.Reason.RESET, null), listener), responseHolder, exceptionHolder);
         assertNull(responseHolder.get());
         assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
 
-        String jobId = "mark-as-deleting-job";
+        String jobId = "update-job-blocked-reset";
         putJob(createJob(jobId, Collections.emptyList()));
         client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         exceptionHolder.set(null);
-        blockingCall(listener -> jobConfigProvider.markJobAsDeleting(jobId, listener), responseHolder, exceptionHolder);
+        blockingCall(listener -> jobConfigProvider.updateJobBlockReason(
+            jobId, new Blocked(Blocked.Reason.RESET, null), listener), responseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
-        assertTrue(responseHolder.get());
+        assertThat(responseHolder.get().getResponse().getBlocked().getReason(), equalTo(Blocked.Reason.RESET));
 
         // repeat the update for good measure
-        blockingCall(listener -> jobConfigProvider.markJobAsDeleting(jobId, listener), responseHolder, exceptionHolder);
-        assertTrue(responseHolder.get());
+        blockingCall(listener -> jobConfigProvider.updateJobBlockReason(
+            jobId, new Blocked(Blocked.Reason.RESET, null), listener), responseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
+        assertThat(responseHolder.get().getResponse().getBlocked().getReason(), equalTo(Blocked.Reason.RESET));
     }
 
     private static Job.Builder createJob(String jobId, List<String> groups) {

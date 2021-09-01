@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
@@ -22,12 +11,16 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * Get snapshots request builder
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest,
-        GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
+public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<
+    GetSnapshotsRequest,
+    GetSnapshotsResponse,
+    GetSnapshotsRequestBuilder> {
 
     /**
      * Constructs the new get snapshot request with specified repositories
@@ -64,7 +57,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @return this builder
      */
     public GetSnapshotsRequestBuilder setCurrentSnapshot() {
-        request.snapshots(new String[]{GetSnapshotsRequest.CURRENT_SNAPSHOT});
+        request.snapshots(new String[] { GetSnapshotsRequest.CURRENT_SNAPSHOT });
         return this;
     }
 
@@ -101,6 +94,35 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      */
     public GetSnapshotsRequestBuilder setVerbose(boolean verbose) {
         request.verbose(verbose);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setAfter(String after) {
+        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromQueryParam(after));
+    }
+
+    public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {
+        request.after(after);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
+        request.sort(sort);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setSize(int size) {
+        request.size(size);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setOffset(int offset) {
+        request.offset(offset);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setOrder(SortOrder order) {
+        request.order(order);
         return this;
     }
 

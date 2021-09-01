@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -50,13 +39,20 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
         return builder.field(CommonFields.VALUE.getPreferredName(), aggregation());
     }
 
-    private static final ObjectParser<ParsedScriptedMetric, Void> PARSER =
-            new ObjectParser<>(ParsedScriptedMetric.class.getSimpleName(), true, ParsedScriptedMetric::new);
+    private static final ObjectParser<ParsedScriptedMetric, Void> PARSER = new ObjectParser<>(
+        ParsedScriptedMetric.class.getSimpleName(),
+        true,
+        ParsedScriptedMetric::new
+    );
 
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareField((agg, value) -> agg.aggregation = Collections.singletonList(value),
-                ParsedScriptedMetric::parseValue, CommonFields.VALUE, ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            (agg, value) -> agg.aggregation = Collections.singletonList(value),
+            ParsedScriptedMetric::parseValue,
+            CommonFields.VALUE,
+            ValueType.VALUE_OBJECT_ARRAY
+        );
     }
 
     private static Object parseValue(XContentParser parser) throws IOException {
@@ -66,14 +62,14 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
             value = null;
         } else if (token.isValue()) {
             if (token == XContentParser.Token.VALUE_STRING) {
-                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+                // binary values will be parsed back and returned as base64 strings when reading from json and yaml
                 value = parser.text();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 value = parser.numberValue();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 value = parser.booleanValue();
             } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+                // binary values will be parsed back and returned as BytesArray when reading from cbor and smile
                 value = new BytesArray(parser.binaryValue());
             }
         } else if (token == XContentParser.Token.START_OBJECT) {

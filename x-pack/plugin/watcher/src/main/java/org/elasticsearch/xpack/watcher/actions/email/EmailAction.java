@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -148,7 +149,7 @@ public class EmailAction implements Action {
                 }
             } else if (Field.ATTACHMENTS.match(currentFieldName, parser.getDeprecationHandler())) {
                 attachments = emailAttachmentsParser.parse(parser);
-            } else if (!emailParser.handle(currentFieldName, parser)) {
+            } else if (emailParser.handle(currentFieldName, parser) == false) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.ACCOUNT.match(currentFieldName, parser.getDeprecationHandler())) {
                         account = parser.text();

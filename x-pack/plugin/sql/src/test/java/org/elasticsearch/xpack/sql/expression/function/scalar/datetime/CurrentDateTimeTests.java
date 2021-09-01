@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -74,14 +75,14 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
         assertEquals(123_456_780, CurrentDateTime.nanoPrecision(zdt, literal(8)).getNano());
         assertEquals(123_456_789, CurrentDateTime.nanoPrecision(zdt, literal(9)).getNano());
     }
-    
+
     public void testDefaultPrecision() {
         Configuration configuration = SqlTestUtils.randomConfiguration();
         // null precision means default precision
         CurrentDateTime cdt = new CurrentDateTime(EMPTY, null, configuration);
         ZonedDateTime now = configuration.now();
         assertEquals(now.get(ChronoField.MILLI_OF_SECOND), ((ZonedDateTime) cdt.fold()).get(ChronoField.MILLI_OF_SECOND));
-        
+
         ZonedDateTime zdt = ZonedDateTime.parse("2019-02-26T12:34:56.123456789Z");
         assertEquals(123_000_000, CurrentDateTime.nanoPrecision(zdt, null).getNano());
     }

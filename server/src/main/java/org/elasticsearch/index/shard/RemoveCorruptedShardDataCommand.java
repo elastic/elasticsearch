@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -25,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
@@ -40,12 +28,12 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -70,6 +58,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
 public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
@@ -118,7 +108,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path[] dataPaths, ClusterState clusterState,
+    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path dataPath, ClusterState clusterState,
                                            CheckedConsumer<ShardPath, IOException> consumer)
     throws IOException {
         final Settings settings = environment.settings();
@@ -164,18 +154,15 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         final Index index = indexMetadata.getIndex();
         final ShardId shId = new ShardId(index, shardId);
 
-        for (Path dataPath : dataPaths) {
-            final Path shardPathLocation = dataPath
-                .resolve(NodeEnvironment.INDICES_FOLDER)
-                .resolve(index.getUUID())
-                .resolve(Integer.toString(shId.id()));
-            if (Files.exists(shardPathLocation)) {
-                final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
-                    new Path[]{shardPathLocation}, dataPath);
-                if (shardPath != null) {
-                    consumer.accept(shardPath);
-                    return;
-                }
+        final Path shardPathLocation = dataPath
+            .resolve(NodeEnvironment.INDICES_FOLDER)
+            .resolve(index.getUUID())
+            .resolve(Integer.toString(shId.id()));
+        if (Files.exists(shardPathLocation)) {
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
+                shardPathLocation, dataPath);
+            if (shardPath != null) {
+                consumer.accept(shardPath);
             }
         }
     }
@@ -238,13 +225,13 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     // Visible for testing
     @Override
-    public void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
+    public void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment environment) throws IOException {
         warnAboutIndexBackup(terminal);
 
         final ClusterState clusterState =
-            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPaths), environment).v2();
+            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPath), environment).v2();
 
-        findAndProcessShardPath(options, environment, dataPaths, clusterState, shardPath -> {
+        findAndProcessShardPath(options, environment, dataPath, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
@@ -383,13 +370,9 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
         terminal.println("Marking index with the new history uuid : " + historyUUID);
         // commit the new history id
-        final IndexWriterConfig iwc = new IndexWriterConfig(null)
-            // we don't want merges to happen here - we call maybe merge on the engine
-            // later once we stared it up otherwise we would need to wait for it here
-            // we also don't specify a codec here and merges should use the engines for this index
+        final IndexWriterConfig iwc = indexWriterConfigWithNoMerging(null)
             .setCommitOnClose(false)
             .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         // IndexWriter acquires directory lock by its own
         try (IndexWriter indexWriter = new IndexWriter(indexDirectory, iwc)) {

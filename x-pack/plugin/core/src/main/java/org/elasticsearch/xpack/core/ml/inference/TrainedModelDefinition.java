@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,8 +57,8 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             TRAINED_MODEL);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> ignoreUnknownFields ?
-                p.namedObject(LenientlyParsedPreProcessor.class, n, null) :
-                p.namedObject(StrictlyParsedPreProcessor.class, n, null),
+                p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT) :
+                p.namedObject(StrictlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (trainedModelDefBuilder) -> trainedModelDefBuilder.setProcessorsInOrder(true),
             PREPROCESSORS);
         return parser;

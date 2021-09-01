@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -37,13 +25,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValuesSourceAggregationBuilder<AB>>
-    extends AbstractAggregationBuilder<AB> {
+public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValuesSourceAggregationBuilder<AB>> extends
+    AbstractAggregationBuilder<AB> {
 
     public static final ParseField MULTIVALUE_MODE_FIELD = new ParseField("mode");
 
-    public abstract static class LeafOnly<AB extends ArrayValuesSourceAggregationBuilder<AB>>
-        extends ArrayValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<AB extends ArrayValuesSourceAggregationBuilder<AB>> extends ArrayValuesSourceAggregationBuilder<
+        AB> {
 
         protected LeafOnly(String name) {
             super(name);
@@ -52,8 +40,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
-                    + getType() + "] cannot accept sub-aggregations");
+                throw new AggregationInitializationException(
+                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+                );
             }
         }
 
@@ -66,8 +55,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
-                getType() + "] cannot accept sub-aggregations");
+            throw new AggregationInitializationException(
+                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+            );
         }
 
         @Override
@@ -89,8 +79,11 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         super(name);
     }
 
-    protected ArrayValuesSourceAggregationBuilder(ArrayValuesSourceAggregationBuilder<AB> clone,
-                                                  Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ArrayValuesSourceAggregationBuilder(
+        ArrayValuesSourceAggregationBuilder<AB> clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.fields = new ArrayList<>(clone.fields);
         this.userValueTypeHint = clone.userValueTypeHint;
@@ -99,8 +92,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         this.missing = clone.missing;
     }
 
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in)
-        throws IOException {
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         read(in);
     }
@@ -110,7 +102,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
      */
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
-        fields = (ArrayList<String>)in.readGenericValue();
+        fields = (ArrayList<String>) in.readGenericValue();
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
         missingMap = in.readMap();
@@ -190,27 +182,40 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                                               Builder subFactoriesBuilder) throws IOException {
-        Map<String, ValuesSourceConfig> configs = resolveConfig(queryShardContext);
-        ArrayValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
+    protected final ArrayValuesSourceAggregatorFactory doBuild(
+        AggregationContext context,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
+        Map<String, ValuesSourceConfig> configs = resolveConfig(context);
+        ArrayValuesSourceAggregatorFactory factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
+    protected Map<String, ValuesSourceConfig> resolveConfig(AggregationContext context) {
         HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext, userValueTypeHint, field, null,
-                missingMap.get(field), null, format, CoreValuesSourceType.BYTES);
+            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
+                context,
+                userValueTypeHint,
+                field,
+                null,
+                missingMap.get(field),
+                null,
+                format,
+                CoreValuesSourceType.KEYWORD
+            );
             configs.put(field, config);
         }
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                                     Map<String, ValuesSourceConfig> configs,
-                                                                     AggregatorFactory parent,
-                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        Map<String, ValuesSourceConfig> configs,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -18,7 +17,6 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,32 +33,6 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     private final boolean overrideEnabled;
     protected final String matchField;
     protected final int maxMatches;
-
-    protected AbstractEnrichProcessor(
-        String tag,
-        String description,
-        Client client,
-        String policyName,
-        TemplateScript.Factory field,
-        TemplateScript.Factory targetField,
-        boolean ignoreMissing,
-        boolean overrideEnabled,
-        String matchField,
-        int maxMatches
-    ) {
-        this(
-            tag,
-            description,
-            createSearchRunner(client),
-            policyName,
-            field,
-            targetField,
-            ignoreMissing,
-            overrideEnabled,
-            matchField,
-            maxMatches
-        );
-    }
 
     protected AbstractEnrichProcessor(
         String tag,
@@ -187,13 +159,4 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         return maxMatches;
     }
 
-    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
-        return (req, handler) -> {
-            client.execute(
-                EnrichCoordinatorProxyAction.INSTANCE,
-                req,
-                ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
-            );
-        };
-    }
 }

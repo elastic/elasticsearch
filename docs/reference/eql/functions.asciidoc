@@ -6,36 +6,13 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
-
-{es} supports the following EQL functions:
-
-* <<eql-fn-add>>
-* <<eql-fn-between>>
-* <<eql-fn-cidrmatch>>
-* <<eql-fn-concat>>
-* <<eql-fn-divide>>
-* <<eql-fn-endswith>>
-* <<eql-fn-indexof>>
-* <<eql-fn-length>>
-* <<eql-fn-match>>
-* <<eql-fn-modulo>>
-* <<eql-fn-multiply>>
-* <<eql-fn-number>>
-* <<eql-fn-startswith>>
-* <<eql-fn-string>>
-* <<eql-fn-stringcontains>>
-* <<eql-fn-substring>>
-* <<eql-fn-subtract>>
-* <<eql-fn-wildcard>>
+{es} supports the following <<eql-functions,EQL functions>>.
 
 [discrete]
 [[eql-fn-add]]
 === `add`
 Returns the sum of two provided addends.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -77,23 +54,24 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-between]]
 === `between`
 
 Extracts a substring that's between a provided `left` and `right` text in a
-source string.
+source string. Matching is case-sensitive by default.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
 // file.path = "C:\\Windows\\System32\\cmd.exe"
-between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "System32\\\\", ".exe")                // returns "cmd"
+between(file.path, "system32\\\\", ".exe")                // returns ""
 between(file.path, "workspace\\\\", ".exe")               // returns ""
+
+// Make matching case-insensitive
+between~(file.path, "system32\\\\", ".exe")               // returns "cmd"
 
 // Greedy matching defaults to false.
 between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
@@ -101,24 +79,18 @@ between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
 // Sets greedy matching to true
 between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
-// Case sensitivity defaults to false.
-between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
-// Sets case sensitivity to true
-between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
-between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
-
 // empty source string
-between("", "system32\\\\", ".exe")                       // returns ""
+between("", "System32\\\\", ".exe")                       // returns ""
 between("", "", "")                                       // returns ""
 
 // null handling
-between(null, "system32\\\\", ".exe")                     // returns null
+between(null, "System32\\\\", ".exe")                     // returns null
 ----
 
 *Syntax*
 [source,txt]
 ----
-between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
+between(<source>, <left>, <right>[, <greedy_matching>])
 ----
 
 *Parameters*
@@ -133,10 +105,8 @@ Source string. Empty strings return an empty string (`""`), regardless of the
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<left>`::
@@ -149,10 +119,8 @@ whitespace.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<right>`::
@@ -165,34 +133,25 @@ whitespace.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<greedy_matching>`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, match the longest possible substring, similar to `.*` in regular
 expressions. If `false`, match the shortest possible substring, similar to `.*?`
 in regular expressions. Defaults to `false`.
 
-`<case_sensitive>`::
-(Optional, boolean)
-If `true`, matching is case-sensitive. Defaults to `false`.
-
 *Returns:* string or `null`
-====
 
 [discrete]
 [[eql-fn-cidrmatch]]
 === `cidrMatch`
 
 Returns `true` if an IP address is contained in one or more provided
-https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing[CIDR] blocks.
+{wikipedia}/Classless_Inter-Domain_Routing[CIDR] blocks.
 
-[%collapsible]
-====
 *Example*
 
 [source,eql]
@@ -219,8 +178,8 @@ cidrMatch(source.address, null)                           // returns null
 `<ip_address>`::
 (Required, string or `null`)
 IP address. Supports
-https://en.wikipedia.org/wiki/IPv4[IPv4] and
-https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
+{wikipedia}/IPv4[IPv4] and
+{wikipedia}/IPv6[IPv6] addresses. If `null`, the function
 returns `null`.
 +
 If using a field as the argument, this parameter supports only the <<ip,`ip`>>
@@ -231,7 +190,6 @@ field data type.
 CIDR block you wish to search. If `null`, the function returns `null`.
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-concat]]
@@ -239,8 +197,6 @@ CIDR block you wish to search. If `null`, the function returns `null`.
 
 Returns a concatenated string of provided values.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -282,28 +238,22 @@ If using a field as the argument, this parameter does not support the
 <<text,`text`>> field data type.
 
 *Returns:* string or `null`
-====
 
 [discrete]
 [[eql-fn-divide]]
-==== `divide`
+=== `divide`
 Returns the quotient of a provided dividend and divisor.
-
-[%collapsible]
-====
 
 [[eql-divide-fn-float-rounding]]
 [WARNING]
-=====
+====
 If both the dividend and divisor are integers, the `divide` function _rounds
-down_ any returned floating point numbers to the nearest integer.
-
-EQL queries in {es} should account for this rounding. To avoid rounding, convert
-either the dividend or divisor to a float.
+down_ any returned floating point numbers to the nearest integer. To avoid
+rounding, convert either the dividend or divisor to a float.
 
 [%collapsible]
 .**Example**
-======
+=====
 The `process.args_count` field is a <<number,`long`>> integer field containing a
 count of process arguments.
 
@@ -330,8 +280,8 @@ The following EQL query changes the integer `4` to the equivalent float `4.0`.
 ----
 process where divide(4.0, process.args_count) == 1
 ----
-======
 =====
+====
 
 *Example*
 [source,eql]
@@ -387,22 +337,24 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or null
-====
 
 [discrete]
 [[eql-fn-endswith]]
 === `endsWith`
 
-Returns `true` if a source string ends with a provided substring.
+Returns `true` if a source string ends with a provided substring. Matching is
+case-sensitive by default.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
 endsWith("regsvr32.exe", ".exe")          // returns true
+endsWith("regsvr32.exe", ".EXE")          // returns false
 endsWith("regsvr32.exe", ".dll")          // returns false
 endsWith("", "")                          // returns true
+
+// Make matching case-insensitive
+endsWith~("regsvr32.exe", ".EXE")         // returns true
 
 // file.name = "regsvr32.exe"
 endsWith(file.name, ".exe")               // returns true
@@ -436,10 +388,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -451,34 +401,35 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-indexof]]
 === `indexOf`
 
-Returns the first position of a provided substring in a source string.
+Returns the first position of a provided substring in a source string. Matching
+is case-sensitive by default.
 
 If an optional start position is provided, this function returns the first
 occurrence of the substring at or after the start position.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
 // url.domain = "subdomain.example.com"
+indexOf(url.domain, "d")        // returns 3
+indexOf(url.domain, "D")        // returns null
 indexOf(url.domain, ".")        // returns 9
 indexOf(url.domain, ".", 9)     // returns 9
 indexOf(url.domain, ".", 10)    // returns 17
 indexOf(url.domain, ".", -6)    // returns 9
+
+// Make matching case-insensitive
+indexOf~(url.domain, "D")        // returns 4
 
 // empty strings
 indexOf("", "")                 // returns 0
@@ -517,10 +468,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -538,10 +487,8 @@ Otherwise, empty strings return `0`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<start_pos>`::
@@ -566,7 +513,6 @@ If using a field as the argument, this parameter supports only the following
 --
 
 *Returns:* integer or `null`
-====
 
 [discrete]
 [[eql-fn-length]]
@@ -575,8 +521,6 @@ If using a field as the argument, this parameter supports only the following
 Returns the character length of a provided string, including whitespace and
 punctuation.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -607,87 +551,17 @@ String for which to return the character length. If `null`, the function returns
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* integer or `null`
-====
-
-[discrete]
-[[eql-fn-match]]
-=== `match`
-
-Returns `true` if a source string matches one or more provided regular
-expressions.
-
-[%collapsible]
-====
-*Example*
-[source,eql]
-----
-match("explorer.exe", "[a-z]*?.exe")           // returns true
-match("explorer.exe", "[a-z]*?.exe", "[1-9]")  // returns true
-match("explorer.exe", "[1-9]")                 // returns false
-match("explorer.exe", "")                      // returns false
-
-// process.name = "explorer.exe"
-match(process.name, "[a-z]*?.exe")             // returns true
-match(process.name, "[a-z]*?.exe", "[1-9]")    // returns true
-match(process.name, "[1-9]")                   // returns false
-match(process.name, "")                        // returns false
-
-// null handling
-match(null, "[a-z]*?.exe")                     // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-match(<source>, <reg_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string or `null`)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
---
-
-`<reg_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Regular expression used to match the source string. For supported syntax, see
-<<regexp-syntax>>.
-https://docs.oracle.com/javase/tutorial/essential/regex/pre_char_classes.html[Predefined
-character classes] are not supported.
-
-Fields are not supported as arguments.
---
-
-*Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-modulo]]
 === `modulo`
 Returns the remainder of the division of a provided dividend and divisor.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -705,7 +579,7 @@ modulo(process.args_count, -6)                      // returns 4
 modulo(process.args_count, 0.5)                     // returns 0
 
 // process.parent.args_count = 6
-add(process.args_count, process.parent.args_count)  // returns 4
+modulo(process.args_count, process.parent.args_count)  // returns 4
 
 // null handling
 modulo(null, 5)                                     // returns null
@@ -739,7 +613,6 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-multiply]]
@@ -747,8 +620,6 @@ If using a field as the argument, this parameter supports only
 
 Returns the product of two provided factors.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -783,7 +654,7 @@ multiply(<factor, <factor>)
 +
 --
 (Required, integer or float or `null`)
-Factor to multiply.  If `null`, the function returns `null`.
+Factor to multiply. If `null`, the function returns `null`.
 
 Two factors are required. No more than two factors can be provided.
 
@@ -792,7 +663,6 @@ If using a field as the argument, this parameter supports only
 --
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-number]]
@@ -800,8 +670,6 @@ If using a field as the argument, this parameter supports only
 
 Converts a string to the corresponding integer or float.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -866,10 +734,8 @@ ignored. Empty strings (`""`) are not supported.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 If this argument is `null`, the function returns `null`.
 --
@@ -888,22 +754,24 @@ Fields are not supported as arguments.
 --
 
 *Returns:* integer or float or `null`
-====
 
 [discrete]
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a source string begins with a provided substring.
+Returns `true` if a source string begins with a provided substring. Matching is
+case-sensitive by default.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
 startsWith("regsvr32.exe", "regsvr32")  // returns true
+startsWith("regsvr32.exe", "Regsvr32")  // returns false
 startsWith("regsvr32.exe", "explorer")  // returns false
 startsWith("", "")                      // returns true
+
+// Make matching case-insensitive
+startsWith~("regsvr32.exe", "Regsvr32")  // returns true
 
 // process.name = "regsvr32.exe"
 startsWith(process.name, "regsvr32")    // returns true
@@ -937,10 +805,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -952,14 +818,11 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-string]]
@@ -967,8 +830,6 @@ field data types:
 
 Converts a value to a string.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -997,23 +858,25 @@ If using a field as the argument, this parameter does not support the
 <<text,`text`>> field data type.
 
 *Returns:* string or `null`
-====
 
 [discrete]
 [[eql-fn-stringcontains]]
 === `stringContains`
 
-Returns `true` if a source string contains a provided substring.
+Returns `true` if a source string contains a provided substring. Matching is
+case-sensitive by default.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
 // process.command_line = "start regsvr32.exe"
 stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "Regsvr32")  // returns false
 stringContains(process.command_line, "start ")    // returns true
 stringContains(process.command_line, "explorer")  // returns false
+
+// Make matching case-insensitive
+stringContains~(process.command_line, "Regsvr32")  // returns false
 
 // process.name = "regsvr32.exe"
 stringContains(command_line, process.name)        // returns true
@@ -1042,10 +905,8 @@ Source string to search. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 `<substring>`::
 (Required, string or `null`)
@@ -1054,13 +915,10 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-substring]]
@@ -1070,8 +928,6 @@ Extracts a substring from a source string at provided start and end positions.
 
 If no end position is provided, the function extracts the remaining string.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -1114,15 +970,12 @@ function returns the remaining string.
 Positions are zero-indexed. Negative offsets are supported.
 
 *Returns:* string
-====
 
 [discrete]
 [[eql-fn-subtract]]
 === `subtract`
 Returns the difference between a provided minuend and subtrahend.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -1169,70 +1022,3 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-====
-
-[discrete]
-[[eql-fn-wildcard]]
-=== `wildcard`
-
-Returns `true` if a source string matches one or more provided wildcard
-expressions.
-
-[%collapsible]
-====
-*Example*
-[source,eql]
-----
-// The two following expressions are equivalent.
-process.name == "*regsvr32*" or process.name == "*explorer*"
-wildcard(process.name, "*regsvr32*", "*explorer*")
-
-// process.name = "regsvr32.exe"
-wildcard(process.name, "*regsvr32*")                // returns true
-wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
-wildcard(process.name, "*explorer*")                // returns false
-wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
-
-// empty strings
-wildcard("", "*start*")                             // returns false
-wildcard("", "*")                                   // returns true
-wildcard("", "")                                    // returns true
-
-// null handling
-wildcard(null, "*regsvr32*")                        // returns null
-wildcard(process.name, null)                        // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-wildcard(<source>, <wildcard_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
---
-
-`<wildcard_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Wildcard expression used to match the source string. If `null`, the function
-returns `null`. Fields are not supported as arguments.
---
-
-*Returns:* boolean
-====

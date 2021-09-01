@@ -1,36 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Tests for {@link XContent} filtering.
@@ -1426,5 +1420,28 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                     .field("photosCount", 2)
                 .endObject();
         testFilter(expected, sample, singleton("photosCount"), emptySet());
+    }
+
+    public void testManyFilters() throws IOException, URISyntaxException {
+        Builder deep = builder -> builder.startObject()
+            .startObject("system")
+            .startObject("process")
+            .startObject("cgroup")
+            .startObject("memory")
+            .startObject("stats")
+            .startObject("mapped_file")
+            .field("bytes", 100)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        Set<String> manyFilters = Files.readAllLines(
+            PathUtils.get(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
+            StandardCharsets.UTF_8
+        ).stream().filter(s -> false == s.startsWith("#")).collect(toSet());
+        testFilter(deep, deep, manyFilters, emptySet());
     }
 }

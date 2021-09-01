@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -9,9 +10,7 @@ package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -44,6 +43,11 @@ public class ScoreScriptUtils {
             this.scoreScript = scoreScript;
             this.docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(field);
 
+            if (docValues.dims() != queryVector.size()){
+                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
+                    queryVector.size() + "] than the document vectors [" + docValues.dims() + "].");
+            }
+
             this.queryVector = new float[queryVector.size()];
             double queryMagnitude = 0.0;
             for (int i = 0; i < queryVector.size(); i++) {
@@ -66,17 +70,9 @@ public class ScoreScriptUtils {
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
-
-            // Validate the encoded vector's length.
             BytesRef vector = docValues.getEncodedValue();
             if (vector == null) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-            }
-
-            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
-            if (queryVector.length != vectorLength) {
-                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
-                    queryVector.length + "] than the document vectors [" + vectorLength + "].");
             }
             return vector;
         }
@@ -151,23 +147,11 @@ public class ScoreScriptUtils {
         public double cosineSimilarity() {
             BytesRef vector = getEncodedVector();
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
             double dotProduct = 0.0;
-            double vectorMagnitude = 0.0f;
-            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
-                for (float queryValue : queryVector) {
-                    dotProduct += queryValue * byteBuffer.getFloat();
-                }
-                vectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
-            } else {
-                for (float queryValue : queryVector) {
-                    float docValue = byteBuffer.getFloat();
-                    dotProduct += queryValue * docValue;
-                    vectorMagnitude += docValue * docValue;
-                }
-                vectorMagnitude = (float) Math.sqrt(vectorMagnitude);
+            for (float queryValue : queryVector) {
+                dotProduct += queryValue * byteBuffer.getFloat();
             }
-            return dotProduct / vectorMagnitude;
+            return dotProduct / docValues.getMagnitude();
         }
     }
 }

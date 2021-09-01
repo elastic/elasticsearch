@@ -4,7 +4,11 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
       "description":"Returns a list of tasks."
     },
-    "stability":"stable",
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

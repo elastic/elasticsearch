@@ -15,8 +15,9 @@ Grants access necessary for the APM system user to send system-level data
 (such as monitoring) to {es}.
 
 [[built-in-roles-apm-user]] `apm_user` ::
-Grants the privileges required for APM users (such as `read` and 
+Grants the privileges required for APM users (such as `read` and
 `view_index_metadata` privileges on the `apm-*` and `.ml-anomalies*` indices).
+deprecated:[7.13.0,"See {kibana-ref}/apm-app-users.html[APM app users and privileges\] for alternatives."].
 
 [[built-in-roles-beats-admin]] `beats_admin` ::
 Grants access to the `.management-beats` index, which contains configuration
@@ -27,7 +28,7 @@ Grants access necessary for the Beats system user to send system-level data
 (such as monitoring) to {es}.
 +
 --
-[NOTE] 
+[NOTE]
 ===============================
 * This role should not be assigned to users as the granted permissions may
 change between releases.
@@ -49,6 +50,19 @@ use {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-user,`transform_user`>>"].
 
+[[built-in-roles-editor]] `editor` ::
+experimental:[]
+Grants full access to all features in {kib} (including Solutions) and read-only access to data indices.
++
+--
+[NOTE]
+===============================
+* This role provides read access to any index that is not prefixed with a dot.
+* This role automatically grants full access to new {kib} features as soon as they are released.
+===============================
+
+--
+
 [[built-in-roles-enrich-user]] `enrich_user` ::
 Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
 ingest node pipelines.
@@ -60,12 +74,12 @@ NOTE: This role does *not* provide the ability to create indices; those privileg
 must be defined in a separate role.
 
 [[built-in-roles-kibana-dashboard]] `kibana_dashboard_only_user` ::
-(This role is deprecated, please use 
+(This role is deprecated, please use
 {kibana-ref}/kibana-privileges.html#kibana-feature-privileges[{kib} feature privileges]
 instead).
-Grants read-only access to the {kib} Dashboard in every 
+Grants read-only access to the {kib} Dashboard in every
 {kibana-ref}/xpack-spaces.html[space in {kib}].
-This role does not have access to editing tools in {kib}. 
+This role does not have access to editing tools in {kib}.
 
 [[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the {kib} system user to read from and write to the
@@ -88,7 +102,8 @@ Grants access to all features in {kib}. For more information on {kib} authorizat
 see {kibana-ref}/xpack-security-authorization.html[Kibana authorization].
 
 [[built-in-roles-logstash-admin]] `logstash_admin` ::
-Grants access to the `.logstash*` indices for managing configurations.
+Grants access to the `.logstash*` indices for managing configurations, and grants
+necessary access for logstash-specific APIs exposed by the logstash x-pack plugin.
 
 [[built-in-roles-logstash-system]] `logstash_system` ::
 Grants access necessary for the Logstash system user to send system-level data
@@ -96,7 +111,7 @@ Grants access necessary for the Logstash system user to send system-level data
 {logstash-ref}/ls-security.html[Configuring Security in Logstash].
 +
 --
-[NOTE] 
+[NOTE]
 ===============================
 * This role should not be assigned to users as the granted permissions may
 change between releases.
@@ -131,17 +146,17 @@ with {kibana-ref}/xpack-security-authorization.html[access to the {kib} instance
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required to write data into the monitoring indices
-(`.monitoring-*`). This role also has the privileges necessary to create 
-{metricbeat} indices (`metricbeat-*`) and write data into them. 
+(`.monitoring-*`). This role also has the privileges necessary to create
+{metricbeat} indices (`metricbeat-*`) and write data into them.
 
 [[built-in-roles-remote-monitoring-collector]] `remote_monitoring_collector`::
 Grants the minimum privileges required to collect monitoring data for the {stack}.
 
 [[built-in-roles-reporting-user]] `reporting_user`::
 Grants the specific privileges required for users of {reporting} other than those
-required to use {kib}. This role grants access to the reporting indices; each 
+required to use {kib}. This role grants access to the reporting indices; each
 user has access to only their own reports.
-Reporting users should also be assigned additional roles that grant 
+Reporting users should also be assigned additional roles that grant
 {kibana-ref}/xpack-security-authorization.html[access to {kib}] as well as read
 access to the <<roles-indices-priv,indices>> that will be used to generate reports.
 
@@ -158,13 +173,13 @@ the `superuser` role can also manage users and roles and
 <<run-as-privilege, impersonate>> any other user in the system. Due to the
 permissive nature of this role, take extra care when assigning it to a user.
 
-[[built-in-roles-transform-admin]] `transform_admin`:: 
-Grants `manage_transform` cluster privileges, which enable you to manage 
-{transforms}. This role also includes all 
+[[built-in-roles-transform-admin]] `transform_admin`::
+Grants `manage_transform` cluster privileges, which enable you to manage
+{transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transform-user]] `transform_user`::
-Grants `monitor_transform` cluster privileges, which enable you to use 
+Grants `monitor_transform` cluster privileges, which enable you to use
 {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
@@ -180,10 +195,24 @@ to the cluster state. This means users can view the metadata over all indices,
 index templates, mappings, node and basically everything about the cluster.
 However, this role does not grant permission to view the data in all indices.
 
+[[built-in-roles-viewer]] `viewer` ::
+experimental:[]
+Grants read-only access to all features in {kib} (including Solutions) and to data indices.
++
+--
+[NOTE]
+===============================
+* This role provides read access to any index that is not prefixed with a dot.
+* This role automatically grants read-only access to new {kib} features as soon as they are available.
+===============================
+
+--
+
 [[built-in-roles-watcher-admin]] `watcher_admin`::
 +
-Grants read access to the `.watches` index, read access to the watch history and
-the triggered watches index and allows to execute all watcher actions.
+Allows users to create and execute all {watcher} actions. Grants read access to
+the `.watches` index. Also grants read access to the watch history and the
+triggered watches index.
 
 [[built-in-roles-watcher-user]] `watcher_user`::
 +

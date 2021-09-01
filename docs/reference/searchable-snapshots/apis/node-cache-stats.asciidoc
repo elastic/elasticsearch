@@ -1,0 +1,132 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[searchable-snapshots-api-cache-stats]]
+=== Cache stats API
+++++
+<titleabbrev>Cache stats</titleabbrev>
+++++
+
+Retrieves statistics about the shared cache for <<partially-mounted,partially
+mounted indices>>.
+
+[[searchable-snapshots-api-cache-stats-request]]
+==== {api-request-title}
+
+`GET /_searchable_snapshots/cache/stats` +
+
+`GET /_searchable_snapshots/<node_id>/cache/stats`
+
+[[searchable-snapshots-api-cache-stats-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the
+`manage` cluster privilege to use this API.
+For more information, see <<security-privileges>>.
+
+[[searchable-snapshots-api-cache-stats-path-params]]
+==== {api-path-parms-title}
+
+`<node_id>`::
+    (Optional, string) The names of particular nodes in the cluster to target.
+    For example, `nodeId1,nodeId2`. For node selection options, see
+    <<cluster-nodes>>.
+
+[[searchable-snapshots-api-cache-stats-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+[role="child_attributes"]
+[[searchable-snapshots-api-cache-stats-response-body]]
+==== {api-response-body-title}
+
+`nodes`::
+(object)
+Contains statistics for the nodes selected by the request.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`<node_id>`::
+(object)
+Contains statistics for the node with the given identifier.
++
+.Properties of `<node_id>`
+[%collapsible%open]
+=====
+`shared_cache`::
+(object)
+Contains statistics about the shared cache file.
++
+.Properties of `shared_cache`
+[%collapsible%open]
+======
+`reads`::
+(long) Number of times the shared cache is used to read data from.
+
+`bytes_read_in_bytes`::
+(long) The total of bytes read from the shared cache.
+
+`writes`::
+(long) Number of times data from the blob store repository is written in the shared cache.
+
+`bytes_written_in_bytes`::
+(long) The total of bytes written in the shared cache.
+
+`evictions`::
+(long) Number of regions evicted from the shared cache file.
+
+`num_regions`::
+(integer) Number of regions in the shared cache file.
+
+`size_in_bytes`::
+(long) The total size in bytes of the shared cache file.
+
+`region_size_in_bytes`::
+(long) The size in bytes of a region in the shared cache file.
+======
+=====
+====
+
+
+[[searchable-snapshots-api-cache-stats-example]]
+==== {api-examples-title}
+
+Gets the statistics about the shared cache for partially mounted indices from
+all data nodes:
+
+[source,console]
+--------------------------------------------------
+GET /_searchable_snapshots/cache/stats
+--------------------------------------------------
+// TEST[setup:node]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "nodes" : {
+    "eerrtBMtQEisohZzxBLUSw" : {
+      "shared_cache" : {
+        "reads" : 6051,
+        "bytes_read_in_bytes" : 5448829,
+        "writes" : 37,
+        "bytes_written_in_bytes" : 1208320,
+        "evictions" : 5,
+        "num_regions" : 65536,
+        "size_in_bytes" : 1099511627776,
+        "region_size_in_bytes" : 16777216
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"reads" : 6051/"reads" : 0/]
+// TESTRESPONSE[s/"bytes_read_in_bytes" : 5448829/"bytes_read_in_bytes" : 0/]
+// TESTRESPONSE[s/"writes" : 37/"writes" : 0/]
+// TESTRESPONSE[s/"bytes_written_in_bytes" : 1208320/"bytes_written_in_bytes" : 0/]
+// TESTRESPONSE[s/"evictions" : 5/"evictions" : 0/]
+// TESTRESPONSE[s/"num_regions" : 65536/"num_regions" : 0/]
+// TESTRESPONSE[s/"size_in_bytes" : 1099511627776/"size_in_bytes" : 0/]
+// TESTRESPONSE[s/"eerrtBMtQEisohZzxBLUSw"/\$node_name/]

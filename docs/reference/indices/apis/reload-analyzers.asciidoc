@@ -2,9 +2,6 @@
 [testenv="basic"]
 [[indices-reload-analyzers]]
 == Reload search analyzers API
-++++
-<titleabbrev>Reload search analyzers</titleabbrev>
-++++
 
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
 For data streams, the API reloads search analyzers and resources for the
@@ -13,8 +10,16 @@ stream's backing indices.
 [source,console]
 --------------------------------------------------
 POST /my-index-000001/_reload_search_analyzers
+POST /my-index-000001/_cache/clear?request=true
 --------------------------------------------------
 // TEST[setup:my_index]
+
+IMPORTANT: After reloading the search analyzers you should clear the request
+           cache to make sure it doesn't contain responses derived from the
+           previous versions of the analyzer.
+// the need for this is tracked in https://github.com/elastic/elasticsearch/issues/66722
+
+
 
 [discrete]
 [[indices-reload-analyzers-api-request]]
@@ -24,6 +29,13 @@ POST /my-index-000001/_reload_search_analyzers
 
 `GET /<target>/_reload_search_analyzers`
 
+[discrete]
+[[indices-reload-analyzers-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
 
 [discrete]
 [[indices-reload-analyzers-api-desc]]
@@ -66,12 +78,9 @@ in the future.
 === {api-path-parms-title}
 
 `<target>`::
-(Required, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, use `_all` or `*`.
-
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, use `*` or `_all`.
 
 [discrete]
 [[indices-reload-analyzers-api-query-params]]

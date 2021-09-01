@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -29,11 +18,10 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -45,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -100,8 +89,15 @@ final class Bootstrap {
         });
     }
 
-    /** initialize native resources */
-    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
+    /**
+     * Initialize native resources.
+     *
+     * @param tmpFile          the temp directory
+     * @param mlockAll         whether or not to lock memory
+     * @param systemCallFilter whether or not to install system call filters
+     * @param ctrlHandler      whether or not to install the ctrl-c handler (applies to Windows only)
+     */
+    static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
@@ -109,8 +105,12 @@ final class Bootstrap {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
-        // enable system call filter
         if (systemCallFilter) {
+            /*
+             * Try to install system call filters; if they fail to install; a bootstrap check will fail startup in production mode.
+             *
+             * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
+             */
             Natives.tryInstallSystemCallFilter(tmpFile);
         }
 
@@ -176,7 +176,7 @@ final class Bootstrap {
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
+                true, // always install system call filters, not user-configurable since 8.0.0
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed
@@ -233,37 +233,15 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        final KeyStoreWrapper keystore;
-        try {
-            keystore = KeyStoreWrapper.load(initialEnv.configFile());
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
+        return loadSecureSettings(initialEnv, System.in);
+    }
 
-        SecureString password;
+    static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
         try {
-            if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
-            } else {
-                password = new SecureString(new char[0]);
-            }
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-
-        try (password) {
-            if (keystore == null) {
-                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-                keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
-                return keyStoreWrapper;
-            } else {
-                keystore.decrypt(password.getChars());
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
-            }
+            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
-        return keystore;
     }
 
     // visible for tests

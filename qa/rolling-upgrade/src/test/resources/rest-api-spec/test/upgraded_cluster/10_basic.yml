@@ -1,5 +1,6 @@
 ---
 "Verify that we can still find things with the template":
+
   - do:
       search_template:
         rest_total_hits_as_int: true
@@ -87,15 +88,21 @@
 ---
 "Find a task result record from the old cluster":
   - skip:
-      features: headers
+      features:
+        - headers
+        - warnings
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .tasks
         body:
           query:
-            match_all: {}
+            match:
+              task.description:
+                query: 'reindexed_index_copy'
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: '/.+:\d+/' }
   - set: {hits.hits.0._id: task_id}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Date;
 
@@ -81,6 +83,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
         final Date date5 = new Date(ZonedDateTime.parse("2017-01-05T05:05:05.005+05:00").toInstant().toEpochMilli());
         final Date date6 = new Date(ZonedDateTime.parse("2017-01-06T06:06:06.006+06:00").toInstant().toEpochMilli());
         final Date date7 = new Date(ZonedDateTime.parse("2017-01-07T07:07:07.007+07:00").toInstant().toEpochMilli());
+        final Instant date8 = ZonedDateTime.parse("2017-01-07T08:08:08.007+07:00").toInstant();
 
         final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
                                                              "_node_id",
@@ -110,7 +113,8 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                             .setLogTime(date2)
                                                             .build();
 
-        final DataCounts dataCounts = new DataCounts("_job_id", 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, date3, date4, date5, date6, date7);
+        final DataCounts dataCounts = new DataCounts("_job_id", 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L,
+            date3, date4, date5, date6, date7, date8);
         final ForecastStats forecastStats = new ForecastStats();
         final TimingStats timingStats = new TimingStats(
             "_job_id", 100, 10.0, 30.0, 20.0, 25.0, new ExponentialAverageCalculationContext(50.0, null, null));
@@ -154,7 +158,8 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                 + "      \"last_data_time\": 1483574705005,"
                 + "      \"latest_empty_bucket_timestamp\": 1483661166006,"
                 + "      \"latest_sparse_bucket_timestamp\": 1483747627007,"
-                + "      \"input_record_count\": 10"
+                + "      \"input_record_count\": 10,"
+                + "      \"log_time\":1483751288007"
                 + "    },"
                 + "    \"model_size_stats\": {"
                 + "      \"job_id\": \"_model\","

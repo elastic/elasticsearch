@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -22,10 +23,11 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class SearchInput implements Input {
 
@@ -51,15 +53,17 @@ public class SearchInput implements Input {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchInput that = (SearchInput) o;
-
-        if (request != null ? !request.equals(that.request) : that.request != null) return false;
-        if (extractKeys != null ? !extractKeys.equals(that.extractKeys) : that.extractKeys != null) return false;
-        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
-        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
+        return Objects.equals(request, that.request)
+            && Objects.equals(extractKeys, that.extractKeys)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }
 
     @Override

@@ -27,20 +27,13 @@
 
     - do:
         search:
-            rest_total_hits_as_int: true
             body:
                 script_fields:
-                    field:
+                    field1:
                         script:
                             source: "doc['binary'].get(0).utf8ToString()"
-    - match: { hits.hits.0.fields.field.0: "Some binary blob" }
-
-    - do:
-        search:
-            rest_total_hits_as_int: true
-            body:
-                script_fields:
-                    field:
+                    field2:
                         script:
                             source: "doc['binary'].value.utf8ToString()"
-    - match: { hits.hits.0.fields.field.0: "Some binary blob" }
+    - match: { hits.hits.0.fields.field1.0: "Some binary blob" }
+    - match: { hits.hits.0.fields.field2.0: "Some binary blob" }

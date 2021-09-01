@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -109,7 +110,7 @@ public class ScoresUpdater {
                 break;
             }
 
-            while (!buckets.isEmpty() && shutdown == false) {
+            while (buckets.isEmpty() == false && shutdown == false) {
                 Result<Bucket> current = buckets.removeFirst();
                 if (current.result.isNormalizable()) {
                     bucketsToRenormalize.add(new BucketNormalizable(current.result, current.index));
@@ -120,7 +121,7 @@ public class ScoresUpdater {
                 }
             }
         }
-        if (!bucketsToRenormalize.isEmpty()) {
+        if (bucketsToRenormalize.isEmpty() == false) {
             normalizeBuckets(normalizer, bucketsToRenormalize, quantilesState, counts);
         }
     }
@@ -198,7 +199,7 @@ public class ScoresUpdater {
 
         counts[0] += toUpdate.size();
         counts[1] += asNormalizables.size() - toUpdate.size();
-        if (!toUpdate.isEmpty()) {
+        if (toUpdate.isEmpty() == false) {
             updatesPersister.updateResults(toUpdate);
         }
     }

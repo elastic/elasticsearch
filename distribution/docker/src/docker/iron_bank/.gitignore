@@ -1,0 +1,2 @@
+# Ignore any locally downloaded or dropped releases
+*.tar.gz

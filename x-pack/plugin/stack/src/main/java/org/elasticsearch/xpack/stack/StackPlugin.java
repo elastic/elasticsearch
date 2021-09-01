@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.stack;
 
@@ -21,7 +22,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,19 +30,13 @@ import java.util.function.Supplier;
 public class StackPlugin extends Plugin implements ActionPlugin {
     private final Settings settings;
 
-    public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
-        "stack.templates.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
     public StackPlugin(Settings settings) {
         this.settings = settings;
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(STACK_TEMPLATES_ENABLED);
+        return Collections.singletonList(StackTemplateRegistry.STACK_TEMPLATES_ENABLED);
     }
 
     @Override
@@ -59,8 +53,8 @@ public class StackPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        final List<Object> components = new ArrayList<>();
         StackTemplateRegistry templateRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
-        return components;
+        templateRegistry.initialize();
+        return Collections.singleton(templateRegistry);
     }
 }

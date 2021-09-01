@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -15,23 +16,24 @@ import org.elasticsearch.index.Index;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.is;
 
 public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase<ReplaceDataStreamBackingIndexStep> {
 
     @Override
     protected ReplaceDataStreamBackingIndexStep createRandomInstance() {
-        return new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(1, 10));
+        String prefix = randomAlphaOfLengthBetween(1, 10);
+        return new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> prefix + index);
     }
 
     @Override
     protected ReplaceDataStreamBackingIndexStep mutateInstance(ReplaceDataStreamBackingIndexStep instance) {
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
-        String indexPrefix = instance.getTargetIndexPrefix();
+        BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
 
         switch (between(0, 2)) {
             case 0:
@@ -41,17 +43,17 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                indexPrefix = randomValueOtherThan(indexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
+                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new ReplaceDataStreamBackingIndexStep(key, nextKey, indexPrefix);
+        return new ReplaceDataStreamBackingIndexStep(key, nextKey, indexNameSupplier);
     }
 
     @Override
     protected ReplaceDataStreamBackingIndexStep copyInstance(ReplaceDataStreamBackingIndexStep instance) {
-        return new ReplaceDataStreamBackingIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexPrefix());
+        return new ReplaceDataStreamBackingIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexNameSupplier());
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsNotPartOfDataStream() {
@@ -61,12 +63,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
+        final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadataBuilder).build()
+            Metadata.builder().put(sourceIndexMetadata, false).build()
         ).build();
 
         expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState));
+            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
@@ -155,10 +158,61 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         ).build();
 
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep =
-            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), indexPrefix);
+            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> indexPrefix + index);
         ClusterState newState = replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStreamName);
         assertThat(updatedDataStream.getIndices().size(), is(2));
         assertThat(updatedDataStream.getIndices().get(0), is(targetIndexMetadata.getIndex()));
+    }
+
+    /**
+     * test IllegalStateException is thrown when original index and write index name are the same
+     */
+    public void testPerformActionSameOriginalTargetError() {
+        String dataStreamName = randomAlphaOfLength(10);
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        String indexName = writeIndexName;
+        String policyName = "test-ilm-policy";
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        String indexPrefix = "test-prefix-";
+        String targetIndex = indexPrefix + indexName;
+
+        IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
+            Metadata.builder()
+                .put(sourceIndexMetadata, true)
+                .put(writeIndexMetadata, true)
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                .put(targetIndexMetadata, true)
+                .build()
+        ).build();
+
+        ReplaceDataStreamBackingIndexStep replaceSourceIndexStep =
+            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> indexPrefix + index);
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState)
+        );
+        assertEquals(
+            "index ["
+                + writeIndexName
+                + "] is the write index for data stream ["
+                + dataStreamName
+                + "], pausing ILM execution of lifecycle [test-ilm-policy] until this index is no longer the write index for the data "
+                + "stream via manual or automated rollover",
+            ex.getMessage()
+        );
     }
 }

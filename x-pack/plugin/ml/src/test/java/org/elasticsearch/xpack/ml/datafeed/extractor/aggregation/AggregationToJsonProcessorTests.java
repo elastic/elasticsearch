@@ -1,18 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,6 +31,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createAggs;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createCompositeAggregation;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createCompositeBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createGeoCentroid;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramAggregation;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
@@ -46,25 +52,52 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     private String timeField = "time";
     private boolean includeDocCount = true;
     private long startTime = 0;
+    private String compositeAggValueSource = "time";
 
-    public void testProcessGivenMultipleDateHistograms() {
-        List<Histogram.Bucket> nestedHistogramBuckets = Arrays.asList(
+    @Before
+    public void setValues() {
+        compositeAggValueSource = "time";
+    }
+
+    public void testProcessGivenMultipleDateHistogramsOrComposite() {
+        Aggregation nestedBucket;
+        if (randomBoolean()) {
+            List<Histogram.Bucket> nestedHistogramBuckets = Arrays.asList(
                 createHistogramBucket(1000L, 3, Collections.singletonList(createMax("metric1", 1200))),
                 createHistogramBucket(2000L, 5, Collections.singletonList(createMax("metric1", 2800)))
-        );
-        Histogram histogram = createHistogramAggregation("buckets", nestedHistogramBuckets);
+            );
+            nestedBucket = createHistogramAggregation("buckets", nestedHistogramBuckets);
+        } else {
+            List<CompositeAggregation.Bucket> nestedCompositebuckets = Arrays.asList(
+                createCompositeBucket(
+                    1000L,
+                    "time",
+                    3,
+                    Collections.singletonList(createMax("metric1", 1200)),
+                    Collections.emptyList()
+                ),
+                createCompositeBucket(
+                    2000L,
+                    "time",
+                    5,
+                    Collections.singletonList(createMax("metric1", 2800)),
+                    Collections.emptyList()
+                )
+            );
+            nestedBucket = createCompositeAggregation("buckets", nestedCompositebuckets);
+        }
 
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-                createHistogramBucket(1000L, 3, Arrays.asList(createMax("time", 1000L), histogram))
+                createHistogramBucket(1000L, 3, Arrays.asList(createMax("time", 1000L), nestedBucket))
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> aggToString(Sets.newHashSet("my_field"), histogramBuckets));
-        assertThat(e.getMessage(), containsString("More than one Date histogram cannot be used in the aggregation. " +
-                "[buckets] is another instance of a Date histogram"));
+        assertThat(e.getMessage(), containsString("More than one composite or date_histogram cannot be used in the aggregation."
+            + " [buckets] is another instance of a composite or date_histogram aggregation"));
     }
 
-    public void testProcessGivenMaxTimeIsMissing() throws IOException {
+    public void testProcessGivenMaxTimeIsMissing() {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
                 createHistogramBucket(1000L, 3),
                 createHistogramBucket(2000L, 5)
@@ -73,16 +106,36 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> aggToString(Collections.emptySet(), histogramBuckets));
         assertThat(e.getMessage(), containsString("Missing max aggregation for time_field [time]"));
+
+        List<CompositeAggregation.Bucket> compositeBuckets = Arrays.asList(
+            createCompositeBucket(1000L, "time",3, Collections.emptyList(), Collections.emptyList()),
+            createCompositeBucket(2000L, "time",5, Collections.emptyList(), Collections.emptyList())
+        );
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> aggToStringComposite(Collections.emptySet(), compositeBuckets));
+        assertThat(e.getMessage(), containsString("Missing max aggregation for time_field [time]"));
     }
 
-    public void testProcessGivenNonMaxTimeAgg() throws IOException {
+    public void testProcessGivenNonMaxTimeAgg() {
+        List<Aggregation> aggs = Collections.singletonList(createTerms("time", new Term("a", 1), new Term("b", 2)));
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-                createHistogramBucket(1000L, 3, Collections.singletonList(createTerms("time", new Term("a", 1), new Term("b", 2)))),
-                createHistogramBucket(2000L, 5, Collections.singletonList(createTerms("time", new Term("a", 1), new Term("b", 2))))
+                createHistogramBucket(1000L, 3, aggs),
+                createHistogramBucket(2000L, 5, aggs)
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> aggToString(Collections.emptySet(), histogramBuckets));
+        assertThat(e.getMessage(), containsString("Missing max aggregation for time_field [time]"));
+
+
+        List<CompositeAggregation.Bucket> compositeBuckets = Arrays.asList(
+            createCompositeBucket(1000L, "time", 3, aggs, Collections.emptyList()),
+            createCompositeBucket(2000L, "time",5, aggs, Collections.emptyList())
+        );
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> aggToStringComposite(Collections.emptySet(), compositeBuckets));
         assertThat(e.getMessage(), containsString("Missing max aggregation for time_field [time]"));
     }
 
@@ -110,6 +163,63 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         assertThat(json, equalTo("{\"time\":1000} {\"time\":2000}"));
         assertThat(keyValuePairsWritten, equalTo(2L));
+    }
+
+
+    public void testProcessGivenCompositeOnly() throws IOException {
+        compositeAggValueSource = "timestamp";
+        List<CompositeAggregation.Bucket> compositeBuckets = Arrays.asList(
+            createCompositeBucket(1000L, "timestamp", 3, Collections.singletonList(createMax("timestamp", 1200)), Collections.emptyList()),
+            createCompositeBucket(2000L, "timestamp", 5, Collections.singletonList(createMax("timestamp", 2800)), Collections.emptyList())
+        );
+
+        timeField = "timestamp";
+        String json = aggToStringComposite(Collections.emptySet(), compositeBuckets);
+
+        assertThat(json, equalTo("{\"timestamp\":1200,\"doc_count\":3} {\"timestamp\":2800,\"doc_count\":5}"));
+        assertThat(keyValuePairsWritten, equalTo(4L));
+    }
+
+    public void testProcessGivenCompositeOnlyAndNoDocCount() throws IOException {
+        List<CompositeAggregation.Bucket> compositeBuckets = Arrays.asList(
+            createCompositeBucket(1000L, "time", 3, Collections.singletonList(createMax("time", 1000)), Collections.emptyList()),
+            createCompositeBucket(2000L, "time", 5, Collections.singletonList(createMax("time", 2000)), Collections.emptyList())
+        );
+
+        includeDocCount = false;
+        String json = aggToStringComposite(Collections.emptySet(), compositeBuckets);
+
+        assertThat(json, equalTo("{\"time\":1000} {\"time\":2000}"));
+        assertThat(keyValuePairsWritten, equalTo(2L));
+    }
+
+    public void testProcessGivenCompositeWithDocAndTerms() throws IOException {
+        compositeAggValueSource = "timestamp";
+        List<CompositeAggregation.Bucket> compositeBuckets = Arrays.asList(
+            createCompositeBucket(1000L,
+                "timestamp",
+                3,
+                Collections.singletonList(createMax("timestamp", 1200)),
+                Arrays.asList(Tuple.tuple("foo", "value1"), Tuple.tuple("bar", "value1"))
+            ),
+            createCompositeBucket(2000L,
+                "timestamp",
+                5,
+                Collections.singletonList(createMax("timestamp", 2800)),
+                Arrays.asList(Tuple.tuple("foo", "value2"), Tuple.tuple("bar", "value2"))
+            )
+        );
+
+        timeField = "timestamp";
+        String json = aggToStringComposite(Sets.newHashSet("foo", "bar"), compositeBuckets);
+
+        assertThat(json,
+            equalTo(
+                "{\"bar\":\"value1\",\"foo\":\"value1\",\"timestamp\":1200,\"doc_count\":3}"
+                    + " {\"bar\":\"value2\",\"foo\":\"value2\",\"timestamp\":2800,\"doc_count\":5}"
+            )
+        );
+        assertThat(keyValuePairsWritten, equalTo(8L));
     }
 
     public void testProcessGivenTopLevelAggIsNotHistogram() throws IOException {
@@ -264,7 +374,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 "{\"time\":4000,\"my_field\":\"b\",\"my_value\":421.0,\"my_value2\":422.0}"));
     }
 
-    public void testProcessGivenUnsupportedAggregationUnderHistogram() throws IOException {
+    public void testProcessGivenUnsupportedAggregationUnderHistogram() {
         Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         Aggregation anotherHistogram = mock(Aggregation.class);
         when(anotherHistogram.getName()).thenReturn("nested-agg");
@@ -276,7 +386,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unsupported aggregation type [nested-agg]"));
     }
 
-    public void testProcessGivenMultipleBucketAggregations() throws IOException {
+    public void testProcessGivenMultipleBucketAggregations() {
         Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         Terms terms1 = mock(Terms.class);
         when(terms1.getName()).thenReturn("terms_1");
@@ -354,7 +464,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"));
     }
 
-    public void testProcessGivenMultiplePercentilesPerHistogram() throws IOException {
+    public void testProcessGivenMultiplePercentilesPerHistogram() {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
                 createHistogramBucket(1000L, 4, Arrays.asList(
                         createMax("time", 1000), createPercentiles("my_field", 1.0))),
@@ -372,10 +482,10 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testBucketAggContainsRequiredAgg() throws IOException {
+    public void testBucketAggContainsRequiredAgg() {
         Set<String> fields = new HashSet<>();
         fields.add("foo");
-        AggregationToJsonProcessor processor = new AggregationToJsonProcessor("time", fields, false, 0L);
+        AggregationToJsonProcessor processor = new AggregationToJsonProcessor("time", fields, false, 0L, null);
 
         Terms termsAgg = mock(Terms.class);
         when(termsAgg.getBuckets()).thenReturn(Collections.emptyList());
@@ -458,7 +568,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
             " {\"time\":2000,\"field2\":1.0,\"field1\":7.0,\"doc_count\":7}"));
     }
 
-    public void testSingleBucketAgg_failureWithSubMultiBucket() throws IOException {
+    public void testSingleBucketAgg_failureWithSubMultiBucket() {
 
         List<Histogram.Bucket> histogramBuckets = Collections.singletonList(
             createHistogramBucket(1000L, 4, Arrays.asList(
@@ -499,10 +609,22 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     private String aggToString(Set<String> fields, Aggregations aggregations) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        AggregationToJsonProcessor processor = new AggregationToJsonProcessor(timeField, fields, includeDocCount, startTime);
+        AggregationToJsonProcessor processor = new AggregationToJsonProcessor(
+            timeField,
+            fields,
+            includeDocCount,
+            startTime,
+            compositeAggValueSource
+        );
         processor.process(aggregations);
-        processor.writeDocs(10000, outputStream);
+        processor.writeAllDocsCancellable(_timestamp -> false, outputStream);
         keyValuePairsWritten = processor.getKeyValueCount();
         return outputStream.toString(StandardCharsets.UTF_8.name());
     }
+
+    private String aggToStringComposite(Set<String> fields, List<CompositeAggregation.Bucket> buckets) throws IOException {
+        CompositeAggregation compositeAggregation = createCompositeAggregation("buckets", buckets);
+        return aggToString(fields, createAggs(Collections.singletonList(compositeAggregation)));
+    }
+
 }

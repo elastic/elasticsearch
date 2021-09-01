@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -12,6 +13,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.ParseException;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
+import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
 import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.oauth2.sdk.id.State;
@@ -22,9 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
@@ -71,6 +73,8 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.PRINCIPAL_CLAIM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_AUTH_METHOD;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_SECRET;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_POST_LOGOUT_REDIRECT_URI;
@@ -264,9 +268,11 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             requestedScope.add("openid");
         }
         final JWSAlgorithm signatureAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_ALGORITHM));
-
+        final ClientAuthenticationMethod clientAuthenticationMethod =
+            ClientAuthenticationMethod.parse(require(config, RP_CLIENT_AUTH_METHOD));
+        final JWSAlgorithm clientAuthJwtAlgorithm = JWSAlgorithm.parse(require(config, RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM));
         return new RelyingPartyConfiguration(clientId, clientSecret, redirectUri, responseType, requestedScope,
-            signatureAlgorithm, postLogoutRedirectUri);
+            signatureAlgorithm, clientAuthenticationMethod, clientAuthJwtAlgorithm, postLogoutRedirectUri);
     }
 
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
@@ -358,7 +364,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             builder.loginHint(loginHint);
         }
         return new OpenIdConnectPrepareAuthenticationResponse(builder.build().toURI().toString(),
-            state.getValue(), nonce.getValue());
+            state.getValue(), nonce.getValue(), this.name());
     }
 
     public boolean isIssuerValid(String issuer) {
@@ -386,7 +392,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
      */
     private static boolean isAllowedTypeForClaim(Object o) {
         return (o instanceof String || o instanceof Boolean || o instanceof Number
-            || (o instanceof Collection && ((Collection) o).stream()
+            || (o instanceof Collection && ((Collection<?>) o).stream()
             .allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
     }
 
@@ -417,6 +423,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
+        @SuppressWarnings("unchecked")
         private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
             Collection<String> values;
             final Object claimValueObject = claimsSet.getClaim(claimName);
@@ -425,7 +432,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             } else if (claimValueObject instanceof String) {
                 values = List.of((String) claimValueObject);
             } else if (claimValueObject instanceof Collection &&
-                ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+                ((Collection<?>) claimValueObject).stream().allMatch(c -> c instanceof String)) {
                 values = (Collection<String>) claimValueObject;
             } else {
                 throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");

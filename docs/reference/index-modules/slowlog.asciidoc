@@ -29,7 +29,7 @@ All of the above settings are _dynamic_ and can be set for each index using the
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index.search.slowlog.threshold.query.warn": "10s",
   "index.search.slowlog.threshold.query.info": "5s",
@@ -41,7 +41,7 @@ PUT /twitter/_settings
   "index.search.slowlog.threshold.fetch.trace": "200ms"
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default thresholds are disabled (set to `-1`).
 
@@ -108,7 +108,7 @@ All of the above settings are _dynamic_ and can be set for each index using the
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index.indexing.slowlog.threshold.index.warn": "10s",
   "index.indexing.slowlog.threshold.index.info": "5s",
@@ -117,11 +117,11 @@ PUT /twitter/_settings
   "index.indexing.slowlog.source": "1000"
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default Elasticsearch will log the first 1000 characters of the _source in
 the slowlog. You can change that with `index.indexing.slowlog.source`. Setting
-it to `false` or `0` will skip logging the source entirely an setting it to
+it to `false` or `0` will skip logging the source entirely, while setting it to
 `true` will log the entire source regardless of size. The original `_source` is
 reformatted by default to make sure that it fits on a single log line. If preserving
 the original document format is important, you can turn off reformatting by setting
@@ -129,3 +129,12 @@ the original document format is important, you can turn off reformatting by sett
 logged "as is" and can potentially span multiple log lines.
 
 The index slow log file is configured in the `log4j2.properties` file.
+
+[discrete]
+=== Slow log levels
+
+You can mimic the search or indexing slow log level by setting appropriate
+threshold making "more verbose" loggers to be switched off.
+If for instance we want to simulate index.indexing.slowlog.level = INFO
+then all we need to do is to set
+index.indexing.slowlog.threshold.index.debug and index.indexing.slowlog.threshold.index.trace to -1

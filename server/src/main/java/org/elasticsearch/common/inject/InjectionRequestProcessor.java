@@ -51,7 +51,7 @@ class InjectionRequestProcessor extends AbstractProcessor {
     }
 
     @Override
-    public Boolean visit(InjectionRequest request) {
+    public Boolean visit(InjectionRequest<?> request) {
         Set<InjectionPoint> injectionPoints;
         try {
             injectionPoints = request.getInjectionPoints();

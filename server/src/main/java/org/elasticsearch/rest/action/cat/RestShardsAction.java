@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -30,7 +19,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
@@ -63,13 +53,20 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat/shards"),
-            new Route(GET, "/_cat/shards/{index}"));
+        return List.of(
+            new Route(GET, "/_cat/shards"),
+            new Route(GET, "/_cat/shards/{index}")
+        );
     }
 
     @Override
     public String getName() {
         return "cat_shards_action";
+    }
+
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
     }
 
     @Override
@@ -82,7 +79,6 @@ public class RestShardsAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
@@ -203,7 +199,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
         table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
-      
+
         table.addCell("bulk.total_operations",
             "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
         table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
@@ -352,7 +348,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getMemory));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, ss -> new ByteSizeValue(0)));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getIndexWriterMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getVersionMapMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getBitsetMemory));
@@ -367,7 +363,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
             table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
-            
+
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalOperations));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));

@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -60,30 +50,22 @@ public class CombiIT extends ESIntegTestCase {
             String name = "name_" + randomIntBetween(1, 10);
             if (rarely()) {
                 missingValues++;
-                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
-                        .startObject()
-                        .field("name", name)
-                        .endObject());
+                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("name", name).endObject());
             } else {
                 int value = randomIntBetween(1, 10);
                 values.put(value, values.getOrDefault(value, 0) + 1);
-                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
-                        .startObject()
-                        .field("name", name)
-                        .field("value", value)
-                        .endObject());
+                builders[i] = client().prepareIndex("idx")
+                    .setSource(jsonBuilder().startObject().field("name", name).field("value", value).endObject());
             }
         }
         indexRandom(true, builders);
         ensureSearchable();
 
-
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(missing("missing_values").field("value"))
-                .addAggregation(terms("values").field("value")
-                        .collectMode(aggCollectionMode ))
-                .get();
+            .addAggregation(missing("missing_values").field("value"))
+            .addAggregation(terms("values").field("value").collectMode(aggCollectionMode))
+            .get();
 
         assertSearchResponse(response);
 
@@ -103,7 +85,6 @@ public class CombiIT extends ESIntegTestCase {
         assertTrue(values.isEmpty());
     }
 
-
     /**
      * Some top aggs (eg. date_/histogram) that are executed on unmapped fields, will generate an estimate count of buckets - zero.
      * when the sub aggregator is then created, it will take this estimation into account. This used to cause
@@ -111,22 +92,29 @@ public class CombiIT extends ESIntegTestCase {
      */
     public void testSubAggregationForTopAggregationOnUnmappedField() throws Exception {
 
-        prepareCreate("idx").setMapping(jsonBuilder()
-                .startObject()
-                .startObject("_doc").startObject("properties")
-                    .startObject("name").field("type", "keyword").endObject()
-                    .startObject("value").field("type", "integer").endObject()
-                .endObject().endObject()
-                .endObject()).get();
+        prepareCreate("idx").setMapping(
+            jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("value")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        ).get();
 
         ensureSearchable("idx");
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse searchResponse = client().prepareSearch("idx")
-                .addAggregation(histogram("values").field("value1").interval(1)
-                        .subAggregation(terms("names").field("name")
-                                .collectMode(aggCollectionMode )))
-                .get();
+            .addAggregation(
+                histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");

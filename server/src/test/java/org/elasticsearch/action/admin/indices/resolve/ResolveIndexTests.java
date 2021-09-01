@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -30,12 +19,17 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -45,14 +39,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 public class ResolveIndexTests extends ESTestCase {
 
-    private final Object[][] indices = new Object[][]{
+    private final Object[][] indices = new Object[][] {
         // name, isClosed, isHidden, isFrozen, dataStream, aliases
         {"logs-pgsql-prod-20200101", false, false, true, null, new String[]{"logs-pgsql-prod"}},
         {"logs-pgsql-prod-20200102", false, false, true, null, new String[]{"logs-pgsql-prod", "one-off-alias"}},
@@ -68,8 +64,18 @@ public class ResolveIndexTests extends ESTestCase {
         {"logs-mysql-test", "@timestamp", 2}
     };
 
-    private Metadata metadata = buildMetadata(dataStreams, indices);
-    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(new IndexNameExpressionResolver());
+    private Metadata metadata;
+    private final IndexAbstractionResolver resolver = new IndexAbstractionResolver(TestIndexNameExpressionResolver.newInstance());
+
+    private long epochMillis;
+    private String dateString;
+
+    @Before
+    public void setup() {
+        epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
+        metadata = buildMetadata(dataStreams, indices);
+    }
 
     public void testResolveStarWithDefaultOptions() {
         String[] names = new String[] {"*"};
@@ -107,12 +113,12 @@ public class ResolveIndexTests extends ESTestCase {
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices,
-            ".ds-logs-mysql-prod-000001",
-            ".ds-logs-mysql-prod-000002",
-            ".ds-logs-mysql-prod-000003",
-            ".ds-logs-mysql-prod-000004",
-            ".ds-logs-mysql-test-000001",
-            ".ds-logs-mysql-test-000002",
+            ".ds-logs-mysql-prod-" + dateString + "-000001",
+            ".ds-logs-mysql-prod-" + dateString + "-000002",
+            ".ds-logs-mysql-prod-" + dateString + "-000003",
+            ".ds-logs-mysql-prod-" + dateString + "-000004",
+            ".ds-logs-mysql-test-" + dateString + "-000001",
+            ".ds-logs-mysql-test-" + dateString + "-000002",
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
@@ -155,16 +161,60 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveWithMultipleNames() {
-        String[] names = new String[]{".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102", "one-off-alias", "logs-mysql-test"};
+        String[] names = new String[]{".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102", "one-off-alias",
+            "logs-mysql-test"};
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
-        validateIndices(indices, ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102");
+        validateIndices(indices, ".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
+    }
+
+    public void testResolvePreservesBackingIndexOrdering() {
+        Metadata.Builder builder = Metadata.builder();
+        String dataStreamName = "my-data-stream";
+        String[] names = {"not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis)};
+        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+
+        DataStream ds = new DataStream(dataStreamName, createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        builder.put(ds);
+
+        IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+        TransportAction.resolveIndices(new String[]{"*"}, indicesOptions, builder.build(), resolver, indices, aliases, dataStreams, true);
+
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
+    }
+
+    public void testResolveHiddenProperlyWithDateMath() {
+        // set up with today's index and following day's index to avoid test failures due to execution time
+        DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
+        Instant now = Instant.now(Clock.systemUTC());
+        String todaySuffix = dateFormatter.format(now);
+        String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
+        Object[][] indices = new Object[][] {
+            // name, isClosed, isHidden, isFrozen, dataStream, aliases
+            {"logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY},
+            {"logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY}
+        };
+        Metadata metadata = buildMetadata(new Object[][] {}, indices);
+
+        String requestedIndex = "<logs-pgsql-prod-{now/d}>";
+        List<String> resolvedIndices = resolver.resolveIndexAbstractions(List.of(requestedIndex), IndicesOptions.LENIENT_EXPAND_OPEN,
+            metadata, List.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix), randomBoolean(), randomBoolean());
+        assertThat(resolvedIndices.size(), is(1));
+        assertThat(resolvedIndices.get(0), oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix));
     }
 
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {
@@ -220,13 +270,13 @@ public class ResolveIndexTests extends ESTestCase {
             int numBackingIndices = (int) dataStreamInfo[2];
             List<String> expectedBackingIndices = new ArrayList<>();
             for (int m = 1; m <= numBackingIndices; m++) {
-                expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m));
+                expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m, epochMillis));
             }
             assertThat(resolvedDataStream.getBackingIndices(), is((expectedBackingIndices.toArray(Strings.EMPTY_ARRAY))));
         }
     }
 
-    static Metadata buildMetadata(Object[][] dataStreams, Object[][] indices) {
+    Metadata buildMetadata(Object[][] dataStreams, Object[][] indices) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -236,7 +286,8 @@ public class ResolveIndexTests extends ESTestCase {
             int numBackingIndices = (int) dsInfo[2];
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
-                backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber), true));
+                backingIndices.add(
+                    createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber, epochMillis), true));
             }
             allIndices.addAll(backingIndices);
 
@@ -293,14 +344,14 @@ public class ResolveIndexTests extends ESTestCase {
         return null;
     }
 
-    private static Object[] findBackingIndexInfo(Object[][] dataStreamSource, String indexName) {
+    private Object[] findBackingIndexInfo(Object[][] dataStreamSource, String indexName) {
         for (Object[] info : dataStreamSource) {
             String dataStreamName = (String) info[0];
             int generations = (int) info[2];
             for (int k = 1; k <= generations; k++) {
-                if (DataStream.getDefaultBackingIndexName(dataStreamName, k).equals(indexName)) {
+                if (DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis).equals(indexName)) {
                     return new Object[] {
-                        DataStream.getDefaultBackingIndexName(dataStreamName, k),
+                        DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis),
                         false, true, false, dataStreamName, Strings.EMPTY_ARRAY
                     };
                 }

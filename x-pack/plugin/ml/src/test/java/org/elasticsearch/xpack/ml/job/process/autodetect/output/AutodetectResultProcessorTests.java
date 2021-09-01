@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -328,8 +328,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         // Now with hard_limit
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID)
                 .setMemoryStatus(ModelSizeStats.MemoryStatus.HARD_LIMIT)
-                .setModelBytesMemoryLimit(new ByteSizeValue(512, ByteSizeUnit.MB).getBytes())
-                .setModelBytesExceeded(new ByteSizeValue(1, ByteSizeUnit.KB).getBytes())
+                .setModelBytesMemoryLimit(ByteSizeValue.ofMb(512).getBytes())
+                .setModelBytesExceeded(ByteSizeValue.ofKb(1).getBytes())
                 .build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
@@ -380,8 +380,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         IndexResponse indexResponse = new IndexResponse(new ShardId("ml", "uid", 0), "1", 0L, 0L, 0L, true);
 
-        when(persister.persistModelSnapshot(any(), any(), any()))
-            .thenReturn(new BulkResponse(new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse)}, 0));
+        when(persister.persistModelSnapshot(any(), any(), any())).thenReturn(
+            new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse) }, 0)
+        );
 
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);

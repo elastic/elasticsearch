@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -17,10 +18,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -150,6 +151,10 @@ public class MlDailyMaintenanceService implements Releasable {
                 LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
                 return;
             }
+            if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
+                LOGGER.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
+                return;
+            }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
 
             // Step 3: Log any error that could have happened
@@ -185,7 +190,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 } else {
                     LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
                 }
-                finalListener.onResponse(new AcknowledgedResponse(true));
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
             },
             finalListener::onFailure
         );
@@ -215,7 +220,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 } else {
                     LOGGER.info("The following ML jobs could not be deleted: [" + String.join(",", jobIds) + "]");
                 }
-                finalListener.onResponse(new AcknowledgedResponse(true));
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
             },
             finalListener::onFailure
         );
@@ -231,7 +236,7 @@ public class MlDailyMaintenanceService implements Releasable {
                         .collect(toSet());
                 Set<String> jobsInStateDeletingWithoutDeletionTask = Sets.difference(jobsInStateDeleting, jobsWithDeletionTask);
                 if (jobsInStateDeletingWithoutDeletionTask.isEmpty()) {
-                    finalListener.onResponse(new AcknowledgedResponse(true));
+                    finalListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor =
@@ -261,7 +266,7 @@ public class MlDailyMaintenanceService implements Releasable {
                         .map(Job::getId)
                         .collect(toSet());
                 if (jobsInStateDeleting.isEmpty()) {
-                    finalListener.onResponse(new AcknowledgedResponse(true));
+                    finalListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 jobsInStateDeletingHolder.set(jobsInStateDeleting);

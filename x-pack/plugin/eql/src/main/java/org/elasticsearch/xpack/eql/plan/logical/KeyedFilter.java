@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.plan.logical;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -40,10 +43,10 @@ public class KeyedFilter extends UnaryPlan {
     }
 
     @Override
-    protected KeyedFilter replaceChild(LogicalPlan newChild) {
+    public KeyedFilter replaceChild(LogicalPlan newChild) {
         return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
     }
-    
+
     public List<? extends NamedExpression> keys() {
         return keys;
     }
@@ -51,9 +54,21 @@ public class KeyedFilter extends UnaryPlan {
     public Attribute timestamp() {
         return timestamp;
     }
-    
+
     public Attribute tiebreaker() {
         return tiebreaker;
+    }
+
+    public List<? extends NamedExpression> extractionAttributes() {
+        List<NamedExpression> out = new ArrayList<>();
+
+        out.add(timestamp);
+        if (Expressions.isPresent(tiebreaker)) {
+            out.add(tiebreaker);
+        }
+
+        out.addAll(keys);
+        return out;
     }
 
     @Override
@@ -65,7 +80,7 @@ public class KeyedFilter extends UnaryPlan {
     public int hashCode() {
         return Objects.hash(keys, timestamp, tiebreaker, child());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

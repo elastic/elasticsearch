@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -43,7 +44,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             DataFrameAnalyticsConfig.Builder config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
             if (config.getId() == null) {
                 config.setId(id);
-            } else if (!Strings.isNullOrEmpty(id) && !id.equals(config.getId())) {
+            } else if (Strings.isNullOrEmpty(id) == false && id.equals(config.getId()) == false) {
                 // If we have both URI and body ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
                     config.getId(), id));
@@ -100,7 +101,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
                 error = ValidateActions.addValidationError(Messages.getMessage(Messages.INVALID_ID, DataFrameAnalyticsConfig.ID,
                     config.getId()), error);
             }
-            if (!MlStrings.hasValidLengthForId(config.getId())) {
+            if (MlStrings.hasValidLengthForId(config.getId()) == false) {
                 error = ValidateActions.addValidationError(Messages.getMessage(Messages.ID_TOO_LONG, DataFrameAnalyticsConfig.ID,
                     config.getId(), MlStrings.ID_LENGTH_LIMIT), error);
             }

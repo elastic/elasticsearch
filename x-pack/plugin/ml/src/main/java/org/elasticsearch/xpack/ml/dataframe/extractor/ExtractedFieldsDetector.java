@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -11,34 +12,43 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -49,43 +59,84 @@ public class ExtractedFieldsDetector {
     private static final Logger LOGGER = LogManager.getLogger(ExtractedFieldsDetector.class);
 
     /**
-     * Fields to ignore. These are mostly internal meta fields.
+     * Internal fields to ignore.
      */
-    private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY,
-        "_data_stream_timestamp");
+    private static final List<String> IGNORE_FIELDS = Collections.singletonList(DestinationIndex.INCREMENTAL_ID);
 
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
+    private final List<String> topNestedFieldPrefixes;
 
-    ExtractedFieldsDetector(DataFrameAnalyticsConfig config, int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
+    ExtractedFieldsDetector(DataFrameAnalyticsConfig config,
+                            int docValueFieldsLimit,
+                            FieldCapabilitiesResponse fieldCapabilitiesResponse,
                             Map<String, Long> cardinalitiesForFieldsWithConstraints) {
         this.config = Objects.requireNonNull(config);
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
         this.cardinalitiesForFieldsWithConstraints = Objects.requireNonNull(cardinalitiesForFieldsWithConstraints);
+        this.topNestedFieldPrefixes = findTopNestedFieldPrefixes(fieldCapabilitiesResponse);
+    }
+
+    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+        List<String> sortedNestedFieldPrefixes = fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(field -> isNested(getMappingTypes(field)))
+            .map(field -> field + ".")
+            .sorted()
+            .collect(Collectors.toList());
+        Iterator<String> iterator = sortedNestedFieldPrefixes.iterator();
+        String previousNestedFieldPrefix = null;
+        while (iterator.hasNext()) {
+            String nestedFieldPrefix = iterator.next();
+            if (previousNestedFieldPrefix != null && nestedFieldPrefix.startsWith(previousNestedFieldPrefix)) {
+                iterator.remove();
+            } else {
+                previousNestedFieldPrefix = nestedFieldPrefix;
+            }
+        }
+        return Collections.unmodifiableList(sortedNestedFieldPrefixes);
     }
 
     public Tuple<ExtractedFields, List<FieldSelection>> detect() {
+        List<ProcessedField> processedFields = extractFeatureProcessors()
+            .stream()
+            .map(ProcessedField::new)
+            .collect(Collectors.toList());
         TreeSet<FieldSelection> fieldSelection = new TreeSet<>(Comparator.comparing(FieldSelection::getName));
-        Set<String> fields = getIncludedFields(fieldSelection);
+        Set<String> fields = getIncludedFields(fieldSelection,
+            processedFields.stream()
+                .map(ProcessedField::getInputFieldNames)
+                .flatMap(List::stream)
+                .collect(Collectors.toSet()));
         checkFieldsHaveCompatibleTypes(fields);
         checkRequiredFields(fields);
         checkFieldsWithCardinalityLimit();
-        ExtractedFields extractedFields = detectExtractedFields(fields, fieldSelection);
+        ExtractedFields extractedFields = detectExtractedFields(fields, fieldSelection, processedFields);
         addIncludedFields(extractedFields, fieldSelection);
+
+        checkOutputFeatureUniqueness(processedFields, fields);
 
         return Tuple.tuple(extractedFields, Collections.unmodifiableList(new ArrayList<>(fieldSelection)));
     }
 
-    private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection) {
-        Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
-        fields.removeAll(IGNORE_FIELDS);
+    private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection, Set<String> requiredFieldsForProcessors) {
+        validateFieldsRequireForProcessors(requiredFieldsForProcessors);
+        Set<String> fields = new TreeSet<>();
+        // filter metadata field
+        fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(f -> fieldCapabilitiesResponse.isMetadataField(f) == false
+                && IGNORE_FIELDS.contains(f) == false)
+            .forEach(fields::add);
         removeFieldsUnderResultsField(fields);
         removeObjects(fields);
         applySourceFiltering(fields);
+        if (fields.containsAll(requiredFieldsForProcessors) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "fields {} required by field_processors are not included in source filtering.",
+                Sets.difference(requiredFieldsForProcessors, fields));
+        }
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
 
         // If the user has not explicitly included fields we'll include all compatible fields
@@ -93,20 +144,75 @@ public class ExtractedFieldsDetector {
             removeFieldsWithIncompatibleTypes(fields, fieldSelection);
         }
         includeAndExcludeFields(fields, fieldSelection);
+        if (fields.containsAll(requiredFieldsForProcessors) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "fields {} required by field_processors are not included in the analyzed_fields.",
+                Sets.difference(requiredFieldsForProcessors, fields));
+        }
 
         return fields;
     }
 
+    private void validateFieldsRequireForProcessors(Set<String> processorFields) {
+        Set<String> fieldsForProcessor = new HashSet<>(processorFields);
+        removeFieldsUnderResultsField(fieldsForProcessor);
+        if (fieldsForProcessor.size() < processorFields.size()) {
+            throw ExceptionsHelper.badRequestException("fields contained in results field [{}] cannot be used in a feature_processor",
+                config.getDest().getResultsField());
+        }
+        removeObjects(fieldsForProcessor);
+        if (fieldsForProcessor.size() < processorFields.size()) {
+            throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects or nested");
+        }
+        for (String field : fieldsForProcessor) {
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                throw ExceptionsHelper.badRequestException("nested fields [{}] cannot be used in a feature_processor",
+                    matchingNestedFieldPattern.get());
+            }
+        }
+        Collection<String> errorFields = new ArrayList<>();
+        for (String fieldName : fieldsForProcessor) {
+            if (fieldCapabilitiesResponse.isMetadataField(fieldName) || IGNORE_FIELDS.contains(fieldName)) {
+                errorFields.add(fieldName);
+            }
+        }
+        if (errorFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", errorFields);
+        }
+        List<String> fieldsMissingInMapping = processorFields.stream()
+            .filter(f -> fieldCapabilitiesResponse.get().containsKey(f) == false)
+            .collect(Collectors.toList());
+        if (fieldsMissingInMapping.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "the fields {} were not found in the field capabilities of the source indices [{}]. "
+                    + "Fields must exist and be mapped to be used in feature_processors.",
+                fieldsMissingInMapping,
+                Strings.arrayToCommaDelimitedString(config.getSource().getIndex()));
+        }
+        List<String> processedRequiredFields = config.getAnalysis()
+            .getRequiredFields()
+            .stream()
+            .map(RequiredField::getName)
+            .filter(processorFields::contains)
+            .collect(Collectors.toList());
+        if (processedRequiredFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "required analysis fields {} cannot be used in a feature_processor",
+                processedRequiredFields);
+        }
+    }
+
     private void removeFieldsUnderResultsField(Set<String> fields) {
-        String resultsField = config.getDest().getResultsField();
+        final String resultsFieldPrefix = config.getDest().getResultsField() + ".";
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            if (field.startsWith(resultsField + ".")) {
+            if (field.startsWith(resultsFieldPrefix)) {
                 fieldsIterator.remove();
             }
         }
-        fields.removeIf(field -> field.startsWith(resultsField + "."));
+        fields.removeIf(field -> field.startsWith(resultsFieldPrefix));
     }
 
     private void removeObjects(Set<String> fields) {
@@ -114,7 +220,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             Set<String> types = getMappingTypes(field);
-            if (isObject(types)) {
+            if (isObject(types) || isNested(types)) {
                 fieldsIterator.remove();
             }
         }
@@ -134,6 +240,11 @@ public class ExtractedFieldsDetector {
         fieldSelection.add(FieldSelection.excluded(field, getMappingTypes(field), reason));
     }
 
+    private void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
+        fieldSelection.add(FieldSelection.excluded(
+            pattern, Collections.singleton(NestedObjectMapper.CONTENT_TYPE), "nested fields are not supported"));
+    }
+
     private Set<String> getMappingTypes(String field) {
         Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
         return fieldCaps == null ? Collections.emptySet() : fieldCaps.keySet();
@@ -143,7 +254,11 @@ public class ExtractedFieldsDetector {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            if (hasCompatibleType(field) == false) {
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                fieldsIterator.remove();
+            } else if (hasCompatibleType(field) == false) {
                 addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
                 fieldsIterator.remove();
             }
@@ -179,6 +294,10 @@ public class ExtractedFieldsDetector {
         }
         supportedTypes.add(BooleanFieldMapper.CONTENT_TYPE);
         return supportedTypes;
+    }
+
+    private Optional<String> findMatchingNestedFieldPattern(String field) {
+        return topNestedFieldPrefixes.stream().filter(prefix -> field.startsWith(prefix)).map(prefix -> prefix + "*").findFirst();
     }
 
     private void includeAndExcludeFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
@@ -218,10 +337,10 @@ public class ExtractedFieldsDetector {
 
     private void checkIncludesExcludesAreNotObjects(FetchSourceContext analyzedFields) {
         List<String> objectFields = Stream.concat(Arrays.stream(analyzedFields.includes()), Arrays.stream(analyzedFields.excludes()))
-            .filter(field -> isObject(getMappingTypes(field)))
+            .filter(field -> isObject(getMappingTypes(field)) || isNested(getMappingTypes(field)))
             .collect(Collectors.toList());
         if (objectFields.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("{} must not include or exclude object fields: {}",
+            throw ExceptionsHelper.badRequestException("{} must not include or exclude object or nested fields: {}",
                 DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(), objectFields);
         }
     }
@@ -232,7 +351,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             if (includes.contains(field)) {
-                if (IGNORE_FIELDS.contains(field)) {
+                if (fieldCapabilitiesResponse.isMetadataField(field) || IGNORE_FIELDS.contains(field)) {
                     throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
                 }
                 if (excludes.contains(field)) {
@@ -241,10 +360,15 @@ public class ExtractedFieldsDetector {
                 }
             } else {
                 fieldsIterator.remove();
-                if (hasCompatibleType(field)) {
-                    addExcludedField(field, "field not in includes list", fieldSelection);
-                } else {
+                if (hasCompatibleType(field) == false) {
                     addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
+                } else {
+                    Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+                    if (matchingNestedFieldPattern.isPresent()) {
+                        addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                    } else {
+                        addExcludedField(field, "field not in includes list", fieldSelection);
+                    }
                 }
             }
         }
@@ -260,6 +384,10 @@ public class ExtractedFieldsDetector {
             if (hasCompatibleType(field) == false) {
                 throw ExceptionsHelper.badRequestException("field [{}] has unsupported type {}. Supported types are {}.", field,
                     fieldCaps.keySet(), getSupportedTypes());
+            }
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                throw ExceptionsHelper.badRequestException("nested fields [{}] are not supported", matchingNestedFieldPattern.get());
             }
         }
     }
@@ -287,16 +415,33 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private ExtractedFields detectExtractedFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
-        ExtractedFields extractedFields = ExtractedFields.build(fields, Collections.emptySet(), fieldCapabilitiesResponse,
-            cardinalitiesForFieldsWithConstraints);
+    private List<PreProcessor> extractFeatureProcessors() {
+        if (config.getAnalysis() instanceof Classification) {
+            return ((Classification)config.getAnalysis()).getFeatureProcessors();
+        } else if (config.getAnalysis() instanceof Regression) {
+            return ((Regression)config.getAnalysis()).getFeatureProcessors();
+        }
+        return Collections.emptyList();
+    }
+
+    private ExtractedFields detectExtractedFields(Set<String> fields,
+                                                  Set<FieldSelection> fieldSelection,
+                                                  List<ProcessedField> processedFields) {
+        ExtractedFields extractedFields = ExtractedFields.build(fields,
+            Collections.emptySet(),
+            Collections.emptySet(),
+            fieldCapabilitiesResponse,
+            cardinalitiesForFieldsWithConstraints,
+            processedFields);
         boolean preferSource = extractedFields.getDocValueFields().size() > docValueFieldsLimit;
         extractedFields = deduplicateMultiFields(extractedFields, preferSource, fieldSelection);
         if (preferSource) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
             if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
-                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
-                        "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] fields must be retrieved from doc_values and this is greater than the configured limit. " +
+                        "Please adjust the index level setting [{}]",
+                    extractedFields.getDocValueFields().size(),
                     IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
             }
         }
@@ -304,10 +449,15 @@ public class ExtractedFieldsDetector {
         return extractedFields;
     }
 
-    private ExtractedFields deduplicateMultiFields(ExtractedFields extractedFields, boolean preferSource,
+    private ExtractedFields deduplicateMultiFields(ExtractedFields extractedFields,
+                                                   boolean preferSource,
                                                    Set<FieldSelection> fieldSelection) {
-        Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
+        Set<String> requiredFields = config.getAnalysis()
+            .getRequiredFields()
+            .stream()
+            .map(RequiredField::getName)
             .collect(Collectors.toSet());
+        Set<String> processorInputFields = extractedFields.getProcessedFieldInputs();
         Map<String, ExtractedField> nameOrParentToField = new LinkedHashMap<>();
         for (ExtractedField currentField : extractedFields.getAllFields()) {
             String nameOrParent = currentField.isMultiField() ? currentField.getParentField() : currentField.getName();
@@ -315,15 +465,37 @@ public class ExtractedFieldsDetector {
             if (existingField != null) {
                 ExtractedField parent = currentField.isMultiField() ? existingField : currentField;
                 ExtractedField multiField = currentField.isMultiField() ? currentField : existingField;
+                // If required fields contains parent or multifield and the processor input fields reference the other, that is an error
+                // we should not allow processing of data that is required.
+                if ((requiredFields.contains(parent.getName()) && processorInputFields.contains(multiField.getName()))
+                    || (requiredFields.contains(multiField.getName()) && processorInputFields.contains(parent.getName()))) {
+                    throw ExceptionsHelper.badRequestException(
+                        "feature_processors cannot be applied to required fields for analysis; multi-field [{}] parent [{}]",
+                        multiField.getName(),
+                        parent.getName());
+                }
+                // If processor input fields have BOTH, we need to keep both.
+                if (processorInputFields.contains(parent.getName()) && processorInputFields.contains(multiField.getName())) {
+                    throw ExceptionsHelper.badRequestException(
+                        "feature_processors refer to both multi-field [{}] and parent [{}]. Please only refer to one or the other",
+                        multiField.getName(),
+                        parent.getName());
+                }
                 nameOrParentToField.put(nameOrParent,
-                    chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField, fieldSelection));
+                    chooseMultiFieldOrParent(preferSource, requiredFields, processorInputFields, parent, multiField, fieldSelection));
             }
         }
-        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()), cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()),
+            extractedFields.getProcessedFields(),
+            cardinalitiesForFieldsWithConstraints);
     }
 
-    private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields, ExtractedField parent,
-                                                    ExtractedField multiField, Set<FieldSelection> fieldSelection) {
+    private ExtractedField chooseMultiFieldOrParent(boolean preferSource,
+                                                    Set<String> requiredFields,
+                                                    Set<String> processorInputFields,
+                                                    ExtractedField parent,
+                                                    ExtractedField multiField,
+                                                    Set<FieldSelection> fieldSelection) {
         // Check requirements first
         if (requiredFields.contains(parent.getName())) {
             addExcludedField(multiField.getName(), "[" + parent.getName() + "] is required instead", fieldSelection);
@@ -331,6 +503,19 @@ public class ExtractedFieldsDetector {
         }
         if (requiredFields.contains(multiField.getName())) {
             addExcludedField(parent.getName(), "[" + multiField.getName() + "] is required instead", fieldSelection);
+            return multiField;
+        }
+        // Choose the one required by our processors
+        if (processorInputFields.contains(parent.getName())) {
+            addExcludedField(multiField.getName(),
+                "[" + parent.getName() + "] is referenced by feature_processors instead",
+                fieldSelection);
+            return parent;
+        }
+        if (processorInputFields.contains(multiField.getName())) {
+            addExcludedField(parent.getName(),
+                "[" + multiField.getName() + "] is referenced by feature_processors instead",
+                fieldSelection);
             return multiField;
         }
 
@@ -370,7 +555,9 @@ public class ExtractedFieldsDetector {
         for (ExtractedField field : extractedFields.getAllFields()) {
             adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
         }
-        return new ExtractedFields(adjusted, cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(adjusted,
+            extractedFields.getProcessedFields(),
+            cardinalitiesForFieldsWithConstraints);
     }
 
     private ExtractedFields fetchBooleanFieldsAsIntegers(ExtractedFields extractedFields) {
@@ -387,13 +574,15 @@ public class ExtractedFieldsDetector {
                 adjusted.add(field);
             }
         }
-        return new ExtractedFields(adjusted, cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(adjusted,
+            extractedFields.getProcessedFields(),
+            cardinalitiesForFieldsWithConstraints);
     }
 
     private void addIncludedFields(ExtractedFields extractedFields, Set<FieldSelection> fieldSelection) {
         Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
             .collect(Collectors.toSet());
-        Set<String> categoricalFields = getCategoricalFields(extractedFields, config.getAnalysis());
+        Set<String> categoricalFields = getCategoricalInputFields(extractedFields, config.getAnalysis());
         for (ExtractedField includedField : extractedFields.getAllFields()) {
             FieldSelection.FeatureType featureType = categoricalFields.contains(includedField.getName()) ?
                 FieldSelection.FeatureType.CATEGORICAL : FieldSelection.FeatureType.NUMERICAL;
@@ -402,19 +591,73 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    static Set<String> getCategoricalFields(ExtractedFields extractedFields, DataFrameAnalysis analysis) {
+    static void checkOutputFeatureUniqueness(List<ProcessedField> processedFields, Set<String> selectedFields) {
+        Set<String> processInputs = processedFields.stream()
+            .map(ProcessedField::getInputFieldNames)
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
+        // All analysis fields that we include that are NOT processed
+        // This indicates that they are sent as is
+        Set<String> organicFields = Sets.difference(selectedFields, processInputs);
+
+        Set<String> processedFeatures = new HashSet<>();
+        Set<String> duplicatedFields = new HashSet<>();
+        for (ProcessedField processedField : processedFields) {
+            for (String output : processedField.getOutputFieldNames()) {
+                if (processedFeatures.add(output) == false) {
+                    duplicatedFields.add(output);
+                }
+            }
+        }
+        if (duplicatedFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "feature_processors must define unique output field names; duplicate fields {}",
+                duplicatedFields);
+        }
+        Set<String> duplicateOrganicAndProcessed = Sets.intersection(organicFields, processedFeatures);
+        if (duplicateOrganicAndProcessed.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "feature_processors output fields must not include non-processed analysis fields; duplicate fields {}",
+                duplicateOrganicAndProcessed);
+        }
+    }
+
+    static Set<String> getCategoricalInputFields(ExtractedFields extractedFields, DataFrameAnalysis analysis) {
         return extractedFields.getAllFields().stream()
             .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName())
                 .containsAll(extractedField.getTypes()))
             .map(ExtractedField::getName)
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.toSet());
+    }
+
+    static Set<String> getCategoricalOutputFields(ExtractedFields extractedFields, DataFrameAnalysis analysis) {
+        Set<String> processInputFields = extractedFields.getProcessedFieldInputs();
+        Set<String> categoricalFields = extractedFields.getAllFields().stream()
+            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName())
+                .containsAll(extractedField.getTypes()))
+            .map(ExtractedField::getName)
+            .filter(name -> processInputFields.contains(name) == false)
+            .collect(Collectors.toSet());
+
+        extractedFields.getProcessedFields().forEach(processedField ->
+            processedField.getOutputFieldNames().forEach(outputField -> {
+                if (analysis.getAllowedCategoricalTypes(outputField).containsAll(processedField.getOutputFieldType(outputField))) {
+                    categoricalFields.add(outputField);
+                }
+            })
+        );
+        return Collections.unmodifiableSet(categoricalFields);
     }
 
     private static boolean isBoolean(Set<String> types) {
         return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
     }
 
-    private boolean isObject(Set<String> types) {
+    private static boolean isObject(Set<String> types) {
         return types.size() == 1 && types.contains(ObjectMapper.CONTENT_TYPE);
+    }
+
+    private static boolean isNested(Set<String> types) {
+        return types.size() == 1 && types.contains(NestedObjectMapper.CONTENT_TYPE);
     }
 }

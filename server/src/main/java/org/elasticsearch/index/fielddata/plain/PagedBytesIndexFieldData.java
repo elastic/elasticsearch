@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.fielddata.plain;
 
@@ -22,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -33,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -45,7 +35,6 @@ import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -57,6 +46,9 @@ import java.io.IOException;
 
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(PagedBytesIndexFieldData.class);
+
+    private final double minFrequency, maxFrequency;
+    private final int minSegmentSize;
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
@@ -73,7 +65,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         @Override
-        public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+        public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }
@@ -88,7 +80,10 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         double maxFrequency,
         int minSegmentSize
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
+        super(fieldName, valuesSourceType, cache, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        this.minFrequency = minFrequency;
+        this.maxFrequency = maxFrequency;
+        this.minSegmentSize = minSegmentSize;
     }
 
     @Override
@@ -148,7 +143,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             success = true;
             return data;
         } finally {
-            if (!success) {
+            if (success == false) {
                 // If something went wrong, unwind any current estimations we've made
                 estimator.afterLoad(termsEnum, 0);
             } else {
@@ -255,6 +250,28 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             }
         }
 
+        private TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {
+            if (iterator == null) {
+                return null;
+            }
+            int docCount = terms.getDocCount();
+            if (docCount == -1) {
+                docCount = reader.maxDoc();
+            }
+            if (docCount >= minSegmentSize) {
+                final int minFreq = minFrequency > 1.0
+                    ? (int) minFrequency
+                    : (int)(docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0
+                    ? (int) maxFrequency
+                    : (int)(docCount * maxFrequency);
+                if (minFreq > 1 || maxFreq < docCount) {
+                    iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
+                }
+            }
+            return iterator;
+        }
+
         /**
          * Adjust the circuit breaker now that terms have been loaded, getting
          * the actual used either from the parameter (if estimation worked for
@@ -271,6 +288,25 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             }
             breaker.addWithoutBreaking(-(estimatedBytes - actualUsed));
         }
+    }
 
+    private static final class FrequencyFilter extends FilteredTermsEnum {
+        private final int minFreq;
+        private final int maxFreq;
+
+        FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
+            super(delegate, false);
+            this.minFreq = minFreq;
+            this.maxFreq = maxFreq;
+        }
+
+        @Override
+        protected AcceptStatus accept(BytesRef arg0) throws IOException {
+            int docFreq = docFreq();
+            if (docFreq >= minFreq && docFreq <= maxFreq) {
+                return AcceptStatus.YES;
+            }
+            return AcceptStatus.NO;
+        }
     }
 }

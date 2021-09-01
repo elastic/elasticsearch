@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -69,6 +58,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
@@ -255,8 +245,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
     public void testAutoFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest =
-            new PutAutoFollowPatternRequest("pattern1", "local_cluster", Collections.singletonList("logs-*"));
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest("pattern1",
+                "local_cluster",
+                Collections.singletonList("logs-*"),
+                Collections.singletonList("logs-excluded"));
         putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
         final int followerNumberOfReplicas = randomIntBetween(0, 4);
         final Settings autoFollowerPatternSettings =
@@ -265,6 +257,11 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putAutoFollowPatternResponse =
             execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
         assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
+
+        CreateIndexRequest createExcludedIndexRequest = new CreateIndexRequest("logs-excluded");
+        CreateIndexResponse createExcludedIndexResponse =
+            highLevelClient().indices().create(createExcludedIndexRequest, RequestOptions.DEFAULT);
+        assertThat(createExcludedIndexResponse.isAcknowledged(), is(true));
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -275,11 +272,13 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
             assertThat(ccrStatsResponse.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
             assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
+            assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-excluded"), nullValue());
         });
         assertThat(indexExists("copy-logs-20200101"), is(true));
         assertThat(
             getIndexSettingsAsMap("copy-logs-20200101"),
             hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
+        assertThat(indexExists("copy-logs-excluded"), is(false));
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
@@ -290,6 +289,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(pattern, notNullValue());
         assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
         assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));
+        assertThat(pattern.getLeaderIndexExclusionPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexExclusionPatterns()));
         assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.getFollowIndexNamePattern()));
         assertThat(pattern.getSettings(), equalTo(autoFollowerPatternSettings));
 

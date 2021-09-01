@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.stack;
@@ -24,11 +25,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -105,7 +106,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testDisabledDoesNotAddTemplates() {
-        Settings settings = Settings.builder().put(StackPlugin.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         assertThat(disabledRegistry.getComponentTemplateConfigs(), hasSize(0));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));
@@ -150,16 +151,20 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
                 assertThat(
                     putRequest.getPolicy().getName(),
-                    anyOf(equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME), equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME))
+                    anyOf(
+                        equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME)
+                    )
                 );
                 assertNotNull(listener);
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new StackTemplateRegistryTests.TestPutIndexTemplateResponse(true);
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request: " + request.toString());
                 return null;
@@ -168,7 +173,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(2)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(3)));
     }
 
     public void testPolicyAlreadyExists() {
@@ -180,13 +185,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
-        assertThat(policies, hasSize(2));
-        policies.forEach(p -> policyMap.put(p.getName(), p.get()));
+        assertThat(policies, hasSize(3));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
                 fail("if the policy already exists it should be re-put");
             } else {
@@ -209,13 +214,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
-        assertThat(policies, hasSize(2));
-        policies.forEach(p -> policyMap.put(p.getName(), p.get()));
+        assertThat(policies, hasSize(3));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
                 fail("if the policy already exists it should be re-put");
             } else {
@@ -272,10 +277,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
+        versions.put(StackTemplateRegistry.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(versions, nodes);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
@@ -283,10 +291,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 return null;
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore this, it's verified in another test
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request:" + request.toString());
                 return null;
@@ -295,6 +303,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(sameVersionEvent);
 
         versions.clear();
+        versions.put(
+            StackTemplateRegistry.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
         versions.put(
             StackTemplateRegistry.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
@@ -309,6 +321,14 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);
@@ -383,10 +403,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
             // Ignore this, it's verified in another test
-            return new PutLifecycleAction.Response(true);
+            return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             // Ignore this, it's verified in another test
-            return new AcknowledgedResponse(true);
+            return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;

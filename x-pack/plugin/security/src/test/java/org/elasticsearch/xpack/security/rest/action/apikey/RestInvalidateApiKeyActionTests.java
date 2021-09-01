@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -38,7 +39,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestInvalidateApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
@@ -54,9 +54,6 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
-        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
-        when(mockLicenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
     }
 
     @Override
@@ -69,9 +66,9 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         final String json1 = "{ \"realm_name\" : \"realm-1\", \"username\": \"user-x\" }";
         final String json2 = "{ \"realm_name\" : \"realm-1\" }";
         final String json3 = "{ \"username\": \"user-x\" }";
-        final String json4 = "{ \"id\" : \"api-key-id-1\" }";
         final String json5 = "{ \"name\" : \"api-key-name-1\" }";
-        final String json = randomFrom(json1, json2, json3, json4, json5);
+        final String json6 = "{ \"ids\" : [\"api-key-id-1\"] }";
+        final String json = randomFrom(json1, json2, json3, json5, json6);
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withContent(new BytesArray(json), XContentType.JSON).build();
 
@@ -88,6 +85,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
+            @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
@@ -97,7 +95,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                     return;
                 }
                 if (invalidateApiKeyRequest.getName() != null && invalidateApiKeyRequest.getName().equals("api-key-name-1")
-                        || invalidateApiKeyRequest.getId() != null && invalidateApiKeyRequest.getId().equals("api-key-id-1")
+                        || invalidateApiKeyRequest.getIds() != null && Arrays.equals(
+                            invalidateApiKeyRequest.getIds(), new String[] {"api-key-id-1"})
                         || invalidateApiKeyRequest.getRealmName() != null && invalidateApiKeyRequest.getRealmName().equals("realm-1")
                         || invalidateApiKeyRequest.getUserName() != null && invalidateApiKeyRequest.getUserName().equals("user-x")) {
                     listener.onResponse((Response) invalidateApiKeyResponseExpected);
@@ -118,7 +117,6 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             assertThat(actual.getPreviouslyInvalidatedApiKeys(),
                     equalTo(invalidateApiKeyResponseExpected.getPreviouslyInvalidatedApiKeys()));
             assertThat(actual.getErrors(), equalTo(invalidateApiKeyResponseExpected.getErrors()));
-
         }
 
     }

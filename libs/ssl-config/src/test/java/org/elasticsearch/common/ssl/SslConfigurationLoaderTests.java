@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +36,11 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     private Settings settings;
     private MockSecureSettings secureSettings = new MockSecureSettings();
     private SslConfigurationLoader loader = new SslConfigurationLoader("test.ssl.") {
+        @Override
+        protected boolean hasSettings(String prefix) {
+            return true;
+        }
+
         @Override
         protected String getSettingAsString(String key) throws Exception {
             return settings.get(key);
@@ -103,6 +97,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     }
 
     public void testLoadTrustFromPkcs12() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.p12");
         if (randomBoolean()) {
             builder.put("test.ssl.truststore.password", "p12-pass");
@@ -125,6 +120,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     }
 
     public void testLoadTrustFromJKS() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.jks");
         if (randomBoolean()) {
             builder.put("test.ssl.truststore.password", "jks-pass");
@@ -170,6 +166,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     }
 
     public void testLoadKeysFromPKCS12() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder()
             .put("test.ssl.keystore.path", "cert-all/certs.p12");
         if (randomBoolean()) {

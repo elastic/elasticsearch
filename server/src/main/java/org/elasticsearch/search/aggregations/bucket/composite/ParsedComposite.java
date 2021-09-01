@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -30,16 +19,20 @@ import java.util.List;
 import java.util.Map;
 
 public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposite.ParsedBucket> implements CompositeAggregation {
-    private static final ObjectParser<ParsedComposite, Void> PARSER =
-        new ObjectParser<>(ParsedComposite.class.getSimpleName(), true, ParsedComposite::new);
+    private static final ObjectParser<ParsedComposite, Void> PARSER = new ObjectParser<>(
+        ParsedComposite.class.getSimpleName(),
+        true,
+        ParsedComposite::new
+    );
 
     static {
-        PARSER.declareField(ParsedComposite::setAfterKey, (p, c) -> p.mapOrdered(), new ParseField("after_key"),
-            ObjectParser.ValueType.OBJECT);
-        declareMultiBucketAggregationFields(PARSER,
-            parser -> ParsedComposite.ParsedBucket.fromXContent(parser),
-            parser -> null
+        PARSER.declareField(
+            ParsedComposite::setAfterKey,
+            (p, c) -> p.mapOrdered(),
+            new ParseField("after_key"),
+            ObjectParser.ValueType.OBJECT
         );
+        declareMultiBucketAggregationFields(PARSER, parser -> ParsedComposite.ParsedBucket.fromXContent(parser), parser -> null);
     }
 
     private Map<String, Object> afterKey;
@@ -52,7 +45,7 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
              * Previous versions (< 6.3) don't send <code>afterKey</code>
              * in the response so we set it as the last returned buckets.
              */
-            aggregation.setAfterKey(aggregation.getBuckets().get(aggregation.getBuckets().size()-1).key);
+            aggregation.setAfterKey(aggregation.getBuckets().get(aggregation.getBuckets().size() - 1).key);
         }
         return aggregation;
     }
@@ -72,7 +65,7 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
         if (afterKey != null) {
             return afterKey;
         }
-        return buckets.size() > 0 ? buckets.get(buckets.size()-1).getKey() : null;
+        return buckets.size() > 0 ? buckets.get(buckets.size() - 1).getKey() : null;
     }
 
     private void setAfterKey(Map<String, Object> afterKey) {
@@ -110,8 +103,7 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
         }
 
         static ParsedComposite.ParsedBucket fromXContent(XContentParser parser) throws IOException {
-            return parseXContent(parser, false, ParsedBucket::new,
-                (p, bucket) -> bucket.setKey(p.mapOrdered()));
+            return parseXContent(parser, false, ParsedBucket::new, (p, bucket) -> bucket.setKey(p.mapOrdered()));
         }
     }
 }

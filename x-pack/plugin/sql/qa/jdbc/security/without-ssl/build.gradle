@@ -1,6 +1,6 @@
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-tasks.withType(RestTestRunnerTask).configureEach {
+tasks.withType(RestIntegTestTask).configureEach {
   systemProperty 'tests.ssl.enabled', 'false'
 }
 

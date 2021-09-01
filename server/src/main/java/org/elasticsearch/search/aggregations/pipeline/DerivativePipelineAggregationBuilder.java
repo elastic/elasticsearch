@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -150,8 +139,9 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     @Override
     protected void validate(ValidationContext context) {
         if (bucketsPaths.length != 1) {
-            context.addValidationError(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
+            context.addValidationError(
+                PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName() + " must contain a single entry for aggregation [" + name + "]"
+            );
         }
 
         context.validateParentAggSequentiallyOrdered(NAME, name);
@@ -192,8 +182,10 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                 } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     units = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -204,22 +196,31 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unexpected token " + token + " in [" + pipelineAggregatorName + "]."
+                );
             }
         }
 
         if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH_FIELD.getPreferredName()
-                    + "] for derivative aggregation [" + pipelineAggregatorName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing required field ["
+                    + BUCKETS_PATH_FIELD.getPreferredName()
+                    + "] for derivative aggregation ["
+                    + pipelineAggregatorName
+                    + "]"
+            );
         }
 
-        DerivativePipelineAggregationBuilder factory =
-                new DerivativePipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        DerivativePipelineAggregationBuilder factory = new DerivativePipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -238,9 +239,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
-        return Objects.equals(format, other.format) &&
-            gapPolicy == other.gapPolicy &&
-            Objects.equals(units, other.units);
+        return Objects.equals(format, other.format) && gapPolicy == other.gapPolicy && Objects.equals(units, other.units);
     }
 
     @Override

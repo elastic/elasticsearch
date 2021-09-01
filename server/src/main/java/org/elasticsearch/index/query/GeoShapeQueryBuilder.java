@@ -1,63 +1,44 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.text.ParseException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Derived {@link AbstractGeometryQueryBuilder} that builds a lat, lon GeoShape Query
+ * Derived {@link AbstractGeometryQueryBuilder} that builds a lat, lon GeoShape Query. It
+ * can be applied to any {@link MappedFieldType} that implements {@link GeoShapeQueryable}.
+ *
+ * GeoJson and WKT shape definitions are supported
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 
     private SpatialStrategy strategy;
-
-    protected static final List<String> validContentTypes =
-        Collections.unmodifiableList(
-            Arrays.asList(
-                GeoShapeFieldMapper.CONTENT_TYPE,
-                GeoPointFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -69,22 +50,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      *            Shape used in the Query
      */
     public GeoShapeQueryBuilder(String fieldName, Geometry shape) {
-        super(fieldName, shape);
-    }
-
-    /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
-     * field name using the given Shape
-     *
-     * @param fieldName
-     *            Name of the field that will be queried
-     * @param shape
-     *            Shape used in the Query
-     *
-     * @deprecated use {@link #GeoShapeQueryBuilder(String, Geometry)} instead
-     */
-    @Deprecated
-    public GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
         super(fieldName, shape);
     }
 
@@ -171,11 +136,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    protected List<String> validContentTypes() {
-        return validContentTypes;
-    }
-
-    @Override
     public void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException {
         if (strategy != null) {
             builder.field(STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());
@@ -194,17 +154,13 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (validContentTypes().contains(fieldType.typeName()) == false) {
+    public Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
+        if ((fieldType instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
-                + NAME + "] query supports the following types ["
-                + String.join(",", validContentTypes()) +  "]");
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
-
-        final AbstractGeometryFieldType ft =
-            (AbstractGeometryFieldType) fieldType;
-        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldName, strategy, relation, context));
+        final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
+        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldType.name(), strategy, relation, context));
     }
 
     @Override
@@ -227,12 +183,17 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     private static class ParsedGeoShapeQueryParams extends ParsedGeometryQueryParams {
         SpatialStrategy strategy;
+        private final GeometryParser geometryParser = new GeometryParser(true, true, true);
 
         @Override
         protected boolean parseXContentField(XContentParser parser) throws IOException {
             SpatialStrategy strategy;
             if (SHAPE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                this.shape = ShapeParser.parse(parser);
+                try {
+                    this.shape = geometryParser.parse(parser);
+                } catch (ParseException e) {
+                    throw new IOException(e);
+                }
                 return true;
             } else if (STRATEGY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 String strategyName = parser.text();

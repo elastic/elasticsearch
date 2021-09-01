@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
@@ -27,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +25,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,7 +51,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Tests for {@link BytesStreamOutput} paging behaviour.
+ * Tests for {@link StreamOutput}.
  */
 public class BytesStreamsTests extends ESTestCase {
     public void testEmpty() throws Exception {
@@ -312,6 +302,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalTimeZone(DateTimeZone.getDefault());
         out.writeOptionalTimeZone(null);
         out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        final OffsetTime offsetNow = OffsetTime.now(randomZone());
+        out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -349,6 +341,7 @@ public class BytesStreamsTests extends ESTestCase {
         JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
         assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
         assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(in.readGenericValue(), equalTo(offsetNow));
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
             @Override
@@ -827,6 +820,16 @@ public class BytesStreamsTests extends ESTestCase {
         final int value = randomInt();
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeVInt(value);
+
+        BytesStreamOutput simple = new BytesStreamOutput();
+        int i = value;
+        while ((i & ~0x7F) != 0) {
+            simple.writeByte(((byte) ((i & 0x7f) | 0x80)));
+            i >>>= 7;
+        }
+        simple.writeByte((byte) i);
+        assertEquals(simple.bytes().toBytesRef().toString(), output.bytes().toBytesRef().toString());
+
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readVInt());
     }

@@ -16,22 +16,23 @@ DESCRIBE emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-salary              |INTEGER        |integer
+birth_date          |TIMESTAMP      |datetime       
+dep                 |STRUCT         |nested         
+dep.dep_id          |VARCHAR        |keyword        
+dep.dep_name        |VARCHAR        |text           
+dep.dep_name.keyword|VARCHAR        |keyword        
+dep.from_date       |TIMESTAMP      |datetime       
+dep.to_date         |TIMESTAMP      |datetime       
+emp_no              |INTEGER        |integer        
+first_name          |VARCHAR        |text           
+first_name.keyword  |VARCHAR        |keyword        
+gender              |VARCHAR        |keyword        
+hire_date           |TIMESTAMP      |datetime       
+languages           |TINYINT        |byte           
+last_name           |VARCHAR        |text           
+last_name.keyword   |VARCHAR        |keyword        
+name                |VARCHAR        |keyword        
+salary              |INTEGER        |integer        
 
 // end::describeTable
 ;
@@ -55,22 +56,23 @@ SHOW COLUMNS IN emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-salary              |INTEGER        |integer
+birth_date          |TIMESTAMP      |datetime       
+dep                 |STRUCT         |nested         
+dep.dep_id          |VARCHAR        |keyword        
+dep.dep_name        |VARCHAR        |text           
+dep.dep_name.keyword|VARCHAR        |keyword        
+dep.from_date       |TIMESTAMP      |datetime       
+dep.to_date         |TIMESTAMP      |datetime       
+emp_no              |INTEGER        |integer        
+first_name          |VARCHAR        |text           
+first_name.keyword  |VARCHAR        |keyword        
+gender              |VARCHAR        |keyword        
+hire_date           |TIMESTAMP      |datetime       
+languages           |TINYINT        |byte           
+last_name           |VARCHAR        |text           
+last_name.keyword   |VARCHAR        |keyword        
+name                |VARCHAR        |keyword        
+salary              |INTEGER        |integer        
 
 // end::showColumns
 ;
@@ -262,6 +264,7 @@ DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR
+FORMAT           |SCALAR
 HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
@@ -290,6 +293,7 @@ TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
 TIME_PARSE       |SCALAR
 TODAY            |SCALAR
+TO_CHAR          |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
@@ -483,9 +487,9 @@ wildcardWithOrder
 // tag::wildcardWithOrder
 SELECT * FROM emp LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
---------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305 
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+--------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
 // end::wildcardWithOrder
 ;
@@ -494,9 +498,9 @@ fromTable
 // tag::fromTable
 SELECT * FROM emp LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
---------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305        
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+--------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
   
 
 // end::fromTable
@@ -506,9 +510,9 @@ fromTableQuoted
 // tag::fromTableQuoted
 SELECT * FROM "emp" LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
---------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305   
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+--------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
 // end::fromTableQuoted
 ;
@@ -672,9 +676,9 @@ SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gende
 
        g       |    salary     
 ---------------+---------------
-null           |253            
-F              |260            
-M              |259        
+null           |253
+F              |259
+M              |259
 // end::groupByAndAggExpression
 ;
 
@@ -879,6 +883,31 @@ null           |10
 //
 ///////////////////////////////
 
+dtDateMathEquals
+// tag::dtDateMathEquals
+SELECT hire_date FROM emp WHERE hire_date = '1987-03-01||+4y/y';
+
+       hire_date
+------------------------
+1991-01-26T00:00:00.000Z
+1991-10-22T00:00:00.000Z
+1991-09-01T00:00:00.000Z
+1991-06-26T00:00:00.000Z
+1991-08-30T00:00:00.000Z
+1991-12-01T00:00:00.000Z
+// end::dtDateMathEquals
+;
+
+dtDateMathIn
+// tag::dtDateMathIn
+SELECT hire_date FROM emp WHERE hire_date IN ('1987-03-01||+2y/M', '1987-03-01||+3y/M');
+
+       hire_date
+------------------------
+1989-03-31T00:00:00.000Z
+1990-03-02T00:00:00.000Z
+// end::dtDateMathIn
+;
 
 dtIntervalPlusInterval
 // tag::dtIntervalPlusInterval
@@ -1510,6 +1539,26 @@ null           |6249.916666666667
 // end::aggPercentileScalars
 ;
 
+aggPercentileWithPercentileConfig
+// tag::aggPercentileWithPercentileConfig
+SELECT
+    languages, 
+    PERCENTILE(salary, 97.3, 'tdigest', 100.0) AS "97.3_TDigest", 
+    PERCENTILE(salary, 97.3, 'hdr', 3) AS "97.3_HDR" 
+FROM emp 
+GROUP BY languages;
+
+   languages   | 97.3_TDigest  |   97.3_HDR    
+---------------+---------------+---------------
+null           |74999.0        |74992.0        
+1              |73717.0        |73712.0        
+2              |73530.238      |69936.0        
+3              |74970.0        |74992.0        
+4              |74572.0        |74608.0        
+5              |66117.118      |56368.0        
+// end::aggPercentileWithPercentileConfig
+;
+
 aggPercentileRank
 // tag::aggPercentileRank
 SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
@@ -1539,6 +1588,26 @@ null           |66.91240875912409
 4              |76.55646443990001
 5              |94.00696864111498
 // end::aggPercentileRankScalars
+;
+
+aggPercentileRankWithPercentileConfig
+// tag::aggPercentileRankWithPercentileConfig
+SELECT
+    languages,
+    ROUND(PERCENTILE_RANK(salary, 65000, 'tdigest', 100.0), 2) AS "rank_TDigest",
+    ROUND(PERCENTILE_RANK(salary, 65000, 'hdr', 3), 2) AS "rank_HDR"
+FROM emp
+GROUP BY languages;
+
+   languages   | rank_TDigest  |   rank_HDR    
+---------------+---------------+---------------
+null           |73.66          |80.0           
+1              |73.73          |73.33          
+2              |88.88          |89.47          
+3              |79.44          |76.47          
+4              |85.7           |83.33          
+5              |100.0          |95.24          
+// end::aggPercentileRankWithPercentileConfig
 ;
 
 aggSkewness
@@ -2807,7 +2876,7 @@ SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::date
 
 dateTimeFormatDate
 // tag::dateTimeFormatDate
-SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/yyyy') AS "date";
 
       date
 ------------------
@@ -2817,7 +2886,7 @@ SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
 
 dateTimeFormatDateTime
 // tag::dateTimeFormatDateTime
-SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.SS') AS "datetime";
+SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/yyyy HH:mm:ss.SS') AS "datetime";
 
       datetime
 ------------------
@@ -2835,11 +2904,41 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 // end::dateTimeFormatTime
 ;
 
+toCharDate
+// tag::toCharDate
+SELECT TO_CHAR(CAST('2020-04-05' AS DATE), 'DD/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::toCharDate
+;
+
+toCharDateTime
+// tag::toCharDateTime
+SELECT TO_CHAR(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'DD/MM/YYYY HH24:MI:SS.FF2') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::toCharDateTime
+;
+
+toCharTime
+// tag::toCharTime
+SELECT TO_CHAR(CAST('23:22:33.987' AS TIME), 'HH12 MI SS.FF1') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::toCharTime
+;
+
 // Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
 dateTimeParse1-Ignore
 schema::datetime:ts
 // tag::dateTimeParse1
-SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/yyyy HH:mm:ss.SSS') AS "datetime";
 
       datetime
 ------------------------
@@ -2850,7 +2949,7 @@ SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "
 dateTimeParse2
 schema::datetime:ts
 // tag::dateTimeParse2
-SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/yyyy VV') AS "datetime";
 
       datetime
 ------------------------
@@ -2862,7 +2961,7 @@ dateTimeParse3-Ignore
 schema::datetime:ts
 // tag::dateTimeParse3
 {
-    "query" : "SELECT DATETIME_PARSE('10:20:30 07/04/2020', 'HH:mm:ss dd/MM/uuuu') AS \"datetime\"",
+    "query" : "SELECT DATETIME_PARSE('10:20:30 07/04/2020', 'HH:mm:ss dd/MM/yyyy') AS \"datetime\"",
     "time_zone" : "Europe/Athens"
 }
 
@@ -2911,7 +3010,7 @@ schema::time:time
 dateParse1
 schema::date:date
 // tag::dateParse1
-SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS "date";
+SELECT DATE_PARSE('07/04/2020', 'dd/MM/yyyy') AS "date";
 
    date
 -----------
@@ -2923,7 +3022,7 @@ dateParse2-Ignore
 schema::date:date
 // tag::dateParse2
 {
-    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS \"date\"",
+    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/yyyy') AS \"date\"",
     "time_zone" : "Europe/Athens"
 }
 
@@ -3087,6 +3186,36 @@ SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
 ------------------
 +19 00:00:00
 // end::truncateIntervalDay
+;
+
+formatDate
+// tag::formatDate
+SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::formatDate
+;
+
+formatDateTime
+// tag::formatDateTime
+SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.ff') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::formatDateTime
+;
+
+formatTime
+// tag::formatTime
+SELECT FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.f') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::formatTime
 ;
 
 constantDayOfWeek

@@ -12,13 +12,13 @@ GET /_search
 {
   "query": {
     "wrapper": {
-      "query": "eyJ0ZXJtIiA6IHsgInVzZXIiIDogIktpbWNoeSIgfX0=" <1>
+      "query": "eyJ0ZXJtIiA6IHsgInVzZXIuaWQiIDogImtpbWNoeSIgfX0=" <1>
     }
   }
 }
 --------------------------------------------------
 
-<1> Base64 encoded string:  `{"term" : { "user" : "Kimchy" }}`
+<1> Base64 encoded string:  `{"term" : { "user.id" : "kimchy" }}`
 
 This query is more useful in the context of the Java high-level REST client or
 transport client to also accept queries as json formatted string.

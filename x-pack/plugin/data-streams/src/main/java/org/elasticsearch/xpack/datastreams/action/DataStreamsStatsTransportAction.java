@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.action;
@@ -9,6 +10,7 @@ package org.elasticsearch.xpack.datastreams.action;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
@@ -77,6 +80,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
+    protected void doExecute(Task task, DataStreamsStatsAction.Request request, ActionListener<DataStreamsStatsAction.Response> listener) {
+        request.indicesOptions(DataStreamsActionUtil.updateIndicesOptions(request.indicesOptions()));
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
     protected DataStreamsStatsAction.Request readRequestFrom(StreamInput in) throws IOException {
         return new DataStreamsStatsAction.Request(in);
     }
@@ -95,17 +104,13 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private List<String> dataStreamNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        String[] requestIndices = request.indices();
-        if (requestIndices == null || requestIndices.length == 0) {
-            requestIndices = new String[] { "*" };
-        }
-        return indexNameExpressionResolver.dataStreamNames(clusterState, request.indicesOptions(), requestIndices);
-    }
-
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
-        List<String> abstractionNames = dataStreamNames(clusterState, request);
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            request.indicesOptions(),
+            request.indices()
+        );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
         String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
@@ -119,33 +124,44 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 return Stream.empty();
             }
         }).toArray(String[]::new);
-        return clusterState.getRoutingTable().allShards(concreteDatastreamIndices);
+        return concreteDatastreamIndices;
     }
 
     @Override
-    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(DataStreamsStatsAction.Request request, ShardRouting shardRouting)
-        throws IOException {
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-        if (indexShard.routingEntry() == null) {
-            throw new ShardNotFoundException(indexShard.shardId());
-        }
-        StoreStats storeStats = indexShard.storeStats();
-        IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
-        assert indexAbstraction != null;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
-        assert dataStream != null;
-        long maxTimestamp = 0L;
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
-            IndexReader indexReader = searcher.getIndexReader();
-            String fieldName = dataStream.getDataStream().getTimeStampField().getName();
-            byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
-            if (maxPackedValue != null) {
-                maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+    protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
+        return clusterState.getRoutingTable().allShards(concreteIndices);
+    }
+
+    @Override
+    protected void shardOperation(
+        DataStreamsStatsAction.Request request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
+    ) {
+        ActionListener.completeWith(listener, () -> {
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
+            if (indexShard.routingEntry() == null) {
+                throw new ShardNotFoundException(indexShard.shardId());
             }
-        }
-        return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+            StoreStats storeStats = indexShard.storeStats();
+            IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
+            assert indexAbstraction != null;
+            IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+            assert dataStream != null;
+            long maxTimestamp = 0L;
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+                IndexReader indexReader = searcher.getIndexReader();
+                String fieldName = dataStream.getDataStream().getTimeStampField().getName();
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
+                if (maxPackedValue != null) {
+                    maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+                }
+            }
+            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+        });
     }
 
     @Override
@@ -171,7 +187,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
-        List<String> abstractionNames = dataStreamNames(clusterState, request);
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            request.indicesOptions(),
+            request.indices()
+        );
         for (String abstractionName : abstractionNames) {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;

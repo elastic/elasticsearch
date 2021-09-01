@@ -1,6 +1,5 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'transform'
   description 'A plugin to transform data'
@@ -11,22 +10,11 @@ esplugin {
 dependencies {
   compileOnly project(":server")
 
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
   testImplementation project(path: ':modules:aggs-matrix-stats')
+  testImplementation project(path: xpackModule('spatial'))
 }
 
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-integTest.enabled = false
-
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()

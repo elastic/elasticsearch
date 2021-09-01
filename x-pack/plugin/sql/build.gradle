@@ -1,7 +1,8 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 esplugin {
   name 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
@@ -10,9 +11,9 @@ esplugin {
 }
 
 ext {
+  antlrVersion = "4.9.2"
   // SQL dependency versions
   jlineVersion = "3.14.1"
-  antlrVersion = "4.5.3"
 
   // SQL test dependency versions
   csvjdbcVersion = "1.0.34"
@@ -27,22 +28,16 @@ configurations {
 
 archivesBaseName = 'x-pack-sql'
 
-// All integration tests live in qa modules
-integTest.enabled = false
-
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly(project(':modules:lang-painless')) {
-    exclude group: "org.ow2.asm"
-  }
+  compileOnly project(path: xpackModule('core'))
+  compileOnly(project(':modules:lang-painless:spi'))
   api project('sql-action')
   api project(':modules:aggs-matrix-stats')
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
-  compileOnly project(path: xpackModule('ql'), configuration: 'default')
+  compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -53,21 +48,13 @@ dependencies {
  * in $ES_HOME/bin/x-pack/. This is useful because it is an
  * executable jar that can be moved wherever it is needed.
  */
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   from(configurations.bin) {
     into 'bin'
   }
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
-
+addQaCheckDependencies()
 
 /**********************************************
  *          SQL Parser regeneration           *
@@ -84,6 +71,14 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
 
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
+
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
@@ -95,7 +90,7 @@ tasks.register("cleanGenerated", Delete) {
 
 tasks.register("regenParser", JavaExec) {
   dependsOn "cleanGenerated"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -136,4 +131,15 @@ tasks.register("regen") {
       patternset(includes: 'SqlBase*.java')
     }
   }
+}
+
+allprojects {
+  tasks.register("checkNoBwc") {
+    dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
+  }
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("internalClusterTest").configure{enabled = false }
 }

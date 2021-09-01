@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.optimizer;
@@ -29,19 +30,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_INSENSITIVE;
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_SENSITIVE;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class TomlFoldTests extends ESTestCase {
 
     protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
 
-    private static EqlParser parser = new EqlParser();
-    private static final EqlFunctionRegistry functionRegistry = new EqlFunctionRegistry();
-    private static Verifier verifier = new Verifier(new Metrics());
-    private static Analyzer caseSensitiveAnalyzer = new Analyzer(TEST_CFG_CASE_SENSITIVE, functionRegistry, verifier);
-    private static Analyzer caseInsensitiveAnalyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, functionRegistry, verifier);
+    private static final EqlParser PARSER = new EqlParser();
+    private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
+    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, new Verifier(new Metrics()));
 
     private final int num;
     private final EqlFoldSpec spec;
@@ -70,34 +68,10 @@ public class TomlFoldTests extends ESTestCase {
     }
 
     public void test() {
-        // run both tests if case sensitivity doesn't matter
-        if (spec.caseSensitive() == null) {
-            testCaseSensitive(spec);
-            testCaseInsensitive(spec);
-        }
-        // run only the case sensitive test
-        else if (spec.caseSensitive()) {
-            testCaseSensitive(spec);
-        }
-        // run only the case insensitive test
-        else {
-            testCaseInsensitive(spec);
-        }
-    }
-
-    private void testCaseSensitive(EqlFoldSpec spec) {
-        testWithAnalyzer(caseSensitiveAnalyzer, spec);
-    }
-
-    private void testCaseInsensitive(EqlFoldSpec spec) {
-        testWithAnalyzer(caseInsensitiveAnalyzer, spec);
-    }
-
-    private void testWithAnalyzer(Analyzer analyzer, EqlFoldSpec spec) {
-        Expression expr = parser.createExpression(spec.expression());
+        Expression expr = PARSER.createExpression(spec.expression());
         LogicalPlan logicalPlan = new Project(EMPTY, new LocalRelation(EMPTY, emptyList()),
             singletonList(new Alias(Source.EMPTY, "test", expr)));
-        LogicalPlan analyzed = analyzer.analyze(logicalPlan);
+        LogicalPlan analyzed = ANALYZER.analyze(logicalPlan);
 
         assertTrue(analyzed instanceof Project);
         List<?> projections = ((Project) analyzed).projections();

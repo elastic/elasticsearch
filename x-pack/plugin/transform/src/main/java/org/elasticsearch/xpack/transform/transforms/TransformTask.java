@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -15,7 +16,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -174,6 +175,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             if (context.getChangesLastDetectedAt() != null) {
                 infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
             }
+            if (context.getLastSearchTime() != null) {
+                infoBuilder.setLastSearchTime(context.getLastSearchTime());
+            }
             listener.onResponse(infoBuilder.build());
         }, listener::onFailure);
 
@@ -286,16 +290,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }));
     }
 
-    void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
-        this.context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-    }
-
     /**
      * This sets the flag for the task to stop at the next checkpoint.
      *
-     * If first persists the flag and then mutates the local variable.
-     *
-     * It only persists if the value is different than what is currently held in memory.
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
@@ -303,6 +300,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) {
+        // this should be called from the generic threadpool
+        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
         logger.debug(
             "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),
@@ -313,7 +312,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
-        getIndexer().persistShouldStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+
+        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+            shouldStopAtCheckpointListener.onResponse(null);
+            return;
+        }
+
+        getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
@@ -346,12 +351,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
 
         // If state was in a failed state, we should stop immediately
         if (wasFailed) {
-            getIndexer().onStop();
-            getIndexer().doSaveState(IndexerState.STOPPED, getIndexer().getPosition(), () -> {});
+            getIndexer().stopAndMaybeSaveState();
             return;
         }
 
-        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
+        IndexerState indexerState = getIndexer().getState();
+
+        if (indexerState == IndexerState.STOPPED || indexerState == IndexerState.STOPPING) {
             return;
         }
 
@@ -361,12 +367,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
         // or has yet to even start one.
         // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
-            (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
-            IndexerState state = getIndexer().stop();
-            if (state == IndexerState.STOPPED) {
-                getIndexer().onStop();
-                getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
-            }
+            (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
+            getIndexer().stopAndMaybeSaveState();
         }
     }
 
@@ -543,7 +545,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     synchronized void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool(), ThreadPool.Names.GENERIC, context));
+        indexer.set(indexerBuilder.build(getThreadPool(), context));
     }
 
     ThreadPool getThreadPool() {

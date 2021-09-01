@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -33,7 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.Booleans.parseBoolean;
+import static org.elasticsearch.core.Booleans.parseBoolean;
 
 public class TransportInfo implements ReportingService.Info {
 
@@ -101,7 +91,7 @@ public class TransportInfo implements ReportingService.Info {
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
-                deprecationLogger.deprecate("cname_in_publish_address",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "cname_in_publish_address",
                     "es.transport.cname_in_publish_address system property is deprecated and no longer affects " + propertyName +
                     " formatting. Remove this property to get rid of this deprecation warning.");
             }

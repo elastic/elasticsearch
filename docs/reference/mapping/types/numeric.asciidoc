@@ -1,5 +1,5 @@
 [[number]]
-=== Numeric data types
+=== Numeric field types
 ++++
 <titleabbrev>Numeric</titleabbrev>
 ++++
@@ -15,6 +15,7 @@ The following numeric types are supported:
 `float`::        A single-precision 32-bit IEEE 754 floating point number, restricted to finite values.
 `half_float`::   A half-precision 16-bit IEEE 754 floating point number, restricted to finite values.
 `scaled_float`:: A floating point number that is backed by a `long`, scaled by a fixed `double` scaling factor.
+`unsigned_long`:: An unsigned 64-bit integer with a minimum value of 0 and a maximum value of +2^64^-1+.
 
 Below is an example of configuring a mapping with numeric fields:
 
@@ -115,7 +116,13 @@ The following parameters are accepted by numeric types:
 <<coerce,`coerce`>>::
 
     Try to convert strings to numbers and truncate fractions for integers.
-    Accepts `true` (default) and `false`.
+    Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
+    Note that this cannot be set if the `script` parameter is used.
+
+include::keyword.asciidoc[tag=dimension]
++
+Of the numeric field types, only `byte`, `short`, `integer`, and `long` fields
+support this parameter.
 
 <<doc-values,`doc_values`>>::
 
@@ -126,7 +133,8 @@ The following parameters are accepted by numeric types:
 <<ignore-malformed,`ignore_malformed`>>::
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
-    numbers throw an exception and reject the whole document.
+    numbers throw an exception and reject the whole document.  Note that this
+    cannot be set if the `script` parameter is used.
 
 <<mapping-index,`index`>>::
 
@@ -135,8 +143,29 @@ The following parameters are accepted by numeric types:
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
-    substituted for any explicit `null` values.  Defaults to `null`, which
-    means the field is treated as missing.
+    substituted for any explicit `null` values. Defaults to `null`, which
+    means the field is treated as missing. Note that this cannot be set
+    if the `script` parameter is used.
+
+`on_script_error`::
+
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>. Scripts can only be
+    configured on `long` and `double` field types.
 
 <<mapping-store,`store`>>::
 

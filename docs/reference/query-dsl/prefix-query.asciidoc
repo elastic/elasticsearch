@@ -9,7 +9,7 @@ Returns documents that contain a specific prefix in a provided field.
 [[prefix-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains a term
+The following search returns documents where the `user.id` field contains a term
 that begins with `ki`.
 
 [source,console]
@@ -18,7 +18,7 @@ GET /_search
 {
   "query": {
     "prefix": {
-      "user": {
+      "user.id": {
         "value": "ki"
       }
     }
@@ -40,6 +40,11 @@ provided `<field>`.
 `rewrite`::
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+`case_insensitive` added:[7.10.0] ::
+(Optional, Boolean) Allows ASCII case insensitive matching of the
+value with the indexed field values when set to true. Default is false which means
+the case sensitivity of matching depends on the underlying field's mapping.
 
 [[prefix-query-notes]]
 ==== Notes

@@ -1,12 +1,25 @@
 [discrete]
 [[breaking_80_http_changes]]
-=== HTTP changes
+==== HTTP changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
-//tag::notable-breaking-changes[]
 
-// end::notable-breaking-changes[]
+//tag::notable-breaking-changes[]
+.The `http.content_type.required` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `http.content_type.required` setting was deprecated in Elasticsearch 6.0
+and has been removed in Elasticsearch 8.0. The setting was introduced in
+Elasticsearch 5.3 to prepare users for Elasticsearch 6.0, where content type
+auto detection was removed for HTTP requests.
+
+*Impact* +
+Discontinue use of the `http.content_type.required` system property.
+Specifying this property in `elasticsearch.yml` will result in an error on
+startup.
+====
 
 .The `http.tcp_no_delay` setting has been replaced by `http.tcp.no_delay`.
 [%collapsible]
@@ -36,3 +49,4 @@ Update your workflow and applications to assume `+` in a URL is encoded as
 Specifying this property in `elasticsearch.yml` will result in an error on
 startup.
 ====
+// end::notable-breaking-changes[]

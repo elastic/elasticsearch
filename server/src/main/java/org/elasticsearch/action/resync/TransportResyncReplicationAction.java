@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -33,12 +21,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -51,17 +42,17 @@ import java.util.stream.Stream;
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
 
-    private static String ACTION_NAME = "internal:index/seq_no/resync";
+    private static final String ACTION_NAME = "internal:index/seq_no/resync";
 
     @Inject
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                             ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                            IndexingPressure indexingPressure) {
+                                            IndexingPressure indexingPressure, SystemIndices systemIndices) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ThreadPool.Names.WRITE,
+            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ExecutorSelector::getWriteExecutorForShard,
             true, /* we should never reject resync because of thread pool capacity on primary */
-            indexingPressure);
+            indexingPressure, systemIndices);
     }
 
     @Override
@@ -75,7 +66,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy() {
+    protected ReplicationOperation.Replicas<ResyncReplicationRequest> newReplicasProxy() {
         return new ResyncActionReplicasProxy();
     }
 
@@ -103,6 +94,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
     }
 
+    @Override
+    protected int primaryOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
+    }
+
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
@@ -119,6 +115,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     @Override
     protected long replicaOperationSize(ResyncReplicationRequest request) {
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
@@ -157,11 +158,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                 @Override
                 public ResyncReplicationResponse read(StreamInput in) throws IOException {
                     return newResponseInstance(in);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

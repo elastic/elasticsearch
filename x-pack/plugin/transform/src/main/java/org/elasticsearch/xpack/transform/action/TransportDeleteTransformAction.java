@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.transform.action;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -19,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -32,12 +32,10 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportDeleteTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteTransformAction.class);
 
@@ -77,20 +75,11 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
         TransformServices transformServices,
         Client client
     ) {
-        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver,
+                ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.auditor = transformServices.getAuditor();
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -108,7 +97,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
                 stopResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                     logger.debug("[{}] deleted transform", request.getId());
                     auditor.info(request.getId(), "Deleted transform.");
-                    listener.onResponse(new AcknowledgedResponse(r));
+                    listener.onResponse(AcknowledgedResponse.of(r));
                 }, listener::onFailure)),
                 listener::onFailure
             );

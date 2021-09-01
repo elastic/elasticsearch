@@ -2,7 +2,7 @@
 === `_source` field
 
 The `_source` field contains the original JSON document body that was passed
-at index time.  The `_source` field itself is not indexed (and thus is not
+at index time. The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
@@ -14,7 +14,7 @@ within the index. For this reason, it can be disabled as follows:
 
 [source,console]
 --------------------------------------------------
-PUT tweets
+PUT my-index-000001
 {
   "mappings": {
     "_source": {
@@ -29,7 +29,7 @@ PUT tweets
 ==================================================
 
 Users often disable the `_source` field without thinking about the
-consequences, and then live to regret it.  If the `_source` field isn't
+consequences, and then live to regret it. If the `_source` field isn't
 available then a number of features are not supported:
 
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
@@ -50,21 +50,6 @@ and <<docs-reindex,`reindex`>> APIs.
 
 TIP: If disk space is a concern, rather increase the
 <<index-codec,compression level>> instead of disabling the `_source`.
-
-.The metrics use case
-**************************************************
-
-The _metrics_ use case is distinct from other time-based or logging use cases
-in that there are many small documents which consist only of numbers, dates,
-or keywords.  There are no updates, no highlighting requests, and the data
-ages quickly so there is no need to reindex.  Search requests typically use
-simple queries to filter the dataset by date or tags, and the results are
-returned as aggregations.
-
-In this case, disabling the `_source` field will save space and reduce I/O.
-
-**************************************************
-
 
 [[include-exclude]]
 ==== Including / Excluding fields from `_source`

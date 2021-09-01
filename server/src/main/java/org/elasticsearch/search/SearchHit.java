@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -23,9 +12,10 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -615,6 +605,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+        }
         if (id != null) {
             builder.field(Fields._ID, id);
         }
@@ -664,7 +657,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
             builder.endObject();
         }
-        if (highlightFields != null && !highlightFields.isEmpty()) {
+        if (highlightFields != null && highlightFields.isEmpty() == false) {
             builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
                 field.toXContent(builder, params);
@@ -697,6 +690,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
     // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
     public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
         Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
             METADATA_FIELDS, v -> new HashMap<String, DocumentField>());
@@ -837,12 +831,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static Map<String, SearchHits> parseInnerHits(XContentParser parser) throws IOException {
         Map<String, SearchHits> innerHits = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String name = parser.currentName();
-            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
             innerHits.put(name, SearchHits.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;
     }
@@ -857,13 +851,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     private static Explanation parseExplanation(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         XContentParser.Token token;
         Float value = null;
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -871,7 +865,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }
@@ -991,6 +985,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(_NESTED);
             return innerToXContent(builder, params);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
         /**

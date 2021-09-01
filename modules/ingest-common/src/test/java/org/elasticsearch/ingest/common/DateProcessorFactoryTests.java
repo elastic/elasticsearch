@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -145,5 +134,43 @@ public class DateProcessorFactoryTests extends ESTestCase {
 
         DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getTargetField(), equalTo(targetField));
+    }
+
+    public void testParseOutputFormat() throws Exception {
+        final String outputFormat = "dd:MM:yyyy";
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
+        config.put("field", sourceField);
+        config.put("target_field", targetField);
+        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("output_format", outputFormat);
+        DateProcessor processor = factory.create(null, null, null, config);
+        assertThat(processor.getOutputFormat(), equalTo(outputFormat));
+    }
+
+    public void testDefaultOutputFormat() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
+        config.put("field", sourceField);
+        config.put("target_field", targetField);
+        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        DateProcessor processor = factory.create(null, null, null, config);
+        assertThat(processor.getOutputFormat(), equalTo(DateProcessor.DEFAULT_OUTPUT_FORMAT));
+    }
+
+    public void testInvalidOutputFormatRejected() throws Exception {
+        final String outputFormat = "invalid_date_format";
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
+        config.put("field", sourceField);
+        config.put("target_field", targetField);
+        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("output_format", outputFormat);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, null, null, config));
+        assertThat(e.getMessage(), containsString("invalid output format [" + outputFormat + "]"));
     }
 }

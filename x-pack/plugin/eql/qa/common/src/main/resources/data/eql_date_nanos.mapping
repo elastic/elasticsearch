@@ -1,0 +1,96 @@
+# Text patterns like "[runtime_random_keyword_type]" will get replaced at runtime with a random string type.
+# See DataLoader class for pattern replacements.
+{
+    "properties" : {
+        "command_line" : {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "event_type" : {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "alias",
+                    "path" : "event_type"
+                },
+                "sequence" : {
+                    "type" : "alias",
+                    "path" : "serial_event_id"
+                }
+            }
+        },
+        "md5" : {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "parent_process_name": {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "parent_process_path": {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "pid" : {
+            "type" : "long"
+        },
+        "ppid" : {
+            "type" : "long"
+        },
+        "process_name": {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "process_path": {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "subtype" : {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "timestamp" : {
+            "type" : "date_nanos"
+        },
+        "@timestamp" : {
+            "type" : "date_nanos"
+        },
+        "user" : {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "user_name" : {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "user_domain": {
+            "type" : "[runtime_random_keyword_type]"
+        },
+        "hostname" : {
+            "type" : "text",
+            "fields" : {
+                "[runtime_random_keyword_type]" : {
+                    "type" : "[runtime_random_keyword_type]",
+                    "ignore_above" : 256
+                }
+            }
+        },
+        "opcode" : {
+            "type" : "long"
+        },
+        "file_name" : {
+            "type" : "text",
+            "fields" : {
+                "[runtime_random_keyword_type]" : {
+                    "type" : "[runtime_random_keyword_type]",
+                    "ignore_above" : 256
+                }
+            }
+        },
+        "file_path" : {
+          "type" : "[runtime_random_keyword_type]"
+        },
+        "serial_event_id" : {
+            "type" : "long"
+        },
+        "source_address" : {
+            "type" : "ip"
+        },
+        "exit_code" : {
+            "type" : "long"
+        }
+    }
+}

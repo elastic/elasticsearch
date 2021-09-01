@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -24,14 +24,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -40,7 +39,6 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -59,13 +56,16 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
@@ -75,24 +75,24 @@ import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -119,7 +119,7 @@ public class TransportStartDataFrameAnalyticsAction
                                                   DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker,
                                                   DataFrameAnalyticsAuditor auditor) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+            StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -131,21 +131,10 @@ public class TransportStartDataFrameAnalyticsAction
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             null,
+            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
-    }
-
-    @Override
-    protected String executor() {
-        // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
-        // so we can do this on the network thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
-        return new NodeAcknowledgedResponse(in);
     }
 
     @Override
@@ -159,24 +148,28 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
+        logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
         if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
 
         // Wait for analytics to be started
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>> waitForAnalyticsToStart =
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<TaskParams>> waitForAnalyticsToStart =
+            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<TaskParams>>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<TaskParams> task) {
                     waitForAnalyticsStarted(task, request.getTimeout(), listener);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot start data frame analytics [" + request.getId() +
-                            "] because it has already been started", RestStatus.CONFLICT, e);
+                        e = new ElasticsearchStatusException(
+                            "Cannot start data frame analytics [{}] because it has already been started",
+                            RestStatus.CONFLICT,
+                            e,
+                            request.getId());
                     }
                     listener.onFailure(e);
                 }
@@ -185,20 +178,23 @@ public class TransportStartDataFrameAnalyticsAction
         // Start persistent task
         ActionListener<StartContext> memoryUsageHandledListener = ActionListener.wrap(
             startContext -> {
-                StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-                    request.getId(), startContext.config.getVersion(), startContext.progressOnStart,
-                    startContext.config.isAllowLazyStart());
-                persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
-                    MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart);
+                TaskParams taskParams =
+                    new TaskParams(
+                        request.getId(),
+                        startContext.config.getVersion(),
+                        startContext.config.isAllowLazyStart());
+                persistentTasksService.sendStartRequest(
+                    MlTasks.dataFrameAnalyticsTaskId(request.getId()),
+                    MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                    taskParams,
+                    waitForAnalyticsToStart);
             },
             listener::onFailure
         );
 
         // Perform memory usage estimation for this config
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
-            startContext -> {
-                estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener);
-            },
+            startContext -> estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener),
             listener::onFailure
         );
 
@@ -216,14 +212,16 @@ public class TransportStartDataFrameAnalyticsAction
                 auditor.info(jobId,
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
+                // We will only warn the caller if the configured limit is too low.
                 if (startContext.config.getModelMemoryLimit()
                     .compareTo(expectedMemoryWithoutDisk) < 0) {
-                    ElasticsearchStatusException e =
-                        ExceptionsHelper.badRequestException(
-                            "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
-                            startContext.config.getModelMemoryLimit(), expectedMemoryWithoutDisk);
-                    listener.onFailure(e);
-                    return;
+                    String warning =  Messages.getMessage(
+                        Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED,
+                        startContext.config.getModelMemoryLimit(),
+                        expectedMemoryWithoutDisk);
+                    auditor.warning(jobId, warning);
+                    logger.warn("[{}] {}", jobId, warning);
+                    HeaderWarning.addWarning(warning);
                 }
                 // Refresh memory requirement for jobs
                 memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
@@ -269,6 +267,7 @@ public class TransportStartDataFrameAnalyticsAction
                         break;
                     case RESUMING_REINDEXING:
                     case RESUMING_ANALYZING:
+                    case RESUMING_INFERENCE:
                         toValidateMappingsListener.onResponse(startContext);
                         break;
                     case FINISHED:
@@ -277,7 +276,9 @@ public class TransportStartDataFrameAnalyticsAction
                             "Cannot start because the job has already finished"));
                         break;
                     default:
-                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startContext.startingState));
+                        finalListener.onFailure(ExceptionsHelper.serverError(
+                            "Unexpected starting state {}",
+                            startContext.startingState));
                         break;
                 }
             },
@@ -306,7 +307,7 @@ public class TransportStartDataFrameAnalyticsAction
 
                 // Validate source/dest are valid
                 sourceDestValidator.validate(clusterService.state(), startContext.config.getSource().getIndex(),
-                    startContext.config.getDest().getIndex(), SourceDestValidations.ALL_VALIDATIONS, ActionListener.wrap(
+                    startContext.config.getDest().getIndex(), null, SourceDestValidations.ALL_VALIDATIONS, ActionListener.wrap(
                         aBoolean -> toValidateExtractionPossibleListener.onResponse(startContext), finalListener::onFailure));
             },
             finalListener::onFailure
@@ -325,7 +326,7 @@ public class TransportStartDataFrameAnalyticsAction
 
     private void validateSourceIndexHasAnalyzableData(StartContext startContext, ActionListener<StartContext> listener) {
         ActionListener<Void> validateAtLeastOneAnalyzedFieldListener = ActionListener.wrap(
-            aVoid -> validateSourceIndexHasRows(startContext, listener),
+            aVoid -> validateSourceIndexRowsCount(startContext, listener),
             listener::onFailure
         );
 
@@ -354,7 +355,7 @@ public class TransportStartDataFrameAnalyticsAction
         }
     }
 
-    private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
+    private void validateSourceIndexRowsCount(StartContext startContext, ActionListener<StartContext> listener) {
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(client,
             "validate_source_index_has_rows-" + startContext.config.getId(),
             startContext.config,
@@ -372,6 +373,9 @@ public class TransportStartDataFrameAnalyticsAction
                             startContext.config.getId(),
                             Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                         ));
+                    } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows)  >= Math.pow(2, 32)) {
+                        listener.onFailure(ExceptionsHelper.badRequestException("Unable to start because too many documents " +
+                            "(more than 2^32) are included in the analysis. Consider downsampling."));
                     } else {
                         listener.onResponse(startContext);
                     }
@@ -422,7 +426,7 @@ public class TransportStartDataFrameAnalyticsAction
         );
     }
 
-    private void waitForAnalyticsStarted(PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
+    private void waitForAnalyticsStarted(PersistentTasksCustomMetadata.PersistentTask<TaskParams> task,
                                          TimeValue timeout, ActionListener<NodeAcknowledgedResponse> listener) {
         AnalyticsPredicate predicate = new AnalyticsPredicate();
         persistentTasksService.waitForPersistentTaskCondition(task.getId(), predicate, timeout,
@@ -449,7 +453,7 @@ public class TransportStartDataFrameAnalyticsAction
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.error(
-                        () -> new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                        new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
                             task.getParams().getId(),
                             timeout,
                             predicate.assignmentExplanation));
@@ -474,13 +478,11 @@ public class TransportStartDataFrameAnalyticsAction
 
     private static class StartContext {
         private final DataFrameAnalyticsConfig config;
-        private final List<PhaseProgress> progressOnStart;
         private final DataFrameAnalyticsTask.StartingState startingState;
         private volatile ExtractedFields extractedFields;
 
         private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
             this.config = config;
-            this.progressOnStart = progressOnStart;
             this.startingState = DataFrameAnalyticsTask.determineStartingState(config.getId(), progressOnStart);
         }
     }
@@ -507,6 +509,7 @@ public class TransportStartDataFrameAnalyticsAction
             if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
                 return true;
             }
+            String reason = "__unknown__";
 
             if (assignment != null
                 && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
@@ -517,16 +520,17 @@ public class TransportStartDataFrameAnalyticsAction
                 if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
                     return false;
                 }
-                exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
-                    assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                exception = new ElasticsearchStatusException(
+                    "Could not start data frame analytics task, allocation explanation [{}]",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    assignment.getExplanation());
                 return true;
             }
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) persistentTask.getState();
+            reason = taskState != null ? taskState.getReason() : reason;
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
             switch (analyticsState) {
                 case STARTED:
-                case REINDEXING:
-                case ANALYZING:
                     node = persistentTask.getExecutorNode();
                     return true;
                 case STOPPING:
@@ -542,14 +546,17 @@ public class TransportStartDataFrameAnalyticsAction
                     return false;
                 case FAILED:
                 default:
-                    exception = ExceptionsHelper.serverError("Unexpected task state [" + analyticsState + "] while waiting to be started");
+                    exception = ExceptionsHelper.serverError(
+                        "Unexpected task state [{}] {}while waiting to be started",
+                        analyticsState,
+                        reason == null ? "" : "with reason [" + reason + "] ");
                     return true;
             }
         }
     }
 
     private void cancelAnalyticsStart(
-        PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask, Exception exception,
+        PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask, Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
             new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
@@ -562,126 +569,91 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("[" + persistentTask.getParams().getId() + "] Failed to cancel persistent task that could " +
-                        "not be assigned due to [" + exception.getMessage() + "]", e);
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                            persistentTask.getParams().getId(),
+                            exception.getMessage()),
+                        e);
                     listener.onFailure(exception);
                 }
             }
         );
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
-                                                            IndexNameExpressionResolver resolver,
-                                                            String... indexNames) {
-        String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
-        List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
-        for (String index : concreteIndices) {
-            // This is OK as indices are created on demand
-            if (clusterState.metadata().hasIndex(index) == false) {
-                continue;
-            }
-            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
-                unavailableIndices.add(index);
-            }
-        }
-        return unavailableIndices;
-    }
-
-    public static class TaskExecutor extends PersistentTasksExecutor<StartDataFrameAnalyticsAction.TaskParams> {
+    public static class TaskExecutor extends AbstractJobPersistentTasksExecutor<TaskParams> {
 
         private final Client client;
-        private final ClusterService clusterService;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
-        private final MlMemoryTracker memoryTracker;
-        private final IndexNameExpressionResolver resolver;
+        private final XPackLicenseState licenseState;
 
-        private volatile int maxMachineMemoryPercent;
-        private volatile int maxLazyMLNodes;
-        private volatile int maxOpenJobs;
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
-            super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
+                            XPackLicenseState licenseState) {
+            super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                MachineLearning.UTILITY_THREAD_POOL_NAME,
+                settings,
+                clusterService,
+                memoryTracker,
+                resolver);
             this.client = Objects.requireNonNull(client);
-            this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
-            this.memoryTracker = Objects.requireNonNull(memoryTracker);
-            this.resolver = Objects.requireNonNull(resolver);
-            this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-            this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
-            this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+            this.licenseState = licenseState;
             clusterService.addListener(event -> clusterState = event.state());
         }
 
         @Override
         protected AllocatedPersistentTask createTask(
             long id, String type, String action, TaskId parentTaskId,
-            PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask,
+            PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
             Map<String, String> headers) {
             return new DataFrameAnalyticsTask(
-                id, type, action, parentTaskId, headers, client, clusterService, manager, auditor, persistentTask.getParams());
+                id, type, action, parentTaskId, headers, client, manager, auditor, persistentTask.getParams(), licenseState);
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(StartDataFrameAnalyticsAction.TaskParams params,
+        public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params,
+                                                                      Collection<DiscoveryNode> candidateNodes,
                                                                       ClusterState clusterState) {
-
-            // If we are waiting for an upgrade to complete, we should not assign to a node
-            if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
-                return AWAITING_UPGRADE;
-            }
-
-            String id = params.getId();
-
-            List<String> unavailableIndices =
-                verifyIndicesPrimaryShardsAreActive(clusterState,
-                    resolver,
-                    MlConfigIndex.indexName(),
-                    MlStatsIndex.indexPattern(),
-                    AnomalyDetectorsIndex.jobStateIndexPattern());
-            if (unavailableIndices.size() != 0) {
-                String reason = "Not opening data frame analytics job ["
-                    + id
-                    + "], because "
-                    + PRIMARY_SHARDS_INACTIVE
-                    + " for the following indices ["
-                    + String.join(",", unavailableIndices) + "]";
-                logger.debug(reason);
-                return new PersistentTasksCustomMetadata.Assignment(null, reason);
-            }
-
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            if (isMemoryTrackerRecentlyRefreshed == false) {
-                boolean scheduledRefresh = memoryTracker.asyncRefresh();
-                if (scheduledRefresh) {
-                    String reason = "Not opening data frame analytics job [" + id +
-                        "] because job memory requirements are stale - refresh requested";
-                    logger.debug(reason);
-                    return new PersistentTasksCustomMetadata.Assignment(null, reason);
-                }
+            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+                getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+            // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
+            if (optionalAssignment.isPresent()) {
+                return optionalAssignment.get();
             }
-
-            JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, id, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker,
-                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, id));
+            JobNodeSelector jobNodeSelector =
+                new JobNodeSelector(
+                    clusterState,
+                    candidateNodes,
+                    params.getId(),
+                    MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                    memoryTracker,
+                    params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes,
+                    node -> nodeFilter(node, params));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
-            return jobNodeSelector.selectNode(
-                maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+            PersistentTasksCustomMetadata.Assignment assignment = jobNodeSelector.selectNode(
+                maxOpenJobs,
+                Integer.MAX_VALUE,
+                maxMachineMemoryPercent,
+                maxNodeMemory,
+                useAutoMemoryPercentage
+            );
+            auditRequireMemoryIfNecessary(params.getId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);
+            return assignment;
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, StartDataFrameAnalyticsAction.TaskParams params,
-                                     PersistentTaskState state) {
+        protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
+            DataFrameAnalyticsTask dfaTask = (DataFrameAnalyticsTask) task;
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
-            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? null : analyticsTaskState.getState();
+            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? DataFrameAnalyticsState.STOPPED
+                : analyticsTaskState.getState();
             logger.info("[{}] Starting data frame analytics from state [{}]", params.getId(), analyticsState);
 
             // If we are "stopping" there is nothing to do and we should stop
@@ -695,40 +667,77 @@ public class TransportStartDataFrameAnalyticsAction
                 return;
             }
 
-            if (analyticsTaskState == null) {
-                DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
-                    task.getAllocationId(), null);
-                task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED, clusterState),
-                    task::markAsFailed));
-            } else {
-                manager.execute((DataFrameAnalyticsTask) task, analyticsTaskState.getState(), clusterState);
-            }
+            // Execute task
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> statsListener = ActionListener.wrap(
+                statsResponse -> {
+                    GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
+                    dfaTask.setStatsHolder(
+                        new StatsHolder(stats.getProgress(), stats.getMemoryUsage(), stats.getAnalysisStats(), stats.getDataCounts()));
+                    executeTask(dfaTask);
+                },
+                dfaTask::setFailed
+            );
+
+            // Get stats to initialize in memory stats tracking
+            ActionListener<Boolean> indexCheckListener = ActionListener.wrap(
+                ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
+                    new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
+                error -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(error);
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] failed to create internal index [{}]",
+                            params.getId(),
+                            InferenceIndexConstants.LATEST_INDEX_NAME),
+                        cause);
+                    dfaTask.setFailed(error);
+                }
+            );
+
+            // Create the system index explicitly.  Although the master node would create it automatically on first use,
+            // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
+            // might use outdated mappings.
+            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT, indexCheckListener);
         }
 
-        public static String nodeFilter(DiscoveryNode node, String id) {
+        private void executeTask(DataFrameAnalyticsTask task) {
+            DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
+                task.getAllocationId(), null);
+            task.updatePersistentTaskState(startedState, ActionListener.wrap(
+                response -> manager.execute(task, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT),
+                task::markAsFailed));
+        }
 
-            if (node.getVersion().before(StartDataFrameAnalyticsAction.TaskParams.VERSION_INTRODUCED)) {
+        public static String nodeFilter(DiscoveryNode node, TaskParams params) {
+            String id = params.getId();
+
+            if (node.getVersion().before(TaskParams.VERSION_INTRODUCED)) {
                 return "Not opening job [" + id + "] on node [" + JobNodeSelector.nodeNameAndVersion(node)
                     + "], because the data frame analytics requires a node of version ["
-                    + StartDataFrameAnalyticsAction.TaskParams.VERSION_INTRODUCED + "] or higher";
+                    + TaskParams.VERSION_INTRODUCED + "] or higher";
+            }
+            if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
+                && params.getVersion().onOrAfter(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)) {
+                return "Not opening job [" + id + "] on node [" + JobNodeSelector.nodeNameAndVersion(node)
+                    + "], because the data frame analytics created for version [" + params.getVersion() + "] requires a node of version "
+                    + "[" + TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED + "] or higher";
             }
 
             return null;
         }
 
-        void setMaxMachineMemoryPercent(int maxMachineMemoryPercent) {
-            this.maxMachineMemoryPercent = maxMachineMemoryPercent;
+        @Override
+        protected String[] indicesOfInterest(TaskParams params) {
+            return new String[]{MlConfigIndex.indexName(),
+                MlStatsIndex.indexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPattern()};
         }
 
-        void setMaxLazyMLNodes(int maxLazyMLNodes) {
-            this.maxLazyMLNodes = maxLazyMLNodes;
+        @Override
+        protected String getJobId(TaskParams params) {
+            return params.getId();
         }
 
-        void setMaxOpenJobs(int maxOpenJobs) {
-            this.maxOpenJobs = maxOpenJobs;
-        }
     }
-
-
 }

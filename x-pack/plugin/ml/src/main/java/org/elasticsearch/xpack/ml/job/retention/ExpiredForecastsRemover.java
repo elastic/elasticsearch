@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -59,11 +61,13 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private final OriginSettingClient client;
     private final ThreadPool threadPool;
     private final long cutoffEpochMs;
+    private final TaskId parentTaskId;
 
-    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool) {
+    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
+        this.parentTaskId = parentTaskId;
     }
 
     @Override
@@ -90,6 +94,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
+        searchRequest.setParentTask(parentTaskId);
         client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, forecastStatsHandler, false));
     }
@@ -114,6 +119,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete)
             .setRequestsPerSecond(requestsPerSec)
             .setAbortOnVersionConflict(false);
+        request.setParentTask(parentTaskId);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
@@ -169,6 +175,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        request.setTimeout(DEFAULT_MAX_DURATION);
 
         request.indices(RESULTS_INDEX_PATTERN);
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);

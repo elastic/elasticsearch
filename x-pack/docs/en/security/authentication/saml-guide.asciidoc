@@ -1,5 +1,5 @@
 [role="xpack"]
-[[saml-guide]]
+[[saml-guide-stack]]
 
 == Configuring SAML single-sign-on on the {stack}
 
@@ -14,7 +14,7 @@ performs that actual authentication of users.
 If you are interested in configuring SSO into {kib}, then you will need to
 provide {es} with information about your _Identity Provider_, and you will need
 to register the Elastic Stack as a known _Service Provider_ within that
-Identity Provider.  There are also a few configuration changes that are
+Identity Provider. There are also a few configuration changes that are
 required in {kib} to activate the SAML authentication provider.
 
 NOTE: The SAML support in {kib} is designed on the expectation that it will be
@@ -28,7 +28,8 @@ to login. The <<saml-kibana>> section provides more detail about how this works.
 The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
 2.0 _Single Logout_ profiles and can integrate with any Identity Provider (IdP)
 that supports at least the SAML 2.0 _Web Browser SSO Profile_.
-It has been tested with a number of popular IdP implementations.
+It has been tested with a number of popular IdP implementations, such as
+https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-with-adfs[Microsoft Active Directory Federation Services (ADFS)].
 
 This guide assumes that you have an existing IdP and wish to add {kib} as a
 Service Provider.
@@ -48,7 +49,7 @@ read the metadata document to find it - look for the `entityID` attribute on the
 `EntityDescriptor` element.
 
 Most IdPs will provide an appropriate metadata file with all the features that
-the Elastic Stack requires, and should only require the  configuration steps
+the Elastic Stack requires, and should only require the configuration steps
 described below. For completeness sake, the minimum requirements that the Elastic
 Stack has for the IdP's metadata are:
 
@@ -71,7 +72,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
-[[saml-guide-authentication]]
+[[saml-elasticsearch-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:
@@ -90,12 +91,12 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
 
-The {es} SAML implementation makes use of the {es} Token Service.  This service
+The {es} SAML implementation makes use of the {es} Token Service. This service
 is automatically enabled if you configure TLS on the HTTP interface, and can be
 explicitly configured by including the following in your `elasticsearch.yml` file:
 
@@ -145,9 +146,12 @@ xpack.security.authc.realms.saml.saml1::
     See <<realms>> for more explanation of realms.
 
 order::
-    You should define a unique order on each realm in your authentication chain.
-    It is recommended that the SAML realm be at the bottom of your authentication
-    chain (that is, that it has the _highest_ order).
+    The order of the realm within the realm chain. Realms with a lower order
+    have highest priority and are consulted first. We recommend giving
+    password-based realms such as file, native, LDAP, and Active Directory the
+    lowest order (highest priority), followed by SSO realms such as SAML and
+    OpenID Connect. If you have multiple realms of the same type, give the most
+    frequently accessed realm the lowest order to have it consulted first.
 
 idp.metadata.path::
     This is the path to the metadata file that you saved for your Identity Provider.
@@ -184,10 +188,10 @@ sp.logout::
     proxies involved, but it will typically be +$\{kibana-url}/logout+ where
     _$\{kibana-url}_ is the base URL for your {kib} instance.
 
-attribute.principal:: See <<saml-attribute-mapping>>.
-attribute.groups:: See <<saml-attribute-mapping>>.
+attribute.principal:: See <<saml-attributes-mapping>>.
+attribute.groups:: See <<saml-attributes-mapping>>.
 
-[[saml-attribute-mapping]]
+[[saml-attributes-mapping]]
 ==== Attribute mapping
 
 When a user connects to {kib} through your Identity Provider, the Identity
@@ -229,7 +233,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   your IdP. At a _minimum_, the `principal` attribute is required.
 
 . Configure your IdP to "release" those attributes to your {kib} SAML service
-  provider.  This process varies by provider - some will provide a user interface
+  provider. This process varies by provider - some will provide a user interface
   for this, while others may require that you edit configuration files.
   Usually the IdP (or your local administrator) will have suggestions about what
   URI to use for each attribute. You can simply accept those suggestions, as the
@@ -249,7 +253,7 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NamedID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
@@ -261,7 +265,7 @@ additional names that can be used:
     This uses the SAML `NameID` value, but only if the NameID format is
     `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`.
     A SAML `NameID` element has an optional `Format` attribute that indicates
-    the semantics of the provided name.  It is common for IdPs to be configured
+    the semantics of the provided name. It is common for IdPs to be configured
     with "transient" NameIDs that present a new identifier for each session.
     Since it is rarely useful to use a transient NameID as part of an attribute
     mapping, the "nameid:persistent" attribute name can be used as a safety
@@ -297,9 +301,10 @@ xpack.security.authc.realms.saml.saml1:
   sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "nameid:persistent"
   attributes.groups: "roles"
+  nameid_format: "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 ------------------------------------------------------------
 
-[[saml-user-properties]]
+[[saml-es-user-properties]]
 ===== {es} user properties
 
 The {es} SAML realm can be configured to map SAML `attributes` to the
@@ -373,24 +378,24 @@ in order to assess the level of confidence that it can place in
 the corresponding authentication response. The restrictions might have to do
 with the authentication method (password, client certificates, etc), the
 user identification method during registration, and other details. {es} implements
-https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context], which can be used for this purpose as defined in SAML 2.0 Core 
+https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context], which can be used for this purpose as defined in SAML 2.0 Core
 Specification.
 
 In short, the SAML SP defines a set of Authentication Context Class Reference
 values, which describe the restrictions to be imposed on the IdP, and sends these
-in the Authentication Request. The IdP attempts to grant these restrictions. 
-If it cannot grant them, the authentication attempt fails. If the user is 
-successfully authenticated, the Authentication Statement of the SAML Response 
+in the Authentication Request. The IdP attempts to grant these restrictions.
+If it cannot grant them, the authentication attempt fails. If the user is
+successfully authenticated, the Authentication Statement of the SAML Response
 contains an indication of the restrictions that were satisfied.
 
-You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
-<<ref-saml-settings>>. 
+You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See
+<<ref-saml-settings>>.
 
-{es} supports only the `exact` comparison method for the Authentication Context. 
-When it receives the Authentication Response from the IdP, {es} examines the 
+{es} supports only the `exact` comparison method for the Authentication Context.
+When it receives the Authentication Response from the IdP, {es} examines the
 value of the Authentication Context Class Reference that is part of the
-Authentication Statement of the SAML Assertion. If it matches one of the 
-requested values, the authentication is considered successful. Otherwise, the 
+Authentication Statement of the SAML Assertion. If it matches one of the
+requested values, the authentication is considered successful. Otherwise, the
 authentication attempt fails.
 
 [[saml-logout]]
@@ -462,7 +467,7 @@ The possible solutions to this problem are:
 - Advise your users to close their browser after logging out of {kib}
 - Enable the `force_authn` setting on your SAML realm. This setting causes the
   Elastic Stack to request fresh authentication from the IdP every time a user
-  attempts to log into {kib}.
+  attempts to log in to {kib}.
   This setting defaults to `false` because it can be a more cumbersome user
   experience, but it can also be an effective protection to stop users
   piggy-backing on existing IdP sessions.
@@ -508,7 +513,7 @@ signing certificate with the following command:
 
 [source, sh]
 --------------------------------------------------
-bin/elasticsearch-certutil cert -pem -days 1100 -name saml-sign -out saml-sign.zip
+bin/elasticsearch-certutil cert --self-signed --pem --days 1100 --name saml-sign --out saml-sign.zip
 --------------------------------------------------
 
 This will
@@ -618,11 +623,19 @@ Some Identity Providers support importing a metadata file from the Service
 Provider. This will automatically configure many of the integration options
 between the IdP and the SP.
 
-The Elastic Stack supports generating such a metadata file using the
-`bin/elasticsearch-saml-metadata` command in your {es} directory.
+The {stack} supports generating such a metadata file using the
+<<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
+<<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-The <<saml-metadata,documentation for the elasticsearch-saml-metadata utility>>
-describes how to run it, and the available command line options.
+You can generate the SAML metadata by issuing the API request to {es} and store
+it as an XML file using tools like `jq`. For example, the following command
+generates the metadata for the SAML realm `realm1` and saves it to a
+`metadata.xml` file:
+
+["source","console"]
+--
+curl -u user_name:password  -X GET http://localhost:9200/_security/saml/metadata/saml1 -H 'Content-Type: application/json' | jq -r '.[]' > metadata.xml
+--
 
 [[saml-role-mapping]]
 === Configuring role mappings
@@ -671,7 +684,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-<<security-role-mapping-apis>>. 
+<<security-role-mapping-apis>>.
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in
@@ -727,7 +740,7 @@ fields.
 This behaviour can be disabled by adding `populate_user_metadata: false` to as
 a setting in the saml realm.
 
-[[saml-kibana]]
+[[saml-configure-kibana]]
 === Configuring {kib}
 
 SAML authentication in {kib} requires a small number of additional settings
@@ -740,9 +753,13 @@ interface, you must configure {kib} to use a `https` URL to connect to {es}, and
 you may need to configure `elasticsearch.ssl.certificateAuthorities` to trust
 the certificates that {es} has been configured to use.
 
-SAML authentication in {kib} is also subject to the
-`xpack.security.sessionTimeout` setting that is described in the {kib} security
-documentation, and you may wish to adjust this timeout to meet your local needs.
+SAML authentication in {kib} is subject to the following timeout settings in
+`kibana.yml`:
+
+- {kibana-ref}/xpack-security-session-management.html#session-idle-timeout[`xpack.security.session.idleTimeout`]
+- {kibana-ref}/xpack-security-session-management.html#session-lifespan[`xpack.security.session.lifespan`]
+
+You may want to adjust these timeouts based on your security requirements.
 
 The three additional settings that are required for SAML support are shown below:
 
@@ -885,12 +902,12 @@ in {es}. See <<saml-guide-authentication>>
 
 The realm is designed with the assumption that there needs to be a privileged entity
 acting as an authentication proxy. In this case, the custom web application is the
-authentication proxy handling the authentication of end users ( more correctly,
-"delegating" the authentication to the SAML Identity Provider ). The SAML related
+authentication proxy handling the authentication of end users (more correctly,
+"delegating" the authentication to the SAML Identity Provider). The SAML related
 APIs require authentication and the necessary authorization level for the authenticated
 user. For this reason, you must create a Service Account user and assign it a role
 that gives it the `manage_saml` cluster privilege. The use of the `manage_token`
-cluster privilege will be necessary after the authentication takes place, so that the
+cluster privilege will be necessary after the authentication takes place, so that
 the service account user can maintain access in order refresh access tokens on
 behalf of the authenticated users or to subsequently log them out.
 
@@ -933,7 +950,7 @@ POST /_security/saml/prepare
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `realm` and `id`. The custom web application would need to store the value for `id`
  in the user's session (client side in a cookie or server side if session information is
-persisted this way). It must also redirect the user's browser to the URL that  was returned in the 
+persisted this way). It must also redirect the user's browser to the URL that was returned in the
   `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in
 order to mitigate against replay attacks.
 . Handle a subsequent response from the SAML IdP. After the user is successfully authenticated with the
@@ -1002,10 +1019,10 @@ POST /_security/saml/logout
 If the SAML realm is configured accordingly and the IdP supports it (see <<saml-logout>>), this request will trigger a SAML
 SP-initiated Single Logout. In this case, the response will include a `redirect`
 parameter indicating where the user needs to be redirected at the IdP in order to complete the logout.
-. Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this, 
+. Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this,
 the Logout URL (`sp.logout`) needs to be handled by the custom web app. The query part of the URL that the
 user will be redirected to will contain a SAML Logout request and this query part needs to be relayed to {es}
-using the <<security-api-saml-invalidate,SAML invalidate API>> 
+using the <<security-api-saml-invalidate,SAML invalidate API>>
 +
 [source,console]
 --------------------------------------------------
@@ -1019,4 +1036,7 @@ POST /_security/saml/invalidate
 +
 The custom web application will then need to also handle the response, which will include a `redirect`
 parameter with a URL in the IdP that contains the SAML Logout response. The application should redirect the user
-there to complete the logout. 
+there to complete the logout.
+
+For SP-initiated Single Logout, the IdP may send back a logout response which can be verified by {es}
+using the <<security-api-saml-complete-logout,SAML complete logout API>>.

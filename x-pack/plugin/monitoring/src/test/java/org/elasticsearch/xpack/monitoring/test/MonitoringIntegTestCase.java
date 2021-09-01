@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.test;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -44,9 +44,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected static final String ALL_MONITORING_INDICES = MONITORING_INDICES_PREFIX + "*";
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
 //                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
 //                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
@@ -70,7 +70,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockPainlessScriptEngine.TestPlugin.class,
+        return Arrays.asList(LocalStateMonitoring.class, MockClusterAlertScriptEngine.TestPlugin.class,
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
     }
 
@@ -177,10 +177,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertBusy(this::ensureMonitoringIndicesYellow);
     }
 
-    private void awaitIndexExists(final String index) throws Exception {
-        assertBusy(() -> {
-            assertIndicesExists(index);
-        }, 30, TimeUnit.SECONDS);
+    protected void awaitIndexExists(final String index) throws Exception {
+        assertBusy(() -> assertIndicesExists(index), 30, TimeUnit.SECONDS);
     }
 
     private void assertIndicesExists(String... indices) {

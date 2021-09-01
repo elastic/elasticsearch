@@ -18,17 +18,20 @@ which have not yet been removed by the merge process.
 
 `GET /_cat/count`
 
+[[cat-count-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for any data stream, index, or alias
+you retrieve.
 
 [[cat-count-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-count-api-query-params]]
 ==== {api-query-parms-title}
@@ -51,13 +54,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ===== Example with an individual data stream or index
 
 The following `count` API request retrieves the document count for the 
-`twitter` data stream or index.
+`my-index-000001` data stream or index.
 
 [source,console,id=cat-count-individual-example]
 --------------------------------------------------
-GET /_cat/count/twitter?v
+GET /_cat/count/my-index-000001?v=true
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 
 The API returns the following response:
@@ -77,9 +80,9 @@ streams and indices in the cluster.
 
 [source,console,id=cat-count-all-example]
 --------------------------------------------------
-GET /_cat/count?v
+GET /_cat/count?v=true
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 // TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:

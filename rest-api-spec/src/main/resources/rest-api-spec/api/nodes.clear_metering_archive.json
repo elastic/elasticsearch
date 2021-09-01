@@ -1,0 +1,33 @@
+{
+  "nodes.clear_metering_archive":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-repositories-metering-archive-api.html",
+      "description":"Removes the archived repositories metering information present in the cluster."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_nodes/{node_id}/_repositories_metering/{max_archive_version}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "node_id":{
+              "type":"list",
+              "description":"Comma-separated list of node IDs or names used to limit returned information."
+            },
+            "max_archive_version":{
+              "type":"long",
+              "description":"Specifies the maximum archive_version to be cleared from the archive."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,12 +13,9 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -54,37 +40,16 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public IgnoredFieldMapper build(BuilderContext context) {
-            return new IgnoredFieldMapper();
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                ParserContext parserContext) throws MapperParsingException {
-            return new Builder();
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new IgnoredFieldMapper();
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class IgnoredFieldType extends StringFieldType {
 
         public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -93,7 +58,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             // This query is not performance sensitive, it only helps assess
             // quality of the data, so we may use a slow query. It shouldn't
             // be too slow in practice since the number of unique terms in this
@@ -101,41 +66,26 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             return new TermRangeQuery(name(), null, null, true, true);
         }
 
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     private IgnoredFieldMapper() {
-        super(Defaults.FIELD_TYPE, IgnoredFieldType.INSTANCE);
+        super(IgnoredFieldType.INSTANCE);
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // done in post-parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) {
         for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, fieldType));
+            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 
 }

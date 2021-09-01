@@ -50,7 +50,7 @@ use the `must_not` <<query-dsl-bool-query, boolean query>> with the `exists`
 query.
 
 The following search returns documents that are missing an indexed value for
-the `user` field.
+the `user.id` field.
 
 [source,console]
 ----
@@ -60,7 +60,7 @@ GET /_search
     "bool": {
       "must_not": {
         "exists": {
-          "field": "user"
+          "field": "user.id"
         }
       }
     }

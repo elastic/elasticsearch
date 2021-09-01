@@ -15,7 +15,7 @@ GET /_search
   "query": {
     "constant_score": {
       "filter": {
-        "term": { "user": "kimchy" }
+        "term": { "user.id": "kimchy" }
       },
       "boost": 1.2
     }

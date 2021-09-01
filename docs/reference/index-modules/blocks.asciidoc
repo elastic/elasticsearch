@@ -17,6 +17,7 @@ block.
 The following _dynamic_ index settings determine the blocks present on an
 index:
 
+[[index-blocks-read-only]]
 `index.blocks.read_only`::
 
     Set to `true` to make the index and index metadata read only, `false` to
@@ -46,26 +47,6 @@ IMPORTANT: {es} adds and removes the read-only index block automatically when th
 
     Set to `true` to disable index metadata reads and writes.
 
-`index.blocks.read_only_allow_delete`::
-
-    Similar to `index.blocks.read_only`, but also allows deleting the index to
-    make more resources available. The <<disk-based-shard-allocation,disk-based shard
-    allocator>> adds and removes this block automatically.
-
-Deleting documents from an index - rather than deleting the index itself - can
-in fact increase the index size. When you are running out of disk space
-`index.blocks.read_only_allow_delete` is set to `true`, preventing you from
-consuming more disk space by deleting some documents. However, this block does
-permit you to delete the index itself since this does not require any extra
-disk space. When you delete an index the data is removed from disk almost
-immediately, freeing the space it consumes.
-
-IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
-disk utilisation exceeds the <<cluster-routing-flood-stage,flood-stage
-watermark>> and removes it again when disk utilisation is below the
-<<cluster-routing-watermark-high,high watermark>>. You should not apply this
-block yourself.
-
 [discrete]
 [[add-index-block]]
 === Add index block API
@@ -74,9 +55,9 @@ Adds an index block to an index.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_block/write
+PUT /my-index-000001/_block/write
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [discrete]
@@ -93,9 +74,9 @@ PUT /twitter/_block/write
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
-To add blocks to all indices, use `_all` or `*`. To disallow the adding
-of blocks to indices with `_all` or wildcard expressions,
-change the `action.destructive_requires_name` cluster setting to `true`.
+By default, you must explicitly name the indices you are adding blocks to.
+To allow the adding of blocks to indices with `_all`, `*`, or other wildcard
+expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
 `<block>`::

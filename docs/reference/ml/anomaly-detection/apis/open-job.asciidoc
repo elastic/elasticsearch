@@ -16,9 +16,8 @@ Opens one or more {anomaly-jobs}.
 [[ml-open-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-open-job-desc]]
 == {api-description-title}
@@ -55,7 +54,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 open lazily and has not yet been assigned to a node, this value is an empty string.
 
 `opened`::
-  (boolean) For a successful response, this value is always `true`. On failure, an
+  (Boolean) For a successful response, this value is always `true`. On failure, an
   exception is returned instead.
 
 [[ml-open-job-example]]

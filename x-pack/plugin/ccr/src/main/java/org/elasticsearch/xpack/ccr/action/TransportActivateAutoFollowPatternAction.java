@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -26,27 +26,17 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.Request;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportActivateAutoFollowPatternAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     @Inject
     public TransportActivateAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
                                                     ThreadPool threadPool, ActionFilters actionFilters,
                                                     IndexNameExpressionResolver resolver) {
-        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(final StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver,
+                ThreadPool.Names.SAME);
     }
 
     @Override
@@ -56,17 +46,11 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
 
     @Override
     protected void masterOperation(final Task task, final Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("activate-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
-
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
-                protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return new AcknowledgedResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) throws Exception {
+                public ClusterState execute(final ClusterState currentState) {
                     return innerActivate(request, currentState);
                 }
             });
@@ -93,6 +77,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
             new AutoFollowMetadata.AutoFollowPattern(
                 previousAutoFollowPattern.getRemoteCluster(),
                 previousAutoFollowPattern.getLeaderIndexPatterns(),
+                previousAutoFollowPattern.getLeaderIndexExclusionPatterns(),
                 previousAutoFollowPattern.getFollowIndexPattern(),
                 previousAutoFollowPattern.getSettings(),
                 request.isActive(),

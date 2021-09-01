@@ -15,14 +15,15 @@ The initial set of master-eligible nodes is defined in the
 set to a list containing one of the following items for each master-eligible
 node:
 
-- The <<node.name,node name>> of the node.
+- The <<node-name,node name>> of the node.
 - The node's hostname if `node.name` is not set, because `node.name` defaults
   to the node's hostname. You must use either the fully-qualified hostname or
   the bare hostname <<modules-discovery-bootstrap-cluster-fqdns,depending on
   your system configuration>>.
-- The IP address of the node's <<modules-transport,publish address>>, if it is
-  not possible to use the `node.name` of the node. This is normally the IP
-  address to which <<common-network-settings,`network.host`>> resolves but
+- The IP address of the node's <<modules-network-binding-publishing,transport
+  publish address>>, if it is not possible to use the `node.name` of the node.
+  This is normally the IP address to which
+  <<common-network-settings,`network.host`>> resolves but
   <<advanced-network-settings,this can be overridden>>.
 - The IP address and port of the node's publish address, in the form `IP:PORT`,
   if it is not possible to use the `node.name` of the node and there are
@@ -44,7 +45,7 @@ WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
 on each node on which it is set in order to be sure that only a single cluster
 forms during bootstrapping and therefore to avoid the risk of data loss.
 
-For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
+For a cluster with 3 master-eligible nodes (with <<node-name,node names>>
 `master-a`, `master-b` and `master-c`) the configuration will look as follows:
 
 [source,yaml]
@@ -97,7 +98,7 @@ match exactly.
 [discrete]
 ==== Choosing a cluster name
 
-The <<cluster.name,`cluster.name`>> setting enables you to create multiple
+The <<cluster-name,`cluster.name`>> setting enables you to create multiple
 clusters which are separated from each other. Nodes verify that they agree on
 their cluster name when they first connect to each other, and Elasticsearch
 will only form a cluster from nodes that all have the same cluster name. The
@@ -112,7 +113,7 @@ automatically bootstrap a cluster based on the nodes that could be discovered to
 be running on the same host within a short time after startup. This means that
 by default it is possible to start up several nodes on a single machine and have
 them automatically form a cluster which is very useful for development
-environments and experimentation.  However, since nodes may not always
+environments and experimentation. However, since nodes may not always
 successfully discover each other quickly enough this automatic bootstrapping
 cannot be relied upon and cannot be used in production deployments.
 

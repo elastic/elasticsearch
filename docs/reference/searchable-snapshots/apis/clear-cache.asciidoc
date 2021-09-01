@@ -1,14 +1,15 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[searchable-snapshots-api-clear-cache]]
 === Clear cache API
 ++++
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
-experimental[]
+experimental::[]
 
-Clear the cache of searchable snapshots.
+Clears indices and data streams from the shared cache for
+<<partially-mounted,partially mounted indices>>.
 
 [[searchable-snapshots-api-clear-cache-request]]
 ==== {api-request-title}
@@ -20,23 +21,18 @@ Clear the cache of searchable snapshots.
 [[searchable-snapshots-api-clear-cache-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the
-`manage` cluster privilege and the `manage` index privilege
-for any included indices to use this API.
-For more information, see <<security-privileges>>.
-
-[[searchable-snapshots-api-clear-cache-desc]]
-==== {api-description-title}
-
+If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. You must also
+have the `manage` <<privileges-list-indices,index privileges>> for the target
+data stream, index, or alias.
 
 [[searchable-snapshots-api-clear-cache-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
 (Optional, string)
-A comma-separated list of data streams and indices for which the
-searchable snapshots cache must be cleared.
-
+Comma-separated list of data streams, indices, and aliases to clear from the
+cache. Supports wildcards (`*`). To clear the entire cache, omit this parameter.
 
 [[searchable-snapshots-api-clear-cache-example]]
 ==== {api-examples-title}
@@ -61,16 +57,17 @@ DELETE /docs
 
 POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 {
-  "index": "docs"
+  "index": "docs",
+  "renamed_index": "my-index"
 }
 -----------------------------------
 // TEST[setup:setup-repository]
 ////
 
-Clears the cache of the index `docs`:
+Clears the cache of the index `my-index`:
 
 [source,console]
 --------------------------------------------------
-POST /docs/_searchable_snapshots/cache/clear
+POST /my-index/_searchable_snapshots/cache/clear
 --------------------------------------------------
 // TEST[continued]

@@ -1,9 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 
 package org.elasticsearch.xpack.vectors.mapper;
 
@@ -11,95 +11,80 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapperTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.Set;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVectorFieldMapper.Builder> {
+public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected DenseVectorFieldMapper.Builder newBuilder() {
-        return new DenseVectorFieldMapper.Builder("densevector").dims(4);
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new Vectors());
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "dense_vector").field("dims", 4);
     }
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
+    protected Object getSampleValueForDocument() {
+        return List.of(1, 2, 3, 4);
     }
 
-    @Before
-    public void addModifiers() {
-        addModifier("dims", false, (a, b) -> {
-            a.dims(3);
-            b.dims(4);
-        });
-    }
-
-    // this allows to set indexVersion as it is a private setting
     @Override
-    protected boolean forbidPrivateIndexSettings() {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("dims",
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4)),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5)));
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
         return false;
     }
 
-    public void testMappingExceedDimsLimit() throws IOException {
-        IndexService indexService = createIndex("test-index");
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("my-dense-vector").field("type", "dense_vector").field("dims", DenseVectorFieldMapper.MAX_DIMS_COUNT + 1)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("_doc", new CompressedXContent(mapping)));
-        assertEquals(e.getMessage(),
-            "The number of dimensions for field [my-dense-vector] should be in the range [1, 2048] but was [2049]");
+    public void testDims() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 0);
+            })));
+            assertThat(e.getMessage(), equalTo("Failed to parse mapping: " +
+                "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 3000);
+            })));
+            assertThat(e.getMessage(), equalTo("Failed to parse mapping: " +
+                "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "dense_vector"))));
+            assertThat(e.getMessage(), equalTo("Failed to parse mapping: Missing required parameter [dims] for field [field]"));
+        }
     }
 
     public void testDefaults() throws Exception {
-        Version indexVersion = Version.CURRENT;
-        IndexService indexService = createIndex("test-index");
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("my-dense-vector").field("type", "dense_vector").field("dims", 3)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
         float[] validVector = {-12.1f, 100.7f, -4};
         double dotProduct = 0.0f;
@@ -107,19 +92,15 @@ public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVector
             dotProduct += value * value;
         }
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startArray("my-dense-vector").value(validVector[0]).value(validVector[1]).value(validVector[2]).endArray()
-                .endObject()),
-            XContentType.JSON));
-        IndexableField[] fields = doc1.rootDoc().getFields("my-dense-vector");
+        ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
+
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
-        float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
+        float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",
@@ -131,27 +112,12 @@ public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVector
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
         Version indexVersion = Version.V_7_4_0;
-        IndexService indexService = createIndex("test-index7_4",
-            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("my-dense-vector").field("type", "dense_vector").field("dims", 3)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper
+            = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
+
         float[] validVector = {-12.1f, 100.7f, -4};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .startArray("my-dense-vector").value(validVector[0]).value(validVector[1]).value(validVector[2]).endArray()
-                .endObject()),
-            XContentType.JSON));
-        IndexableField[] fields = doc1.rootDoc().getFields("my-dense-vector");
+        ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
@@ -177,36 +143,43 @@ public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVector
     }
 
     public void testDocumentsWithIncorrectDims() throws Exception {
-        IndexService indexService = createIndex("test-index");
+
         int dims = 3;
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("my-dense-vector").field("type", "dense_vector").field("dims", dims)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims)));
 
         // test that error is thrown when a document has number of dims more than defined in the mapping
         float[] invalidVector = new float[dims + 1];
-        BytesReference invalidDoc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .array("my-dense-vector", invalidVector)
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test-index", "1", invalidDoc, XContentType.JSON)));
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", invalidVector))));
         assertThat(e.getCause().getMessage(), containsString("has exceeded the number of dimensions [3] defined in mapping"));
 
         // test that error is thrown when a document has number of dims less than defined in the mapping
         float[] invalidVector2 = new float[dims - 1];
-        BytesReference invalidDoc2 = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .array("my-dense-vector", invalidVector2)
-            .endObject());
-        MapperParsingException e2 = expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test-index", "2", invalidDoc2, XContentType.JSON)));
+        MapperParsingException e2 = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", invalidVector2))));
         assertThat(e2.getCause().getMessage(), containsString("has number of dimensions [2] less than defined in the mapping [3]"));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;       // TODO should this allow null values?
+    }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("vectors");
+            minimalMapping(b);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
     }
 }

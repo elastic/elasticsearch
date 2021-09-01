@@ -1,46 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask<Response> extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
+public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
 
-    private final ActionListener<Response> listener;
+    private final ActionListener<AcknowledgedResponse> listener;
     private final AckedRequest request;
 
-    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<Response> listener) {
+    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<? extends AcknowledgedResponse> listener) {
         this(Priority.NORMAL, request, listener);
     }
 
-    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request, ActionListener<Response> listener) {
-        super(priority);
-        this.listener = listener;
+    @SuppressWarnings("unchecked")
+    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request,
+                                          ActionListener<? extends AcknowledgedResponse> listener) {
+        super(priority, request.masterNodeTimeout());
+        this.listener = (ActionListener<AcknowledgedResponse>) listener;
         this.request = request;
     }
 
@@ -64,7 +56,9 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
         listener.onResponse(newResponse(e == null));
     }
 
-    protected abstract Response newResponse(boolean acknowledged);
+    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+        return AcknowledgedResponse.of(acknowledged);
+    }
 
     /**
      * Called once the acknowledgement timeout defined by
@@ -82,12 +76,7 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
     /**
      * Acknowledgement timeout, maximum time interval to wait for acknowledgements
      */
-    public TimeValue ackTimeout() {
+    public final TimeValue ackTimeout() {
         return request.ackTimeout();
-    }
-
-    @Override
-    public TimeValue timeout() {
-        return request.masterNodeTimeout();
     }
 }

@@ -1,19 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.execution.search.Querier.AggSortingQueue;
+import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests.randomHitExtractor;
 
 public class QuerierTests extends ESTestCase {
 
@@ -170,5 +184,85 @@ public class QuerierTests extends ESTestCase {
             return 0;
         });
         assertEquals(expected.subList(0, queueSize), results);
+    }
+
+    public void testFullQueueSortingOnLocalSort() {
+        Tuple<Integer, Integer> actions = runLocalAggSorterWithNoLimit(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS);
+
+        assertEquals("Exactly one response expected", 1, actions.v1().intValue());
+        assertEquals("No failures expected", 0, actions.v2().intValue());
+    }
+
+    public void testQueueOverflowSortingOnLocalSort() {
+        Tuple<Integer, Integer> actions = runLocalAggSorterWithNoLimit(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 2);
+
+        assertEquals("No response expected", 0, actions.v1().intValue());
+        assertEquals("Exactly one failure expected", 1, actions.v2().intValue());
+    }
+
+    Tuple<Integer, Integer> runLocalAggSorterWithNoLimit(int dataSize) {
+        class TestResultRowSet<E extends NamedWriteable> extends ResultRowSet<E> implements SchemaRowSet {
+
+            private int rowCounter = 0;
+            private final int dataSize;
+
+            TestResultRowSet(List<E> extractors, BitSet mask, int dataSize) {
+                super(extractors, mask);
+                this.dataSize = dataSize;
+            }
+
+            @Override
+            protected Object extractValue(NamedWriteable namedWriteable) {
+                return rowCounter++;
+            }
+
+            @Override
+            protected boolean doHasCurrent() {
+                return true;
+            }
+
+            @Override
+            protected boolean doNext() {
+                return rowCounter < dataSize;
+            }
+
+            @Override
+            protected void doReset() {
+            }
+
+            @Override
+            public Schema schema() {
+                return new Schema(emptyList(), emptyList());
+            }
+
+            @Override
+            public int size() {
+                return dataSize; // irrelevant
+            }
+        };
+
+        Cursor.Page page = new Cursor.Page(new TestResultRowSet<NamedWriteable>(List.of(randomHitExtractor(0)), new BitSet(), dataSize),
+            Cursor.EMPTY);
+
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        ActionListener<Cursor.Page> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Cursor.Page page) {
+                responses.getAndIncrement();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failures.getAndIncrement();
+            }
+        };
+
+        SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
+        Querier querier = new Querier(session);
+        Querier.LocalAggregationSorterListener localSorter = querier.new LocalAggregationSorterListener(listener, emptyList(), -1);
+        localSorter.onResponse(page);
+
+        return new Tuple<>(responses.get(), failures.get());
     }
 }

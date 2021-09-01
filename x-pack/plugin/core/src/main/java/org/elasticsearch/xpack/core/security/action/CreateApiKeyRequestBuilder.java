@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -34,7 +36,8 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
     static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
             "api_key_request", false, (args, v) -> {
                 return new CreateApiKeyRequest((String) args[0], (List<RoleDescriptor>) args[1],
-                        TimeValue.parseTimeValue((String) args[2], null, "expiration"));
+                        TimeValue.parseTimeValue((String) args[2], null, "expiration"),
+                    (Map<String, Object>) args[3]);
             });
 
     static {
@@ -44,6 +47,7 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
             return RoleDescriptor.parse(n, p, false);
         }, new ParseField("role_descriptors"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
     public CreateApiKeyRequestBuilder(ElasticsearchClient client) {
@@ -70,6 +74,11 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
         return this;
     }
 
+    public CreateApiKeyRequestBuilder setMetadata(Map<String, Object> metadata) {
+        request.setMetadata(metadata);
+        return this;
+    }
+
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (InputStream stream = source.streamInput();
@@ -78,6 +87,8 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
             setName(createApiKeyRequest.getName());
             setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
             setExpiration(createApiKeyRequest.getExpiration());
+            setMetadata(createApiKeyRequest.getMetadata());
+
         }
         return this;
     }

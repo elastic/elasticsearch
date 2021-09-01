@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
@@ -113,13 +115,13 @@ public class LocalModelTests extends ESTestCase {
             mock(CircuitBreaker.class));
         result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
-        assertThat(result.valueAsString(), equalTo("not_to_be"));
+        assertThat(result.valueAsString(), equalTo("no"));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
             new ClassificationConfigUpdate(1, null, null, null, null));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
-        assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
+        assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("no"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
@@ -167,17 +169,17 @@ public class LocalModelTests extends ESTestCase {
             new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING));
 
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
-        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("not_to_be"));
+        writeResult(result, document, "result_field", modelId);
+        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("no"));
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
-        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo("not_to_be"));
-        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo("to_be"));
+        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo("no"));
+        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo("yes"));
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
 
         document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.0));
         list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
@@ -187,7 +189,7 @@ public class LocalModelTests extends ESTestCase {
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
 
         document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Boolean.class), equalTo(false));
         list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
@@ -439,7 +441,7 @@ public class LocalModelTests extends ESTestCase {
             .addNode(TreeNode.builder(2).setLeafValue(0.0))
             .build();
         return Ensemble.builder()
-            .setClassificationLabels(includeLabels ? Arrays.asList("not_to_be", "to_be") : null)
+            .setClassificationLabels(includeLabels ? Arrays.asList("no", "yes") : null)
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -23,7 +24,9 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction.CreateTokenResponseActionListener;
 
@@ -31,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 
 public class RestGetTokenActionTests extends ESTestCase {
 
@@ -71,7 +75,9 @@ public class RestGetTokenActionTests extends ESTestCase {
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
         CreateTokenResponse createTokenResponse =
                 new CreateTokenResponse(randomAlphaOfLengthBetween(1, 256), TimeValue.timeValueHours(1L), null, randomAlphaOfLength(4),
-                        randomAlphaOfLength(5));
+                        randomAlphaOfLength(5), new Authentication(new User("joe", new String[]{"custom_superuser"},
+                    new User("bar", "not_superuser")), new Authentication.RealmRef("test", "test", "node"),
+                    new Authentication.RealmRef("test", "test", "node")));
         listener.onResponse(createTokenResponse);
 
         RestResponse response = responseSetOnce.get();
@@ -85,7 +91,11 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("expires_in", Math.toIntExact(createTokenResponse.getExpiresIn().seconds())));
         assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
         assertThat(map, hasEntry("kerberos_authentication_response_token", createTokenResponse.getKerberosAuthenticationResponseToken()));
-        assertEquals(5, map.size());
+        assertThat(map, hasKey("authentication"));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> authentication = (Map<String, Object>) (map.get("authentication"));
+        assertThat(authentication, hasEntry("username", createTokenResponse.getAuthentication().getUser().principal()));
+        assertEquals(6, map.size());
     }
 
     public void testSendResponseKerberosError() {

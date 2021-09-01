@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.util;
 
@@ -138,7 +139,7 @@ public abstract class Graphviz {
 
         for (Object v : props) {
             // skip null values, children and location
-            if (v != null && !n.children().contains(v)) {
+            if (v != null && n.children().contains(v) == false) {
                 if (v instanceof Collection) {
                     Collection<?> c = (Collection<?>) v;
                         StringBuilder colS = new StringBuilder();
@@ -176,7 +177,7 @@ public abstract class Graphviz {
         nodeInfo.append("</table>\n");
 
         // check any subtrees
-        if (!subTrees.isEmpty()) {
+        if (subTrees.isEmpty() == false) {
             // write nested trees
             output.append("subgraph cluster_" + thisId + " {");
             output.append("style=filled; color=white; fillcolor=azure2; label=\"\";\n");
@@ -190,7 +191,7 @@ public abstract class Graphviz {
         output.append(quoteGraphviz(nodeInfo.toString()));
         output.append("];\n");
 
-        if (!subTrees.isEmpty()) {
+        if (subTrees.isEmpty() == false) {
             indent(output, currentIndent + INDENT);
             output.append("node[shape=ellipse, color=black]\n");
 

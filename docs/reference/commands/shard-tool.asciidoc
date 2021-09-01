@@ -7,7 +7,7 @@ shard if a good copy of the shard cannot be recovered automatically or restored
 from backup.
 
 [WARNING]
-You will lose the corrupted data when you run `elasticsearch-shard`.  This tool
+You will lose the corrupted data when you run `elasticsearch-shard`. This tool
 should only be used as a last resort if there is no way to recover from another
 copy of the shard or restore a snapshot.
 
@@ -57,7 +57,7 @@ operation that removes corrupted data from the shard.
 
 [source,txt]
 --------------------------------------------------
-$ bin/elasticsearch-shard remove-corrupted-data --index twitter --shard-id 0
+$ bin/elasticsearch-shard remove-corrupted-data --index my-index-000001 --shard-id 0
 
 
     WARNING: Elasticsearch MUST be stopped before running this tool.

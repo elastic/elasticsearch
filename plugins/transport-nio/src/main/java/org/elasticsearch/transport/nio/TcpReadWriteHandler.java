@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.nio;
@@ -23,10 +12,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
@@ -59,7 +47,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         for (int i = 0; i < pages.length; ++i) {
             references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
         }
-        Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
+        Releasable releasable = pages.length == 1 ? pages[0] : () -> Releasables.closeExpectNoException(pages);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
             pipeline.handleBytes(channel, reference);
             return reference.length();
@@ -68,7 +56,6 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
 
     @Override
     public void close() {
-        Releasables.closeWhileHandlingException(pipeline);
-        super.close();
+        Releasables.closeExpectNoException(pipeline, super::close);
     }
 }

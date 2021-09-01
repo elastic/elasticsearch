@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -26,7 +15,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -101,12 +90,14 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                 .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
                 .collect(Collectors.toList());
         final SetOnce<List<Future<TransportAddress[]>>> futures = new SetOnce<>();
+        final long startTimeNanos = transportService.getThreadPool().relativeTimeInNanos();
         try {
             cancellableThreads.execute(() ->
                 futures.set(executorService.get().invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS)));
         } catch (CancellableThreads.ExecutionCancelledException e) {
             return Collections.emptyList();
         }
+        final TimeValue duration = TimeValue.timeValueNanos(transportService.getThreadPool().relativeTimeInNanos() - startTimeNanos);
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         final Set<TransportAddress> localAddresses = new HashSet<>();
         localAddresses.add(transportService.boundAddress().publishAddress());
@@ -116,13 +107,13 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final Iterator<String> it = hosts.iterator();
         for (final Future<TransportAddress[]> future : futures.get()) {
             assert future.isDone();
+            assert it.hasNext();
             final String hostname = it.next();
-            if (!future.isCancelled()) {
+            if (future.isCancelled() == false) {
                 try {
                     final TransportAddress[] addresses = future.get();
                     logger.trace("resolved host [{}] to {}", hostname, addresses);
-                    for (int addressId = 0; addressId < addresses.length; addressId++) {
-                        final TransportAddress address = addresses[addressId];
+                    for (final TransportAddress address : addresses) {
                         // no point in pinging ourselves
                         if (localAddresses.contains(address) == false) {
                             transportAddresses.add(address);
@@ -137,7 +128,13 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                     // ignore
                 }
             } else {
-                logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
+                logger.warn(
+                        "timed out after [{}/{}ms] ([{}]=[{}]) resolving host [{}]",
+                        duration,
+                        duration.getMillis(),
+                        DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey(),
+                        resolveTimeout,
+                        hostname);
             }
         }
         return Collections.unmodifiableList(transportAddresses);

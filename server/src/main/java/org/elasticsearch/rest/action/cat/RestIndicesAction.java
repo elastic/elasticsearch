@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -41,7 +30,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -82,6 +72,11 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");
@@ -91,7 +86,6 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
-        final boolean local = request.paramAsBoolean("local", false);
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
@@ -103,10 +97,10 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<>() {
+            sendGetSettingsRequest(indices, indicesOptions, masterNodeTimeout, client, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
+                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, delegate);
                     groupedListener.onResponse(getSettingsResponse);
 
                     // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
@@ -125,15 +119,10 @@ public class RestIndicesAction extends AbstractCatAction {
                     // index names with the same indices options that we used for the initial cluster state request (strictExpand).
                     sendIndicesStatsRequest(indices, subRequestIndicesOptions, includeUnloadedSegments, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                    sendClusterStateRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
+                    sendClusterStateRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                    sendClusterHealthRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
+                    sendClusterHealthRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
                 }
             });
         };
@@ -149,14 +138,12 @@ public class RestIndicesAction extends AbstractCatAction {
      */
     private void sendGetSettingsRequest(final String[] indices,
                                         final IndicesOptions indicesOptions,
-                                        final boolean local,
                                         final TimeValue masterNodeTimeout,
                                         final NodeClient client,
                                         final ActionListener<GetSettingsResponse> listener) {
         final GetSettingsRequest request = new GetSettingsRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
-        request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
@@ -165,7 +152,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private void sendClusterStateRequest(final String[] indices,
                                          final IndicesOptions indicesOptions,
-                                         final boolean local,
                                          final TimeValue masterNodeTimeout,
                                          final NodeClient client,
                                          final ActionListener<ClusterStateResponse> listener) {
@@ -173,7 +159,6 @@ public class RestIndicesAction extends AbstractCatAction {
         final ClusterStateRequest request = new ClusterStateRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
-        request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
 
         client.admin().cluster().state(request, listener);
@@ -181,7 +166,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private void sendClusterHealthRequest(final String[] indices,
                                           final IndicesOptions indicesOptions,
-                                          final boolean local,
                                           final TimeValue masterNodeTimeout,
                                           final NodeClient client,
                                           final ActionListener<ClusterHealthResponse> listener) {
@@ -189,7 +173,6 @@ public class RestIndicesAction extends AbstractCatAction {
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
-        request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
 
         client.admin().cluster().health(request, listener);
@@ -212,7 +195,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private GroupedActionListener<ActionResponse> createGroupedListener(final RestRequest request, final int size,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<>() {
+        return new GroupedActionListener<>(new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
@@ -232,15 +215,10 @@ public class RestIndicesAction extends AbstractCatAction {
                     Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
                     Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
-                    listener.onResponse(responseTable);
+                    delegate.onResponse(responseTable);
                 } catch (Exception e) {
                     onFailure(e);
                 }
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
             }
         }, size);
     }
@@ -745,8 +723,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getMemory());
+            table.addCell(totalStats.getSegments() == null ? null : new ByteSizeValue(0));
+            table.addCell(primaryStats.getSegments() == null ? null : new ByteSizeValue(0));
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());

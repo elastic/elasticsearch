@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -24,7 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
@@ -34,8 +23,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -82,8 +73,8 @@ public class PublicationTransportHandler {
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
     // -> no need to put a timeout on the options here, because we want the response to eventually be received
     //  and not log an error if it arrives after the timeout
-    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
-        .withType(TransportRequestOptions.Type.STATE).build();
+    private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
     public PublicationTransportHandler(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
@@ -136,15 +127,16 @@ public class PublicationTransportHandler {
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
-                in = compressor.streamInput(in);
+                in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 final ClusterState incomingState;
-                try {
-                    incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                // Close early to release resources used by the de-compression as early as possible
+                try (StreamInput input = in) {
+                    incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
                 } catch (Exception e){
                     logger.warn("unexpected error while deserializing an incoming cluster state", e);
                     throw e;
@@ -164,7 +156,11 @@ public class PublicationTransportHandler {
                 } else {
                     ClusterState incomingState;
                     try {
-                        Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
+                        final Diff<ClusterState> diff;
+                        // Close stream early to release resources used by the de-compression as early as possible
+                        try (StreamInput input = in) {
+                            diff = ClusterState.readDiffFrom(input, lastSeen.nodes().getLocalNode());
+                        }
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
                     } catch (IncompatibleClusterStateVersionException e) {
                         incompatibleClusterStateDiffReceivedCount.incrementAndGet();
@@ -199,8 +195,8 @@ public class PublicationTransportHandler {
         return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
 
-    public PublicationContext newPublicationContext(ClusterChangedEvent clusterChangedEvent) {
-        final PublicationContext publicationContext = new PublicationContext(clusterChangedEvent);
+    public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        final PublicationContext publicationContext = new PublicationContext(clusterStatePublicationEvent);
 
         // Build the serializations we expect to need now, early in the process, so that an error during serialization fails the publication
         // straight away. This isn't watertight since we send diffs on a best-effort basis and may fall back to sending a full state (and
@@ -211,7 +207,7 @@ public class PublicationTransportHandler {
 
     private static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+        try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(true);
             clusterState.writeTo(stream);
@@ -224,7 +220,7 @@ public class PublicationTransportHandler {
 
     private static BytesReference serializeDiffClusterState(Diff<ClusterState> diff, Version nodeVersion) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+        try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(false);
             diff.writeTo(stream);
@@ -246,10 +242,10 @@ public class PublicationTransportHandler {
         private final Map<Version, BytesReference> serializedStates = new HashMap<>();
         private final Map<Version, BytesReference> serializedDiffs = new HashMap<>();
 
-        PublicationContext(ClusterChangedEvent clusterChangedEvent) {
-            discoveryNodes = clusterChangedEvent.state().nodes();
-            newState = clusterChangedEvent.state();
-            previousState = clusterChangedEvent.previousState();
+        PublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+            discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
+            newState = clusterStatePublicationEvent.getNewState();
+            previousState = clusterStatePublicationEvent.getOldState();
             sendFullVersion = previousState.getBlocks().disableStatePersistence();
         }
 
@@ -318,7 +314,7 @@ public class PublicationTransportHandler {
         public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
                                     ActionListener<TransportResponse.Empty> listener) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
-            transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest, stateRequestOptions,
+            transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest, STATE_REQUEST_OPTIONS,
                 new TransportResponseHandler<TransportResponse.Empty>() {
 
                     @Override
@@ -402,7 +398,7 @@ public class PublicationTransportHandler {
                             return ThreadPool.Names.GENERIC;
                         }
                     };
-                transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, responseHandler);
+                transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, request, STATE_REQUEST_OPTIONS, responseHandler);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
                 listener.onFailure(e);

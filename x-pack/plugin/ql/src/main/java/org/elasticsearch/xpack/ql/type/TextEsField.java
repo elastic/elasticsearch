@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 
@@ -23,7 +23,7 @@ public class TextEsField extends EsField {
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);
     }
-    
+
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
         super(name, TEXT, properties, hasDocValues, isAlias);
     }
@@ -45,7 +45,7 @@ public class TextEsField extends EsField {
     private Tuple<EsField, String> findExact() {
         EsField field = null;
         for (EsField property : getProperties().values()) {
-            if ((property.getDataType() == KEYWORD || property.getDataType() == CONSTANT_KEYWORD) && property.getExactInfo().hasExact()) {
+            if (property.getDataType() == KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
                     return new Tuple<>(null, "Multiple exact keyword candidates available for [" + getName() +
                         "]; specify which one to use");

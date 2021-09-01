@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -34,24 +23,30 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<ParsedVariableWidthHistogram.ParsedBucket>
-    implements Histogram{
+    implements
+        Histogram {
 
     @Override
-    public String getType() { return VariableWidthHistogramAggregationBuilder.NAME; }
+    public String getType() {
+        return VariableWidthHistogramAggregationBuilder.NAME;
+    }
 
     @Override
-    public List<? extends Histogram.Bucket> getBuckets() { return buckets; }
+    public List<? extends Histogram.Bucket> getBuckets() {
+        return buckets;
+    }
 
-    private static ObjectParser<ParsedVariableWidthHistogram, Void> PARSER =
-        new ObjectParser<>(
-            ParsedVariableWidthHistogram.class.getSimpleName(),
-            true,
-            ParsedVariableWidthHistogram::new
-        ) ;
+    private static ObjectParser<ParsedVariableWidthHistogram, Void> PARSER = new ObjectParser<>(
+        ParsedVariableWidthHistogram.class.getSimpleName(),
+        true,
+        ParsedVariableWidthHistogram::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
+        declareMultiBucketAggregationFields(
+            PARSER,
             parser -> ParsedBucket.fromXContent(parser, false),
-            parser -> ParsedBucket.fromXContent(parser, true));
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedVariableWidthHistogram fromXContent(XContentParser parser, String name) throws IOException {
@@ -60,8 +55,7 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
         return aggregation;
     }
 
-
-    public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket{
+    public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
         private Double key;
 
         private Double min;
@@ -91,7 +85,7 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
             this.min = min;
         }
 
-        public void setMinAsString(String minAsString){
+        public void setMinAsString(String minAsString) {
             this.minAsString = minAsString;
         }
 
@@ -109,11 +103,11 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
             return null;
         }
 
-        public void setMax(Double max){
+        public void setMax(Double max) {
             this.max = max;
         }
 
-        public void setMaxAsString(String maxAsString){
+        public void setMaxAsString(String maxAsString) {
             this.maxAsString = maxAsString;
         }
 
@@ -137,8 +131,8 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
             List<Aggregation> aggregations = new ArrayList<>();
@@ -165,8 +159,12 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
                     if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
                         bucket.key = parser.doubleValue();
                     } else {
-                        XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                        XContentParserUtils.parseTypedKeysObject(
+                            parser,
+                            Aggregation.TYPED_KEYS_DELIMITER,
+                            Aggregation.class,
+                            aggregations::add
+                        );
                     }
                 }
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -41,15 +30,14 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -64,19 +52,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                                         ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, AllocationService allocationService) {
         super(ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            ClusterHealthRequest::new, indexNameExpressionResolver);
+                ClusterHealthRequest::new, indexNameExpressionResolver, ClusterHealthResponse::new, ThreadPool.Names.SAME);
         this.allocationService = allocationService;
-    }
-
-    @Override
-    protected String executor() {
-        // this should be executing quickly no need to fork off
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterHealthResponse read(StreamInput in) throws IOException {
-        return new ClusterHealthResponse(in);
     }
 
     @Override
@@ -132,15 +109,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                new ClusterStateUpdateTask(request.waitForEvents()) {
+                new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return currentState;
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return taskTimeout;
                     }
 
                     @Override
@@ -204,7 +176,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new IllegalStateException("ClusterService was close during health call"));
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
@@ -300,7 +272,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 // missing indices, wait a bit more...
             }
         }
-        if (!request.waitForNodes().isEmpty()) {
+        if (request.waitForNodes().isEmpty() == false) {
             if (request.waitForNodes().startsWith(">=")) {
                 int expected = Integer.parseInt(request.waitForNodes().substring(2));
                 if (response.getNumberOfNodes() >= expected) {

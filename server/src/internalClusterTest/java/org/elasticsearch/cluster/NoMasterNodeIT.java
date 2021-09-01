@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -27,11 +18,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.plugins.Plugin;
@@ -49,6 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -258,6 +252,85 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
+
+        internalCluster().clearDisruptionScheme(true);
+    }
+
+    public void testNoMasterActionsMetadataWriteMasterBlock() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write")
+            .put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), "100ms")
+            .build();
+
+        final List<String> nodes = internalCluster().startNodes(3, settings);
+
+        prepareCreate("test1").setSettings(
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
+        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        refresh();
+
+        ensureGreen("test1");
+
+        ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
+        logger.info("Cluster state:\n{}", clusterState.getState());
+
+        final List<String> nodesWithShards = clusterState.getState().routingTable().index("test1").shard(0).activeShards().stream()
+            .map(shardRouting -> shardRouting.currentNodeId()).map(nodeId -> clusterState.getState().nodes().resolveNode(nodeId))
+            .map(DiscoveryNode::getName).collect(Collectors.toList());
+
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE,
+            new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))).get();
+        ensureGreen("test1");
+
+        String partitionedNode = nodes.stream().filter(n -> nodesWithShards.contains(n) == false).findFirst().get();
+
+        final NetworkDisruption disruptionScheme
+            = new NetworkDisruption(new NetworkDisruption.TwoPartitions(Collections.singleton(partitionedNode),
+            new HashSet<>(nodesWithShards)), NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(disruptionScheme);
+        disruptionScheme.startDisrupting();
+
+        assertBusy(() -> {
+            for (String node : nodesWithShards) {
+                ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            }
+        });
+
+        GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
+        assertExists(getResponse);
+
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
+
+        SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
+            .setAllowPartialSearchResults(true).setSize(0).get();
+        assertHitCount(countResponse, 1L);
+
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareSearch("test1")
+            .setAllowPartialSearchResults(true).setSize(0).get());
+
+        TimeValue timeout = TimeValue.timeValueMillis(200);
+        client(randomFrom(nodesWithShards)).prepareUpdate("test1", "1")
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get();
+
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareUpdate("test1", "1")
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get());
+
+        client(randomFrom(nodesWithShards)).prepareIndex("test1").setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
+
+        // dynamic mapping updates fail
+        expectThrows(MasterNotDiscoveredException.class, () -> client(randomFrom(nodesWithShards)).prepareIndex("test1").setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
+            .setTimeout(timeout).get());
+
+        // dynamic index creation fails
+        expectThrows(MasterNotDiscoveredException.class, () -> client(randomFrom(nodesWithShards)).prepareIndex("test2").setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get());
+
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareIndex("test1").setId("1")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get());
 
         internalCluster().clearDisruptionScheme(true);
     }

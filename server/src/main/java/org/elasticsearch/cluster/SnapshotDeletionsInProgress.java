@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,21 +69,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
-     * Returns a new instance of {@link SnapshotDeletionsInProgress} with the given
-     * {@link Entry} added.
-     */
-    public static SnapshotDeletionsInProgress newInstance(Entry entry) {
-        return new SnapshotDeletionsInProgress(Collections.singletonList(entry));
-    }
-
-    /**
      * Returns a new instance of {@link SnapshotDeletionsInProgress} which adds
      * the given {@link Entry} to the invoking instance.
      */
     public SnapshotDeletionsInProgress withAddedEntry(Entry entry) {
-        List<Entry> entries = new ArrayList<>(getEntries());
-        entries.add(entry);
-        return SnapshotDeletionsInProgress.of(entries);
+        return SnapshotDeletionsInProgress.of(CollectionUtils.appendToCopy(getEntries(), entry));
     }
 
     /**
@@ -121,6 +98,20 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      */
     public List<Entry> getEntries() {
         return entries;
+    }
+
+    /**
+     * Checks if there is an actively executing delete operation for the given repository
+     *
+     * @param repository repository name
+     */
+    public boolean hasExecutingDeletion(String repository) {
+        for (Entry entry : entries) {
+            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -180,8 +171,9 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                     builder.value(snapshot.getName());
                 }
                 builder.endArray();
-                builder.humanReadableField("start_time_millis", "start_time", new TimeValue(entry.startTime));
+                builder.timeField("start_time_millis", "start_time", entry.startTime);
                 builder.field("repository_state_id", entry.repositoryStateId);
+                builder.field("state", entry.state);
             }
             builder.endObject();
         }
@@ -231,13 +223,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             this.snapshots = in.readList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
-            if (in.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
-                this.state = State.readFrom(in);
-                this.uuid = in.readString();
-            } else {
-                this.state = State.STARTED;
-                this.uuid = IndexMetadata.INDEX_UUID_NA_VALUE;
-            }
+            this.state = State.readFrom(in);
+            this.uuid = in.readString();
         }
 
         public Entry started() {
@@ -309,10 +296,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             out.writeCollection(snapshots);
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
-            if (out.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
-                state.writeTo(out);
-                out.writeString(uuid);
-            }
+            state.writeTo(out);
+            out.writeString(uuid);
         }
 
         @Override

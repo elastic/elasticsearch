@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import javax.net.ssl.KeyManagerFactory;
 import java.security.KeyStore;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -33,7 +34,9 @@ public class X509KeyPairSettings {
     static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEYSTORE_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(key,
-            LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_password", "keystore.password")));
+            LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(
+                key.replace(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD)
+            ));
 
     static final Function<String, Setting<String>> KEY_STORE_ALGORITHM_TEMPLATE = key ->
             new Setting<>(key, s -> KeyManagerFactory.getDefaultAlgorithm(),
@@ -45,8 +48,9 @@ public class X509KeyPairSettings {
     static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEYSTORE_KEY_PASSWORD_TEMPLATE = key ->
-            SecureSetting.secureString(key, LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_key_password",
-                    "keystore.key_password")));
+            SecureSetting.secureString(key, LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(
+                key.replace(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD)
+            ));
 
     static final Function<String, Setting<Optional<String>>> KEY_PATH_TEMPLATE = key -> new Setting<>(key, s -> null,
             Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
@@ -57,8 +61,9 @@ public class X509KeyPairSettings {
     static final Function<String, Setting<SecureString>> LEGACY_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEY_PASSWORD_TEMPLATE = key ->
-            SecureSetting.secureString(key, LEGACY_KEY_PASSWORD_TEMPLATE.apply(key.replace("secure_key_passphrase",
-                    "key_passphrase")));
+            SecureSetting.secureString(key, LEGACY_KEY_PASSWORD_TEMPLATE.apply(
+                key.replace(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, SslConfigurationKeys.KEY_LEGACY_PASSPHRASE)
+            ));
 
 
     // Specify private cert/key pair via keystore
@@ -79,36 +84,41 @@ public class X509KeyPairSettings {
     final Setting<SecureString> legacyKeystoreKeyPassword;
     final Setting<SecureString> legacyKeyPassword;
 
-    private final List<Setting<?>> allSettings;
+    private final List<Setting<?>> enabledSettings;
+    private final List<Setting<?>> disabledSettings;
 
     private interface SettingFactory {
         <T> Setting<T> apply(String keyPart, Function<String, Setting<T>> template);
     }
 
     private X509KeyPairSettings(boolean acceptNonSecurePasswords, SettingFactory factory) {
-        keystorePath = factory.apply("keystore.path", KEYSTORE_PATH_TEMPLATE);
-        keystorePassword = factory.apply("keystore.secure_password", KEYSTORE_PASSWORD_TEMPLATE);
-        keystoreAlgorithm = factory.apply("keystore.algorithm", KEY_STORE_ALGORITHM_TEMPLATE);
-        keystoreType = factory.apply("keystore.type", KEY_STORE_TYPE_TEMPLATE);
-        keystoreKeyPassword = factory.apply("keystore.secure_key_password", KEYSTORE_KEY_PASSWORD_TEMPLATE);
+        keystorePath = factory.apply(SslConfigurationKeys.KEYSTORE_PATH, KEYSTORE_PATH_TEMPLATE);
+        keystorePassword = factory.apply(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, KEYSTORE_PASSWORD_TEMPLATE);
+        keystoreAlgorithm = factory.apply(SslConfigurationKeys.KEYSTORE_ALGORITHM, KEY_STORE_ALGORITHM_TEMPLATE);
+        keystoreType = factory.apply(SslConfigurationKeys.KEYSTORE_TYPE, KEY_STORE_TYPE_TEMPLATE);
+        keystoreKeyPassword = factory.apply(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, KEYSTORE_KEY_PASSWORD_TEMPLATE);
 
-        keyPath = factory.apply("key", KEY_PATH_TEMPLATE);
-        keyPassword = factory.apply("secure_key_passphrase", KEY_PASSWORD_TEMPLATE);
-        certificatePath = factory.apply("certificate", CERT_TEMPLATE);
+        keyPath = factory.apply(SslConfigurationKeys.KEY, KEY_PATH_TEMPLATE);
+        keyPassword = factory.apply(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, KEY_PASSWORD_TEMPLATE);
+        certificatePath = factory.apply(SslConfigurationKeys.CERTIFICATE, CERT_TEMPLATE);
 
-        legacyKeystorePassword = factory.apply("keystore.password", LEGACY_KEYSTORE_PASSWORD_TEMPLATE);
-        legacyKeystoreKeyPassword = factory.apply("keystore.key_password", LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE);
-        legacyKeyPassword = factory.apply("key_passphrase", LEGACY_KEY_PASSWORD_TEMPLATE);
+        legacyKeystorePassword = factory.apply(SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD, LEGACY_KEYSTORE_PASSWORD_TEMPLATE);
+        legacyKeystoreKeyPassword = factory.apply(SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD, LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE);
+        legacyKeyPassword = factory.apply(SslConfigurationKeys.KEY_LEGACY_PASSPHRASE, LEGACY_KEY_PASSWORD_TEMPLATE);
 
-        final List<Setting<?>> settings = CollectionUtils.arrayAsArrayList(
+        final List<Setting<?>> enabled = CollectionUtils.arrayAsArrayList(
                 keystorePath, keystorePassword, keystoreAlgorithm, keystoreType, keystoreKeyPassword,
                 keyPath, keyPassword, certificatePath);
+
+        final List<Setting<?>> legacySettings = List.of(legacyKeystorePassword,legacyKeystoreKeyPassword,legacyKeyPassword);
         if (acceptNonSecurePasswords) {
-            settings.add(legacyKeystorePassword);
-            settings.add(legacyKeystoreKeyPassword);
-            settings.add(legacyKeyPassword);
+            enabled.addAll(legacySettings);
+            disabledSettings = List.of();
+        } else {
+            disabledSettings = legacySettings;
         }
-        allSettings = Collections.unmodifiableList(settings);
+
+        enabledSettings = List.copyOf(enabled);
     }
 
     public static X509KeyPairSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
@@ -127,10 +137,14 @@ public class X509KeyPairSettings {
                 return Setting.affixKeySetting(prefix, suffixPart + keyPart, template);
             }
         });
-        return settings.getAllSettings().stream().map(s -> (Setting.AffixSetting<?>) s).collect(Collectors.toList());
+        return settings.getEnabledSettings().stream().map(s -> (Setting.AffixSetting<?>) s).collect(Collectors.toList());
     }
 
-    public Collection<Setting<?>> getAllSettings() {
-        return allSettings;
+    public Collection<Setting<?>> getEnabledSettings() {
+        return enabledSettings;
+    }
+
+    public Collection<Setting<?>> getDisabledSettings() {
+        return disabledSettings;
     }
 }

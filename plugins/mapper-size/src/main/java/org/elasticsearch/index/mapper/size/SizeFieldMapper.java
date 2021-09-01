@@ -1,106 +1,78 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper.size;
 
-import org.apache.lucene.document.FieldType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.EnabledAttributeMapper;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
 
-    public static class Defaults  {
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
-
-        public static final FieldType SIZE_FIELD_TYPE = new FieldType();
-
-        static {
-            SIZE_FIELD_TYPE.setStored(true);
-            SIZE_FIELD_TYPE.freeze();
-        }
+    private static SizeFieldMapper toType(FieldMapper in) {
+        return (SizeFieldMapper) in;
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    public static class Builder extends MetadataFieldMapper.Builder {
 
-        protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
+        private final Parameter<Explicit<Boolean>> enabled
+            = updateableBoolParam("enabled", m -> toType(m).enabled, false);
 
         private Builder() {
-            super(NAME, Defaults.SIZE_FIELD_TYPE);
-            builder = this;
-        }
-
-        public Builder enabled(EnabledAttributeMapper enabled) {
-            this.enabledState = enabled;
-            return builder;
+            super(NAME);
         }
 
         @Override
-        public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(fieldType, enabledState,
-                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
+        protected List<Parameter<?>> getParameters() {
+            return List.of(enabled);
+        }
+
+        @Override
+        public SizeFieldMapper build() {
+            return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
+    private static class SizeFieldType extends NumberFieldType {
+        SizeFieldType() {
+            super(NAME, NumberType.INTEGER);
+        }
+
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder();
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled")) {
-                    boolean enabled = XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled");
-                    builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
-                    iterator.remove();
-                }
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (hasDocValues() == false) {
+                return lookup -> List.of();
             }
-            return builder;
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new SizeFieldMapper(Defaults.SIZE_FIELD_TYPE, Defaults.ENABLED_STATE,
-                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }
     }
 
-    private EnabledAttributeMapper enabledState;
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> new SizeFieldMapper(new Explicit<>(false, false), new SizeFieldType()),
+        c -> new Builder()
+    );
 
-    private SizeFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled,
-                            MappedFieldType mappedFieldType) {
-        super(fieldType, mappedFieldType);
-        this.enabledState = enabled;
+    private final Explicit<Boolean> enabled;
+
+    private SizeFieldMapper(Explicit<Boolean> enabled, MappedFieldType mappedFieldType) {
+        super(mappedFieldType);
+        this.enabled = enabled;
     }
 
     @Override
@@ -109,57 +81,21 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public boolean enabled() {
-        return this.enabledState.enabled;
+        return this.enabled.value();
     }
 
     @Override
-    public void preParse(ParseContext context) {
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) {
-        // nothing to do here, we call the parent in postParse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) {
-        if (!enabledState.enabled) {
+        if (enabled.value() == false) {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        boolean indexed = fieldType().isSearchable();
-        boolean docValued = fieldType().hasDocValues();
-        boolean stored = fieldType.stored();
-        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));
+        context.doc().addAll(NumberType.INTEGER.createFields(name(), value, true, true, true));
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE) {
-            return builder;
-        }
-        builder.startObject(contentType());
-        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
-            builder.field("enabled", enabledState.enabled);
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) other;
-        if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
-            this.enabledState = sizeFieldMapperMergeWith.enabledState;
-        }
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder().init(this);
     }
 }

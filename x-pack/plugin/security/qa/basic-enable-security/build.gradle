@@ -1,38 +1,54 @@
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-integTest {
-  description = "Run tests against a cluster that doesn't have security"
-  runner {
-    systemProperty 'tests.has_security', 'false'
+tasks.named("javaRestTest").configure {
+  description = "Run tests against a cluster that has security disabled"
+  systemProperty 'tests.has_security', 'false'
+}
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+
+testClusters {
+  javaRestTest {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'basic'
+    setting 'xpack.security.enabled', 'false'
   }
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'false'
-}
-
-task integTestSecurity(type: RestTestRunnerTask) {
-  description = "Run tests against a cluster that has security"
-  useCluster testClusters.integTest
-  dependsOn integTest
+tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
+  mustRunAfter("javaRestTest")
+  description = "Run tests against a cluster that has security enabled"
+  dependsOn "javaRestTest"
+  useCluster testClusters.javaRestTest
   systemProperty 'tests.has_security', 'true'
-
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  onlyIf {
+    BuildParams.inFipsJvm == false
+  }
   doFirst {
-    testClusters.integTest {
+    testClusters.javaRestTest {
+      // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.
       // Reconfigure cluster to enable security
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.authc.anonymous.roles', 'anonymous'
@@ -42,18 +58,18 @@ task integTestSecurity(type: RestTestRunnerTask) {
       setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
       setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
 
-      extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
-      extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
-      extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
-      extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+      extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
+      extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
+      extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
+      extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
 
       user username: "admin_user", password: "admin-password"
       user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 
       restart()
     }
-    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
+    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn(integTestSecurity) }
+tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -27,7 +16,6 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -119,8 +107,8 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(NumberSortScript.class)) {
             NumberSortScript.Factory factory = (parameters, lookup) -> new NumberSortScript.LeafFactory() {
                 @Override
-                public NumberSortScript newInstance(final LeafReaderContext ctx) {
-                    return new NumberSortScript(parameters, lookup, ctx) {
+                public NumberSortScript newInstance(DocReader reader) {
+                    return new NumberSortScript(parameters, lookup, reader) {
                         @Override
                         public double execute() {
                             Map<String, Object> vars = new HashMap<>(parameters);
@@ -242,6 +230,71 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(IntervalFilterScript.class)) {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(BooleanFieldScript.class)) {
+            BooleanFieldScript.Factory booleanFieldScript = (f, p, s) -> ctx -> new BooleanFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(true);
+                }
+            };
+            return context.factoryClazz.cast(booleanFieldScript);
+        } else if (context.instanceClazz.equals(StringFieldScript.class)) {
+            StringFieldScript.Factory stringFieldScript = (f, p, s) -> ctx -> new StringFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit("test");
+                }
+            };
+            return context.factoryClazz.cast(stringFieldScript);
+        } else if (context.instanceClazz.equals(LongFieldScript.class)) {
+            LongFieldScript.Factory longFieldScript = (f, p, s) -> ctx -> new LongFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(1L);
+                }
+            };
+            return context.factoryClazz.cast(longFieldScript);
+        } else if (context.instanceClazz.equals(DoubleFieldScript.class)) {
+            DoubleFieldScript.Factory doubleFieldScript = (f, p, s) -> ctx -> new DoubleFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(1.2D);
+                }
+            };
+            return context.factoryClazz.cast(doubleFieldScript);
+        } else if (context.instanceClazz.equals(DateFieldScript.class)) {
+            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter) -> ctx -> new DateFieldScript(f, p, s, formatter, ctx) {
+                @Override
+                public void execute() {
+                    emit(123L);
+                }
+            };
+            return context.factoryClazz.cast(dateFieldScript);
+        } else if (context.instanceClazz.equals(IpFieldScript.class)) {
+            IpFieldScript.Factory ipFieldScript = (f, p, s) -> ctx -> new IpFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit("127.0.0.1");
+                }
+            };
+            return context.factoryClazz.cast(ipFieldScript);
+        } else if (context.instanceClazz.equals(GeoPointFieldScript.class)) {
+            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s) -> ctx -> new GeoPointFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit(1.2D, 1.2D);
+                }
+            };
+            return context.factoryClazz.cast(geoPointFieldScript);
+        } else if (context.instanceClazz.equals(CompositeFieldScript.class)) {
+            CompositeFieldScript.Factory objectFieldScript = (f, p, s) -> ctx -> new CompositeFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit("field1", "value1");
+                    emit("field2", "value2");
+                }
+            };
+            return context.factoryClazz.cast(objectFieldScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
@@ -336,13 +389,12 @@ public class MockScriptEngine implements ScriptEngine {
             this.script = script;
         }
 
-        public FilterScript newInstance(LeafReaderContext context) throws IOException {
-            LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
+        public FilterScript newInstance(DocReader docReader) throws IOException {
+            Map<String, Object> ctx = new HashMap<>(docReader.docAsMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }
-            return new FilterScript(ctx, lookup, context) {
+            return new FilterScript(ctx, lookup, docReader) {
                 @Override
                 public boolean execute() {
                     return (boolean) script.apply(ctx);
@@ -350,7 +402,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public void setDocument(int doc) {
-                    leafLookup.setDocument(doc);
+                    docReader.setDocument(doc);
                 }
             };
         }
@@ -560,9 +612,9 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
-                public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                public ScoreScript newInstance(DocReader docReader) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
-                    return new ScoreScript(params, lookup, ctx) {
+                    return new ScoreScript(params, null, docReader) {
                         @Override
                         public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());
@@ -646,7 +698,7 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public Object execute() {
                     Map<String, Object> vars = createVars(parameters);
-                    vars.putAll(getLeafLookup().asMap());
+                    vars.putAll(docAsMap());
                     return script.apply(vars);
 
                 }
@@ -660,8 +712,8 @@ public class MockScriptEngine implements ScriptEngine {
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
         @Override
-        public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters, SearchLookup lookup) {
-            return ctx -> new StringSortScript(parameters, lookup, ctx) {
+        public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
+            return docReader -> new StringSortScript(parameters, docReader) {
                 @Override
                 public String execute() {
                     Map<String, Object> vars = new HashMap<>(parameters);

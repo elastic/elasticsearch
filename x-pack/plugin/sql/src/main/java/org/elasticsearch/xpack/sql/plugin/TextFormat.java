@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -23,7 +25,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
@@ -32,7 +36,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 /**
  * Templating class for displaying SQL responses in text formats.
  */
-enum TextFormat {
+enum TextFormat implements MediaType {
 
     /**
      * Default text writer.
@@ -69,20 +73,19 @@ enum TextFormat {
                 }
                 // format with header
                 return formatter.formatWithHeader(response.columns(), response.rows());
-            }
-            else {
-                // should be initialized (wrapped by the cursor)
-                if (formatter != null) {
-                    // format without header
-                    return formatter.formatWithoutHeader(response.rows());
-                }
+            } else if (formatter != null) { // should be initialized (wrapped by the cursor)
+                // format without header
+                return formatter.formatWithoutHeader(response.rows());
+            } else if (response.hasId()) {
+                // an async request has no results yet
+                return StringUtils.EMPTY;
             }
             // if this code is reached, it means it's a next page without cursor wrapping
             throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");
         }
 
         @Override
-        String shortName() {
+        public String queryParameter() {
             return FORMAT_TEXT;
         }
 
@@ -100,6 +103,16 @@ enum TextFormat {
         protected String eol() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent")),
+                new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
     },
 
     /**
@@ -124,7 +137,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String queryParameter() {
             return FORMAT_CSV;
         }
 
@@ -211,10 +224,20 @@ enum TextFormat {
                 }
                 return true;
             } else {
-                return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
+                return header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT) == false;
             }
         }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent","delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
+                new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent","delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
     },
+
 
     TSV() {
         @Override
@@ -229,7 +252,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String queryParameter() {
             return FORMAT_TSV;
         }
 
@@ -263,14 +286,25 @@ enum TextFormat {
 
             return sb.toString();
         }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
+                new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
     };
 
     private static final String FORMAT_TEXT = "txt";
     private static final String FORMAT_CSV = "csv";
     private static final String FORMAT_TSV = "tsv";
     private static final String CONTENT_TYPE_TXT = "text/plain";
+    private static final String VENDOR_CONTENT_TYPE_TXT = "text/vnd.elasticsearch+plain";
     private static final String CONTENT_TYPE_CSV = "text/csv";
+    private static final String VENDOR_CONTENT_TYPE_CSV = "text/vnd.elasticsearch+csv";
     private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
+    private static final String VENDOR_CONTENT_TYPE_TSV = "text/vnd.elasticsearch+tab-separated-values";
     private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
@@ -294,26 +328,6 @@ enum TextFormat {
     boolean hasHeader(RestRequest request) {
         return true;
     }
-
-    static TextFormat fromMediaTypeOrFormat(String accept) {
-        for (TextFormat text : values()) {
-            String contentType = text.contentType();
-            if (contentType.equalsIgnoreCase(accept)
-                    || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
-                    || text.shortName().equalsIgnoreCase(accept)) {
-                return text;
-            }
-        }
-
-        throw new IllegalArgumentException("invalid format [" + accept + "]");
-    }
-
-    /**
-     * Short name typically used by format parameter.
-     * Can differ from the IANA mime type.
-     */
-    abstract String shortName();
-
 
     /**
      * Formal IANA mime type.

@@ -1,0 +1,116 @@
+[role="xpack"]
+[[security-api-create-service-token]]
+=== Create service account token API
+++++
+<titleabbrev>Create service account tokens</titleabbrev>
+++++
+
+Creates a  <<service-accounts,service accounts>> token for access without requiring basic
+authentication.
+
+[[security-api-create-service-token-request]]
+==== {api-request-title}
+
+`POST /_security/service/<namespace>/<service>/credential/token/<token_name>`
+
+`PUT /_security/service/<namespace>/<service>/credential/token/<token_name>`
+
+`POST /_security/service/<namespace>/<service>/credential/token`
+
+[[security-api-create-service-token-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_service_account`
+<<privileges-list-cluster,cluster privilege>>.
+
+[[security-api-create-service-token-desc]]
+==== {api-description-title}
+include::../../security/authentication/service-accounts.asciidoc[tag=service-accounts-tls]
+
+A successful create service account token API call returns a JSON structure
+that contains the service account token, its name, and its secret value.
+
+NOTE: Service account tokens never expire. You must actively <<security-api-delete-service-token,delete>> them if they are no longer needed.
+
+[[security-api-create-service-token-path-params]]
+==== {api-path-parms-title}
+
+`namespace`::
+  (Required, string) Name of the namespace.
+
+`service`::
+  (Required, string) Name of the service name.
+
+`token_name`::
+  (Optional, string) Name for the service account token. If omitted, a random name will be generated.
++
+--
+Token names must be at least 1 and no more than 256 characters. They can contain
+alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores
+(`_`), but cannot begin with an underscore.
+
+NOTE: Token names must be unique in the context of the associated service
+account. They must also be globally unique with their fully qualified names,
+which are comprised of the service account principal and token name, such as
+`<namespace>/<service>/<token-name>`.
+--
+
+[[security-api-create-service-token-example]]
+==== {api-examples-title}
+
+The following request creates a service account token:
+
+[source,console]
+----
+POST /_security/service/elastic/fleet-server/credential/token/token1
+----
+
+The response includes the service account token, its name, and its secret value:
+
+[source,console-result]
+----
+{
+  "created": true,
+  "token": {
+    "name": "token1",
+    "value": "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" <1>
+  }
+}
+----
+// TESTRESPONSE[s/AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ/$body.token.value/]
+<1> The secret value to use as a bearer token
+
+To use the service account token, include the generated token value in a
+request with an `Authorization: Bearer` header:
+
+[source,shell]
+----
+curl -H "Authorization: Bearer AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" http://localhost:9200/_cluster/health
+----
+// NOTCONSOLE
+
+NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then
+you must specify `https` in the request URL.
+
+The following request creates a service token with an auto-generated token name:
+
+[source,console]
+----
+POST /_security/service/elastic/fleet-server/credential/token
+----
+
+The response includes the service account token, its auto-generated name, and
+its secret value:
+
+[source,console-result]
+----
+{
+  "created": true,
+  "token": {
+    "name": "Jk5J1HgBuyBK5TpDrdo4",
+    "value": "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ"
+  }
+}
+----
+// TESTRESPONSE[s/Jk5J1HgBuyBK5TpDrdo4/$body.token.name/]
+// TESTRESPONSE[s/AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ/$body.token.value/]

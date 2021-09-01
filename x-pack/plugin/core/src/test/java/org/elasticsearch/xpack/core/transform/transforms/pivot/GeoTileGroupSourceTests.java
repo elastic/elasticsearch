@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
@@ -28,7 +29,7 @@ public class GeoTileGroupSourceTests extends AbstractSerializingTestCase<GeoTile
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
         return new GeoTileGroupSource(
-            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
             missingBucket,
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
             randomBoolean()

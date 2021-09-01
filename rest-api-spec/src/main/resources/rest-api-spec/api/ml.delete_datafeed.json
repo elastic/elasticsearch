@@ -1,0 +1,36 @@
+{
+  "ml.delete_datafeed":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html",
+      "description":"Deletes an existing datafeed."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/datafeeds/{datafeed_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to delete"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"True if the datafeed should be forcefully deleted"
+      }
+    }
+  }
+}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -13,15 +14,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -47,9 +48,11 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
 import org.elasticsearch.xpack.enrich.action.EnrichInfoTransportAction;
+import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
 import org.elasticsearch.xpack.enrich.action.EnrichUsageTransportAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.TransportEnrichReindexAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
 import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyAction;
@@ -151,7 +154,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             new ActionHandler<>(EnrichStatsAction.INSTANCE, TransportEnrichStatsAction.class),
             new ActionHandler<>(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
             new ActionHandler<>(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
-            new ActionHandler<>(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class)
+            new ActionHandler<>(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class),
+            new ActionHandler<>(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class)
         );
     }
 
@@ -235,5 +239,15 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "enrich";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages data related to Enrich policies";
     }
 }

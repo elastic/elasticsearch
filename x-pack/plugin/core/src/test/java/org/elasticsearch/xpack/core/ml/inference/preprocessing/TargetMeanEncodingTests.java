@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
@@ -24,7 +25,9 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
 
     @Override
     protected TargetMeanEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? TargetMeanEncoding.fromXContentLenient(parser) : TargetMeanEncoding.fromXContentStrict(parser);
+        return lenient ?
+            TargetMeanEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
+            TargetMeanEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -33,16 +36,24 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
     }
 
     public static TargetMeanEncoding createRandom() {
+        return createRandom(randomBoolean() ? randomBoolean() : null);
+    }
+
+    public static TargetMeanEncoding createRandom(Boolean isCustom) {
+        return createRandom(isCustom, randomAlphaOfLength(10));
+    }
+
+    public static TargetMeanEncoding createRandom(Boolean isCustom, String inputField) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(randomAlphaOfLength(10),
+        return new TargetMeanEncoding(inputField,
             randomAlphaOfLength(10),
             valueMap,
             randomDoubleBetween(0.0, 1.0, false),
-            randomBoolean() ? randomBoolean() : null);
+            isCustom);
     }
 
     @Override

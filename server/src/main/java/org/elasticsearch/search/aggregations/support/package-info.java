@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -40,7 +29,8 @@ package org.elasticsearch.search.aggregations.support;
  * <p>
  * ValuesSourceRegistry stores the mappings for what types are supported by what aggregations.  It is configured at startup, when
  * {@link org.elasticsearch.search.SearchModule} is configuring aggregations.  It shouldn't be necessary to access the registry in most
- * cases, but you can get a read copy from {@link org.elasticsearch.index.query.QueryShardContext#getValuesSourceRegistry()} if necessary.
+ * cases, but you can get a read copy from
+ * {@link org.elasticsearch.search.aggregations.support.AggregationContext#getValuesSourceRegistry()} if necessary.
  * </p>
  *
  * <h3> {@link org.elasticsearch.search.aggregations.support.ValuesSourceType} </h3>
@@ -49,7 +39,7 @@ package org.elasticsearch.search.aggregations.support;
  * aggregations.  Fields which support aggregation set a ValuesSourceType on their {@link org.elasticsearch.index.fielddata.IndexFieldData}
  * implementations, and aggregations register what types they support via one of the
  * {@link org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.Builder#register} methods.  The VaulesSourceType itself holds
- * information on how to with values of that type, including methods for creating
+ * information on how to work with values of that type, including methods for creating
  * {@link org.elasticsearch.search.aggregations.support.ValuesSource} instances and {@link org.elasticsearch.search.DocValueFormat}
  * instances.
  * </p>

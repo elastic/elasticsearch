@@ -1,31 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -34,23 +25,39 @@ import java.util.Map;
 public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.sourceRequested() == false) {
-            return;
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
+        FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
+        if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
+            return null;
         }
-        final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = hitContext.sourceLookup();
-        FetchSourceContext fetchSourceContext = context.fetchSourceContext();
+        String index = fetchContext.getIndexName();
         assert fetchSourceContext.fetchSource();
 
-        // If source is disabled in the mapping, then attempt to return early.
-        if (source.source() == null && source.internalSourceRef() == null) {
-            if (containsFilters(fetchSourceContext)) {
-                throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                    "for index [" + context.indexShard().shardId().getIndexName() + "]");
+        return new FetchSubPhaseProcessor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
+
             }
-            return;
-        }
+
+            @Override
+            public void process(HitContext hitContext) {
+                if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
+                    if (containsFilters(fetchSourceContext)) {
+                        throw new IllegalArgumentException(
+                            "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]");
+                    }
+                    return;
+                }
+                hitExecute(fetchSourceContext, hitContext);
+            }
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
+
+        final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
+        SourceLookup source = hitContext.sourceLookup();
 
         // If this is a parent document and there are no source filters, then add the source as-is.
         if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
@@ -89,6 +96,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
         return context.includes().length != 0 || context.excludes().length != 0;
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
         for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
             sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());

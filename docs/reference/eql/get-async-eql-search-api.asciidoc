@@ -7,8 +7,6 @@
 <titleabbrev>Get async EQL search</titleabbrev>
 ++++
 
-experimental::[]
-
 Returns the current status and available results for an <<eql-search-async,async
 EQL search>> or a <<eql-search-store-sync-eql-search,stored synchronous EQL
 search>>.
@@ -27,12 +25,15 @@ GET /_eql/search/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUTo
 [[get-async-eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-See <<eql-requirements,EQL requirements>>.
+* If the {es} {security-features} are enabled, only the user who first submitted
+the EQL search can retrieve the search using this API.
+
+* See <<eql-required-fields>>.
 
 [[get-async-eql-search-api-limitations]]
 ===== Limitations
 
-See <<eql-limitations,EQL limitations>>.
+See <<eql-syntax-limitations,EQL limitations>>.
 
 [[get-async-eql-search-api-path-params]]
 ==== {api-path-parms-title}

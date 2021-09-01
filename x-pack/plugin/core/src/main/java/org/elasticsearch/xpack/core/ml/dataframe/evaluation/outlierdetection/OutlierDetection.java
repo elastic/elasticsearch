@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -23,6 +25,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.ACTUAL_FIELD;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_PROBABILITY_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -32,10 +36,9 @@ public class OutlierDetection implements Evaluation {
 
     public static final ParseField NAME = new ParseField("outlier_detection", "binary_soft_classification");
 
-    private static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
-    private static final ParseField PREDICTED_PROBABILITY_FIELD = new ParseField("predicted_probability_field");
     private static final ParseField METRICS = new ParseField("metrics");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(), a -> new OutlierDetection((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 
@@ -50,30 +53,34 @@ public class OutlierDetection implements Evaluation {
         return PARSER.apply(parser, null);
     }
 
-    static QueryBuilder actualIsTrueQuery(String actualField) {
+    public static QueryBuilder actualIsTrueQuery(String actualField) {
         return QueryBuilders.queryStringQuery(actualField + ": (1 OR true)");
     }
 
     /**
-     * The field where the actual class is marked up.
-     * The value of this field is assumed to either be 1 or 0, or true or false.
+     * The collection of fields in the index being evaluated.
+     *   fields.getActualField() is assumed to either be 1 or 0, or true or false.
+     *   fields.getPredictedProbabilityField() is assumed to be a number in [0.0, 1.0].
+     * Other fields are not needed by this evaluation.
      */
-    private final String actualField;
-
-    /**
-     * The field of the predicted probability in [0.0, 1.0].
-     */
-    private final String predictedProbabilityField;
+    private final EvaluationFields fields;
 
     /**
      * The list of metrics to calculate
      */
     private final List<EvaluationMetric> metrics;
 
-    public OutlierDetection(String actualField, String predictedProbabilityField,
+    public OutlierDetection(String actualField,
+                            String predictedProbabilityField,
                             @Nullable List<EvaluationMetric> metrics) {
-        this.actualField = ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD);
-        this.predictedProbabilityField = ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD);
+        this.fields =
+            new EvaluationFields(
+                ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
+                null,
+                null,
+                null,
+                ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD),
+                false);
         this.metrics = initMetrics(metrics, OutlierDetection::defaultMetrics);
     }
 
@@ -86,8 +93,7 @@ public class OutlierDetection implements Evaluation {
     }
 
     public OutlierDetection(StreamInput in) throws IOException {
-        this.actualField = in.readString();
-        this.predictedProbabilityField = in.readString();
+        this.fields = new EvaluationFields(in.readString(), null, null, null, in.readString(), false);
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }
 
@@ -97,13 +103,8 @@ public class OutlierDetection implements Evaluation {
     }
 
     @Override
-    public String getActualField() {
-        return actualField;
-    }
-
-    @Override
-    public String getPredictedField() {
-        return predictedProbabilityField;
+    public EvaluationFields getFields() {
+        return fields;
     }
 
     @Override
@@ -118,16 +119,16 @@ public class OutlierDetection implements Evaluation {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(actualField);
-        out.writeString(predictedProbabilityField);
+        out.writeString(fields.getActualField());
+        out.writeString(fields.getPredictedProbabilityField());
         out.writeNamedWriteableList(metrics);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ACTUAL_FIELD.getPreferredName(), actualField);
-        builder.field(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField);
+        builder.field(ACTUAL_FIELD.getPreferredName(), fields.getActualField());
+        builder.field(PREDICTED_PROBABILITY_FIELD.getPreferredName(), fields.getPredictedProbabilityField());
 
         builder.startObject(METRICS.getPreferredName());
         for (EvaluationMetric metric : metrics) {
@@ -144,13 +145,12 @@ public class OutlierDetection implements Evaluation {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OutlierDetection that = (OutlierDetection) o;
-        return Objects.equals(actualField, that.actualField)
-            && Objects.equals(predictedProbabilityField, that.predictedProbabilityField)
+        return Objects.equals(fields, that.fields)
             && Objects.equals(metrics, that.metrics);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualField, predictedProbabilityField, metrics);
+        return Objects.hash(fields, metrics);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -30,7 +19,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -51,7 +39,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
     }
 
@@ -114,10 +102,10 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
-        //script_score.script.params can contain arbitrary parameters. no error is expected when
-        //adding additional objects within the params object.
-        return Collections.singleton(Script.PARAMS_PARSE_FIELD.getPreferredName());
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        // script_score.script.params can contain arbitrary parameters. no error is expected when
+        // adding additional objects within the params object.
+        return Collections.singletonMap(Script.PARAMS_PARSE_FIELD.getPreferredName(), null);
     }
 
     /**
@@ -126,19 +114,19 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     @Override
     public void testCacheability() throws IOException {
         ScriptQueryBuilder queryBuilder = createTestQueryBuilder();
-        QueryShardContext context = createShardContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     public void testDisallowExpensiveQueries() {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
 
         ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> queryBuilder.toQuery(queryShardContext));
+                () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());
     }

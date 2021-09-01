@@ -1,0 +1,657 @@
+[role="xpack"]
+[testenv="basic"]
+[[put-trained-models]]
+= Create trained models API
+[subs="attributes"]
+++++
+<titleabbrev>Create trained models</titleabbrev>
+++++
+
+Creates a trained model.
+
+WARNING: Models created in version 7.8.0 are not backwards compatible
+         with older node versions. If in a mixed cluster environment,
+         all nodes must be at least 7.8.0 to use a model stored by
+         a 7.8.0 node.
+
+
+[[ml-put-trained-models-request]]
+== {api-request-title}
+
+`PUT _ml/trained_models/<model_id>`
+
+
+[[ml-put-trained-models-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+
+[[ml-put-trained-models-desc]]
+== {api-description-title}
+
+The create trained model API enables you to supply a trained model that is not
+created by {dfanalytics}.
+
+
+[[ml-put-trained-models-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+[role="child_attributes"]
+[[ml-put-trained-models-request-body]]
+== {api-request-body-title}
+
+`compressed_definition`::
+(Required, string)
+The compressed (GZipped and Base64 encoded) {infer} definition of the model.
+If `compressed_definition` is specified, then `definition` cannot be specified.
+
+//Begin definition
+`definition`::
+(Required, object)
+The {infer} definition for the model. If `definition` is specified, then
+`compressed_definition` cannot be specified.
++
+.Properties of `definition`
+[%collapsible%open]
+====
+//Begin preprocessors
+`preprocessors`::
+(Optional, object)
+Collection of preprocessors. See <<ml-put-trained-models-preprocessor-example>>.
++
+.Properties of `preprocessors`
+[%collapsible%open]
+=====
+//Begin frequency encoding
+`frequency_encoding`::
+(Required, object)
+Defines a frequency encoding for a field.
++
+.Properties of `frequency_encoding`
+[%collapsible%open]
+======
+`feature_name`::
+(Required, string)
+The name of the resulting feature.
+
+`field`::
+(Required, string)
+The field name to encode.
+
+`frequency_map`::
+(Required, object map of string:double)
+Object that maps the field value to the frequency encoded value.
+
+`custom`::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
+======
+//End frequency encoding
+
+//Begin one hot encoding
+`one_hot_encoding`::
+(Required, object)
+Defines a one hot encoding map for a field.
++
+.Properties of `one_hot_encoding`
+[%collapsible%open]
+======
+`field`::
+(Required, string)
+The field name to encode.
+
+`hot_map`::
+(Required, object map of strings)
+String map of "field_value: one_hot_column_name".
+
+`custom`::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
+======
+//End one hot encoding
+
+//Begin target mean encoding
+`target_mean_encoding`::
+(Required, object)
+Defines a target mean encoding for a field.
++
+.Properties of `target_mean_encoding`
+[%collapsible%open]
+======
+`default_value`:::
+(Required, double)
+The feature value if the field value is not in the `target_map`.
+
+`feature_name`:::
+(Required, string)
+The name of the resulting feature.
+
+`field`:::
+(Required, string)
+The field name to encode.
+
+`target_map`:::
+(Required, object map of string:double)
+Object that maps the field value to the target mean value.
+
+`custom`::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
+======
+//End target mean encoding
+=====
+//End preprocessors
+
+//Begin trained model
+`trained_model`::
+(Required, object)
+The definition of the trained model.
++
+.Properties of `trained_model`
+[%collapsible%open]
+=====
+//Begin tree
+`tree`::
+(Required, object)
+The definition for a binary decision tree.
++
+.Properties of `tree`
+[%collapsible%open]
+======
+`classification_labels`:::
+(Optional, string) An array of classification labels (used for
+`classification`).
+
+`feature_names`:::
+(Required, string)
+Features expected by the tree, in their expected order.
+
+`target_type`:::
+(Required, string)
+String indicating the model target type; `regression` or `classification`.
+
+`tree_structure`:::
+(Required, object)
+An array of `tree_node` objects. The nodes must be in ordinal order by their
+`tree_node.node_index` value.
+======
+//End tree
+
+//Begin tree node
+`tree_node`::
+(Required, object)
+The definition of a node in a tree.
++
+--
+There are two major types of nodes: leaf nodes and not-leaf nodes.
+
+* Leaf nodes only need `node_index` and `leaf_value` defined.
+* All other nodes need `split_feature`, `left_child`, `right_child`,
+  `threshold`, `decision_type`, and `default_left` defined.
+--
++
+.Properties of `tree_node`
+[%collapsible%open]
+======
+`decision_type`::
+(Optional, string)
+Indicates the positive value (in other words, when to choose the left node)
+decision type. Supported `lt`, `lte`, `gt`, `gte`. Defaults to `lte`.
+
+`default_left`::
+(Optional, Boolean)
+Indicates whether to default to the left when the feature is missing. Defaults
+to `true`.
+
+`leaf_value`::
+(Optional, double)
+The leaf value of the of the node, if the value is a leaf (in other words, no
+children).
+
+`left_child`::
+(Optional, integer)
+The index of the left child.
+
+`node_index`::
+(Integer)
+The index of the current node.
+
+`right_child`::
+(Optional, integer)
+The index of the right child.
+
+`split_feature`::
+(Optional, integer)
+The index of the feature value in the feature array.
+
+`split_gain`::
+(Optional, double) The information gain from the split.
+
+`threshold`::
+(Optional, double)
+The decision threshold with which to compare the feature value.
+======
+//End tree node
+
+//Begin ensemble
+`ensemble`::
+(Optional, object)
+The definition for an ensemble model. See <<ml-put-trained-models-model-example>>.
++
+.Properties of `ensemble`
+[%collapsible%open]
+======
+//Begin aggregate output
+`aggregate_output`::
+(Required, object)
+An aggregated output object that defines how to aggregate the outputs of the
+`trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and
+`logistic_regression`. See <<ml-put-trained-models-aggregated-output-example>>.
++
+.Properties of `aggregate_output`
+[%collapsible%open]
+=======
+//Begin logistic regression
+`logistic_regression`::
+(Optional, object)
+This `aggregated_output` type works with binary classification (classification
+for values [0, 1]). It multiplies the outputs (in the case of the `ensemble`
+model, the inference model values) by the supplied `weights`. The resulting
+vector is summed and passed to a
+{wikipedia}/Sigmoid_function[`sigmoid` function]. The result
+of the `sigmoid` function is considered the probability of class 1 (`P_1`),
+consequently, the probability of class 0 is `1 - P_1`. The class with the
+highest probability (either 0 or 1) is then returned. For more information about
+logistic regression, see
+{wikipedia}/Logistic_regression[this wiki article].
++
+.Properties of `logistic_regression`
+[%collapsible%open]
+========
+`weights`:::
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
+models).
+========
+//End logistic regression
+
+//Begin weighted sum
+`weighted_sum`::
+(Optional, object)
+This `aggregated_output` type works with regression. The weighted sum of the
+input values.
++
+.Properties of `weighted_sum`
+[%collapsible%open]
+========
+`weights`:::
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
+models).
+========
+//End weighted sum
+
+//Begin weighted mode
+`weighted_mode`::
+(Optional, object)
+This `aggregated_output` type works with regression or classification. It takes
+a weighted vote of the input values. The most common input value (taking the
+weights into account) is returned.
++
+.Properties of `weighted_mode`
+[%collapsible%open]
+========
+`weights`:::
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
+models).
+========
+//End weighted mode
+
+//Begin exponent
+`exponent`::
+(Optional, object)
+This `aggregated_output` type works with regression. It takes a weighted sum of
+the input values and passes the result to an exponent function
+(`e^x` where `x` is the sum of the weighted values).
++
+.Properties of `exponent`
+[%collapsible%open]
+========
+`weights`:::
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
+models).
+========
+//End exponent
+=======
+//End aggregate output
+
+`classification_labels`::
+(Optional, string)
+An array of classification labels.
+
+`feature_names`::
+(Optional, string)
+Features expected by the ensemble, in their expected order.
+
+`target_type`::
+(Required, string)
+String indicating the model target type; `regression` or `classification.`
+
+`trained_models`::
+(Required, object)
+An array of `trained_model` objects. Supported trained models are `tree` and
+`ensemble`.
+======
+//End ensemble
+
+=====
+//End trained model
+
+====
+//End definition
+
+`description`::
+(Optional, string)
+A human-readable description of the {infer} trained model.
+
+//Begin inference_config
+`inference_config`::
+(Required, object)
+The default configuration for inference. This can be either a `regression`
+or `classification` configuration. It must match the underlying
+`definition.trained_model`'s `target_type`.
++
+.Properties of `inference_config`
+[%collapsible%open]
+====
+`regression`:::
+(Optional, object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+=====
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+=====
+
+`classification`:::
+(Optional, object)
+Classification configuration for inference.
++
+.Properties of classification inference
+[%collapsible%open]
+=====
+`num_top_classes`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`prediction_field_type`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
+`top_classes_results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+=====
+====
+//End of inference_config
+
+//Begin input
+`input`::
+(Required, object)
+The input field names for the model definition.
++
+.Properties of `input`
+[%collapsible%open]
+====
+`field_names`:::
+(Required, string)
+An array of input field names for the model.
+====
+//End input
+
+`metadata`::
+(Optional, object)
+An object map that contains metadata about the model.
+
+`tags`::
+(Optional, string)
+An array of tags to organize the model.
+
+
+[[ml-put-trained-models-example]]
+== {api-examples-title}
+
+[[ml-put-trained-models-preprocessor-example]]
+=== Preprocessor examples
+
+The example below shows a `frequency_encoding` preprocessor object:
+
+[source,js]
+----------------------------------
+{
+   "frequency_encoding":{
+      "field":"FlightDelayType",
+      "feature_name":"FlightDelayType_frequency",
+      "frequency_map":{
+         "Carrier Delay":0.6007414737092798,
+         "NAS Delay":0.6007414737092798,
+         "Weather Delay":0.024573576178086153,
+         "Security Delay":0.02476631010889467,
+         "No Delay":0.6007414737092798,
+         "Late Aircraft Delay":0.6007414737092798
+      }
+   }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+The next example shows a `one_hot_encoding` preprocessor object:
+
+[source,js]
+----------------------------------
+{
+   "one_hot_encoding":{
+      "field":"FlightDelayType",
+      "hot_map":{
+         "Carrier Delay":"FlightDelayType_Carrier Delay",
+         "NAS Delay":"FlightDelayType_NAS Delay",
+         "No Delay":"FlightDelayType_No Delay",
+         "Late Aircraft Delay":"FlightDelayType_Late Aircraft Delay"
+      }
+   }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+This example shows a `target_mean_encoding` preprocessor object:
+
+[source,js]
+----------------------------------
+{
+   "target_mean_encoding":{
+      "field":"FlightDelayType",
+      "feature_name":"FlightDelayType_targetmean",
+      "target_map":{
+         "Carrier Delay":39.97465788139886,
+         "NAS Delay":39.97465788139886,
+         "Security Delay":203.171206225681,
+         "Weather Delay":187.64705882352948,
+         "No Delay":39.97465788139886,
+         "Late Aircraft Delay":39.97465788139886
+      },
+      "default_value":158.17995752420433
+   }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+[[ml-put-trained-models-model-example]]
+=== Model examples
+
+The first example shows a `trained_model` object:
+
+[source,js]
+----------------------------------
+{
+   "tree":{
+      "feature_names":[
+         "DistanceKilometers",
+         "FlightTimeMin",
+         "FlightDelayType_NAS Delay",
+         "Origin_targetmean",
+         "DestRegion_targetmean",
+         "DestCityName_targetmean",
+         "OriginAirportID_targetmean",
+         "OriginCityName_frequency",
+         "DistanceMiles",
+         "FlightDelayType_Late Aircraft Delay"
+      ],
+      "tree_structure":[
+         {
+            "decision_type":"lt",
+            "threshold":9069.33437193022,
+            "split_feature":0,
+            "split_gain":4112.094574306927,
+            "node_index":0,
+            "default_left":true,
+            "left_child":1,
+            "right_child":2
+         },
+         ...
+         {
+            "node_index":9,
+            "leaf_value":-27.68987349695448
+         },
+         ...
+      ],
+      "target_type":"regression"
+   }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+The following example shows an `ensemble` model object:
+
+[source,js]
+----------------------------------
+"ensemble":{
+   "feature_names":[
+      ...
+   ],
+   "trained_models":[
+      {
+         "tree":{
+            "feature_names":[],
+            "tree_structure":[
+               {
+                  "decision_type":"lte",
+                  "node_index":0,
+                  "leaf_value":47.64069875778043,
+                  "default_left":false
+               }
+            ],
+            "target_type":"regression"
+         }
+      },
+      ...
+   ],
+   "aggregate_output":{
+      "weighted_sum":{
+         "weights":[
+            ...
+         ]
+      }
+   },
+   "target_type":"regression"
+}
+----------------------------------
+//NOTCONSOLE
+
+
+[[ml-put-trained-models-aggregated-output-example]]
+=== Aggregated output example
+
+Example of a `logistic_regression` object:
+
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "logistic_regression" : {
+    "weights" : [2.0, 1.0, .5, -1.0, 5.0, 1.0, 1.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+Example of a `weighted_sum` object:
+
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "weighted_sum" : {
+    "weights" : [1.0, -1.0, .5, 1.0, 5.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+Example of a `weighted_mode` object:
+
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "weighted_mode" : {
+    "weights" : [1.0, 1.0, 1.0, 1.0, 1.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+Example of an `exponent` object:
+
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "exponent" : {
+    "weights" : [1.0, 1.0, 1.0, 1.0, 1.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
+[[ml-put-trained-models-json-schema]]
+=== Trained models JSON schema
+
+For the full JSON schema of trained models,
+https://github.com/elastic/ml-json-schemas[click here].

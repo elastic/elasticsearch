@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-bucket-sort-aggregation]]
-=== Bucket Sort Aggregation
+=== Bucket sort aggregation
+++++
+<titleabbrev>Bucket sort</titleabbrev>
+++++
 
 A parent pipeline aggregation which sorts the buckets of its parent multi-bucket aggregation.
 Zero or more sort fields may be specified together with the corresponding sort order.

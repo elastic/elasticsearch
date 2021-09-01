@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
@@ -32,24 +22,27 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.explain() == false || context.hasOnlySuggest()) {
-            return;
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
+        if (context.explain() == false) {
+            return null;
         }
-        try {
-            final int topLevelDocId = hitContext.hit().docId();
-            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+        return new FetchSubPhaseProcessor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
 
-            for (RescoreContext rescore : context.rescore()) {
-                explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
             }
-            // we use the top level doc id, since we work with the top level searcher
-            hitContext.hit().explanation(explanation);
-        } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context.shardTarget(),
-                "Failed to explain doc [" + hitContext.hit().getId() + "]", e);
-        } finally {
-            context.clearReleasables(SearchContext.Lifetime.COLLECTION);
-        }
+
+            @Override
+            public void process(HitContext hitContext) throws IOException {
+                final int topLevelDocId = hitContext.hit().docId();
+                Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+
+                for (RescoreContext rescore : context.rescore()) {
+                    explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
+                }
+                // we use the top level doc id, since we work with the top level searcher
+                hitContext.hit().explanation(explanation);
+            }
+        };
     }
 }

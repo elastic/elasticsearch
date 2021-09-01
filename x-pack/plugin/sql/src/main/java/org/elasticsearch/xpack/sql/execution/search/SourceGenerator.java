@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -9,7 +10,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
@@ -24,9 +24,6 @@ import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 
-import java.util.List;
-
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scoreSort;
@@ -35,8 +32,6 @@ import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 public abstract class SourceGenerator {
 
     private SourceGenerator() {}
-
-    private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
         QueryBuilder finalQuery = null;
@@ -63,7 +58,6 @@ public abstract class SourceGenerator {
         // NB: the sortBuilder takes care of eliminating duplicates
         container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
         sortBuilder.build(source);
-        optimize(sortBuilder, source);
 
         // add the aggs (if present)
         AggregationBuilder aggBuilder = container.aggs().asAggBuilder();
@@ -124,7 +118,7 @@ public abstract class SourceGenerator {
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
                             .unmappedType(fa.dataType().esType());
-                    
+
                     if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
@@ -165,29 +159,15 @@ public abstract class SourceGenerator {
         }
     }
 
-    private static void optimize(QlSourceBuilder sqlSource, SearchSourceBuilder builder) {
-        if (sqlSource.noSource()) {
-            disableSource(builder);
-        }
-    }
-
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
         // if only aggs are needed, don't retrieve any docs and remove scoring
         if (query.isAggsOnly()) {
             builder.size(0);
             builder.trackScores(false);
-            // disable source fetching (only doc values are used)
-            disableSource(builder);
         }
         if (query.shouldTrackHits()) {
             builder.trackTotalHits(true);
         }
-    }
-
-    private static void disableSource(SearchSourceBuilder builder) {
         builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        if (builder.storedFields() == null) {
-            builder.storedFields(NO_STORED_FIELD);
-        }
     }
 }

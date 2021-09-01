@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import javax.net.ssl.SSLSession;
 import java.security.cert.CertificateEncodingException;
@@ -31,10 +20,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class SslDiagnostics {
+
 
     public static List<String> describeValidHostnames(X509Certificate certificate) {
         try {
@@ -152,6 +144,44 @@ public class SslDiagnostics {
     }
 
     /**
+      * These names align with the values (and indices) defined by {@link X509Certificate#getKeyUsage()}
+      */
+    private static final String[] KEY_USAGE_NAMES = new String[] {
+        "digitalSignature",
+        "nonRepudiation",
+        "keyEncipherment",
+        "dataEncipherment",
+        "keyAgreement",
+        "keyCertSign",
+        "cRLSign",
+        "encipherOnly",
+        "decipherOnly" };
+
+    private enum ExtendedKeyUsage {
+        serverAuth ("1.3.6.1.5.5.7.3.1"),
+        clientAuth ("1.3.6.1.5.5.7.3.2"),
+        codeSigning ("1.3.6.1.5.5.7.3.3"),
+        emailProtection ("1.3.6.1.5.5.7.3.4"),
+        timeStamping ("1.3.6.1.5.5.7.3.8"),
+        ocspSigning ("1.3.6.1.5.5.7.3.9");
+
+        private String oid;
+
+        ExtendedKeyUsage(String oid) {
+            this.oid = Objects.requireNonNull(oid);
+        }
+
+        public static String decodeOid(String oid) {
+            for (ExtendedKeyUsage e : values()) {
+                if (e.oid.equals(oid)) {
+                    return e.name();
+                }
+            }
+            return oid;
+        }
+    }
+
+    /**
      * @param contextName    The descriptive name of this SSL context (e.g. "xpack.security.transport.ssl")
      * @param trustedIssuers A Map of DN to Certificate, for the issuers that were trusted in the context in which this failure occurred
      *                       (see {@link javax.net.ssl.X509TrustManager#getAcceptedIssuers()})
@@ -177,8 +207,14 @@ public class SslDiagnostics {
             .append(peerType.name().toLowerCase(Locale.ROOT))
             .append(" provided a certificate with subject name [")
             .append(peerCert.getSubjectX500Principal().getName())
-            .append("] and ")
-            .append(fingerprintDescription(peerCert));
+            .append("], ")
+            .append(fingerprintDescription(peerCert))
+            .append(", ")
+            .append(keyUsageDescription(peerCert))
+            .append(" and ")
+            .append(extendedKeyUsageDescription(peerCert));
+
+        addSessionDescription(session, message);
 
         if (peerType == PeerType.SERVER) {
             try {
@@ -254,11 +290,11 @@ public class SslDiagnostics {
         final IssuerTrust trust = checkIssuerTrust(trustedIssuers, certificate);
         if (trust.isVerified()) {
             message.append("; the issuing ")
-                .append(trust.issuerCerts.size() == 1 ? "certificate": "certificates")
+                .append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
                 .append(" with ")
                 .append(fingerprintDescription(trust.issuerCerts))
                 .append(" ")
-                .append(trust.issuerCerts.size() == 1 ? "is": "are")
+                .append(trust.issuerCerts.size() == 1 ? "is" : "are")
                 .append(" trusted in this ssl context ([")
                 .append(contextName)
                 .append("])");
@@ -277,12 +313,37 @@ public class SslDiagnostics {
             message.append("; this ssl context ([")
                 .append(contextName)
                 .append("]) is not configured to trust that issuer");
+
+            if (trustedIssuers.isEmpty()) {
+                message.append(" or any other issuer");
+            } else {
+                if (trustedIssuers.size() == 1) {
+                    String trustedIssuer = trustedIssuers.keySet().iterator().next();
+                    message.append(", it only trusts the issuer [")
+                        .append(trustedIssuer)
+                        .append("] with ")
+                        .append(fingerprintDescription(trustedIssuers.get(trustedIssuer)));
+                } else {
+                    message.append(" but trusts [")
+                        .append(trustedIssuers.size())
+                        .append("] other issuers");
+                    if (trustedIssuers.size() < 10) {
+                        // 10 is an arbitrary number, but printing out hundreds of trusted issuers isn't helpful
+                        message.append(" ([")
+                            .append(trustedIssuers.keySet().stream().sorted().collect(Collectors.joining(", ")))
+                            .append("])");
+                    }
+                }
+            }
         }
         return message;
     }
 
     private static CharSequence describeSelfIssuedCertificate(X509Certificate certificate, String contextName,
                                                               @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+        if (trustedIssuers == null) {
+            return "self-issued";
+        }
         final StringBuilder message = new StringBuilder();
         final CertificateTrust trust = resolveCertificateTrust(trustedIssuers, certificate);
         message.append("self-issued; the [").append(certificate.getIssuerX500Principal().getName()).append("] certificate ")
@@ -324,6 +385,7 @@ public class SslDiagnostics {
     }
 
     private static CertificateTrust resolveCertificateTrust(Map<String, List<X509Certificate>> trustedIssuers, X509Certificate cert) {
+        assert trustedIssuers != null : "Do not call `resolveCertificateTrust` with null issuers";
         final List<X509Certificate> trustedCerts = trustedIssuers.get(cert.getSubjectX500Principal().getName());
         if (trustedCerts == null || trustedCerts.isEmpty()) {
             return CertificateTrust.noMatchingIssuer();
@@ -361,7 +423,7 @@ public class SslDiagnostics {
 
     private static String fingerprintDescription(X509Certificate certificate) {
         try {
-            final String fingerprint = SslUtil.calculateFingerprint(certificate);
+            final String fingerprint = SslUtil.calculateFingerprint(certificate, "SHA-1");
             return "fingerprint [" + fingerprint + "]";
         } catch (CertificateEncodingException e) {
             return "invalid encoding [" + e.toString() + "]";
@@ -379,5 +441,48 @@ public class SslDiagnostics {
 
     private static boolean isSelfIssued(X509Certificate certificate) {
         return certificate.getIssuerX500Principal().equals(certificate.getSubjectX500Principal());
+    }
+
+    private static String keyUsageDescription(X509Certificate certificate) {
+        boolean[] keyUsage = certificate.getKeyUsage();
+        if (keyUsage == null || keyUsage.length == 0) {
+            return "no keyUsage";
+        }
+        final String keyUsageDescription = IntStream.range(0, keyUsage.length)
+            .filter(i -> keyUsage[i])
+            .mapToObj(i -> (i < KEY_USAGE_NAMES.length) ? KEY_USAGE_NAMES[i] : ("#" + i))
+            .collect(Collectors.joining(", "));
+        return keyUsageDescription.isEmpty() ? "no keyUsage" : ("keyUsage [" + keyUsageDescription + "]");
+    }
+
+    private static String extendedKeyUsageDescription(X509Certificate certificate) {
+        try {
+            return Optional.ofNullable(certificate.getExtendedKeyUsage())
+                .flatMap(keyUsage -> generateExtendedKeyUsageDescription(keyUsage))
+                .orElse("no extendedKeyUsage");
+        } catch (CertificateParsingException e) {
+            return "invalid extendedKeyUsage [" + e + "]";
+        }
+    }
+
+    private static Optional<String> generateExtendedKeyUsageDescription(List<String> oids) {
+        return oids.stream()
+            .map(ExtendedKeyUsage::decodeOid)
+            .reduce((x, y) -> x + ", " + y)
+            .map(str -> "extendedKeyUsage [" + str + "]");
+    }
+
+    private static void addSessionDescription(SSLSession session, StringBuilder message) {
+        String cipherSuite = Optional.ofNullable(session)
+            .map(SSLSession::getCipherSuite)
+            .orElse("<unknown cipherSuite>");
+        String protocol = Optional.ofNullable(session)
+            .map(SSLSession::getProtocol)
+            .orElse("<unknown protocol>");
+        message.append("; the session uses cipher suite [")
+            .append(cipherSuite)
+            .append("] and protocol [")
+            .append(protocol)
+            .append("]");
     }
 }

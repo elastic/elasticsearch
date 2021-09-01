@@ -1,34 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
-
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,8 +26,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
-    public static final ConstructingObjectParser<ScriptHeuristic, Void> PARSER = new ConstructingObjectParser<>(NAME, args ->
-        new ScriptHeuristic((Script) args[0]));
+    public static final ConstructingObjectParser<ScriptHeuristic, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new ScriptHeuristic((Script) args[0])
+    );
     static {
         Script.declareScript(PARSER, constructorArg());
     }
@@ -78,7 +67,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             subsetDfHolder.value = subsetFreq;
             supersetDfHolder.value = supersetFreq;
             return executableScript.execute(params);
-       }
+        }
     }
 
     public ScriptHeuristic(Script script) {
@@ -99,18 +88,16 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService().compile(script,
-                SignificantTermsHeuristicScoreScript.CONTEXT);
+        SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService()
+            .compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, factory.newInstance());
     }
 
     @Override
-    public SignificanceHeuristic rewrite(QueryShardContext queryShardContext) {
-        SignificantTermsHeuristicScoreScript.Factory compiledScript = queryShardContext.compile(script,
-                SignificantTermsHeuristicScoreScript.CONTEXT);
+    public SignificanceHeuristic rewrite(AggregationContext context) {
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = context.compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }
-
 
     /**
      * Calculates score with a script
@@ -123,8 +110,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready " +
-                "for use");
+        throw new UnsupportedOperationException(
+            "This scoring heuristic must have 'rewrite' called on it to provide a version ready " + "for use"
+        );
     }
 
     @Override
@@ -160,10 +148,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public final class LongAccessor extends Number {
         public long value;
+
         @Override
         public int intValue() {
-            return (int)value;
+            return (int) value;
         }
+
         @Override
         public long longValue() {
             return value;
@@ -185,4 +175,3 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
     }
 }
-

@@ -1,549 +1,315 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapperTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-
-public class HistogramFieldMapperTests extends FieldMapperTestCase<HistogramFieldMapper.Builder> {
+public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
+    protected Object getSampleValueForDocument() {
+        return Map.of("values", new double[] { 2, 3 }, "counts", new int[] { 0, 4 });
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new AnalyticsPlugin());
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "histogram");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((HistogramFieldMapper) m).ignoreMalformed()));
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     public void testParseValue() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject().field("pre_aggregated").startObject()
-                        .field("values", new double[] {2, 3})
-                        .field("counts", new int[] {0, 4})
-                        .endObject()
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("pre_aggregated"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("values", new double[] { 2, 3 }).field("counts", new int[] { 0, 4 }).endObject())
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testParseArrayValue() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startArray("pre_aggregated")
-                .startObject()
-                .field("counts", new int[] {2, 2, 3})
-                .field("values", new double[] {2, 2, 3})
-                .endObject()
-                .startObject()
-                .field("counts", new int[] {2, 2, 3})
-                .field("values", new double[] {2, 2, 3})
-                .endObject().endArray()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("doesn't not support indexing multiple values " +
-            "for the same field in the same document"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("counts", new int[] { 2, 2, 3 }).field("values", new double[] { 2, 2, 3 }).endObject();
+                b.startObject().field("counts", new int[] { 2, 2, 3 }).field("values", new double[] { 2, 2, 3 }).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("doesn't not support indexing multiple values " + "for the same field in the same document")
+        );
     }
 
     public void testEmptyArrays() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {})
-                .field("counts", new int[] {})
-                .endObject()
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("pre_aggregated"), notNullValue());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("values", new double[] {}).field("counts", new int[] {}).endObject())
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testNullValue() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().nullField("pre_aggregated")
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("pre_aggregated")));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
 
     public void testMissingFieldCounts() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {2, 2})
-                .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()))
+        );
         assertThat(e.getCause().getMessage(), containsString("expected field called [counts]"));
     }
 
     public void testIgnoreMalformed() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("ignore_malformed", true);
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {2, 2})
-                .endObject()
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
 
     public void testIgnoreMalformedSkipsKeyword() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("ignore_malformed", true)
-            .endObject().startObject("otherField").field("type", "keyword");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated", "value")
-                .field("otherField","value")
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("pre_aggregated").field("type", "histogram").field("ignore_malformed", true).endObject();
+            b.startObject("otherField").field("type", "keyword").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("pre_aggregated", "value").field("otherField", "value")));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
         assertThat(doc.rootDoc().getField("otherField"), notNullValue());
     }
 
     public void testIgnoreMalformedSkipsArray() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("ignore_malformed", true)
-            .endObject().startObject("otherField").field("type", "keyword");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated", new int[] {2, 2, 2})
-                .field("otherField","value")
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("pre_aggregated").field("type", "histogram").field("ignore_malformed", true).endObject();
+            b.startObject("otherField").field("type", "keyword").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("pre_aggregated", new int[] { 2, 2, 2 }).field("otherField", "value")));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
         assertThat(doc.rootDoc().getField("otherField"), notNullValue());
     }
 
     public void testIgnoreMalformedSkipsField() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("ignore_malformed", true)
-            .endObject().startObject("otherField").field("type", "keyword");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {2, 2})
-                .field("typo", new double[] {2, 2})
-                .endObject()
-                .field("otherField","value")
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("pre_aggregated").field("type", "histogram").field("ignore_malformed", true).endObject();
+            b.startObject("otherField").field("type", "keyword").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("pre_aggregated").field("values", new double[] { 2, 2 }).field("typo", new double[] { 2, 2 }).endObject();
+            b.field("otherField", "value");
+        }));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
         assertThat(doc.rootDoc().getField("otherField"), notNullValue());
     }
 
     public void testIgnoreMalformedSkipsObjects() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("ignore_malformed", true)
-            .endObject().startObject("otherField").field("type", "keyword");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .startObject("values").field("values", new double[] {2, 2})
-                   .startObject("otherData").startObject("more").field("toto", 1)
-                   .endObject().endObject()
-                .endObject()
-                .field("counts", new double[] {2, 2})
-                .endObject()
-                .field("otherField","value")
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("pre_aggregated").field("type", "histogram").field("ignore_malformed", true).endObject();
+            b.startObject("otherField").field("type", "keyword").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("pre_aggregated");
+            {
+                b.startObject("values");
+                {
+                    b.field("values", new double[] { 2, 2 });
+                    b.startObject("otherData");
+                    {
+                        b.startObject("more").field("toto", 1).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.field("counts", new double[] { 2, 2 });
+            }
+            b.endObject();
+            b.field("otherField", "value");
+        }));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
         assertThat(doc.rootDoc().getField("otherField"), notNullValue());
     }
 
     public void testIgnoreMalformedSkipsEmpty() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("ignore_malformed", true)
-            .endObject().startObject("otherField").field("type", "keyword");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject().endObject()
-                .field("otherField","value")
-                .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("pre_aggregated").field("type", "histogram").field("ignore_malformed", true).endObject();
+            b.startObject("otherField").field("type", "keyword").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("pre_aggregated").endObject().field("otherField", "value")));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
         assertThat(doc.rootDoc().getField("otherField"), notNullValue());
     }
 
     public void testMissingFieldValues() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new int[] {2, 2})
-                .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("counts", new int[] { 2, 2 }).endObject()))
+        );
         assertThat(e.getCause().getMessage(), containsString("expected field called [values]"));
     }
 
     public void testUnknownField() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new int[] {2, 2})
-                .field("values", new double[] {2, 2})
-                .field("unknown", new double[] {2, 2})
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field")
+                .field("counts", new int[] { 2, 2 })
+                .field("values", new double[] { 2, 2 })
+                .field("unknown", new double[] { 2, 2 })
                 .endObject()
-                .endObject()),
-            XContentType.JSON);
+        );
 
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("with unknown parameter [unknown]"));
     }
 
     public void testFieldArraysDifferentSize() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new int[] {2, 2})
-                .field("values", new double[] {2, 2, 3})
-                .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field").field("counts", new int[] { 2, 2 }).field("values", new double[] { 2, 2, 3 }).endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expected same length from [values] and [counts] but got [3 != 2]"));
     }
 
     public void testFieldCountsNotArray() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", "bah")
-                .field("values", new double[] {2, 2, 3})
-                .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field").field("counts", "bah").field("values", new double[] { 2, 2, 3 }).endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
     }
 
     public void testFieldCountsStringArray() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new String[] {"4", "5", "6"})
-                .field("values", new double[] {2, 2, 3})
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field")
+                .field("counts", new String[] { "4", "5", "6" })
+                .field("values", new double[] { 2, 2, 3 })
                 .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
     }
 
     public void testFieldValuesStringArray() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new int[] {4, 5, 6})
-                .field("values", new String[] {"2", "2", "3"})
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.field("field")
+                .startObject()
+                .field("counts", new int[] { 4, 5, 6 })
+                .field("values", new String[] { "2", "2", "3" })
                 .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
     }
 
     public void testFieldValuesNotArray() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new int[] {2, 2, 3})
-                .field("values", "bah")
-                .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field").field("counts", new int[] { 2, 2, 3 }).field("values", "bah").endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
     }
 
     public void testCountIsLong() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new long[] {2, 2, Long.MAX_VALUE})
-                .field("values", new double[] {2 ,2 ,3})
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field")
+                .field("counts", new long[] { 2, 2, Long.MAX_VALUE })
+                .field("values", new double[] { 2, 2, 3 })
                 .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString(" out of range of int"));
     }
 
     public void testValuesNotInOrder() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("counts", new int[] {2, 8, 4})
-                .field("values", new double[] {2 ,3 ,2})
-                .endObject()
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString(" values must be in increasing order, " +
-            "got [2.0] but previous value was [3.0]"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.field("field").startObject().field("counts", new int[] { 2, 8, 4 }).field("values", new double[] { 2, 3, 2 }).endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(" values must be in increasing order, " + "got [2.0] but previous value was [3.0]")
+        );
     }
 
     public void testFieldNotObject() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated", "bah")
-                .endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_OBJECT] " +
-            "but found [VALUE_STRING]"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(b -> b.field("field", "bah"));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_OBJECT] " + "but found [VALUE_STRING]"));
     }
 
     public void testNegativeCount() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
-
-        SourceToParse source = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("pre_aggregated")
-                .field("counts", new int[] {2, 2, -3})
-                .field("values", new double[] {2, 2, 3})
-                .endObject().endObject()),
-            XContentType.JSON);
-
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(
+            b -> b.startObject("field").field("counts", new int[] { 2, 2, -3 }).field("values", new double[] { 2, 2, 3 }).endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
     }
 
-    public void testMeta() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "histogram")
-                .field("meta", Collections.singletonMap("foo", "bar"))
-                .endObject().endObject().endObject().endObject());
-
-        IndexService indexService = createIndex("test");
-        DocumentMapper mapper = indexService.mapperService().merge("_doc",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "histogram")
-                .endObject().endObject().endObject().endObject());
-        mapper = indexService.mapperService().merge("_doc",
-                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping2, mapper.mappingSource().toString());
-
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "histogram")
-                .field("meta", Collections.singletonMap("baz", "quux"))
-                .endObject().endObject().endObject().endObject());
-        mapper = indexService.mapperService().merge("_doc",
-                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping3, mapper.mappingSource().toString());
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(AnalyticsPlugin.class);
-        plugins.add(LocalStateCompositeXPackPlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected HistogramFieldMapper.Builder newBuilder() {
-        return new HistogramFieldMapper.Builder("histo");
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("hist");
+            b.field("type", "histogram");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
     }
 }

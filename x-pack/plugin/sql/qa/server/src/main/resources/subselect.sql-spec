@@ -1,54 +1,202 @@
 // To mute tests follow example in file: example.sql-spec
 
-simpleSubSelect
+basic
 SELECT first_name, last_name FROM (SELECT * FROM test_emp);
-simpleSubSelectWithProjection
+basicProjection
 SELECT first_name, last_name FROM (SELECT first_name, last_name FROM test_emp);
-simpleSubSelectWithAliasedProjection
+basicAliasedProjection
 SELECT last_name, f FROM (SELECT first_name AS f, last_name FROM test_emp);
-simpleSubSelectWithCondition
+basicCondition
 SELECT first_name, last_name FROM (SELECT * FROM test_emp WHERE gender IS NOT NULL) ORDER BY first_name NULLS first;
-simpleSubSelectWithOrderByAlias
+basicOrderByAlias
 SELECT last_name, f FROM (SELECT first_name AS f, last_name FROM test_emp) ORDER BY f DESC NULLS last;
-simpleSubSelectWithOrderByFieldName
+basicOrderByFieldName
 SELECT last_name, f FROM (SELECT first_name AS f, last_name FROM test_emp) ORDER BY last_name ASC;
-simpleSubSelectWithGroupBy
+basicGroupBy
 SELECT gender FROM (SELECT first_name AS f, last_name, gender FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+basicGroupByAlias
+SELECT g FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY g ORDER BY g ASC;
+basicGroupByWithFilterByAlias
+SELECT g FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC;
+basicGroupByRealiased
+SELECT g AS h FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY g ORDER BY g DESC NULLS last;
+basicGroupByRealiasedTwice
+SELECT g AS h FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY h ORDER BY h DESC NULLS last;
+basicOrderByRealiasedField
+SELECT g AS h FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) ORDER BY g DESC NULLS first;
 
-subSelectWithCountAndComplexCondition
+groupAndOrderByRealiasedExpression
+SELECT emp_group AS e, min_high_salary AS s
+FROM (
+    SELECT emp_no % 2 AS emp_group, MIN(salary) AS min_high_salary
+    FROM test_emp
+    WHERE salary > 50000
+    GROUP BY emp_group
+)
+ORDER BY e DESC;
+
+multiLevelSelectStar
+SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ));
+
+multiLevelSelectStarWithAlias
+SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ) b) c;
+
+filterAfterGroupBy
+SELECT s2 AS s3 FROM (SELECT s AS s2 FROM ( SELECT salary AS s FROM test_emp) GROUP BY s2) WHERE s2 < 5 ORDER BY s3 DESC NULLS last;
+filterAfterGroupByWithWhere
+SELECT salary FROM test_emp WHERE salary < 5 GROUP BY salary ORDER BY salary DESC NULLS last;
+countAndComplexCondition
 SELECT COUNT(*) as c FROM (SELECT * FROM test_emp WHERE gender IS NOT NULL) WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;
-subSelectWithCountAndGroupBy
+countAndGroupBy
 SELECT COUNT(*), gender FROM (SELECT first_name AS f, last_name, gender FROM test_emp) GROUP BY gender ORDER BY gender ASC;
-subSelectWithCountAndMax
+countAndGroupByByAlias
+SELECT COUNT(*), g FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY g ORDER BY g ASC;
+countAndMax
 SELECT COUNT(*), gender, MAX("salary") FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
-subSelectWithCountAndMultipleAggregates
+countAndMaxByAlias
+SELECT COUNT(*), g, MAX("s") FROM (SELECT first_name AS f, last_name, gender AS g, salary AS s FROM test_emp) GROUP BY g ORDER BY g ASC;
+// @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
+countAndMaxByAliasAndFilter-Ignore
+SELECT COUNT(*), g, MAX("s") FROM (SELECT first_name AS f, last_name, gender AS g, salary AS s FROM test_emp) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC;
+countAndMultipleAggregates
 SELECT COUNT(*), gender, MAX("salary"), MAX(salary) m, MIN("salary") FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
 
-subSelectWithCastAndGroupBy
+castAndGroupBy
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM (SELECT * FROM test_emp) GROUP BY g ORDER BY g DESC;
-subSelectWithCastAndGroupByAndLiteralsInSubQuery
+castAndGroupByAndLiteralsInSubQuery
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM (SELECT TRUE, FALSE, gender, emp_no FROM test_emp) GROUP BY g ORDER BY g ASC;
-subSelectWithLiteralsAndConditionInSubQuery
+literalsAndConditionInSubQuery
 SELECT 10, 'foo', COUNT(*), '20', 'bar' FROM (SELECT * FROM test_emp WHERE gender = 'M') GROUP BY gender ORDER BY 3;
-subSelectWithSameConditionInQueryAndSubQuery
+sameConditionInQueryAndSubQuery
 SELECT emp_no e, 5 FROM (SELECT * FROM test_emp WHERE emp_no < 10020) WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
-subSelectWithHavingWithCount
+havingCount
 SELECT languages, COUNT(*) c FROM (SELECT languages FROM test_emp WHERE languages > 2 AND gender IS NOT NULL) GROUP BY languages HAVING COUNT(*) IS NOT NULL ORDER BY languages DESC;
 
-subSelectWithConditionOnCountAndMultipleConditions
+conditionOnCountAndMultipleConditions
 SELECT MIN("salary") min, MAX("salary") max, gender g, languages l, COUNT(*) c FROM (SELECT last_name, salary, languages, gender, first_name FROM test_emp WHERE languages > 3) WHERE languages < 5 GROUP BY g, languages HAVING c > 4 ORDER BY gender, languages;
-subSelectWithCountDistinct
+countDistinct
 SELECT gender, COUNT(DISTINCT languages) AS c FROM (SELECT * FROM test_emp) GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
 
-subSelectWithNoMatchCondition
+noMatchCondition
 SELECT last_name l FROM (SELECT last_name FROM test_emp) WHERE 1 = 2 ORDER BY 1 LIMIT 10;
-subSelectWithNoMatchConditionInSubQuery
+noMatchConditionInSubQuery
 SELECT last_name l FROM (SELECT last_name FROM test_emp WHERE 1 = 2) WHERE 1 = 1 ORDER BY 1 LIMIT 10;
-subSelectWithMatchInSubQueryAndNoMatchInRootQuery
+matchInSubQueryAndNoMatchInRootQuery
 SELECT last_name l FROM (SELECT last_name FROM test_emp WHERE TRUE) WHERE 1 = 1 ORDER BY 1 LIMIT 10;
 
-subSelectWithGreatestOrderBy
+greatestOrderBy
 SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM (SELECT * FROM test_emp) ORDER BY gt LIMIT 10;
 
-subSelectWithInAndIsNotNull
+inAndIsNotNull
 SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM (SELECT * FROM test_emp WHERE emp_no IN (10019, 10020, 10021)) WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+
+filterOnColumn
+SELECT * FROM (
+    SELECT * FROM test_emp
+)
+WHERE languages > 1
+;
+filterOnColumnFunction
+SELECT * FROM (
+    SELECT (languages + 1) % 5 AS l FROM test_emp
+)
+WHERE l > 1
+;
+filterOnGroupBy
+SELECT * FROM (
+    SELECT gender, MAX(salary) AS max FROM test_emp WHERE languages > 1 GROUP BY gender ORDER BY gender
+)
+WHERE gender IS NOT NULL
+;
+filterOnAggregate
+SELECT * FROM (
+    SELECT gender, MAX(salary) AS max FROM test_emp WHERE languages > 1 GROUP BY gender ORDER BY gender
+)
+WHERE max % 2 = 0
+;
+
+filterOnAggregateAndGroupBy
+SELECT * FROM (
+    SELECT gender, MAX(salary) AS max FROM test_emp WHERE languages > 1 GROUP BY gender ORDER BY gender
+)
+WHERE max % 2 = 0 AND gender IS NOT NULL
+;
+
+// see https://github.com/elastic/elasticsearch/issues/71350
+filterOnAggregateAndGroupByWithDisjunction-Ignore
+SELECT * FROM (
+    SELECT gender, MAX(salary) AS max FROM test_emp WHERE languages > 1 GROUP BY gender ORDER BY gender
+)
+WHERE max % 2 = 0 OR gender IS NOT NULL
+;
+
+filterOnColumnWithOutsideFilter
+SELECT * FROM (
+    SELECT languages FROM test_emp WHERE languages > 1
+)
+WHERE languages < 5
+;
+filterOnColumnFunctionWithOutsideFilter
+SELECT * FROM (
+    SELECT * FROM test_emp WHERE languages + 1 > 1
+)
+WHERE languages + 1 < 10
+;
+filterOnOutsideAggregate
+SELECT * FROM (
+    SELECT gender, MAX(salary) AS max FROM (
+        SELECT * FROM test_emp WHERE languages > 1
+    )
+    GROUP BY gender ORDER BY gender
+)
+WHERE max % 2 = 0
+;
+multiLevelFilterOnOutsideAggregate
+SELECT m AS mx FROM (
+    SELECT max AS m FROM (
+        SELECT gender, MAX(salary) AS max FROM (
+            SELECT * FROM test_emp WHERE languages > 1
+        )
+        GROUP BY gender
+        HAVING max > 0
+        ORDER BY gender
+    )
+    WHERE max / 10 > 1
+)
+WHERE m % 10 > 1
+;
+pushDownHavingFilter
+SELECT * FROM (
+    SELECT gender, MAX(salary) AS max FROM (
+        SELECT * FROM test_emp WHERE languages > 1
+        )
+GROUP BY gender ORDER BY gender
+)
+WHERE max % 2 = 0
+;
+
+filterOnGroupingInFunction
+SELECT * FROM (
+    SELECT languages + 1 AS lan, MAX(salary) AS max FROM test_emp WHERE languages > 1 GROUP BY lan ORDER BY 1
+)
+WHERE (lan - 1) > 2
+;
+
+filterOnAggregateInFunction
+SELECT * FROM (
+    SELECT gender, MAX(salary) / 100 AS max FROM test_emp WHERE languages > 1 GROUP BY gender
+)
+WHERE max > 745 AND gender IS NOT NULL ORDER BY gender
+;
+
+// AwaitsFix : https://github.com/elastic/elasticsearch/issues/71394
+filterOnGroupingAndAggregateByFunction-Ignore
+SELECT * FROM (
+  SELECT lan - 1 AS lan, max / 2 AS max FROM (
+    SELECT languages + 1 AS lan, MAX(salary) / 10 AS max FROM test_emp WHERE languages > 1 GROUP BY lan ORDER BY 1
+  )
+)
+WHERE (lan - 1) > 1 AND max - 1000 > 2500
+;
+countAndComplexCondition
+SELECT COUNT(*) as c FROM (SELECT * FROM test_emp WHERE gender IS NOT NULL) WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;

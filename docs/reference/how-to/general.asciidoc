@@ -15,7 +15,7 @@ use the <<scroll-search-results,Scroll>> API.
 [[maximum-document-size]]
 === Avoid large documents
 
-Given that the default <<modules-http,`http.max_content_length`>> is set to
+Given that the default <<http-settings,`http.max_content_length`>> is set to
 100MB, Elasticsearch will refuse to index any document that is larger than
 that. You might decide to increase that particular setting, but Lucene still
 has a limit of about 2GB.

@@ -21,11 +21,12 @@ AVG(numeric_field) <1>
 
 *Input*:
 
-<1> numeric field
+<1> numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
-*Description*: Returns the https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
+*Description*: Returns the {wikipedia}/Arithmetic_mean[Average] (arithmetic mean) of input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -48,15 +49,13 @@ COUNT(expression) <1>
 
 *Input*:
 
-<1> a field name, wildcard (`*`) or any numeric value
+<1> a field name, wildcard (`*`) or any numeric value. For `COUNT(*)` or
+`COUNT(<literal>)`, all values are considered, including `null` or missing
+ones. For `COUNT(<field_name>)`, `null` values are not considered.
 
 *Output*: numeric value
 
 *Description*: Returns the total number (count) of input values.
-
-In case of `COUNT(*)` or `COUNT(<literal>)`, _all_ values are considered (including `null` or missing ones).
-
-In case of `COUNT(<field_name>)` `null` values are not considered.
 
 
 ["source","sql",subs="attributes,macros"]
@@ -76,7 +75,8 @@ COUNT(ALL field_name) <1>
 
 *Input*:
 
-<1> a field name
+<1> a field name. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: numeric value
 
@@ -105,7 +105,8 @@ COUNT(DISTINCT field_name) <1>
 
 <1> a field name
 
-*Output*: numeric value
+*Output*: numeric value. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Description*: Returns the total number of _distinct non-null_ values in input values.
 
@@ -137,7 +138,7 @@ FIRST(
 
 *Output*: same type as the input
 
-*Description*: Returns the first **non-NULL** value (if such exists) of the `field_name` input column sorted by
+*Description*: Returns the first non-`null` value (if such exists) of the `field_name` input column sorted by
 the `ordering_field_name` column. If `ordering_field_name` is not provided, only the `field_name`
 column is used for the sorting. E.g.:
 
@@ -237,7 +238,7 @@ LAST(
 
 *Output*: same type as the input
 
-*Description*: It's the inverse of <<sql-functions-aggs-first>>. Returns the last **non-NULL** value (if such exists) of the
+*Description*: It's the inverse of <<sql-functions-aggs-first>>. Returns the last non-`null` value (if such exists) of the
 `field_name` input column sorted descending by the `ordering_field_name` column. If `ordering_field_name` is not
 provided, only the `field_name` column is used for the sorting. E.g.:
 
@@ -330,7 +331,8 @@ MAX(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: same type as the input
 
@@ -361,7 +363,8 @@ MIN(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: same type as the input
 
@@ -387,7 +390,8 @@ SUM(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `bigint` for integer input, `double` for floating points
 
@@ -418,13 +422,14 @@ KURTOSIS(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution of input values in the field `field_name`.
+{wikipedia}/Kurtosis[Quantify] the shape of the distribution of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -452,13 +457,14 @@ MAD(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-https://en.wikipedia.org/wiki/Median_absolute_deviation[Measure] the variability of the input values in the field `field_name`.
+{wikipedia}/Median_absolute_deviation[Measure] the variability of the input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -477,20 +483,26 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggMadScalars]
 [source, sql]
 --------------------------------------------------
 PERCENTILE(
-    field_name,  <1>
-    numeric_exp) <2>
+    field_name,         <1>
+    percentile[,        <2>
+    method[,            <3>
+    method_parameter]]) <4>
 --------------------------------------------------
 
 *Input*:
 
-<1> a numeric field
-<2> a numeric expression (must be a constant and not based on a field)
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
+<2> a numeric expression (must be a constant and not based on a field). If
+`null`, the function returns `null`.
+<3> optional string literal for the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal that configures the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-Returns the nth https://en.wikipedia.org/wiki/Percentile[percentile] (represented by `numeric_exp` parameter)
+Returns the nth {wikipedia}/Percentile[percentile] (represented by `numeric_exp` parameter)
 of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
@@ -503,6 +515,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentile]
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileWithPercentileConfig]
+--------------------------------------------------
+
 [[sql-functions-aggs-percentile-rank]]
 ==== `PERCENTILE_RANK`
 
@@ -510,20 +527,27 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
 [source, sql]
 --------------------------------------------------
 PERCENTILE_RANK(
-    field_name,  <1>
-    numeric_exp) <2>
+    field_name,         <1>
+    value[,             <2>
+    method[,            <3>
+    method_parameter]]) <4>
 --------------------------------------------------
 
 *Input*:
 
-<1> a numeric field
-<2> a numeric expression (must be a constant and not based on a field)
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
+<2> a numeric expression (must be a constant and not based on a field). If
+`null`, the function returns `null`.
+<3> optional string literal for the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal that configures the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
+
 
 *Output*: `double` numeric value
 
 *Description*:
 
-Returns the nth https://en.wikipedia.org/wiki/Percentile_rank[percentile rank] (represented by `numeric_exp` parameter)
+Returns the nth {wikipedia}/Percentile_rank[percentile rank] (represented by `numeric_exp` parameter)
 of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
@@ -534,6 +558,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRank]
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankScalars]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankWithPercentileConfig]
 --------------------------------------------------
 
 [[sql-functions-aggs-skewness]]
@@ -547,13 +576,14 @@ SKEWNESS(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of input values in the field `field_name`.
+{wikipedia}/Skewness[Quantify] the asymmetric distribution of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -581,13 +611,14 @@ STDDEV_POP(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Standard_deviations[population standard deviation] of input values in the field `field_name`.
+Returns the {wikipedia}/Standard_deviations[population standard deviation] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -610,13 +641,14 @@ STDDEV_SAMP(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Standard_deviations[sample standard deviation] of input values in the field `field_name`.
+Returns the {wikipedia}/Standard_deviations[sample standard deviation] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -639,7 +671,8 @@ SUM_OF_SQUARES(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
@@ -668,13 +701,14 @@ VAR_POP(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Variance[population variance] of input values in the field `field_name`.
+Returns the {wikipedia}/Variance[population variance] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -698,13 +732,14 @@ VAR_SAMP(field_name) <1>
 
 *Input*:
 
-<1> a numeric field
+<1> a numeric field. If this field contains only `null` values, the function
+returns `null`. Otherwise, the function ignores `null` values in this field.
 
 *Output*: `double` numeric value
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Variance[sample variance] of input values in the field `field_name`.
+Returns the {wikipedia}/Variance[sample variance] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

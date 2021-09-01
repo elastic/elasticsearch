@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -33,7 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -56,6 +45,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
@@ -100,10 +90,16 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         (ns, key) -> timeSetting(key, TransportSettings.PING_SCHEDULE, new RemoteConnectionEnabled<>(ns, key),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
-    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<Compression.Enabled> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
-        (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS,
+        (ns, key) -> enumSetting(Compression.Enabled.class, key, TransportSettings.TRANSPORT_COMPRESS,
+            new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    public static final Setting.AffixSetting<Compression.Scheme> REMOTE_CLUSTER_COMPRESSION_SCHEME = Setting.affixKeySetting(
+        "cluster.remote.",
+        "transport.compression_scheme",
+        (ns, key) -> enumSetting(Compression.Scheme.class, key, TransportSettings.TRANSPORT_COMPRESSION_SCHEME,
             new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     private final boolean enabled;
@@ -121,6 +117,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         this.transportService = transportService;
     }
 
+    public DiscoveryNode getLocalNode() {
+        return transportService.getLocalNode();
+    }
+
     /**
      * Returns <code>true</code> if at least one remote cluster is configured
      */
@@ -133,22 +133,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        if (isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
-            if (groupedIndices.isEmpty()) {
-                //search on _all in the local cluster if neither local indices nor remote indices were specified
-                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
-            } else {
-                for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
-                    String clusterAlias = entry.getKey();
-                    List<String> originalIndices = entry.getValue();
-                    originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
-                }
-            }
+        final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+        final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
+        if (groupedIndices.isEmpty()) {
+            //search on _all in the local cluster if neither local indices nor remote indices were specified
+            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
         } else {
-            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(indices, indicesOptions));
+            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<String> originalIndices = entry.getValue();
+                originalIndicesMap.put(clusterAlias,
+                    new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
+            }
         }
         return originalIndicesMap;
     }
@@ -182,7 +178,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * will invoke the listener immediately.
      */
     void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
-        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
+        final RemoteClusterConnection remoteClusterConnection;
+        try {
+            remoteClusterConnection = getRemoteClusterConnection(clusterAlias);
+        } catch (NoSuchRemoteClusterException e) {
+            listener.onFailure(e);
+            return;
+        }
+        remoteClusterConnection.ensureConnected(listener);
     }
 
     /**

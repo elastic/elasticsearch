@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -51,8 +40,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param docCount      The document count in the single bucket.
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
-    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
@@ -119,14 +107,17 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      */
     @Override
     public final InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
+        InternalAggregation reducedAggs,
+        ReduceContext reduceContext,
+        PipelineTree pipelineTree
+    ) {
         assert reduceContext.isFinalReduce();
         InternalAggregation reduced = this;
         if (pipelineTree.hasSubTrees()) {
             List<InternalAggregation> aggs = new ArrayList<>();
             for (Aggregation agg : getAggregations().asList()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
             }
             InternalAggregations reducedSubAggs = InternalAggregations.from(aggs);
             reduced = create(reducedSubAggs);
@@ -165,8 +156,12 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     public final double sortValue(String key) {
         if (key != null && false == key.equals("doc_count")) {
             throw new IllegalArgumentException(
-                    "Unknown value key [" + key + "] for single-bucket aggregation [" + getName() +
-                    "]. Either use [doc_count] as key or drop the key all together.");
+                "Unknown value key ["
+                    + key
+                    + "] for single-bucket aggregation ["
+                    + getName()
+                    + "]. Either use [doc_count] as key or drop the key all together."
+            );
         }
         return docCount;
     }
@@ -174,6 +169,11 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     @Override
     public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         return aggregations.sortValue(head, tail);
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     @Override
@@ -197,8 +197,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         if (super.equals(obj) == false) return false;
 
         InternalSingleBucketAggregation other = (InternalSingleBucketAggregation) obj;
-        return Objects.equals(docCount, other.docCount) &&
-                Objects.equals(aggregations, other.aggregations);
+        return Objects.equals(docCount, other.docCount) && Objects.equals(aggregations, other.aggregations);
     }
 
     @Override

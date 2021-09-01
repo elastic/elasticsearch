@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
@@ -16,7 +17,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,6 +50,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         final PutFollowAction.Request putFollowRequest = putFollow(leaderIndex, followerIndex);
         putFollowRequest.setSettings(Settings.builder()
             .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+            .putNull("index.routing.allocation.include._tier_preference")
             .build());
         putFollowRequest.waitForActiveShards(ActiveShardCount.ONE);
         putFollowRequest.timeout(TimeValue.timeValueSeconds(2));
@@ -81,6 +84,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             .put("index.routing.rebalance.enable", "none")
             .put("index.routing.allocation.include._name",
                 Stream.concat(dataOnlyNodes.stream(), dataAndRemoteNodes.stream()).collect(Collectors.joining(",")))
+            .putNull("index.routing.allocation.include._tier_preference")
             .build());
         final PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, putFollowRequest).get();
         assertTrue(response.isFollowIndexShardsAcked());
@@ -97,13 +101,15 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
                 final ShardRouting primaryShard = shardRoutingTable.primaryShard();
                 assertTrue(primaryShard.assignedToNode());
                 final DiscoveryNode assignedNode = state.nodes().get(primaryShard.currentNodeId());
-                assertThat(assignedNode.getName(), in(dataAndRemoteNodes));
+                assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataAndRemoteNodes));
             }
-        });
+        }, 30, TimeUnit.SECONDS);
         // Follower primaries can be relocated to nodes without the remote cluster client role
         followerClient().admin().indices().prepareUpdateSettings(followerIndex)
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))
+            .setSettings(Settings.builder()
+                .putNull("index.routing.allocation.include._tier_preference")
+                .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))
             .get();
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
@@ -111,10 +117,10 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
                 for (ShardRouting shard : shardRoutingTable) {
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
-                    assertThat(assignedNode.getName(), in(dataOnlyNodes));
+                    assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataOnlyNodes));
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
         assertIndexFullyReplicatedToFollower(leaderIndex, followerIndex);
         // Follower primaries can be recovered from the existing copies on nodes without the remote cluster client role
         getFollowerCluster().fullRestart();
@@ -125,10 +131,10 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
                 for (ShardRouting shard : shardRoutingTable) {
                     assertNotNull(shard.currentNodeId());
                     final DiscoveryNode assignedNode = state.nodes().get(shard.currentNodeId());
-                    assertThat(assignedNode.getName(), in(dataOnlyNodes));
+                    assertThat(shardRoutingTable.toString(), assignedNode.getName(), in(dataOnlyNodes));
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
         int moreDocs = between(0, 20);
         for (int i = 0; i < moreDocs; i++) {
             leaderClient().prepareIndex(leaderIndex).setSource("f", i).get();

@@ -1,40 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -56,23 +48,13 @@ public class IndicesModuleTests extends ESTestCase {
 
     private static class FakeMapperParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             return null;
         }
     }
 
-    private static class FakeMetadataMapperParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-            return null;
-        }
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return null;
-        }
-    }
+    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override
@@ -81,13 +63,14 @@ public class IndicesModuleTests extends ESTestCase {
         }
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Collections.singletonMap("fake-metadata-mapper", new FakeMetadataMapperParser());
+            return Collections.singletonMap("fake-metadata-mapper", PARSER);
         }
     });
 
     private static final String[] EXPECTED_METADATA_FIELDS = new String[]{ IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-            NestedPathFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME };
+            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME,
+            NestedPathFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, DocCountFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
@@ -166,7 +149,7 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-                return Collections.singletonMap(IdFieldMapper.NAME, new FakeMetadataMapperParser());
+                return Collections.singletonMap(IdFieldMapper.NAME, PARSER);
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -178,10 +161,36 @@ public class IndicesModuleTests extends ESTestCase {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-                return Collections.singletonMap("foo", new FakeMetadataMapperParser());
+                return Collections.singletonMap("foo", PARSER);
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testDuplicateRuntimeFieldPlugin() {
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, RuntimeField.Parser> getRuntimeFields() {
+                return Map.of("test", new RuntimeField.Parser(name -> null));
+            }
+        };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testRuntimeFieldPluginWithBuiltinFieldType() {
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, RuntimeField.Parser> getRuntimeFields() {
+                return Map.of(KeywordFieldMapper.CONTENT_TYPE, new RuntimeField.Parser(name -> null));
+            }
+        };
+        List<MapperPlugin> plugins = Collections.singletonList(plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
@@ -191,7 +200,7 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-                return Collections.singletonMap(FieldNamesFieldMapper.NAME, new FakeMetadataMapperParser());
+                return Collections.singletonMap(FieldNamesFieldMapper.NAME, PARSER);
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

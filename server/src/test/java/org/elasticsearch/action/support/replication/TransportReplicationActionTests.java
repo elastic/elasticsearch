@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -50,11 +39,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -126,6 +115,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -142,16 +132,17 @@ public class TransportReplicationActionTests extends ESTestCase {
      *
      * This will throw a {@link ClassCastException} if the request is of the wrong type.
      */
-    public static <R extends ReplicationRequest> R resolveRequest(TransportRequest requestOrWrappedRequest) {
+    @SuppressWarnings("unchecked")
+    public static <R extends ReplicationRequest<?>> R resolveRequest(TransportRequest requestOrWrappedRequest) {
         if (requestOrWrappedRequest instanceof TransportReplicationAction.ConcreteShardRequest) {
             requestOrWrappedRequest = ((TransportReplicationAction.ConcreteShardRequest<?>)requestOrWrappedRequest).getRequest();
         }
-        //noinspection unchecked
         return (R) requestOrWrappedRequest;
     }
 
     private static ThreadPool threadPool;
 
+    private boolean forceExecute;
     private ClusterService clusterService;
     private TransportService transportService;
     private CapturingTransport transport;
@@ -172,6 +163,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        forceExecute = randomBoolean();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
@@ -341,6 +333,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
             = new TransportReplicationAction.ConcreteShardRequest<>(request, targetAllocationID, primaryTerm);
+        @SuppressWarnings("rawtypes")
         final TransportReplicationAction.AsyncPrimaryAction asyncPrimaryActionWithBlocks =
             actionWithBlocks.new AsyncPrimaryAction(primaryRequest, listener, task);
         asyncPrimaryActionWithBlocks.run();
@@ -678,7 +671,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertThat(requests.size(), equalTo(1));
             assertThat("primary request was not delegated to relocation target",
                 requests.get(0).action, equalTo("internal:testAction2[p]"));
-            //noinspection unchecked
+            @SuppressWarnings("unchecked")
             final TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest
                 = (TransportReplicationAction.ConcreteShardRequest<Request>) requests.get(0).request;
             assertThat("primary term not properly set on primary delegation", concreteShardRequest.getPrimaryTerm(), equalTo(primaryTerm));
@@ -836,10 +829,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(shard.getPendingReplicationActions()).thenReturn(replicationActions);
         doAnswer(invocation -> {
             count.incrementAndGet();
-            //noinspection unchecked
-            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(count::decrementAndGet);
+            @SuppressWarnings("unchecked")
+            ActionListener<Releasable> argument = (ActionListener<Releasable>) invocation.getArguments()[0];
+            argument.onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject(), eq(forceExecute));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -854,9 +848,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         action.handlePrimaryRequest(concreteShardRequest, createTransportChannel(listener), null);
         CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
         assertThat(requestsToReplicas, arrayWithSize(1));
-        //noinspection unchecked
-        assertThat(((TransportReplicationAction.ConcreteShardRequest<Request>) requestsToReplicas[0].request).getPrimaryTerm(),
-            equalTo(primaryTerm));
+        @SuppressWarnings("unchecked")
+        TransportReplicationAction.ConcreteShardRequest<Request> shardRequest = (TransportReplicationAction.ConcreteShardRequest<
+            Request>) requestsToReplicas[0].request;
+        assertThat(shardRequest.getPrimaryTerm(), equalTo(primaryTerm));
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -1272,7 +1267,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()),
-                Request::new, Request::new, ThreadPool.Names.SAME);
+                Request::new, Request::new, ThreadPool.Names.SAME, false, forceExecute);
         }
 
         @Override
@@ -1343,7 +1338,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
+        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(forceExecute));
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];

@@ -99,7 +99,7 @@ public class FetchSourcePhaseBenchmark {
     }
 
     @Benchmark
-    public BytesReference filterXContentOnReader() throws IOException {
+    public BytesReference filterXContentOnParser() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
         try (

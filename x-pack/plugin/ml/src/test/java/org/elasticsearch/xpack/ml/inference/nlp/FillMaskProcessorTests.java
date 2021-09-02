@@ -29,14 +29,14 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults() {
         // only the scores of the MASK index array
         // are used the rest is filler
-        double[][] scores = {
+        double[][][] scores = {{
             { 0, 0, 0, 0, 0, 0, 0}, // The
             { 0, 0, 0, 0, 0, 0, 0}, // capital
             { 0, 0, 0, 0, 0, 0, 0}, // of
             { 0.01, 0.01, 0.3, 0.1, 0.01, 0.2, 1.2}, // MASK
             { 0, 0, 0, 0, 0, 0, 0}, // is
             { 0, 0, 0, 0, 0, 0, 0} // paris
-        };
+        }};
 
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
@@ -45,7 +45,8 @@ public class FillMaskProcessorTests extends ESTestCase {
         int[] tokenMap = new int[] {0, 1, 2, 3, 4, 5};
         int[] tokenIds = new int[] {0, 1, 2, 3, 4, 5};
 
-        TokenizationResult tokenization = new TokenizationResult(input, vocab, tokens, tokenIds, tokenMap);
+        TokenizationResult tokenization = new TokenizationResult(vocab);
+        tokenization.addTokenization(input, tokens, tokenIds, tokenMap);
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
 
@@ -66,21 +67,19 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenMissingTokens() {
-        TokenizationResult tokenization =
-            new TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
-            new int[] {}, new int[] {});
+        TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
+        tokenization.addTokenization("", Collections.emptyList(), new int[] {}, new int[] {});
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
-        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, 0L, null);
-
+        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][]{{{}}}, 0L, null);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
 
         assertThat(result.getPredictions(), empty());
     }
 
     public void testValidate_GivenMissingMaskToken() {
-        String input = "The capital of France is Paris";
+        List<String> input = List.of("The capital of France is Paris");
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
@@ -92,7 +91,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
 
     public void testProcessResults_GivenMultipleMaskTokens() {
-        String input = "The capital of [MASK] is [MASK]";
+        List<String> input = List.of("The capital of [MASK] is [MASK]");
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);

@@ -8,9 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteArrayDataOutput;
-
 
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
@@ -83,47 +80,6 @@ public enum ByteUtils {
     /** Read a float in little-endian format. */
     public static float readFloatLE(byte[] arr, int offset) {
         return Float.intBitsToFloat(readIntLE(arr, offset));
-    }
-
-    /** Same as DataOutput#writeVLong but accepts negative values (written on 9 bytes). */
-    public static void writeVLong(ByteArrayDataOutput out, long i) {
-        for (int k = 0; k < 8 && (i & ~0x7FL) != 0L; ++k) {
-            out.writeByte((byte)((i & 0x7FL) | 0x80L));
-            i >>>= 7;
-        }
-        out.writeByte((byte)i);
-    }
-
-    /** Same as DataOutput#readVLong but can read negative values (read on 9 bytes). */
-    public static long readVLong(ByteArrayDataInput in) {
-        // unwinded because of hotspot bugs, see Lucene's impl
-        byte b = in.readByte();
-        if (b >= 0) return b;
-        long i = b & 0x7FL;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 7;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 14;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 21;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 28;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 35;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 42;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 49;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0xFFL) << 56;
-        return i;
     }
 
 }

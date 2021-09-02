@@ -104,6 +104,7 @@ public class Constants {
         "cluster:admin/xpack/deprecation/nodes/info",
         "cluster:admin/xpack/enrich/delete",
         "cluster:admin/xpack/enrich/execute",
+        "cluster:admin/xpack/enrich/internal_execute",
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
         "cluster:admin/xpack/enrich/reindex",

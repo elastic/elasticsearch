@@ -138,7 +138,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         + zuluPathSuffix
                         + "/bin/zulu"
                         + jdk.getMajor()
-                        + ".28.11-ca-jdk16.0.0-"
+                        + ".32.15-ca-jdk16.0.2-"
                         + azulPlatform(jdk)
                         + "_[classifier].[ext]";
                     break;

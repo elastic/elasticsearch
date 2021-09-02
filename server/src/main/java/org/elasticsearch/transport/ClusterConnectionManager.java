@@ -9,7 +9,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -109,9 +107,7 @@ public class ClusterConnectionManager implements ConnectionManager {
 
         ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
         if (connectedNodeRefCounter != null) {
-            if (connectedNodeRefCounter.isDeleting()) {
-                connectedNodeRefCounter.incRef();
-            }
+            connectedNodeRefCounter.setReuse();
             connectingRefCounter.decRef();
             listener.onResponse(null);
             return;
@@ -137,7 +133,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                 ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
                     try {
-                        ConnectedNodeRefCounter newConnectedNodeRefCounter = new ConnectedNodeRefCounter(node.getName(), conn, node, connectedNodes);
+                        ConnectedNodeRefCounter newConnectedNodeRefCounter = new ConnectedNodeRefCounter(conn, node, connectedNodes);
                         if (connectedNodes.putIfAbsent(node, newConnectedNodeRefCounter) != null) {
                             logger.debug("existing connection to node [{}], closing new redundant connection", node);
                             IOUtils.closeWhileHandlingException(conn);
@@ -151,7 +147,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                                     logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     ConnectedNodeRefCounter connectedNodeRefCounter1 = connectedNodes.get(node);
                                     if (connectedNodeRefCounter1 != null && Objects.equals(connectedNodeRefCounter1.getConnection(), conn)) {
-                                        connectedNodeRefCounter1.decRef();
+                                        connectedNodeRefCounter1.close();
                                     }
                                     connectionListener.onNodeDisconnected(node, conn);
                                 }));
@@ -207,8 +203,8 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
         if (connectedNodeRefCounter != null) {
             // if we found it and removed it we close
-            connectedNodeRefCounter.decRef();
-            connectedNodeRefCounter.setIsDeleting(false);
+            connectedNodeRefCounter.close();
+            connectedNodeRefCounter.setDeleting(false);
         }
     }
 
@@ -233,6 +229,14 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public void closeNoBlock() {
         internalClose(false);
+    }
+
+    @Override
+    public void setDeleting(DiscoveryNode node) {
+        ConnectedNodeRefCounter connectedNodeRefCounter = connectedNodes.get(node);
+        if (connectedNodeRefCounter != null) {
+            connectedNodeRefCounter.setDeleting(true);
+        }
     }
 
     private void internalClose(boolean waitForPendingConnections) {
@@ -280,23 +284,16 @@ public class ClusterConnectionManager implements ConnectionManager {
         return defaultProfile;
     }
 
-    @Override
-    public void setIsDeleting(DiscoveryNode discoveryNode) {
-        if (connectedNodes.containsKey(discoveryNode)) {
-            connectedNodes.get(discoveryNode).setIsDeleting(true);
-        }
-    }
-
-    public static final class ConnectedNodeRefCounter extends AbstractRefCounted implements Closeable {
+    public static final class ConnectedNodeRefCounter implements Closeable {
 
         private final Transport.Connection connection;
         private final ConcurrentMap<DiscoveryNode, ConnectedNodeRefCounter> connectedNodes;
         private final DiscoveryNode node;
-        private volatile boolean isDeleting = false;
+        private volatile boolean reuse = false;
+        private volatile boolean deleting = false;
 
-        public ConnectedNodeRefCounter(String name, Transport.Connection connection, DiscoveryNode node,
+        public ConnectedNodeRefCounter(Transport.Connection connection, DiscoveryNode node,
                                        ConcurrentMap<DiscoveryNode, ConnectedNodeRefCounter> connectedNodes) {
-            super(name);
             this.connection = connection;
             this.connectedNodes = connectedNodes;
             this.node = node;
@@ -311,45 +308,24 @@ public class ClusterConnectionManager implements ConnectionManager {
             return node;
         }
 
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws IOException, TransportException {
-            connection.sendRequest(requestId, action, request, options);
-        }
-
-        public void addCloseListener(ActionListener<Void> listener) {
-            connection.addCloseListener(listener);
-        }
-
-        public boolean isClosed() {
-            return connection.isClosed();
-        }
-
-        public Version getVersion() {
-            return connection.getVersion();
-        }
-
-        public Object getCacheKey() {
-            return connection;
-        }
-
-        @Override
-        protected void closeInternal() {
-            logger.info("closeInternal, data：[{}], current connection:[{}]", node.getName(), refCount());
-            connectedNodes.remove(node);
-            connection.close();
-        }
-
         @Override
         public void close() {
-            closeInternal();
+            if (reuse) {
+                reuse = false;
+            } else {
+                connectedNodes.remove(node, this);
+                connection.close();
+            }
         }
 
-        public void setIsDeleting(boolean isDeleting) {
-            this.isDeleting = isDeleting;
+        public void setReuse() {
+            if (deleting == true) {
+                reuse = true;
+            }
         }
 
-        public boolean isDeleting() {
-            return isDeleting;
+        public void setDeleting(boolean deleting) {
+            this.deleting = deleting;
         }
     }
 

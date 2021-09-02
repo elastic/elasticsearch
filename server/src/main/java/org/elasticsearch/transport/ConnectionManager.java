@@ -44,12 +44,12 @@ public interface ConnectionManager extends Closeable {
 
     ConnectionProfile getConnectionProfile();
 
-    void setIsDeleting(DiscoveryNode discoveryNode);
-
     @FunctionalInterface
     interface ConnectionValidator {
         void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
     }
+
+    void setDeleting(DiscoveryNode node);
 
     final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 

@@ -132,8 +132,8 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     @Override
-    public void setIsDeleting(DiscoveryNode discoveryNode) {
-        this.delegate.setIsDeleting(discoveryNode);
+    public void setDeleting(DiscoveryNode node) {
+        delegate.setDeleting(node);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {

@@ -18,10 +18,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -109,7 +111,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             "{" +
             "\"transient\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\"\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n" +
             "    }" +
             "}");
         client().performRequest(loggingSettings);
@@ -124,7 +127,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             "{" +
             "\"transient\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n" +
             "    }" +
             "}");
         client().performRequest(loggingSettings);
@@ -133,7 +137,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         waitForPendingTasks(adminClient());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
         createModelStoreIndex();
@@ -168,7 +171,6 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";
 
@@ -193,7 +195,6 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testGetDeploymentStats_WithWildcard() throws IOException {
 
         {
@@ -262,7 +263,6 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
         putVocabulary(List.of("once", "twice"));
         String modelFoo = "foo";
@@ -367,7 +367,10 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void putVocabulary(List<String> vocabulary) throws IOException {
-        String quotedWords = vocabulary.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
+        List<String> vocabularyWithPad = new ArrayList<>();
+        vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
+        vocabularyWithPad.addAll(vocabulary);
+        String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "/" + VOCAB_INDEX + "/_doc/test_vocab");
         request.setJsonEntity("{  " +

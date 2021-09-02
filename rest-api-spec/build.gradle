@@ -40,10 +40,6 @@ testClusters.all {
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
 tasks.named("yamlRestCompatTest").configure {
-  onlyIf {
-    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
-    OS.current() != OS.WINDOWS
-  }
   systemProperty 'tests.rest.blacklist',  [
             // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
             'cat*/*/*',

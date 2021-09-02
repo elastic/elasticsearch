@@ -46,7 +46,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 == {api-query-parms-title}
 
 `defer_definition_decompression`::
-(Optional, Boolean)
+(Optional, boolean)
 Should the request defer definition decompression and skip relevant
 validations when a `compressed_definition` is provided.
 This would be useful for systems or users that know a good JVM heap size estimate for their

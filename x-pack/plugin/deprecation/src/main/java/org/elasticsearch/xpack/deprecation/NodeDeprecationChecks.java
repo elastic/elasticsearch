@@ -230,7 +230,7 @@ class NodeDeprecationChecks {
             return null;
         } else {
             return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
+                DeprecationIssue.Level.WARNING,
                 "Realm names cannot start with [" + RESERVED_REALM_NAME_PREFIX + "] in a future major release.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
                 String.format(Locale.ROOT, "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")

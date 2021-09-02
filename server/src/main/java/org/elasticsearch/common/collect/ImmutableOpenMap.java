@@ -22,6 +22,8 @@ import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -171,6 +173,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      */
     public Stream<ObjectObjectCursor<KType, VType>> stream() {
         return StreamSupport.stream(spliterator(), false);
+    }
+
+    @Override
+    public Spliterator<ObjectObjectCursor<KType, VType>> spliterator() {
+        return Spliterators.spliterator(map.iterator(), map.size(), 0);
     }
 
     @Override

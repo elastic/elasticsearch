@@ -317,12 +317,14 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
     // Modified to delete testWriteToReadOnlyBuffer. We only compress to byte arrays so this test is
     // unnecessary
 
-    @Repeat(iterations=5)
     public void testAllEqual() {
-        final int len = randomBoolean() ? randomInt(20) : randomInt(100000);
-        final byte[] buf = new byte[len];
-        Arrays.fill(buf, randomByte());
-        testRoundTrip(buf);
+        // Modified to not use @Repeat
+        for (int i = 0; i < 5; ++i) {
+            final int len = randomBoolean() ? randomInt(20) : randomInt(100000);
+            final byte[] buf = new byte[len];
+            Arrays.fill(buf, randomByte());
+            testRoundTrip(buf);
+        }
     }
 
     public void testMaxDistance() {
@@ -336,13 +338,15 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
         testRoundTrip(buf);
     }
 
-    @Repeat(iterations=10)
     public void testRandomData() {
-        final int n = randomIntBetween(1, 15);
-        final int off = randomInt(1000);
-        final int len = randomBoolean() ? randomInt(1 << 16) : randomInt(1 << 20);
-        final byte[] data = randomArray(off + len + randomInt(100), n);
-        testRoundTrip(data, off, len);
+        // Modified to not use @Repeat
+        for (int i = 0; i < 10; ++i) {
+            final int n = randomIntBetween(1, 15);
+            final int off = randomInt(1000);
+            final int len = randomBoolean() ? randomInt(1 << 16) : randomInt(1 << 20);
+            final byte[] data = randomArray(off + len + randomInt(100), n);
+            testRoundTrip(data, off, len);
+        }
     }
 
     // https://github.com/jpountz/lz4-java/issues/12

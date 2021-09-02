@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.OS
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -215,6 +213,8 @@ tasks.named("transformV7RestTests").configure({ task ->
     "_all.primaries.indexing.types._doc.index_total"
   )
   task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
+  // points get touched by sorting in ES 8
+  task.replaceValueInMatch("testindex.shards.0.stats.fields.price.points", 1)
 
   //override for "indices.open/10_basic/?wait_for_active_shards default is deprecated" and "indices.open/10_basic/?wait_for_active_shards=index-setting"
   task.addAllowedWarningRegexForTest("\\?wait_for_active_shards=index-setting is now the default behaviour.*", "?wait_for_active_shards=index-setting")

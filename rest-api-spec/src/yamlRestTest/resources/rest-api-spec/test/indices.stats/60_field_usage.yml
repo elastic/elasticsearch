@@ -109,8 +109,8 @@
   - match: { testindex.shards.0.stats.fields.price.inverted_index.proximity: 0 }
   - match: { testindex.shards.0.stats.fields.price.stored_fields: 0 }
   - gt: { testindex.shards.0.stats.fields.price.doc_values: 0 }
-  # commented out because points can be 1 or 0 depending on the lucene version used
-  # - match: { testindex.shards.0.stats.fields.price.points: 1 }
+  # can be 0 on pre-lucene 9 nodes or 1 on post-upgrade nodes
+  - gte: { testindex.shards.0.stats.fields.price.points: 0 }
   - match: { testindex.shards.0.stats.fields.price.norms: 0 }
   - match: { testindex.shards.0.stats.fields.price.term_vectors: 0 }
   - match: { testindex.shards.0.stats.fields.price.inverted_index.term_frequencies: 0 }

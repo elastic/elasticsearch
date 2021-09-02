@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.annotations;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -58,12 +60,12 @@ public class AnnotationPersister {
      * @param annotation annotation to be persisted
      * @return tuple of the form (annotation id, annotation object)
      */
-    public Tuple<String, Annotation> persistAnnotation(@Nullable String annotationId, Annotation annotation) {
+    public Optional<Tuple<String, Annotation>> persistAnnotation(@Nullable String annotationId, Annotation annotation) {
         Objects.requireNonNull(annotation);
         String jobId = annotation.getJobId();
-        BulkResponse bulkResponse = bulkPersisterBuilder(jobId).persistAnnotation(annotationId, annotation).executeRequest();
-        assert bulkResponse.getItems().length == 1;
-        return Tuple.tuple(bulkResponse.getItems()[0].getId(), annotation);
+        Optional<BulkResponse> bulkResponse = bulkPersisterBuilder(jobId).persistAnnotation(annotationId, annotation).executeRequest();
+        assert bulkResponse.isEmpty() || bulkResponse.get().getItems().length == 1;
+        return bulkResponse.map(b -> Tuple.tuple(b.getItems()[0].getId(), annotation));
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
@@ -106,17 +108,22 @@ public class AnnotationPersister {
         /**
          * Execute the bulk action
          */
-        public BulkResponse executeRequest() {
+        public Optional<BulkResponse> executeRequest() {
             if (bulkRequest.numberOfActions() == 0) {
-                return null;
+                return Optional.empty();
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
-            BulkResponse bulkResponse =
-                resultsPersisterService.bulkIndexWithRetry(
-                    bulkRequest, jobId, shouldRetry,
-                    retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage));
-            bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-            return bulkResponse;
+            try {
+                BulkResponse bulkResponse =
+                    resultsPersisterService.bulkIndexWithRetry(
+                        bulkRequest, jobId, shouldRetry,
+                        retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage));
+                bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+                return Optional.of(bulkResponse);
+            } catch (ElasticsearchException ex) {
+                logger.error(new ParameterizedMessage("[{}] Error indexing annotation", jobId), ex);
+            }
+            return Optional.empty();
         }
     }
 }

@@ -248,11 +248,16 @@ class DatafeedJob {
                 }
 
                 if (lastDataCheckAnnotationWithId == null) {
-                    lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
+                    Optional<Tuple<String, Annotation>> maybeAnnotation = annotationPersister.persistAnnotation(null, annotation);
+                    maybeAnnotation.ifPresent(stringAnnotationTuple -> lastDataCheckAnnotationWithId = stringAnnotationTuple);
                 } else {
                     String annotationId = lastDataCheckAnnotationWithId.v1();
                     Annotation updatedAnnotation = updateAnnotation(annotation);
-                    lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(annotationId, updatedAnnotation);
+                    Optional<Tuple<String, Annotation>> maybeAnnotation = annotationPersister.persistAnnotation(
+                        annotationId,
+                        updatedAnnotation
+                    );
+                    maybeAnnotation.ifPresent(stringAnnotationTuple -> lastDataCheckAnnotationWithId = stringAnnotationTuple);
                 }
             }
         }

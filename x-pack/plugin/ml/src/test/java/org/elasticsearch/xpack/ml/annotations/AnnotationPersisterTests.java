@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.annotations;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -39,10 +38,10 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -92,8 +91,9 @@ public class AnnotationPersisterTests extends ESTestCase {
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
-        Tuple<String, Annotation> result = persister.persistAnnotation(null, annotation);
-        assertThat(result, is(equalTo(tuple(ANNOTATION_ID, annotation))));
+        Optional<Tuple<String, Annotation>> result = persister.persistAnnotation(null, annotation);
+        assertThat(result.isPresent(), is(true));
+        assertThat(result.get(), is(equalTo(tuple(ANNOTATION_ID, annotation))));
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -115,8 +115,9 @@ public class AnnotationPersisterTests extends ESTestCase {
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
-        Tuple<String, Annotation> result = persister.persistAnnotation(ANNOTATION_ID, annotation);
-        assertThat(result, is(equalTo(tuple(ANNOTATION_ID, annotation))));
+        Optional<Tuple<String, Annotation>> result = persister.persistAnnotation(ANNOTATION_ID, annotation);
+        assertThat(result.isPresent(), is(true));
+        assertThat(result.get(), is(equalTo(tuple(ANNOTATION_ID, annotation))));
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -176,7 +177,7 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     public void testPersistMultipleAnnotationsWithBulk_EmptyRequest() {
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
-        assertThat(persister.bulkPersisterBuilder(JOB_ID).executeRequest(), is(nullValue()));
+        assertThat(persister.bulkPersisterBuilder(JOB_ID).executeRequest().isPresent(), is(false));
     }
 
     public void testPersistMultipleAnnotationsWithBulk_Failure() {
@@ -189,9 +190,8 @@ public class AnnotationPersisterTests extends ESTestCase {
         AnnotationPersister.Builder persisterBuilder = persister.bulkPersisterBuilder(JOB_ID)
             .persistAnnotation("1", AnnotationTests.randomAnnotation(JOB_ID))
             .persistAnnotation("2", AnnotationTests.randomAnnotation(JOB_ID));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, persisterBuilder::executeRequest);
-        assertThat(e.getMessage(), containsString("Failed execution"));
 
+        assertThat(persisterBuilder.executeRequest().isPresent(), is(false));
         verify(client, atLeastOnce()).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
         List<BulkRequest> bulkRequests = bulkRequestCaptor.getAllValues();

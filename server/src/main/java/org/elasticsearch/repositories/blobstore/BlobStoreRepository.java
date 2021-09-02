@@ -1402,7 +1402,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     finalizeSnapshotContext::updatedClusterState,
                     ActionListener.wrap(newRepoData -> {
                         if (writeShardGens) {
-                            cleanupOldShardGens(existingRepositoryData, newRepoData);
+                            cleanupOldShardGens(existingRepositoryData, newRepoData, finalizeSnapshotContext);
                         }
                         finalizeSnapshotContext.onResponse(Tuple.tuple(newRepoData, snapshotInfo));
                     }, onUpdateFailure)
@@ -1457,8 +1457,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
-    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
-        final List<String> toDelete = new ArrayList<>();
+    private void cleanupOldShardGens(
+        RepositoryData existingRepositoryData,
+        RepositoryData updatedRepositoryData,
+        FinalizeSnapshotContext finalizeSnapshotContext
+    ) {
+        final Set<String> toDelete = new HashSet<>();
         final int prefixPathLen = basePath().buildAsString().length();
         updatedRepositoryData.shardGenerations()
             .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
@@ -1469,6 +1473,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     )
                 )
             );
+        for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
+            .entrySet()) {
+            final String containerPath = shardContainer(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).path()
+                .buildAsString()
+                .substring(prefixPathLen) + INDEX_FILE_PREFIX;
+            for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
+                toDelete.add(containerPath + shardGeneration);
+            }
+        }
         try {
             deleteFromContainer(blobContainer(), toDelete.iterator());
         } catch (Exception e) {

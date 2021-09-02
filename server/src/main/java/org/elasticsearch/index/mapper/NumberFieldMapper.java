@@ -80,7 +80,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Number> nullValue;
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -1065,7 +1065,6 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
-    private final Builder builder;
     private final NumberType type;
 
     private final boolean indexed;
@@ -1077,6 +1076,8 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final ScriptCompiler scriptCompiler;
+    private final Script script;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1095,7 +1096,8 @@ public class NumberFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
-        this.builder = builder;
+        this.scriptCompiler = builder.scriptCompiler;
+        this.script = builder.script.getValue();
     }
 
     boolean coerce() {
@@ -1170,6 +1172,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 }

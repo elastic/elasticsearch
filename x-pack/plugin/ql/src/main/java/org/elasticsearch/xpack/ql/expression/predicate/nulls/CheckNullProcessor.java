@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class CheckNullProcessor implements Processor {

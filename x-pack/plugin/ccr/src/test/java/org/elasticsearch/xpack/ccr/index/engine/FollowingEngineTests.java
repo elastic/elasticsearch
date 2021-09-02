@@ -32,11 +32,12 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -307,8 +308,21 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Engine.Delete deleteForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
-        return IndexShard.prepareDelete(id, seqNo, primaryTerm.get(), version, VersionType.EXTERNAL,
-            origin, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
+        long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(parsedDoc.type(),
+            parsedDoc.id(),
+            uid,
+            seqNo,
+            primaryTerm.get(),
+            version,
+            VersionType.EXTERNAL,
+            origin,
+            startTime,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
     }
 
     private Engine.Index indexForPrimary(String id) {
@@ -504,7 +518,7 @@ public class FollowingEngineTests extends ESTestCase {
             };
             TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), followerConfig.getIndexSettings());
             followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-            try (followingEngine) {
+            try {
                 final long leaderMaxSeqNoOfUpdatesOnPrimary = 3;
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(leaderMaxSeqNoOfUpdatesOnPrimary);
 
@@ -539,6 +553,8 @@ public class FollowingEngineTests extends ESTestCase {
                 thread2.join();
 
                 assertThat(followingEngine.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leaderMaxSeqNoOfUpdatesOnPrimary));
+            } finally {
+                followingEngine.close();
             }
         }
     }

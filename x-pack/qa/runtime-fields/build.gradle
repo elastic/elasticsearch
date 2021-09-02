@@ -85,6 +85,9 @@ subprojects {
           'search/171_terms_query_with_types/*',
           'search/340_type_query/type query',
           'msearch/12_basic_with_types/*',
+          // The error messages are different
+          'search/330_fetch_fields/error includes field name',
+          'search/330_fetch_fields/error includes glob pattern',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

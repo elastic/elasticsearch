@@ -160,6 +160,19 @@ public class MapsTests extends ESTestCase {
         }
     }
 
+    public void testThrowsExceptionOnDuplicateKeysWhenCollectingToUnmodifiableSortedMap() {
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> Stream.of(
+                new Tuple<>("ON", "Ontario"),
+                new Tuple<>("QC", "Quebec"),
+                new Tuple<>("NS", "Nova Scotia"),
+                new Tuple<>("NS", "Nouvelle-Écosse"),
+                new Tuple<>("NB", "New Brunswick"),
+                new Tuple<>("MB", "Manitoba"))
+            .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2)));
+        assertThat(illegalStateException.getMessage(),
+            equalTo("Duplicate key (attempted merging values Nova Scotia  and Nouvelle-Écosse)"));
+    }
+
     public void testFlatten() {
         Map<String, Object> map = randomNestedMap(10);
         Map<String, Object> flatten = Maps.flatten(map, true, true);

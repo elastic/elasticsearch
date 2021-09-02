@@ -127,7 +127,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         injectPointInTimeIfNeeded(
             buildSearchRequest(),
-            ActionListener.wrap(pitSearchRequest -> { doSearch(pitSearchRequest, nextPhase); }, nextPhase::onFailure)
+            ActionListener.wrap(pitSearchRequest -> doSearch(pitSearchRequest, nextPhase), nextPhase::onFailure)
         );
     }
 
@@ -455,20 +455,27 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
-    private void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
-        logger.trace(() -> new ParameterizedMessage("searchRequest: [{}]", namedSearchRequest.v2()));
+    void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
+        SearchRequest searchRequest = namedSearchRequest.v2();
+        // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
+        if (searchRequest.indices().length == 0) {
+            logger.debug("[{}] Search optimized to noop; request [{}]", getJobId(), searchRequest);
+            listener.onResponse(null);
+            return;
+        }
+        logger.trace("searchRequest: [{}]", searchRequest);
 
-        PointInTimeBuilder pit = namedSearchRequest.v2().pointInTimeBuilder();
+        PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            namedSearchRequest.v2(),
+            searchRequest,
             ActionListener.wrap(response -> {
                 // did the pit change?
-                if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId() != pit.getEncodedId())) {
+                if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId().equals(pit.getEncodedId())) == false) {
                     namedPits.put(namedSearchRequest.v1(), new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
                     logger.trace("point in time handle has changed; request [{}]", namedSearchRequest.v1());
                 }
@@ -489,13 +496,13 @@ class ClientTransformIndexer extends TransformIndexer {
                         e
                     );
                     namedPits.remove(namedSearchRequest.v1());
-                    namedSearchRequest.v2().source().pointInTimeBuilder(null);
+                    searchRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         SearchAction.INSTANCE,
-                        namedSearchRequest.v2(),
+                        searchRequest,
                         listener
                     );
                     return;

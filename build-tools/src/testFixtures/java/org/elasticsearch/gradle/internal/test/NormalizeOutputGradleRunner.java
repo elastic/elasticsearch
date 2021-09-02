@@ -16,7 +16,6 @@ import org.gradle.testkit.runner.InvalidRunnerConfigurationException;
 import org.gradle.testkit.runner.TaskOutcome;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.gradle.testkit.runner.UnexpectedBuildSuccess;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.Writer;
@@ -186,7 +185,6 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
             return delegate.taskPaths(taskOutcome);
         }
 
-        @Nullable
         @Override
         public BuildTask task(String s) {
             return delegate.task(s);

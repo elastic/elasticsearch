@@ -14,7 +14,6 @@ import org.gradle.testkit.runner.InvalidPluginMetadataException;
 import org.gradle.testkit.runner.InvalidRunnerConfigurationException;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.gradle.testkit.runner.UnexpectedBuildSuccess;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.Writer;
@@ -113,14 +112,13 @@ public class InternalAwareGradleRunner extends GradleRunner {
         return this;
     }
 
-    @Nullable
     @Override
     public Map<String, String> getEnvironment() {
         return delegate.getEnvironment();
     }
 
     @Override
-    public GradleRunner withEnvironment(@Nullable Map<String, String> map) {
+    public GradleRunner withEnvironment(Map<String, String> map) {
         delegate.withEnvironment(map);
         return this;
     }

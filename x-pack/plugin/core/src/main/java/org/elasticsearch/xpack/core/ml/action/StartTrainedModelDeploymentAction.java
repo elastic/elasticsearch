@@ -115,17 +115,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         @Override
         public ActionRequestValidationException validate() {
-            if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
-                ActionRequestValidationException validationException = new ActionRequestValidationException();
-                validationException.addValidationError(
-                    "invalid [wait_for] state ["
-                        + waitForState
-                        + "]; must be one of ["
-                        + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
-                );
-                return validationException;
+            if (waitForState.isAnyOf(VALID_WAIT_STATES)) {
+                return null;
             }
-            return null;
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            validationException.addValidationError(
+                "invalid [wait_for] state ["
+                    + waitForState
+                    + "]; must be one of ["
+                    + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
+            );
+            return validationException;
         }
 
         @Override

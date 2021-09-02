@@ -16,7 +16,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResult
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,10 +26,10 @@ import java.util.Locale;
 
 public class SentimentAnalysisProcessor implements NlpTask.Processor {
 
-    private final BertTokenizer tokenizer;
+    private final NlpTokenizer tokenizer;
     private final List<String> classLabels;
 
-    SentimentAnalysisProcessor(BertTokenizer tokenizer, SentimentAnalysisConfig config) {
+    SentimentAnalysisProcessor(NlpTokenizer tokenizer, SentimentAnalysisConfig config) {
         this.tokenizer = tokenizer;
         List<String> classLabels = config.getClassificationLabels();
         if (classLabels == null || classLabels.isEmpty()) {
@@ -60,7 +61,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
     }
 
     NlpTask.Request buildRequest(String input, String requestId) throws IOException {
-        BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize(input);
+        TokenizationResult tokenization = tokenizer.tokenize(input);
         return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
     }
 
@@ -69,7 +70,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         return this::processResult;
     }
 
-    InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult) {
+    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
         if (pyTorchResult.getInferenceResult().length < 1) {
             return new WarningInferenceResults("Sentiment analysis result has no data");
         }

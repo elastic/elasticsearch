@@ -731,6 +731,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             clusterNodes.forEach(ClusterNode::close);
         }
 
+        protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
+            return emptyList();
+        }
+
         class MockPersistedState implements CoordinationState.PersistedState {
             private final CoordinationState.PersistedState delegate;
             private final NodeEnvironment nodeEnvironment;
@@ -828,8 +832,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             }
                         }
 
-                        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
-                            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+                        final StreamInput inStream = new NamedWriteableAwareStreamInput(
+                            outStream.bytes().streamInput(),
+                            getNamedWriteableRegistry());
                         // adapt cluster state to new localNode instance and add blocks
                         delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(persistedCurrentTerm),
                             ClusterStateUpdaters.addStateNotRecoveredBlock(ClusterState.readFrom(inStream, newLocalNode)));
@@ -879,6 +884,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     throw new AssertionError("unexpected", e);
                 }
             }
+        }
+
+        private NamedWriteableRegistry getNamedWriteableRegistry() {
+            return new NamedWriteableRegistry(Stream.concat(
+                ClusterModule.getNamedWriteables().stream(),
+                extraNamedWriteables().stream()
+            ).collect(Collectors.toList()));
         }
 
         public class ClusterNode {
@@ -958,7 +970,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
+                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, getNamedWriteableRegistry(),
                     allocationService, masterService, this::getPersistedState,
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},
                     getElectionStrategy(), nodeHealthService);

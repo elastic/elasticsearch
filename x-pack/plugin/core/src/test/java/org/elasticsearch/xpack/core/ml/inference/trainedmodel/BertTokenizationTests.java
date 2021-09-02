@@ -15,7 +15,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class TokenizationParamsTests extends AbstractBWCSerializationTestCase<TokenizationParams> {
+public class BertTokenizationTests extends AbstractBWCSerializationTestCase<BertTokenization> {
 
     private boolean lenient;
 
@@ -25,27 +25,27 @@ public class TokenizationParamsTests extends AbstractBWCSerializationTestCase<To
     }
 
     @Override
-    protected TokenizationParams doParseInstance(XContentParser parser) throws IOException {
-        return TokenizationParams.createParser(lenient).apply(parser, null);
+    protected BertTokenization doParseInstance(XContentParser parser) throws IOException {
+        return BertTokenization.createParser(lenient).apply(parser, null);
     }
 
     @Override
-    protected Writeable.Reader<TokenizationParams> instanceReader() {
-        return TokenizationParams::new;
+    protected Writeable.Reader<BertTokenization> instanceReader() {
+        return BertTokenization::new;
     }
 
     @Override
-    protected TokenizationParams createTestInstance() {
+    protected BertTokenization createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected TokenizationParams mutateInstanceForVersion(TokenizationParams instance, Version version) {
+    protected BertTokenization mutateInstanceForVersion(BertTokenization instance, Version version) {
         return instance;
     }
 
-    public static TokenizationParams createRandom() {
-        return new TokenizationParams(
+    public static BertTokenization createRandom() {
+        return new BertTokenization(
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024)

@@ -143,7 +143,7 @@ using the default method.
 
 `_only_nodes:<node-id>,<node-id>`::
 Run the search on only the specified nodes IDs. If suitable shards exist on more
-than one selected nodes, use shards on those nodes using the default method. If
+than one selected node, use shards on those nodes using the default method. If
 none of the specified nodes are available, select shards from any available node
 using the default method.
 
@@ -152,11 +152,11 @@ If possible, run the search on the specified nodes IDs. If not, select shards
 using the default method.
 
 `_shards:<shard>,<shard>`::
-Run the search only on the specified shards. This value can be combined with
-other `preference` values, but this value must come first. For example:
-`_shards:2,3|_local`
+Run the search only on the specified shards. You can combine this value with
+other `preference` values, excluding `<custom-string>`. However, the `_shards`
+value must come first. For example: `_shards:2,3|_local`.
 
-<custom-string>::
+`<custom-string>`::
 Any string that does not start with `_`. If the cluster state and selected
 shards do not change, searches using the same `<custom-string>` value are routed
 to the same shards in the same order.

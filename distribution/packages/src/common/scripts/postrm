@@ -18,6 +18,7 @@ export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 REMOVE_DIRS=false
 REMOVE_JVM_OPTIONS_DIRECTORY=false
+REMOVE_ELASTICSEARCH_KEYSTORE=false
 REMOVE_USER_AND_GROUP=false
 
 case "$1" in
@@ -30,6 +31,7 @@ case "$1" in
     purge)
         REMOVE_DIRS=true
         REMOVE_JVM_OPTIONS_DIRECTORY=true
+        REMOVE_ELASTICSEARCH_KEYSTORE=true
         REMOVE_USER_AND_GROUP=true
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
@@ -94,6 +96,15 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         echo -n "Deleting jvm.options.d directory..."
         rm -rf "${ES_PATH_CONF}/jvm.options.d"
         echo " OK"
+      fi
+    fi
+
+    # delete the elasticsearch keystore if we are purging
+    if [ "$REMOVE_ELASTICSEARCH_KEYSTORE" = "true" ]; then
+      if [ -e "${ES_PATH_CONF}/elasticsearch.keystore" ]; then
+        echo -n "Deleting elasticsearch.keystore..."
+        rm -f "${ES_PATH_CONF}/elasticsearch.keystore"
+        echo "OK"
       fi
     fi
 

@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import java.util.Locale;
 public class NerProcessor implements NlpTask.Processor {
 
     public enum Entity implements Writeable {
-        NONE, MISC, PERSON, ORGANISATION, LOCATION;
+        NONE, MISC, PERSON, ORGANIZATION, LOCATION;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -47,8 +48,8 @@ public class NerProcessor implements NlpTask.Processor {
         I_MISC(Entity.MISC),            // Miscellaneous entity
         B_PER(Entity.PERSON),           // Beginning of a person's name right after another person's name
         I_PER(Entity.PERSON),           // Person's name
-        B_ORG(Entity.ORGANISATION),     // Beginning of an organisation right after another organisation
-        I_ORG(Entity.ORGANISATION),     // Organisation
+        B_ORG(Entity.ORGANIZATION),     // Beginning of an organisation right after another organisation
+        I_ORG(Entity.ORGANIZATION),     // Organisation
         B_LOC(Entity.LOCATION),         // Beginning of a location right after another location
         I_LOC(Entity.LOCATION);         // Location
 
@@ -67,13 +68,13 @@ public class NerProcessor implements NlpTask.Processor {
         }
     }
 
-    private final BertRequestBuilder bertRequestBuilder;
+    private final NlpTask.RequestBuilder requestBuilder;
     private final IobTag[] iobMap;
 
-    NerProcessor(BertTokenizer tokenizer, NerConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
+    NerProcessor(NlpTokenizer tokenizer, NerConfig config) {
         validate(config.getClassificationLabels());
-        iobMap = buildIobMap(config.getClassificationLabels());
+        this.iobMap = buildIobMap(config.getClassificationLabels());
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     /**
@@ -124,7 +125,7 @@ public class NerProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return bertRequestBuilder;
+        return requestBuilder;
     }
 
     @Override
@@ -133,7 +134,6 @@ public class NerProcessor implements NlpTask.Processor {
     }
 
     static class NerResultProcessor implements NlpTask.ResultProcessor {
-
         private final IobTag[] iobMap;
 
         NerResultProcessor(IobTag[] iobMap) {
@@ -141,7 +141,7 @@ public class NerProcessor implements NlpTask.Processor {
         }
 
         @Override
-        public InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
             if (tokenization.getTokens().isEmpty()) {
                 return new NerResults(Collections.emptyList());
             }
@@ -163,7 +163,7 @@ public class NerProcessor implements NlpTask.Processor {
          * in the original input replacing them with a single token that
          * gets labelled based on the average score of all its sub-tokens.
          */
-        private List<TaggedToken> tagTokens(BertTokenizer.TokenizationResult tokenization, double[][] scores) {
+        private List<TaggedToken> tagTokens(TokenizationResult tokenization, double[][] scores) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
             while (startTokenIndex < tokenization.getTokens().size()) {

@@ -8,13 +8,18 @@
 
 package org.elasticsearch.repositories;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
+
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Context for finalizing a snapshot.
@@ -24,6 +29,12 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
     Tuple<RepositoryData, SnapshotInfo>> {
 
     private final ShardGenerations updatedShardGenerations;
+
+    /**
+     * Obsolete shard generations map computed from the cluster state update that this finalization executed in
+     * {@link #updatedClusterState}.
+     */
+    private final SetOnce<Map<RepositoryShardId, Set<ShardGeneration>>> obsoleteGenerations = new SetOnce<>();
 
     private final long repositoryStateId;
 
@@ -78,8 +89,18 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<
         return clusterMetadata;
     }
 
+    public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteShardGenerations() {
+        assert obsoleteGenerations.get() != null : "must only be called after #updatedClusterState";
+        return obsoleteGenerations.get();
+    }
+
     public ClusterState updatedClusterState(ClusterState state) {
-        return SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot());
+        final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot());
+        obsoleteGenerations.set(
+            updatedState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .obsoleteGenerations(state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY))
+        );
+        return updatedState;
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -961,6 +962,32 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issues, empty());
     }
 
+    public void testCheckDelayClusterStateRecoverySettings() {
+        Settings settings = Settings.builder()
+            .put(GatewayService.EXPECTED_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .put(GatewayService.EXPECTED_MASTER_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "cannot use properties related to delaying cluster state recovery after a majority of master nodes have joined because they " +
+                "have been deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "cannot use properties [gateway.expected_nodes,gateway.expected_master_nodes,gateway.recover_after_nodes,gateway" +
+                ".recover_after_master_nodes] because they have been deprecated and will be removed in the next major version",
+            false, null
+        );
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        assertThat(
+            NodeDeprecationChecks.checkDelayClusterStateRecoverySettings(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+    }
+
     public void testCheckFixedAutoQueueSizeThreadpool() {
         String settingKey = "thread_pool.search.min_queue_size";
         String settingValue = "";
@@ -1123,5 +1150,4 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_node_changes";
         checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkMaxLocalStorageNodesSetting);
     }
-
 }

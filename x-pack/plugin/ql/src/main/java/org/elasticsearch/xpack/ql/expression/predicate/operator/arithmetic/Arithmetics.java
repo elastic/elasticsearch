@@ -180,7 +180,7 @@ public final class Arithmetics {
         return Integer.valueOf(Math.negateExact(n.intValue()));
     }
 
-    private static BigInteger asBigInteger(Number n) {
+    public static BigInteger asBigInteger(Number n) {
         return n instanceof BigInteger ? (BigInteger) n : BigInteger.valueOf(n.longValue());
     }
 }

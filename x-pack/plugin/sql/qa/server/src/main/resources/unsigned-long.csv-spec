@@ -97,3 +97,360 @@ SELECT salary_ul, salary_ul + languages AS s, languages FROM test_emp_copy WHERE
 74999             |null           |null
 74970             |74973          |3
 ;
+
+countWithImplicitGroupBy
+SELECT MAX(salary_ul) AS m FROM test_emp_copy ORDER BY COUNT(*);
+
+       m:ul
+---------------
+74999
+;
+
+countWithImplicitGroupByWithHaving
+SELECT MAX(salary_ul) AS m FROM test_emp_copy HAVING MIN(salary_ul) > 1 ORDER BY COUNT(*);
+
+       m:ul
+---------------
+74999
+;
+
+kurtosisAndSkewnessGroup
+SELECT gender, KURTOSIS(salary_ul) k, SKEWNESS(salary_ul) s FROM test_emp_copy GROUP BY gender;
+
+gender:s             | k:d                  | s:d
+
+null                 |2.2215791166941923    |-0.03373126000214023
+F                    |1.7873117044424276    |0.05504995122217512
+M                    |2.280646181070106     |0.44302407229580243
+;
+
+sumFieldWithSumLiteralAsCondition
+SELECT first_name, last_name, SUM(salary_ul) AS s, birth_date AS y, COUNT(1) FROM test_emp_copy GROUP BY 1, 2, 4 HAVING ((SUM(1) >= 1) AND (SUM(1) <= 577)) AND ((SUM(salary_ul) >= 35000) AND (SUM(salary_ul) <= 45000));
+
+  first_name:s |   last_name:s |       s:ul    |           y:ts         |   COUNT(1):l
+---------------+---------------+---------------+------------------------+---------------
+null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1
+null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1
+null           |Lortz          |35222          |1960-07-20T00:00:00.000Z|1
+null           |Makrucki       |37691          |1963-07-22T00:00:00.000Z|1
+null           |Swan           |39878          |1962-12-29T00:00:00.000Z|1
+Alejandro      |McAlpine       |44307          |1953-09-19T00:00:00.000Z|1
+Amabile        |Gomatam        |38645          |1955-10-04T00:00:00.000Z|1
+Basil          |Tramer         |37853          |null                    |1
+Berhard        |McFarlin       |38376          |1954-10-01T00:00:00.000Z|1
+Berni          |Genin          |37137          |1956-02-12T00:00:00.000Z|1
+Chirstian      |Koblick        |36174          |1954-05-01T00:00:00.000Z|1
+Domenick       |Tempesti       |39356          |1963-11-26T00:00:00.000Z|1
+Hilari         |Morton         |37702          |1965-01-03T00:00:00.000Z|1
+Hisao          |Lipner         |40612          |1958-01-21T00:00:00.000Z|1
+Jayson         |Mandell        |43889          |1954-09-16T00:00:00.000Z|1
+Jungsoon       |Syrzycki       |39638          |1954-02-25T00:00:00.000Z|1
+Kendra         |Hofting        |44956          |1961-05-30T00:00:00.000Z|1
+Kenroku        |Malabarba      |35742          |1962-11-07T00:00:00.000Z|1
+Margareta      |Bierman        |41933          |1960-09-06T00:00:00.000Z|1
+Mayuko         |Warwick        |40031          |1952-12-24T00:00:00.000Z|1
+Mingsen        |Casley         |39728          |null                    |1
+Mokhtar        |Bernatsky      |38992          |1955-08-28T00:00:00.000Z|1
+Saniya         |Kalloufi       |43906          |1958-02-19T00:00:00.000Z|1
+Sreekrishna    |Servieres      |44817          |1961-09-23T00:00:00.000Z|1
+Sudharsan      |Flasterstein   |43602          |1963-03-21T00:00:00.000Z|1
+Vishv          |Zockler        |39110          |1959-07-23T00:00:00.000Z|1
+Weiyi          |Meriste        |37112          |null                    |1
+Yinghua        |Dredge         |43026          |1958-05-21T00:00:00.000Z|1
+Zvonko         |Nyanchama      |42716          |null                    |1
+;
+
+histogramNumeric
+SELECT HISTOGRAM(salary_ul, 5000) AS h FROM test_emp_copy GROUP BY h;
+
+       h:ul
+---------------
+25000
+30000
+35000
+40000
+45000
+50000
+55000
+60000
+65000
+70000
+;
+
+medianAbsoluteDeviation
+schema::gender:s|mad:d
+SELECT gender, MAD(salary_ul) AS mad FROM test_emp_copy GROUP BY gender ORDER BY gender;
+
+    gender     |      mad
+---------------+---------------
+null           |10789.0
+F              |12719.0
+M              |8905.0
+;
+
+groupAndAggNotSpecifiedInTheAggregateWithHaving
+SELECT gender, MIN(salary_ul) AS min, COUNT(*) AS c FROM test_emp_copy GROUP BY gender HAVING c > 1 ORDER BY gender NULLS FIRST, MAX(salary_ul);
+
+    gender:s   |      min:ul   |       c:l
+---------------+---------------+---------------
+null           |25324          |10
+F              |25976          |33
+M              |25945          |57
+;
+
+multipleAggsThatGetRewrittenWithAliasOnAMediumGroupByWithHaving
+SELECT languages, MAX(salary_ul) AS max, MIN(salary_ul) AS min FROM test_emp_copy GROUP BY languages HAVING min BETWEEN 1000 AND 99999 ORDER BY max;
+
+   languages:bt|      max:ul   |      min:ul
+---------------+---------------+---------------
+5              |66817          |25324
+2              |73578          |29175
+1              |73717          |25976
+4              |74572          |27215
+3              |74970          |26436
+null           |74999          |28336
+;
+
+aggNotSpecifiedWithHavingOnLargeGroupBy
+SELECT MAX(salary_ul) AS max FROM test_emp_copy GROUP BY emp_no HAVING AVG(salary_ul) > 1000 ORDER BY MIN(salary_ul) LIMIT 5;
+
+      max:ul
+---------------
+25324
+25945
+25976
+26436
+27215
+;
+
+multipleGroupingsAndOrderingByGroupsAndAggs
+SELECT gender, MIN(salary_ul + 1) AS min, COUNT(*) AS c, MAX(salary_ul) AS max FROM test_emp_copy GROUP BY gender HAVING c > 1 ORDER BY gender DESC NULLS LAST, MAX(salary_ul) ASC;
+
+    gender:s   |      min:ul   |       c:l     |      max:ul
+---------------+---------------+---------------+---------------
+M              |25946          |57             |74999
+F              |25977          |33             |74572
+null           |25325          |10             |73717
+;
+
+aggSumWithAliasWithColumnRepeatedWithOrderDesc
+SELECT gender AS g, gender, SUM(salary_ul) AS s3, SUM(salary_ul), SUM(salary_ul) AS s5 FROM test_emp_copy GROUP BY g ORDER BY s5 DESC;
+
+g:s  | gender:s  | s3:ul | SUM(salary_ul):ul | s5:ul
+-----+-----------+-------+-------------------+------
+M    |M          |2671054|2671054            |2671054
+F    |F          |1666196|1666196            |1666196
+null |null       |487605 |487605             |487605
+;
+
+aggregateFunctionsWithScalars
+SELECT MAX(CASE WHEN (salary_ul - 10) > 70000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary_ul - 20) > 50000 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "min",
+AVG(COS(salary_ul * 1.2) + 100 * (salary_ul / 5)) AS "avg",
+SUM(-salary_ul / 0.765 + sin((salary_ul + 12345) / 12)) AS "sum",
+MAD(ABS(salary_ul / -0.813) / 2 + (12345 * (salary_ul % 10))) AS "mad"
+FROM test_emp_copy;
+
+       max        |      min      |       avg       |       sum        |       mad
+------------------+---------------+-----------------+------------------+-----------------
+155409.30000000002|23532.72       |964937.9295477575|-6307004.517507723|30811.76199261993
+;
+
+aggregatesWithScalarsAndGroupByOrderByAggWithoutProjection
+schema::gender:s
+SELECT gender FROM test_emp_copy GROUP BY gender ORDER BY MAX(salary_ul % 100) DESC;
+
+    gender
+---------------
+M
+null
+F
+;
+
+percentileAggregateFunctionsWithScalars
+schema::percentile:d|percentile_rank:d|gender:s
+SELECT PERCENTILE(CASE WHEN (salary_ul / 2) > 10000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END, 80) AS "percentile",
+PERCENTILE_RANK(CASE WHEN (salary_ul - 20) > 50000 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END, 40000) AS "percentile_rank",
+gender FROM test_emp_copy
+GROUP BY gender ORDER BY gender;
+
+   percentile    | percentile_rank  |    gender
+-----------------+------------------+---------------
+86857.79999999999|32.69659025378865 |null
+94042.92000000001|37.03569653103581 |F
+87348.36         |44.337514210592246|M
+;
+
+extendedStatsAggregateFunctionsWithScalars
+schema::stddev_pop:d|stddev_samp:d|sum_of_squares:d|var_pop:d|var_samp:d|gender:s
+SELECT STDDEV_POP(CASE WHEN (salary_ul / 2) > 10000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END) AS "stddev_pop",
+STDDEV_SAMP(CASE WHEN (salary_ul / 2) > 10000 THEN (salary_ul + 12345) * 1.2 ELSE (salary_ul - 12345) * 2.7 END) AS "stddev_samp",
+SUM_OF_SQUARES(CASE WHEN (salary_ul - 20) > 50000 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "sum_of_squares",
+VAR_POP(CASE WHEN (salary_ul - 20) % 1000 > 200 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "var_pop",
+VAR_SAMP(CASE WHEN (salary_ul - 20) % 1000 > 200 THEN (salary_ul * 1.2) - 1234 ELSE (salary_ul - 20) * 0.93 END) AS "var_samp",
+gender FROM test_emp_copy
+GROUP BY gender ORDER BY gender;
+
+    stddev_pop    |   stddev_samp    |   sum_of_squares    |      var_pop       |      var_samp      |    gender
+------------------+------------------+---------------------+--------------------+--------------------+---------------
+16752.73244172422 |17658.930515747525|3.06310583829007E10  |3.460331137445282E8 |3.844812374939202E8 |null
+17427.462400181845|17697.67172930331 |1.148127725047658E11 |3.1723426960671306E8|3.271478405319228E8 |F
+15702.798665784752|15842.381843421828|1.5882243113919238E11|2.529402043805585E8 |2.5745699374449703E8|M
+;
+
+groupByRoundAndTruncateWithTwoParams
+SELECT ROUND(SIN(TRUNCATE("salary_ul", 2)), 2) FROM "test_emp_copy" GROUP BY ROUND(SIN(TRUNCATE("salary_ul", 2)), 2) ORDER BY ROUND(SIN(TRUNCATE("salary_ul", 2)), 2) LIMIT 5;
+
+ROUND(SIN(TRUNCATE("salary_ul", 2)), 2)
+---------------------------------------
+-1.0
+-0.99
+-0.98
+-0.97
+-0.96
+;
+
+sumLiteralAndSumFieldWithComplexHaving
+SELECT gender, CAST(SUM("salary_ul") AS BIGINT), CAST(SUM(1) AS BIGINT), CAST(SUM(10) AS BIGINT), COUNT(*) FROM test_emp_copy GROUP BY gender HAVING ((SUM(1) >= 0) AND (SUM(1) <= 50) AND (SUM(salary_ul) >= 250000) AND (SUM(salary_ul) <= 5000000)) ORDER BY gender;
+
+    gender:s   |CAST(SUM("salary_ul") AS BIGINT):l|CAST(SUM(1) AS BIGINT):l|CAST(SUM(10) AS BIGINT):l|   COUNT(*):l
+---------------+----------------------------------+------------------------+-------------------------+---------------
+null           |487605                            |10                      |100                      |10
+F              |1666196                           |33                      |330                      |33
+;
+
+aggAvg
+SELECT MAX(salary_ul)/100 AS max FROM test_emp_copy HAVING max = 749;
+
+      max:ul
+---------------
+749
+;
+
+aggGroupByOnScalarWithHaving
+SELECT salary_ul + 1 AS e FROM test_emp_copy GROUP BY e HAVING AVG(salary_ul) BETWEEN 50000 AND 60000 ORDER BY e LIMIT 2;
+
+       e:ul
+---------------
+50065
+50129
+;
+
+aggMultiGroupByHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupByAndAggNotInGroupBy
+SELECT MIN(salary_ul) mi, MAX(salary_ul) ma, MAX(salary_ul) - MIN(salary_ul) AS d FROM test_emp_copy GROUP BY gender, languages HAVING ROUND((d - ABS(ma % mi))) + AVG(salary_ul) > 0 AND AVG(salary_ul) > 30000 ORDER BY gender, languages;
+
+      mi:ul    |      ma:ul    |       d:ul
+---------------+---------------+---------------
+48735          |73717          |24982
+56760          |61358          |4598
+45797          |45797          |0
+25324          |48942          |23618
+47896          |73851          |25955
+25976          |66174          |40198
+32263          |73578          |41315
+30404          |62405          |32001
+27215          |74572          |47357
+32272          |66817          |34545
+28336          |74999          |46663
+28035          |70011          |41976
+29175          |57305          |28130
+26436          |74970          |48534
+32568          |65367          |32799
+25945          |52833          |26888
+;
+
+aggMultiGroupByMultiWithHavingUsingInAndNullHandling
+SELECT MIN(salary_ul) min, MAX(salary_ul) max, gender g, languages l, COUNT(*) c FROM "test_emp_copy" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74572, null, 74970) ORDER BY gender, languages;
+
+      min:ul   |      max:ul   |       g:s     |       l:bt    |       c:l
+---------------+---------------+---------------+---------------+---------------
+27215          |74572          |F              |4              |6
+26436          |74970          |M              |3              |11
+;
+
+caseGroupByProtectedDivisionByZero
+schema::x:ul
+SELECT CASE WHEN languages = 1 THEN NULL ELSE ( salary_ul / (languages - 1) ) END AS x FROM test_emp_copy GROUP BY 1 ORDER BY 1 LIMIT 10;
+
+       x
+---------------
+null
+6331
+6486
+7780
+7974
+8068
+8489
+8935
+9043
+9071
+;
+
+iifWithCompatibleIntervals
+schema::hire_date + IIF(salary_ul > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS):ts|salary_ul:ul
+SELECT hire_date + IIF(salary_ul > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS), salary_ul FROM test_emp_copy ORDER BY salary DESC LIMIT 10;
+
+hire_date + IIF(salary_ul > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS)|    salary_ul
+---------------------------------------------------------------------+---------------
+1985-11-20T02:00:00.000Z                                             |74999
+1989-09-02T02:00:00.000Z                                             |74970
+1989-02-10T02:00:00.000Z                                             |74572
+1989-07-07T02:00:00.000Z                                             |73851
+1999-04-30T02:00:00.000Z                                             |73717
+1988-10-18T02:00:00.000Z                                             |73578
+1990-09-15T02:00:00.000Z                                             |71165
+1987-03-18T02:00:00.000Z                                             |70011
+1987-05-28T00:00:00.000Z                                             |69904
+1990-02-18T00:00:00.000Z                                             |68547
+;
+
+aggPercentile
+SELECT languages, PERCENTILE(salary_ul, 95) AS "95th" FROM test_emp_copy GROUP BY languages;
+
+   languages:bt|      95th:d
+---------------+-----------------
+null           |74999.0
+1              |72790.5
+2              |71924.70000000001
+3              |73638.25
+4              |72115.59999999999
+5              |61071.7
+;
+
+mathPowerNegative
+SELECT POWER(salary_ul, -1) m, first_name FROM "test_emp_copy" WHERE emp_no < 10010 ORDER BY emp_no;
+
+          m          |  first_name
+---------------------+---------------
+1.7450484250937964E-5|Georgi
+1.773961788863068E-5 |Bezalel
+1.617992071838848E-5 |Parto
+2.76441643169127E-5  |Chirstian
+1.57410905427528E-5  |Kyoichi
+1.6574127786525235E-5|Anneke
+1.3409858928284075E-5|Tzvetan
+2.2775930396756706E-5|Saniya
+1.5111675280321576E-5|Sumant
+;
+
+averageWithOneValueAndOrder
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary_ul FROM test_emp_copy) PIVOT (AVG(salary_ul + 1) FOR gender IN ('F')) ORDER BY languages DESC LIMIT 4;
+   languages   |       'F'
+---------------+------------------
+5              |46706.555555555555
+4              |49292.5
+3              |53661.0
+2              |50685.4
+;
+
+sumWithInnerAggregateSumOfSquaresRound
+schema::birth_date:ts|emp_no:i|extra.info.gender:s|extra_gender:s|extra_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|null_constant:s|salary:i|wildcard_name:s|1:d|2:d
+SELECT * FROM test_emp_copy PIVOT (ROUND(SUM_OF_SQUARES(salary_ul + 1)/1E6, 2) FOR languages IN (1, 2)) LIMIT 3;
+
+  birth_date   |    emp_no     |extra.info.gender| extra_gender  |   extra_no    |  first_name   |    gender     |       hire_date        |   last_name   |     name      | null_constant |    salary     | wildcard_name |       1       |       2
+---------------+---------------+-----------------+---------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
+null           |10041          |F                |Female         |10041          |Uri            |F              |1989-11-12T00:00:00.000Z|Lenart         |Uri Lenart     |null           |56415          |Uri Lenart     |3182.77        |null
+null           |10043          |M                |Female         |10043          |Yishay         |M              |1990-10-20T00:00:00.000Z|Tzvieli        |Yishay Tzvieli |null           |34341          |Yishay Tzvieli |1179.37        |null
+null           |10044          |F                |Female         |10044          |Mingsen        |F              |1994-05-21T00:00:00.000Z|Casley         |Mingsen Casley |null           |39728          |Mingsen Casley |1578.39        |null
+;

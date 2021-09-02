@@ -955,7 +955,7 @@ setup:
         model_alias: "regression-model"
         model_id: "a-regression-model-0"
 ---
-"Test put with defer_definition_decompression with invalid compressed defintion":
+"Test put with defer_definition_decompression with invalid compressed definition":
   - do:
       ml.put_trained_model:
         defer_definition_decompression: true
@@ -970,7 +970,7 @@ setup:
           }
 
 ---
-"Test put with defer_definition_decompression with invalid compression defintion and no memory estimate":
+"Test put with defer_definition_decompression with invalid compression definition and no memory estimate":
   - do:
       catch: /when \[defer_definition_decompression\] is true and a compressed definition is provided, estimated_heap_memory_usage_bytes must be set/
       ml.put_trained_model:
@@ -985,7 +985,7 @@ setup:
           }
 
 ---
-"Test put with defer_definition_decompression with invalid defintion and no memory estimate":
+"Test put with defer_definition_decompression with invalid definition and no memory estimate":
   - do:
       catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/
       ml.put_trained_model:

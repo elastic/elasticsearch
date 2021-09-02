@@ -35,7 +35,7 @@ import java.util.OptionalLong;
 /**
  * An engine implementation for following shards.
  */
-public final class FollowingEngine extends InternalEngine {
+public class FollowingEngine extends InternalEngine {
 
 
     /**
@@ -118,14 +118,27 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfDeletesOnPrimary(long seqNo) {
         if (Assertions.ENABLED) {
             final long localCheckpoint = getProcessedLocalCheckpoint();
             final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
             assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo :
                 "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
         }
-        super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
+
+        super.advanceMaxSeqNoOfDeletesOnPrimary(seqNo);
+    }
+
+    @Override
+    protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+        // In some scenarios it is possible to advance maxSeqNoOfUpdatesOrDeletes over the leader
+        // maxSeqNoOfUpdatesOrDeletes, since in this engine (effectively it is a replica) we don't check if the previous version
+        // was a delete and it's possible to consider it as an update, advancing the max sequence number over the leader
+        // maxSeqNoOfUpdatesOrDeletes.
+        // We conservatively advance the seqno in this case, accepting a minor performance hit in this edge case.
+
+        // See FollowingEngineTests#testConcurrentUpdateOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates or #72527 for more details.
+        super.advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
     }
 
     @Override

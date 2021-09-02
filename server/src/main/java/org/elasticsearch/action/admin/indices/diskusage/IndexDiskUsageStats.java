@@ -44,7 +44,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String STORE_SIZE = "store_size";
     public static final String STORE_SIZE_IN_BYTES = "store_size_in_bytes";
 
-    private final Map<String, PerFieldDiskUsage> fields;
+    private Map<String, PerFieldDiskUsage> fields;
     private long indexSizeInBytes;
 
     public IndexDiskUsageStats(long indexSizeInBytes) {
@@ -87,7 +87,15 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
     private PerFieldDiskUsage getOrAdd(String fieldName) {
         Objects.requireNonNull(fieldName, "fieldName must be non-null");
-        return fields.computeIfAbsent(fieldName, k -> new PerFieldDiskUsage());
+        try {
+            return fields.computeIfAbsent(fieldName, k -> new PerFieldDiskUsage());
+        } catch (UnsupportedOperationException e) {
+            /* This happens if this object had been serialized and deserialized while fields was empty, since StreamInput returns
+             * immutable maps for empty maps
+             */
+            this.fields = new HashMap<>();
+            return fields.computeIfAbsent(fieldName, k -> new PerFieldDiskUsage());
+        }
     }
 
     public void addInvertedIndex(String fieldName, long bytes) {

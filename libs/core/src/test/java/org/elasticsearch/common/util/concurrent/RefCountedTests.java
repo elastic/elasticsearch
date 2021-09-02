@@ -113,13 +113,9 @@ public class RefCountedTests extends ESTestCase {
 
     }
 
-    private final class MyRefCounted extends AbstractRefCounted {
+    private static final class MyRefCounted extends AbstractRefCounted {
 
         private final AtomicBoolean closed = new AtomicBoolean(false);
-
-        MyRefCounted() {
-            super("test");
-        }
 
         @Override
         protected void closeInternal() {

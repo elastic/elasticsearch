@@ -37,21 +37,17 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
-    private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
-        @Override
-        protected void closeInternal() {
-            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
-                try {
-                    IOUtils.closeWhileHandlingException(next.getValue());
-                } finally {
-                    iterator.remove();
-                }
+    private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(() -> {
+        final Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+            try {
+                IOUtils.closeWhileHandlingException(next.getValue());
+            } finally {
+                iterator.remove();
             }
-            closeLatch.countDown();
         }
-    };
+    });
     private final Transport transport;
     private final ConnectionProfile defaultProfile;
     private final AtomicBoolean closing = new AtomicBoolean(false);

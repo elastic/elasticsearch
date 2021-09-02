@@ -99,9 +99,18 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
                     NodeDeprecationChecks::checkNoPermitHandshakeFromIncompatibleBuilds,
+                    NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
+                    NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
+                    NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,
+                    NodeDeprecationChecks::checkJoinTimeoutSetting,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
                     NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
                     NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
+                    NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
@@ -119,6 +128,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
             IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
             IndexDeprecationChecks::storeTypeSettingCheck,
+            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
+            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
             IndexDeprecationChecks::checkGeoShapeMappings
         ));
 

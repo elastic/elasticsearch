@@ -167,7 +167,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 throw new IllegalStateException(message);
                             }
 
-                            updateRequest = buildSystemIndexUpdateRequest(descriptor);
+                            updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
                         } else {
                             updateRequest = buildUpdateRequest(indexName);
                         }
@@ -185,11 +185,14 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     return updateRequest;
                 }
 
-                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(SystemIndexDescriptor descriptor) {
+                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+                    String indexName, SystemIndexDescriptor descriptor) {
                     String mappings = descriptor.getMappings();
                     Settings settings = descriptor.getSettings();
                     String aliasName = descriptor.getAliasName();
-                    String concreteIndexName = descriptor.getPrimaryIndex();
+
+                    // if we are writing to the alias name, we should create the primary index here
+                    String concreteIndexName = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
 
                     CreateIndexClusterStateUpdateRequest updateRequest =
                         new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
@@ -208,7 +211,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest.aliases(Collections.singleton(new Alias(aliasName)));
                     }
 
-                    logger.debug("Auto-creating system index {}", concreteIndexName);
+                    if (logger.isDebugEnabled()) {
+                        if (concreteIndexName.equals(indexName) == false) {
+                            logger.debug("Auto-creating backing system index {} for alias {}", concreteIndexName, indexName);
+                        } else {
+                            logger.debug("Auto-creating system index {}", concreteIndexName);
+                        }
+                    }
 
                     return updateRequest;
                 }

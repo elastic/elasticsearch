@@ -97,6 +97,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkJoinTimeoutSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
                     NodeDeprecationChecks::checkClusterRoutingRequireSetting,
                     NodeDeprecationChecks::checkClusterRoutingIncludeSetting,

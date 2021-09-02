@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -595,6 +596,17 @@ class NodeDeprecationChecks {
         );
         final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkJoinTimeoutSetting(final Settings settings,
+                                                    final PluginsAndModules pluginsAndModules,
+                                                    final ClusterState clusterState,
+                                                    final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            JoinHelper.JOIN_TIMEOUT_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_cluster_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
     }
 
     static DeprecationIssue checkSearchRemoteSettings(

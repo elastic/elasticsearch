@@ -58,7 +58,7 @@ public class RefCountedTests extends ESTestCase {
         assertFalse(counted.tryIncRef());
         assertThat(
             expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
-            equalTo("already closed, can't increment ref count"));
+            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
 
         try {
             counted.ensureOpen();

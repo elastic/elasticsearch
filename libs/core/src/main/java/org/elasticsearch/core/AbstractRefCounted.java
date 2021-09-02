@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * a 0 ref count.
  */
 public abstract class AbstractRefCounted implements RefCounted {
+    public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
+
     private final AtomicInteger refCount = new AtomicInteger(1);
 
     @Override
@@ -66,7 +68,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     protected void alreadyClosed() {
         final int currentRefCount = refCount.get();
         assert currentRefCount == 0 : currentRefCount;
-        throw new IllegalStateException("already closed, can't increment ref count");
+        throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
     }
 
     /**

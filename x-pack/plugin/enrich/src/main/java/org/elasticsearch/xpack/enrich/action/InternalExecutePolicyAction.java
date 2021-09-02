@@ -164,7 +164,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 // filter out dedicated master nodes
                 .filter(discoNode -> discoNode.getRoles().equals(Set.of(DiscoveryNodeRole.MASTER_ROLE)) == false)
                 // Filter out nodes that don't have this action yet
-                .filter(discoNode -> discoNode.getVersion().onOrAfter(Version.V_8_0_0))
+                .filter(discoNode -> discoNode.getVersion().onOrAfter(Version.V_7_15_0))
                 .toArray(DiscoveryNode[]::new);
             if (nodes.length == 0) {
                 throw new IllegalStateException("no suitable node was found to perform enrich policy execution");

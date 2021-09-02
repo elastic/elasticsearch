@@ -221,7 +221,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
                     logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
-                    jobTask.markAsFailed(e);
+                    failTask(jobTask, "failed to update results mapping");
                 }
             }
         );
@@ -270,7 +270,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         response -> openJob(jobTask),
                         e -> {
                             if (autodetectProcessManager.isNodeDying() == false) {
-                                jobTask.markAsFailed(e);
+                                logger.error(new ParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
+                                failTask(jobTask, "failed to revert to current snapshot");
                             }
                         }
                     ));
@@ -280,12 +281,25 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             },
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    jobTask.markAsFailed(e);
+                    logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobTask.getJobId()), e);
+                    failTask(jobTask, "failed to search for associated datafeed");
                 }
             }
         );
 
         hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
+    }
+
+    private void failTask(JobTask jobTask, String reason) {
+        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
+        jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(
+            r -> logger.debug(() -> new ParameterizedMessage("[{}] updated task state to failed", jobTask.getJobId())),
+            e -> {
+                logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed",
+                    jobTask.getJobId()), e);
+                jobTask.markAsFailed(e);
+            }
+        ));
     }
 
     private boolean isMasterNodeVersionOnOrAfter(Version version) {
@@ -382,7 +396,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                     jobTask.markAsCompleted();
                                 } else if (autodetectProcessManager.isNodeDying() == false) {
-                                    jobTask.markAsFailed(e);
+                                    failTask(jobTask, "error finalizing job");
                                 }
                             }
                         ));
@@ -390,7 +404,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobTask.markAsCompleted();
                 }
             } else if (autodetectProcessManager.isNodeDying() == false) {
-                jobTask.markAsFailed(e2);
+                logger.error(new ParameterizedMessage("[{}] failed to open job", jobTask.getJobId()), e2);
+                failTask(jobTask, "failed to open job");
             }
         });
     }

@@ -111,6 +111,12 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
         }
         this.allocationDelay = allocationDelay;
+        if (targetNodeName != null && type != Type.REPLACE) {
+            throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
+                "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
+        } else if (targetNodeName == null && type == Type.REPLACE) {
+            throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
+        }
         this.targetNodeName = targetNodeName;
     }
 
@@ -343,13 +349,6 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         public SingleNodeShutdownMetadata build() {
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
-            }
-
-            if (targetNodeName != null && type != Type.REPLACE) {
-                throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
-                    "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
-            } else if (targetNodeName == null && type == Type.REPLACE) {
-                throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
             }
 
             return new SingleNodeShutdownMetadata(

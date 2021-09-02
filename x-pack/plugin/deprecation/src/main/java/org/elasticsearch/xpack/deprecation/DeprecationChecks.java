@@ -97,6 +97,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
                     NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
                     NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,
                     NodeDeprecationChecks::checkJoinTimeoutSetting,

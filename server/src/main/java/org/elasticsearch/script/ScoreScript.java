@@ -92,7 +92,7 @@ public abstract class ScoreScript extends DocBasedScript {
             params = new HashMap<>(params);
             params.putAll(docReader.docAsMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-            this.docBase = docReader.getDocBase();
+            this.docBase = ((DocValuesDocReader)docReader).getLeafReaderContext().docBase;
         }
     }
 

@@ -832,7 +832,11 @@ public class InternalEngine extends Engine {
         return doGenerateSeqNoForOperation(operation);
     }
 
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+    }
+
+    protected void advanceMaxSeqNoOfDeletesOnPrimary(long seqNo) {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
     }
 
@@ -900,7 +904,7 @@ public class InternalEngine extends Engine {
 
                         final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
                         if (toAppend == false) {
-                            advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(index.seqNo());
+                            advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
                         }
                     } else {
                         markSeqNoAsSeen(index.seqNo());
@@ -1276,7 +1280,7 @@ public class InternalEngine extends Engine {
                         delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
                         delete.getIfSeqNo(), delete.getIfPrimaryTerm());
 
-                    advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
+                    advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
                 } else {
                     markSeqNoAsSeen(delete.seqNo());
                 }
@@ -1918,6 +1922,14 @@ public class InternalEngine extends Engine {
                 }
                 if (flush) {
                     flush(false, true);
+
+                    // If any merges happened then we need to release the unmerged input segments so they can be deleted. A periodic refresh
+                    // will do this eventually unless the user has disabled refreshes or isn't searching this shard frequently, in which
+                    // case we should do something here to ensure a timely refresh occurs. However there's no real need to defer it nor to
+                    // have any should-we-actually-refresh-here logic: we're already doing an expensive force-merge operation at the user's
+                    // request and therefore don't expect any further writes so we may as well do the final refresh immediately and get it
+                    // out of the way.
+                    refresh("force-merge");
                 }
             } finally {
                 store.decRef();

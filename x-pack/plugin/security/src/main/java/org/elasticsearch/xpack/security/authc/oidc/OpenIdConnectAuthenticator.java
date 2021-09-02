@@ -81,6 +81,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -89,7 +91,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
@@ -592,7 +593,7 @@ public class OpenIdConnectAuthenticator {
                 (PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
                     ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
                     final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-                    final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+                    final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
                     final SSLContext clientContext = sslService.sslContext(sslConfiguration);
                     final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
                     Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()

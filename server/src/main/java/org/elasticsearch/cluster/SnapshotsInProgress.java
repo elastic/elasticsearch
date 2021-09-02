@@ -86,6 +86,38 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return null;
     }
 
+    /**
+     * Computes a map of repository shard id to set of generations, containing all shard generations that became obsolete and may be
+     * deleted from the repository as the cluster state moved from the given {@code old} value of {@link SnapshotsInProgress} to this
+     * instance.
+     */
+    public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations(SnapshotsInProgress old) {
+        final Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations = new HashMap<>();
+        for (Entry entry : old.entries()) {
+            final Entry updatedEntry = snapshot(entry.snapshot());
+            if (updatedEntry == null) {
+                continue;
+            }
+            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> oldShardAssignment : entry.shardsByRepoShardId()) {
+                final RepositoryShardId repositoryShardId = oldShardAssignment.key;
+                final ShardSnapshotStatus oldStatus = oldShardAssignment.value;
+                final ShardSnapshotStatus newStatus = updatedEntry.shardsByRepoShardId().get(repositoryShardId);
+                if (oldStatus.state == ShardState.SUCCESS
+                    && oldStatus.generation() != null
+                    && newStatus != null
+                    && newStatus.state() == ShardState.SUCCESS
+                    && newStatus.generation() != null
+                    && oldStatus.generation().equals(newStatus.generation()) == false
+                ) {
+                    // We moved from a non-null generation successful generation to a different non-null successful generation
+                    // so the original generation is clearly obsolete because it was in-flight before and is now unreferenced everywhere.
+                    obsoleteGenerations.computeIfAbsent(repositoryShardId, ignored -> new HashSet<>()).add(oldStatus.generation());
+                }
+            }
+        }
+        return Map.copyOf(obsoleteGenerations);
+    }
+
     @Override
     public String getWriteableName() {
         return TYPE;
@@ -547,7 +579,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.partial = partial;
             this.indices = Map.copyOf(indices);
             this.dataStreams = List.copyOf(dataStreams);
-            this.featureStates = Collections.unmodifiableList(featureStates);
+            this.featureStates = List.copyOf(featureStates);
             this.startTime = startTime;
             this.shards = shards;
             this.repositoryStateId = repositoryStateId;

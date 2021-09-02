@@ -179,7 +179,7 @@ A successful call returns a JSON structure that contains the information of one 
 {
   "api_keys": [ <1>
     {
-      "id": "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==", <2>
+      "id": "0GF5GXsBCXxz2eDxWwFN", <2>
       "name": "hadoop_myuser_key", <3>
       "creation": 1548550550158, <4>
       "expiration": 1548551550158, <5>
@@ -191,7 +191,7 @@ A successful call returns a JSON structure that contains the information of one 
       }
     },
     {
-      "id": "api-key-id-2",
+      "id": "6wHJmcQpReKBa42EHV5SBw",
       "name": "api-key-name-2",
       "creation": 1548550550158,
       "invalidated": false,

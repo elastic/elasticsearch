@@ -43,13 +43,21 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     private static final String REDUCE_SCRIPT_NAME = "reduceScript";
     private boolean hasReduceScript;
     private Supplier<Object>[] valueTypes;
-    private final Supplier<Object>[] leafValueSuppliers = new Supplier[] { () -> randomInt(), () -> randomLong(), () -> randomDouble(),
-            () -> randomFloat(), () -> randomBoolean(), () -> randomAlphaOfLength(5), () -> new GeoPoint(randomDouble(), randomDouble()),
-            () -> null };
-    private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { () -> new HashMap<String, Object>(),
-            () -> new ArrayList<>() };
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private final Supplier<Object>[] leafValueSuppliers = new Supplier[] {
+        () -> randomInt(),
+        () -> randomLong(),
+        () -> randomDouble(),
+        () -> randomFloat(),
+        () -> randomBoolean(),
+        () -> randomAlphaOfLength(5),
+        () -> new GeoPoint(randomDouble(), randomDouble()),
+        () -> null };
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { () -> new HashMap<String, Object>(), () -> new ArrayList<>() };
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void setUp() throws Exception {
         super.setUp();
         hasReduceScript = randomBoolean();
@@ -109,7 +117,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 map.put(randomAlphaOfLength(5), randomValue(valueTypes, level + 1));
             }
         } else if (value instanceof List) {
-            int elements = randomIntBetween(1,5);
+            int elements = randomIntBetween(1, 5);
             List<Object> list = (List<Object>) value;
             for (int i = 0; i < elements; i++) {
                 list.add(randomValue(valueTypes, level + 1));
@@ -128,9 +136,11 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     protected ScriptService mockScriptService() {
         // mock script always returns the size of the input aggs list as result
         @SuppressWarnings("unchecked")
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("states")).size()),
-                Collections.emptyMap());
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
+            Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("states")).size()),
+            Collections.emptyMap()
+        );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
@@ -183,24 +193,29 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         } else if (expected instanceof GeoPoint) {
             assertTrue(actual instanceof Map);
             GeoPoint point = (GeoPoint) expected;
+            @SuppressWarnings("unchecked")
             Map<String, Object> pointMap = (Map<String, Object>) actual;
             assertEquals(point.getLat(), pointMap.get("lat"));
             assertEquals(point.getLon(), pointMap.get("lon"));
         } else if (expected instanceof Map) {
+            @SuppressWarnings("unchecked")
             Map<String, Object> expectedMap = (Map<String, Object>) expected;
+            @SuppressWarnings("unchecked")
             Map<String, Object> actualMap = (Map<String, Object>) actual;
             assertEquals(expectedMap.size(), actualMap.size());
             for (String key : expectedMap.keySet()) {
                 assertValues(expectedMap.get(key), actualMap.get(key));
             }
         } else if (expected instanceof List) {
-                List<Object> expectedList = (List<Object>) expected;
-                List<Object> actualList = (List<Object>) actual;
-                assertEquals(expectedList.size(), actualList.size());
-                Iterator<Object> actualIterator = actualList.iterator();
-                for (Object element : expectedList) {
-                    assertValues(element, actualIterator.next());
-                }
+            @SuppressWarnings("unchecked")
+            List<Object> expectedList = (List<Object>) expected;
+            @SuppressWarnings("unchecked")
+            List<Object> actualList = (List<Object>) actual;
+            assertEquals(expectedList.size(), actualList.size());
+            Iterator<Object> actualIterator = actualList.iterator();
+            for (Object element : expectedList) {
+                assertValues(element, actualIterator.next());
+            }
         } else {
             assertEquals(expected, actual);
         }
@@ -218,25 +233,30 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         Script reduceScript = instance.reduceScript;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            aggregationsList = randomValueOtherThan(aggregationsList, this::randomAggregations);
-            break;
-        case 2:
-            reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME + "-mutated", Collections.emptyMap());
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                aggregationsList = randomValueOtherThan(aggregationsList, this::randomAggregations);
+                break;
+            case 2:
+                reduceScript = new Script(
+                    ScriptType.INLINE,
+                    MockScriptEngine.NAME,
+                    REDUCE_SCRIPT_NAME + "-mutated",
+                    Collections.emptyMap()
+                );
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
     }
@@ -254,12 +274,15 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
         // A multi-element list looks like a non-reduced agg
         InternalScriptedMetric unreduced = new InternalScriptedMetric("test", List.of("foo", "bar"), new Script("test"), null);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> copyNamedWriteable(
-            unreduced,
-            getNamedWriteableRegistry(),
-            InternalAggregation.class,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
-        ));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> copyNamedWriteable(
+                unreduced,
+                getNamedWriteableRegistry(),
+                InternalAggregation.class,
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
+            )
+        );
         assertThat(e.getMessage(), equalTo("scripted_metric doesn't support cross cluster search until 7.8.0"));
     }
 }

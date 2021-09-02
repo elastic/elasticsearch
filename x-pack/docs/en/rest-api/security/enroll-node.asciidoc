@@ -1,7 +1,7 @@
 [[security-api-node-enrollment]]
 === Enroll Node API
 ++++
-<titleabbrev>Enroll Node</titleabbrev>
+<titleabbrev>Enroll node</titleabbrev>
 ++++
 
 Allows a new node to join an existing cluster with security features enabled.

@@ -222,4 +222,15 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         result = 31 * result + Arrays.hashCode(fields);
         return result;
     }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("indices[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], fields[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
+    }
+
 }

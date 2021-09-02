@@ -130,6 +130,10 @@ public class ShardRecoveryPlan {
             return snapshotFiles.isEmpty();
         }
 
+        public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {
+            return snapshotFiles;
+        }
+
         @Override
         public Iterator<BlobStoreIndexShardSnapshot.FileInfo> iterator() {
             return snapshotFiles.iterator();

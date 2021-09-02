@@ -1,5 +1,5 @@
 ---
-"Test start deployment fails with missing task config":
+"Test start deployment fails with missing model definition":
 
   - do:
       ml.put_trained_model:
@@ -9,16 +9,15 @@
             "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
             "model_type": "pytorch",
             "inference_config": {
-              "classification": {
-                "num_top_classes": 1
+              "ner": {
+                "vocabulary": {
+                  "index": "vocab_index",
+                  "id": "vocab_doc"
+                }
               }
-            },
-            "input": {
-                "field_names": ["text_field"]
             },
             "location": {
               "index": {
-                "model_id": "distilbert-finetuned-sst",
                 "name": "big_model"
               }
             }

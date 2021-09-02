@@ -40,18 +40,17 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.util.Map;
-import java.util.Objects;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
-
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -134,11 +133,7 @@ public class TransportStartTrainedModelDeploymentAction
 
                 getModelBytes(trainedModelConfig, ActionListener.wrap(
                     modelBytes -> {
-                        TaskParams taskParams = new TaskParams(
-                            trainedModelConfig.getLocation().getModelId(),
-                            trainedModelConfig.getLocation().getResourceName(),
-                            modelBytes
-                        );
+                        TaskParams taskParams = new TaskParams(trainedModelConfig.getModelId(), modelBytes);
                         PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
                             PersistentTasksCustomMetadata.TYPE);
                         memoryTracker.refresh(persistentTasks, ActionListener.wrap(
@@ -162,7 +157,7 @@ public class TransportStartTrainedModelDeploymentAction
     }
 
     private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(trainedModelConfig.getLocation().getModelId(),
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(trainedModelConfig.getModelId(),
             client, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry);
         restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
         restorer.setSearchSize(1);

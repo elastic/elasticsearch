@@ -28,8 +28,15 @@ import java.util.stream.Stream;
  */
 public class ScriptModule {
 
-    public static final Set<ScriptContext<?>> RUNTIME_FIELDS_CONTEXTS = Set.of(BooleanFieldScript.CONTEXT, DateFieldScript.CONTEXT,
-        DoubleFieldScript.CONTEXT, LongFieldScript.CONTEXT, StringFieldScript.CONTEXT, GeoPointFieldScript.CONTEXT, IpFieldScript.CONTEXT);
+    public static final Set<ScriptContext<?>> RUNTIME_FIELDS_CONTEXTS = Set.of(
+        BooleanFieldScript.CONTEXT,
+        DateFieldScript.CONTEXT,
+        DoubleFieldScript.CONTEXT,
+        LongFieldScript.CONTEXT,
+        StringFieldScript.CONTEXT,
+        GeoPointFieldScript.CONTEXT,
+        IpFieldScript.CONTEXT,
+        CompositeFieldScript.CONTEXT);
 
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {

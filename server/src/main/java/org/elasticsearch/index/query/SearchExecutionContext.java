@@ -27,6 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -365,6 +366,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
 
+    /**
+     * 
+     * @param name name of the object
+     * @return can be null e.g. if field is root of a composite runtime field
+     */
+    @Nullable
     public ObjectMapper getObjectMapper(String name) {
         return mappingLookup.objectMappers().get(name);
     }
@@ -635,8 +642,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
-            mapperService.parserContext(), false);
+        //TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
+        MappingParserContext parserContext = mapperService.parserContext();
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
+            new HashMap<>(runtimeMappings),
+            parserContext,
+            false);
         return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 

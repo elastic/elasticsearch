@@ -11,8 +11,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.transform.transforms.Function;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,13 +42,19 @@ class LatestChangeCollector implements Function.ChangeCollector {
     }
 
     @Override
-    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp) {
+    public QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
         // We are only interested in documents that were created in the timeline of the current checkpoint.
         // Older documents cannot influence the transform results as we require the sort field values to change monotonically over time.
         return QueryBuilders.rangeQuery(synchronizationField)
-            .gte(lastCheckpointTimestamp)
-            .lt(nextCheckpointTimestamp)
+            .gte(lastCheckpoint.getTimeUpperBound())
+            .lt(nextCheckpoint.getTimeUpperBound())
             .format("epoch_millis");
+    }
+
+    @Override
+    public Collection<String> getIndicesToQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
+        // we can shortcut here, only the changed indices are of interest
+        return TransformCheckpoint.getChangedIndices(lastCheckpoint, nextCheckpoint);
     }
 
     @Override

@@ -141,8 +141,9 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
+        // async on purpose to make sure it happens concurrently
         client().admin().indices().prepareRefresh()
-            .execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure it happens concurrently
+            .execute(ActionListener.wrap(refreshLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());

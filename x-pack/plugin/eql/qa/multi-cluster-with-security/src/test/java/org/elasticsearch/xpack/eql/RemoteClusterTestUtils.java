@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql;
 
+import java.util.StringJoiner;
+
 public class RemoteClusterTestUtils {
     public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster"; // gradle defined
 
@@ -15,11 +17,10 @@ public class RemoteClusterTestUtils {
     }
 
     public static String remoteClusterPattern(String pattern) {
-        StringBuilder sb = new StringBuilder();
+        StringJoiner sj = new StringJoiner(",");
         for (String index: pattern.split(",")) {
-            sb.append(remoteClusterIndex(index));
-            sb.append(',');
+            sj.add(remoteClusterIndex(index));
         }
-        return sb.substring(0, sb.length() - 1);
+        return sj.toString();
     }
 }

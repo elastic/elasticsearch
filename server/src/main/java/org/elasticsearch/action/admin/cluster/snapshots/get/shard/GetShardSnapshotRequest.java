@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get.shard;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -101,5 +102,13 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
     @Override
     public int hashCode() {
         return Objects.hash(repositories, shardId);
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("shard").append(shardId).append(", repositories[");
+        Strings.collectionToDelimitedStringWithLimit(repositories, ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 }

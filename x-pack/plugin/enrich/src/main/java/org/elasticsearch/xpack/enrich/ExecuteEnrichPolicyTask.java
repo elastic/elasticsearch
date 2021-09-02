@@ -12,11 +12,18 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 
 import java.util.Map;
 
-class ExecuteEnrichPolicyTask extends Task {
+public class ExecuteEnrichPolicyTask extends Task {
 
     private volatile ExecuteEnrichPolicyStatus status;
 
-    ExecuteEnrichPolicyTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
+    public ExecuteEnrichPolicyTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        Map<String, String> headers
+    ) {
         super(id, type, action, description, parentTask, headers);
     }
 
@@ -25,7 +32,7 @@ class ExecuteEnrichPolicyTask extends Task {
         return status;
     }
 
-    void setStatus(ExecuteEnrichPolicyStatus status) {
+    public void setStatus(ExecuteEnrichPolicyStatus status) {
         this.status = status;
     }
 }

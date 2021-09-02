@@ -82,8 +82,11 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         TrainedModelAllocationMetadata.NAME,
-                        TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(modelId, 10_000L))
-                            .addNode(modelId, nodeId)
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(
+                                modelId,
+                                TrainedModelAllocation.Builder.empty(newParams(modelId, 10_000L)).addNewRoutingEntry(nodeId)
+                            )
                             .build()
                     )
                     .build()
@@ -168,7 +171,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         TrainedModelAllocationMetadata.NAME,
-                        TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(modelId, randomNonNegativeLong())).build()
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(modelId, TrainedModelAllocation.Builder.empty(newParams(modelId, randomNonNegativeLong())))
+                            .build()
                     )
                     .build()
             )
@@ -281,15 +286,22 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                     .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down"))
                     .putCustom(
                         TrainedModelAllocationMetadata.NAME,
-                        TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams("model-1", 10_000))
-                            .addNode("model-1", "ml-node-with-room")
-                            .updateAllocation("model-1", "ml-node-with-room", new RoutingStateAndReason(RoutingState.STARTED, ""))
-                            .addNode("model-1", "old-ml-node-with-room")
-                            .updateAllocation("model-1", "old-ml-node-with-room", new RoutingStateAndReason(RoutingState.STARTED, ""))
-                            .addNode("model-1", "ml-node-shutting-down")
-                            .addNewAllocation(newParams("model-2", 10_000))
-                            .addNode("model-2", "old-ml-node-with-room")
-                            .updateAllocation("model-2", "old-ml-node-with-room", new RoutingStateAndReason(RoutingState.STARTED, ""))
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(
+                                "model-1",
+                                TrainedModelAllocation.Builder.empty(newParams("model-1", 10_000))
+                                    .addNewRoutingEntry("ml-node-with-room")
+                                    .updateExistingRoutingEntry("ml-node-with-room", started())
+                                    .addNewRoutingEntry("old-ml-node-with-room")
+                                    .updateExistingRoutingEntry("old-ml-node-with-room", started())
+                                    .addNewRoutingEntry("ml-node-shutting-down")
+                            )
+                            .addNewAllocation(
+                                "model-2",
+                                TrainedModelAllocation.Builder.empty(newParams("model-2", 10_000))
+                                    .addNewRoutingEntry("old-ml-node-with-room")
+                                    .updateExistingRoutingEntry("old-ml-node-with-room", started())
+                            )
                             .build()
                     )
             )
@@ -327,6 +339,8 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
     }
 
     public void testShouldAllocateModels() {
+        String model1 = "model-1";
+        String model2 = "model-2";
         String mlNode1 = "ml-node-with-room";
         String mlNode2 = "new-ml-node-with-room";
         DiscoveryNode mlNode1Node = buildNode(mlNode1, true, ByteSizeValue.ofGb(4).getBytes());
@@ -352,7 +366,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -397,7 +413,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -407,7 +425,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -427,7 +447,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -437,7 +459,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -457,7 +481,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -467,7 +493,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -488,8 +516,10 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
                                     TrainedModelAllocationMetadata.Builder.empty()
-                                        .addNewAllocation(newParams(mlNode1, 100))
-                                        .setAllocationToStopping(mlNode1)
+                                        .addNewAllocation(
+                                            model1,
+                                            TrainedModelAllocation.Builder.empty(newParams(model1, 100)).stopAllocation()
+                                        )
                                         .build()
                                 )
                                 .build()
@@ -500,7 +530,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -520,7 +552,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(mlNode2))
                                 .build()
@@ -531,7 +565,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(mlNode1, 100)).build()
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(model1, TrainedModelAllocation.Builder.empty(newParams(model1, 100)))
+                                        .build()
                                 )
                                 .build()
                         )
@@ -551,11 +587,17 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams("model-1", 100))
-                                        .addNode("model-1", mlNode1)
-                                        .addNewAllocation(newParams("model-2", 100))
-                                        .addNode("model-2", mlNode1)
-                                        .addNode("model-2", mlNode2)
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(
+                                            model1,
+                                            TrainedModelAllocation.Builder.empty(newParams(model1, 100)).addNewRoutingEntry(mlNode1)
+                                        )
+                                        .addNewAllocation(
+                                            model2,
+                                            TrainedModelAllocation.Builder.empty(newParams("model-2", 100))
+                                                .addNewRoutingEntry(mlNode1)
+                                                .addNewRoutingEntry(mlNode2)
+                                        )
                                         .build()
                                 )
                                 .build()
@@ -566,11 +608,17 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             Metadata.builder()
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
-                                    TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams("model-1", 100))
-                                        .addNode("model-1", mlNode1)
-                                        .addNewAllocation(newParams("model-2", 100))
-                                        .addNode("model-2", mlNode1)
-                                        .addNode("model-2", mlNode2)
+                                    TrainedModelAllocationMetadata.Builder.empty()
+                                        .addNewAllocation(
+                                            model1,
+                                            TrainedModelAllocation.Builder.empty(newParams(model1, 100)).addNewRoutingEntry(mlNode1)
+                                        )
+                                        .addNewAllocation(
+                                            model2,
+                                            TrainedModelAllocation.Builder.empty(newParams("model-2", 100))
+                                                .addNewRoutingEntry(mlNode1)
+                                                .addNewRoutingEntry(mlNode2)
+                                        )
                                         .build()
                                 )
                                 .build()
@@ -592,12 +640,17 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
                                     TrainedModelAllocationMetadata.Builder.empty()
-                                        .addNewAllocation(newParams("model-1", 100))
-                                        .addNode("model-1", mlNode1)
-                                        .addNewAllocation(newParams("model-2", 100))
-                                        .addNode("model-2", mlNode1)
-                                        .addNode("model-2", mlNode2)
-                                        .setAllocationToStopping("model-2")
+                                        .addNewAllocation(
+                                            model1,
+                                            TrainedModelAllocation.Builder.empty(newParams(model1, 100)).addNewRoutingEntry(mlNode1)
+                                        )
+                                        .addNewAllocation(
+                                            model2,
+                                            TrainedModelAllocation.Builder.empty(newParams("model-2", 100))
+                                                .addNewRoutingEntry(mlNode1)
+                                                .addNewRoutingEntry(mlNode2)
+                                                .stopAllocation()
+                                        )
                                         .build()
                                 )
                                 .build()
@@ -609,11 +662,16 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                                 .putCustom(
                                     TrainedModelAllocationMetadata.NAME,
                                     TrainedModelAllocationMetadata.Builder.empty()
-                                        .addNewAllocation(newParams("model-1", 100))
-                                        .addNode("model-1", mlNode1)
-                                        .addNewAllocation(newParams("model-2", 100))
-                                        .addNode("model-2", mlNode1)
-                                        .addNode("model-2", mlNode2)
+                                        .addNewAllocation(
+                                            model1,
+                                            TrainedModelAllocation.Builder.empty(newParams(model1, 100)).addNewRoutingEntry(mlNode1)
+                                        )
+                                        .addNewAllocation(
+                                            model2,
+                                            TrainedModelAllocation.Builder.empty(newParams("model-2", 100))
+                                                .addNewRoutingEntry(mlNode1)
+                                                .addNewRoutingEntry(mlNode2)
+                                        )
                                         .build()
                                 )
                                 .build()
@@ -641,7 +699,9 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         TrainedModelAllocationMetadata.NAME,
-                        TrainedModelAllocationMetadata.Builder.empty().addNewAllocation(newParams(modelId, randomNonNegativeLong())).build()
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(modelId, TrainedModelAllocation.Builder.empty(newParams(modelId, randomNonNegativeLong())))
+                            .build()
                     )
                     .build()
             )
@@ -667,7 +727,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(original);
         for (String modelId : tempMetadata.modelAllocations().keySet()) {
-            builder.setAllocationToStopping(modelId);
+            builder.getAllocation(modelId).stopAllocation();
         }
         TrainedModelAllocationMetadata metadataWithStopping = builder.build();
         ClusterState originalWithStoppingAllocations = ClusterState.builder(original)
@@ -704,12 +764,16 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
     }
 
+    private static RoutingStateAndReason started() {
+        return new RoutingStateAndReason(RoutingState.STARTED, "");
+    }
+
     private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory) {
         return buildNode(name, isML, nativeMemory, Version.V_7_15_0);
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, "test-index", modelSize);
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, modelSize);
     }
 
     private static void assertNodeState(TrainedModelAllocationMetadata metadata, String modelId, String nodeId, RoutingState routingState) {

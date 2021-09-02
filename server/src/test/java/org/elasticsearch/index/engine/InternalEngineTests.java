@@ -333,6 +333,9 @@ public class InternalEngineTests extends EngineTestCase {
             // now, optimize and wait for merges, see that we have no merge flag
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
 
+            // ensure that we have released the older segments with a refresh so they can be removed
+            assertFalse(engine.refreshNeeded());
+
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
             }

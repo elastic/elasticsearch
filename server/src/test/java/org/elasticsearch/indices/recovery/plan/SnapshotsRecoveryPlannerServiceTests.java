@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -92,7 +93,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         assert false: "Unexpected call";
                     }
                 },
@@ -125,9 +126,9 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
-                            listener.onResponse(Collections.emptyList());
+                            listener.onResponse(Optional.empty());
                         } else {
                             listener.onFailure(new IOException("Boom!"));
                         }
@@ -168,8 +169,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshotData));
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
                 true
@@ -207,8 +208,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshotData));
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
                 true
@@ -256,8 +257,12 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(availableSnapshots);
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        if (availableSnapshots.isEmpty()) {
+                            listener.onResponse(Optional.empty());
+                        } else {
+                            listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
+                        }
                     }
                 },
                 true
@@ -308,8 +313,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(availableSnapshots);
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
                     }
                 },
                 true
@@ -344,8 +349,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshot));
+                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(shardSnapshot));
                     }
                 },
                 true,

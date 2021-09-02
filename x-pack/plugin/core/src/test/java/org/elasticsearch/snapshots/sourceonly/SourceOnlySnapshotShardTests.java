@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -61,13 +62,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -83,7 +85,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
@@ -226,10 +227,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 repository.snapshotShard(new SnapshotShardContext(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef,
                     null, indexShardSnapshotStatus, Version.CURRENT, Collections.emptyMap(), future));
                 future.actionGet();
-                final PlainActionFuture<RepositoryData> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<Tuple<RepositoryData, SnapshotInfo>> finFuture = PlainActionFuture.newFuture();
                 final ShardGenerations shardGenerations =
                     ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build();
-                repository.finalizeSnapshot(
+                repository.finalizeSnapshot(new FinalizeSnapshotContext(
                     shardGenerations,
                     ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
@@ -247,7 +248,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Collections.emptyMap(),
                         0L,
                         Collections.emptyMap()),
-                    Version.CURRENT, Function.identity(), finFuture);
+                    Version.CURRENT, finFuture
+                ));
                 finFuture.actionGet();
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();

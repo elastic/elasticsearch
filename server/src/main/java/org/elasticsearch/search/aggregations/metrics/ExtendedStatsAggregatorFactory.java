@@ -27,14 +27,16 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final ExtendedStatsAggregatorProvider aggregatorSupplier;
     private final double sigma;
 
-    ExtendedStatsAggregatorFactory(String name,
-                                    ValuesSourceConfig config,
-                                    double sigma,
-                                    AggregationContext context,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata,
-                                    ExtendedStatsAggregatorProvider aggregatorSupplier) throws IOException {
+    ExtendedStatsAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double sigma,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        ExtendedStatsAggregatorProvider aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
         this.aggregatorSupplier = aggregatorSupplier;
@@ -45,7 +47,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ExtendedStatsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             ExtendedStatsAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
@@ -54,11 +57,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, config, context, parent, sigma, metadata);
     }
 }

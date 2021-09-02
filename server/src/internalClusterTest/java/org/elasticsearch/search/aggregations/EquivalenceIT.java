@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntHashSet;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -84,16 +85,16 @@ public class EquivalenceIT extends ESIntegTestCase {
     @Before
     private void setupMaxBuckets() {
         // disables the max bucket limit for this test
-        client().admin().cluster().prepareUpdateSettings()
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
             .setTransientSettings(Collections.singletonMap("search.max_buckets", Integer.MAX_VALUE))
             .get();
     }
 
     @After
     private void cleanupMaxBuckets() {
-        client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Collections.singletonMap("search.max_buckets", null))
-            .get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Collections.singletonMap("search.max_buckets", null)).get();
     }
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
@@ -109,47 +110,43 @@ public class EquivalenceIT extends ESIntegTestCase {
             }
         }
 
-        prepareCreate("idx")
-                .setMapping(jsonBuilder()
-                        .startObject()
-                            .startObject("_doc")
-                                .startObject("properties")
-                                    .startObject("values")
-                                        .field("type", "double")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()).get();
+        prepareCreate("idx").setMapping(
+            jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("values")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        ).get();
 
         for (int i = 0; i < docs.length; ++i) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .startArray("values");
+            XContentBuilder source = jsonBuilder().startObject().startArray("values");
             for (int j = 0; j < docs[i].length; ++j) {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
             client().prepareIndex("idx").setSource(source).get();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").
-                setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
 
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
         for (int i = 0; i < ranges.length; ++i) {
             switch (randomInt(2)) {
-            case 0:
-                ranges[i] = new double[] { Double.NEGATIVE_INFINITY, randomInt(100) };
-                break;
-            case 1:
-                ranges[i] = new double[] { randomInt(100), Double.POSITIVE_INFINITY };
-                break;
-            case 2:
-                ranges[i] = new double[] { randomInt(100), randomInt(100) };
-                break;
-            default:
-                throw new AssertionError();
+                case 0:
+                    ranges[i] = new double[] { Double.NEGATIVE_INFINITY, randomInt(100) };
+                    break;
+                case 1:
+                    ranges[i] = new double[] { randomInt(100), Double.POSITIVE_INFINITY };
+                    break;
+                case 2:
+                    ranges[i] = new double[] { randomInt(100), randomInt(100) };
+                    break;
+                default:
+                    throw new AssertionError();
             }
         }
 
@@ -171,7 +168,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             if (ranges[i][0] != Double.NEGATIVE_INFINITY) {
                 filter = filter.from(ranges[i][0]);
             }
-            if (ranges[i][1] != Double.POSITIVE_INFINITY){
+            if (ranges[i][1] != Double.POSITIVE_INFINITY) {
                 filter = filter.to(ranges[i][1]);
             }
             reqBuilder = reqBuilder.addAggregation(filter("filter" + i, filter));
@@ -214,32 +211,32 @@ public class EquivalenceIT extends ESIntegTestCase {
 
         final IntHashSet valuesSet = new IntHashSet();
         cluster().wipeIndices("idx");
-        prepareCreate("idx")
-                .setMapping(jsonBuilder()
-                        .startObject()
-                            .startObject("_doc")
-                                .startObject("properties")
-                                    .startObject("num")
-                                        .field("type", "double")
-                                        .endObject()
-                                    .startObject("string_values")
-                                        .field("type", "keyword")
-                                        .startObject("fields")
-                                            .startObject("doc_values")
-                                                .field("type", "keyword")
-                                                .field("index", false)
-                                            .endObject()
-                                        .endObject()
-                                    .endObject()
-                                    .startObject("long_values")
-                                        .field("type", "long")
-                                    .endObject()
-                                    .startObject("double_values")
-                                        .field("type", "double")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()).get();
+        prepareCreate("idx").setMapping(
+            jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("num")
+                .field("type", "double")
+                .endObject()
+                .startObject("string_values")
+                .field("type", "keyword")
+                .startObject("fields")
+                .startObject("doc_values")
+                .field("type", "keyword")
+                .field("index", false)
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("long_values")
+                .field("type", "long")
+                .endObject()
+                .startObject("double_values")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        ).get();
 
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
@@ -248,10 +245,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 values[j] = randomInt(maxNumTerms - 1) - 1000;
                 valuesSet.add(values[j]);
             }
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .field("num", randomDouble())
-                    .startArray("long_values");
+            XContentBuilder source = jsonBuilder().startObject().field("num", randomDouble()).startArray("long_values");
             for (int j = 0; j < values.length; ++j) {
                 source = source.value(values[j]);
             }
@@ -268,45 +262,45 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
         indexRandom(true, indexingRequests);
 
-        assertNoFailures(client().admin().indices().prepareRefresh("idx")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .execute().get());
+        assertNoFailures(
+            client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get()
+        );
 
         SearchResponse resp = client().prepareSearch("idx")
-                    .addAggregation(
-                            terms("long")
-                                    .field("long_values")
-                                    .size(maxNumTerms)
-                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .subAggregation(min("min").field("num")))
-                    .addAggregation(
-                            terms("double")
-                                    .field("double_values")
-                                    .size(maxNumTerms)
-                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .subAggregation(max("max").field("num")))
-                    .addAggregation(
-                            terms("string_map")
-                                    .field("string_values")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString())
-                                    .size(maxNumTerms)
-                                    .subAggregation(stats("stats").field("num")))
-                    .addAggregation(
-                            terms("string_global_ordinals")
-                                    .field("string_values")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
-                                    .size(maxNumTerms)
-                                    .subAggregation(extendedStats("stats").field("num")))
-                    .addAggregation(
-                            terms("string_global_ordinals_doc_values")
-                                    .field("string_values.doc_values")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
-                                    .size(maxNumTerms)
-                                    .subAggregation(extendedStats("stats").field("num")))
-                .get();
+            .addAggregation(
+                terms("long").field("long_values")
+                    .size(maxNumTerms)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .subAggregation(min("min").field("num"))
+            )
+            .addAggregation(
+                terms("double").field("double_values")
+                    .size(maxNumTerms)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .subAggregation(max("max").field("num"))
+            )
+            .addAggregation(
+                terms("string_map").field("string_values")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString())
+                    .size(maxNumTerms)
+                    .subAggregation(stats("stats").field("num"))
+            )
+            .addAggregation(
+                terms("string_global_ordinals").field("string_values")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
+                    .size(maxNumTerms)
+                    .subAggregation(extendedStats("stats").field("num"))
+            )
+            .addAggregation(
+                terms("string_global_ordinals_doc_values").field("string_values.doc_values")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
+                    .size(maxNumTerms)
+                    .subAggregation(extendedStats("stats").field("num"))
+            )
+            .get();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits().value);
 
@@ -339,18 +333,17 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     // Duel between histograms and scripted terms
     public void testDuelTermsHistogram() throws Exception {
-        prepareCreate("idx")
-                .setMapping(jsonBuilder()
-                        .startObject()
-                            .startObject("_doc")
-                                .startObject("properties")
-                                    .startObject("num")
-                                        .field("type", "double")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()).get();
-
+        prepareCreate("idx").setMapping(
+            jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("num")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        ).get();
 
         final int numDocs = scaledRandomIntBetween(500, 5000);
         final int maxNumTerms = randomIntBetween(10, 2000);
@@ -362,10 +355,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
 
         for (int i = 0; i < numDocs; ++i) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .field("num", randomDouble())
-                    .startArray("values");
+            XContentBuilder source = jsonBuilder().startObject().field("num", randomDouble()).startArray("values");
             final int numValues = randomInt(4);
             for (int j = 0; j < numValues; ++j) {
                 source = source.value(randomFrom(values));
@@ -373,26 +363,22 @@ public class EquivalenceIT extends ESIntegTestCase {
             source = source.endArray().endObject();
             client().prepareIndex("idx").setSource(source).get();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .execute().get());
+        assertNoFailures(
+            client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get()
+        );
 
         Map<String, Object> params = new HashMap<>();
         params.put("interval", interval);
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("values")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", params))
-                                .size(maxNumTerms))
-                .addAggregation(
-                        histogram("histo")
-                                .field("values")
-                                .interval(interval)
-                                .minDocCount(1))
-                .get();
+            .addAggregation(
+                terms("terms").field("values")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", params))
+                    .size(maxNumTerms)
+            )
+            .addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1))
+            .get();
 
         assertSearchResponse(resp);
 
@@ -410,17 +396,17 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     public void testLargeNumbersOfPercentileBuckets() throws Exception {
         // test high numbers of percentile buckets to make sure paging and release work correctly
-        prepareCreate("idx")
-                .setMapping(jsonBuilder()
-                        .startObject()
-                            .startObject("_doc")
-                                .startObject("properties")
-                                    .startObject("double_value")
-                                        .field("type", "double")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()).get();
+        prepareCreate("idx").setMapping(
+            jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("double_value")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        ).get();
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
         logger.info("Indexing [{}] docs", numDocs);
@@ -431,12 +417,12 @@ public class EquivalenceIT extends ESIntegTestCase {
         indexRandom(true, indexingRequests);
 
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("double_value")
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .subAggregation(percentiles("pcts").field("double_value")))
-                .get();
+            .addAggregation(
+                terms("terms").field("double_value")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .subAggregation(percentiles("pcts").field("double_value"))
+            )
+            .get();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits().value);
     }
@@ -447,13 +433,12 @@ public class EquivalenceIT extends ESIntegTestCase {
         final int value = randomIntBetween(0, 10);
         indexRandom(true, client().prepareIndex("idx").setSource("f", value));
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("filter", QueryBuilders.matchAllQuery())
-                .subAggregation(range("range")
-                        .field("f")
-                        .addUnboundedTo(6)
-                        .addUnboundedFrom(6)
-                .subAggregation(sum("sum").field("f"))))
-                .get();
+            .addAggregation(
+                filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
+                    range("range").field("f").addUnboundedTo(6).addUnboundedFrom(6).subAggregation(sum("sum").field("f"))
+                )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -490,7 +475,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         List<? extends Terms.Bucket> t1Buckets = t1.getBuckets();
         List<? extends Terms.Bucket> t2Buckets = t1.getBuckets();
         assertEquals(t1Buckets.size(), t2Buckets.size());
-        for (Iterator<? extends Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext(); ) {
+        for (Iterator<? extends Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext();) {
             final Terms.Bucket b1 = it1.next();
             final Terms.Bucket b2 = it2.next();
             assertEquals(b1.getDocCount(), b2.getDocCount());
@@ -510,15 +495,29 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
         indexRandom(true, reqs);
 
-        final SearchResponse r1 = client().prepareSearch("idx").addAggregation(
-                terms("f1").field("f1").collectMode(SubAggCollectionMode.DEPTH_FIRST)
-                .subAggregation(terms("f2").field("f2").collectMode(SubAggCollectionMode.DEPTH_FIRST)
-                .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.DEPTH_FIRST)))).get();
+        final SearchResponse r1 = client().prepareSearch("idx")
+            .addAggregation(
+                terms("f1").field("f1")
+                    .collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                    .subAggregation(
+                        terms("f2").field("f2")
+                            .collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                            .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.DEPTH_FIRST))
+                    )
+            )
+            .get();
         assertSearchResponse(r1);
-        final SearchResponse r2 = client().prepareSearch("idx").addAggregation(
-                terms("f1").field("f1").collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                .subAggregation(terms("f2").field("f2").collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST)))).get();
+        final SearchResponse r2 = client().prepareSearch("idx")
+            .addAggregation(
+                terms("f1").field("f1")
+                    .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                    .subAggregation(
+                        terms("f2").field("f2")
+                            .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                            .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST))
+                    )
+            )
+            .get();
         assertSearchResponse(r2);
 
         final Terms t1 = r1.getAggregations().get("f1");

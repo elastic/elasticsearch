@@ -46,6 +46,7 @@ enum LZ4SafeUtils {
     ;
 
     // Added VarHandle
+    private static final VarHandle intPlatformNative = MethodHandles.byteArrayViewVarHandle(int[].class, Utils.NATIVE_BYTE_ORDER);
     private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, Utils.NATIVE_BYTE_ORDER);
 
     static int hash(byte[] buf, int i) {
@@ -66,13 +67,61 @@ enum LZ4SafeUtils {
         }
     }
 
+    // Modified wildIncrementalCopy to mirror version in LZ4UnsafeUtils
     static void wildIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchCopyEnd) {
-        do {
-            // Changed to copy incremental
-            copy8BytesIncremental(dest, matchOff, dest, dOff);
-            matchOff += 8;
+        if (dOff - matchOff >= 4) {
+            if (dOff - matchOff < 8) {
+                copy8Bytes(dest, matchOff, dest, dOff);
+                dOff += dOff - matchOff;
+            }
+        } else {
+            for(int i = 0; i < 4; ++i) {
+                dest[dOff + i] = dest[matchOff + i];
+            }
+
+            dOff += 4;
+            matchOff += 4;
+            int dec = 0;
+
+            assert dOff >= matchOff && dOff - matchOff < 8;
+
+            // Modified switch statement to conform to ES formatting
+            switch(dOff - matchOff) {
+                case 1:
+                    matchOff -= 3;
+                    break;
+                case 2:
+                    matchOff -= 2;
+                    break;
+                case 3:
+                    matchOff -= 3;
+                    dec = -1;
+                    break;
+                case 4:
+                    break;
+                default:
+                    break;
+                case 5:
+                    dec = 1;
+                    break;
+                case 6:
+                    dec = 2;
+                    break;
+                case 7:
+                    dec = 3;
+                    break;
+            }
+
+            copy4Bytes(dest, matchOff, dest, dOff);
+            dOff += 4;
+            matchOff -= dec;
+        }
+
+        while(dOff < matchCopyEnd) {
+            copy8Bytes(dest, matchOff, dest, dOff);
             dOff += 8;
-        } while (dOff < matchCopyEnd);
+            matchOff += 8;
+        }
     }
 
     // Modified to use VarHandle
@@ -80,11 +129,9 @@ enum LZ4SafeUtils {
         longPlatformNative.set(dest, dOff, (long) longPlatformNative.get(src, sOff));
     }
 
-    // Modified to add copy 8 bytes method that is incremental
-    static void copy8BytesIncremental(byte[] src, int sOff, byte[] dest, int dOff) {
-        for (int i = 0; i < 8; ++i) {
-            dest[dOff + i] = src[sOff + i];
-        }
+    // Added to copy single int
+    static void copy4Bytes(byte[] src, int sOff, byte[] dest, int dOff) {
+        intPlatformNative.set(dest, dOff, (int) intPlatformNative.get(src, sOff));
     }
 
     // Modified to use Arrays.mismatch

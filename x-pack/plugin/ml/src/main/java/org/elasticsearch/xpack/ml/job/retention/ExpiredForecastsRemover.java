@@ -100,10 +100,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     private void deleteForecasts(
-            SearchResponse searchResponse,
-            float requestsPerSec,
-            ActionListener<Boolean> listener,
-            BooleanSupplier isTimedOutSupplier
+        SearchResponse searchResponse,
+        float requestsPerSec,
+        ActionListener<Boolean> listener,
+        BooleanSupplier isTimedOutSupplier
     ) {
         List<JobForecastId> forecastsToDelete = findForecastsToDelete(searchResponse);
         if (forecastsToDelete.isEmpty()) {

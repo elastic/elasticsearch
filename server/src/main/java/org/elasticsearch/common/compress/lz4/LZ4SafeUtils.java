@@ -110,7 +110,9 @@ enum LZ4SafeUtils {
             for (int i = 0; i < len; i += 8) {
                 copy8Bytes(src, sOff + i, dest, dOff + i);
             }
-        } catch (ArrayIndexOutOfBoundsException e) {
+            // Modified to catch IndexOutOfBoundsException instead of ArrayIndexOutOfBoundsException.
+            // VarHandles throw IndexOutOfBoundsException
+        } catch (IndexOutOfBoundsException e) {
             throw new LZ4Exception("Malformed input at offset " + sOff);
         }
     }

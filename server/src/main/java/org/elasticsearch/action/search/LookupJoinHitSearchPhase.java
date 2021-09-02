@@ -78,29 +78,29 @@ public final class LookupJoinHitSearchPhase extends FetchSearchPhase.ExtendedPha
         private final String matchId;
         private final List<SearchHit> leftHits;
 
-        public LookupRequest(JoinHitLookupBuilder query, String matchId, List<SearchHit> leftHits) {
+        LookupRequest(JoinHitLookupBuilder query, String matchId, List<SearchHit> leftHits) {
             this.query = query;
             this.matchId = matchId;
             this.leftHits = leftHits;
         }
 
-        public JoinHitLookupBuilder getQuery() {
+        JoinHitLookupBuilder getQuery() {
             return query;
         }
 
-        public String getIndex() {
+        String getIndex() {
             return query.getIndex();
         }
 
-        public String getName() {
+        String getName() {
             return query.getName();
         }
 
-        public String getMatchId() {
+        String getMatchId() {
             return matchId;
         }
 
-        public List<SearchHit> getLeftHits() {
+        List<SearchHit> getLeftHits() {
             return leftHits;
         }
 

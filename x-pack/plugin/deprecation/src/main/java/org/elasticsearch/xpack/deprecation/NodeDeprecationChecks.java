@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
@@ -30,7 +31,9 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -458,7 +461,13 @@ class NodeDeprecationChecks {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
-        final String value = removedSetting.get(settings).toString();
+        Object removedSettingValue = removedSetting.get(settings);
+        String value;
+        if (removedSettingValue instanceof TimeValue) {
+            value = ((TimeValue) removedSettingValue).getStringRep();
+        } else {
+            value = removedSettingValue.toString();
+        }
         final String message =
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
@@ -588,6 +597,50 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
+    static DeprecationIssue checkSearchRemoteSettings(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        ClusterState cs,
+        XPackLicenseState licenseState
+    ) {
+        List<Setting<?>> remoteClusterSettings = new ArrayList<>();
+        remoteClusterSettings.addAll(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList()));
+        remoteClusterSettings.addAll(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList()));
+        remoteClusterSettings.addAll(RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList()));
+        if (SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER.exists(settings)) {
+            remoteClusterSettings.add(SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER);
+        }
+        if (RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.exists(settings)) {
+            remoteClusterSettings.add(RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING);
+        }
+        if (RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE.exists(settings)) {
+            remoteClusterSettings.add(RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE);
+        }
+        if (RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS.exists(settings)) {
+            remoteClusterSettings.add(RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS);
+        }
+        if (remoteClusterSettings.isEmpty()) {
+            return null;
+        }
+        final String remoteClusterSeedSettings = remoteClusterSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "search.remote settings [%s] are deprecated and will be removed in the next major version",
+            remoteClusterSeedSettings
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "replace search.remote settings [%s] with their secure 'cluster.remote' replacements",
+            remoteClusterSeedSettings
+        );
+        final String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
                                                                                    final PluginsAndModules pluginsAndModules,
                                                                                    final ClusterState clusterState,
@@ -628,6 +681,40 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_EXCLUDE_SETTING,
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkAcceptDefaultPasswordSetting(final Settings settings,
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            Setting.boolSetting(SecurityField.setting("authc.accept_default_password"),true, Setting.Property.Deprecated),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkAcceptRolesCacheMaxSizeSetting(final Settings settings,
+                                                                final PluginsAndModules pluginsAndModules,
+                                                                final ClusterState clusterState,
+                                                                final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            Setting.intSetting(SecurityField.setting("authz.store.roles.index.cache.max_size"), 10000, Setting.Property.Deprecated),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkRolesCacheTTLSizeSetting(final Settings settings,
+                                                          final PluginsAndModules pluginsAndModules,
+                                                          final ClusterState clusterState,
+                                                          final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            Setting.timeSetting(SecurityField.setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20),
+                Setting.Property.Deprecated),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }

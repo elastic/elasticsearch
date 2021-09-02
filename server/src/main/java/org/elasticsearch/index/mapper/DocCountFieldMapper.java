@@ -22,7 +22,9 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_doc_count";
     public static final String CONTENT_TYPE = "_doc_count";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new DocCountFieldMapper());
+    private static final DocCountFieldMapper INSTANCE = new DocCountFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class DocCountFieldType extends MappedFieldType {
 

@@ -242,6 +242,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             builder.setSecureSettings(new MockSecureSettings());
         }
         ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", BOOTSTRAP_PASSWORD.toString());
+        // Verify `autoconfiguration.password_hash` is not used when `bootstrap.password` set
+        ((MockSecureSettings) builder.getSecureSettings()).setString("autoconfiguration.password_hash",
+            "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
         return builder.build();
     }
 

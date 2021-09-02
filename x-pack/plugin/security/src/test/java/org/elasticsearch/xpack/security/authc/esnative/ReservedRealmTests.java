@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -381,6 +382,53 @@ public class ReservedRealmTests extends ESTestCase {
         assertFailedAuthentication(listener, "elastic");
         // now try with the real password
         listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(), password), listener);
+        final AuthenticationResult result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+    }
+
+    public void testPasswordHashFailsOnElasticUserExists() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("autoconfiguration.password_hash", "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX" +
+            "43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        when(securityIndex.indexExists()).thenReturn(true);
+        final Hasher hasher = Hasher.resolve("pbkdf2_stretch_1000");
+        doAnswer(getAnswer(true, new SecureString("password".toCharArray()), hasher))
+            .when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        SecureString password = new SecureString("password1".toCharArray());
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(), password), listener);
+        assertFailedAuthentication(listener, "elastic");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPasswordHashSucceedOnIndexExistsButElasticuserNot() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("autoconfiguration.password_hash", "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX" +
+            "43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        when(securityIndex.indexExists()).thenReturn(true);
+        doAnswer((i) -> {
+            @SuppressWarnings("rawtypes")
+            ActionListener callback = (ActionListener) i.getArguments()[1];
+            callback.onResponse(null);
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        doAnswer((i) -> {
+            @SuppressWarnings("rawtypes")
+                ActionListener callbackOnCreate = (ActionListener) i.getArguments()[3];
+            char[] hash = mockSecureSettings.getString("autoconfiguration.password_hash").getChars();
+            ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
+            callbackOnCreate.onResponse(userInfo);
+            return null;
+        }).when(usersStore).createReservedUserAndGetUserInfo(eq("elastic"), anyObject(), anyObject(), anyActionListener());
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        SecureString password = new SecureString("password1".toCharArray());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(), password), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));

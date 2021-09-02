@@ -56,9 +56,9 @@ import static org.hamcrest.Matchers.hasItem;
 public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
-    private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
     private static RestClient restClient = null;
     private static SecureString BOOTSTRAP_PASSWORD = null;
+    protected static CustomSecuritySettingsSource customSecuritySettingsSource = null;
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -239,9 +239,9 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return randomBoolean();
     }
 
-    private class CustomSecuritySettingsSource extends SecuritySettingsSource {
+    protected class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
-        private CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, ESIntegTestCase.Scope scope) {
+        public CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, ESIntegTestCase.Scope scope) {
             super(sslEnabled, configDir, scope);
         }
 

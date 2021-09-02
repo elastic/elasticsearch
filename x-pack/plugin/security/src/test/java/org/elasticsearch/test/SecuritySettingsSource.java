@@ -114,7 +114,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    Path nodePath(final int nodeOrdinal) {
+    public Path nodePath(final int nodeOrdinal) {
         return parentFolder.resolve(subfolderPrefix + "-" + nodeOrdinal);
     }
 

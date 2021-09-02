@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[xpack-sql]]
-= SQL access
+= SQL
 
 :sql-tests: {xes-repo-dir}/../../plugin/sql/qa/
 :sql-specs: {sql-tests}server/src/main/resources/

@@ -40,6 +40,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
@@ -50,10 +51,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             source = parser.map();
         }
         if (source.containsKey(TRANSIENT)) {
-            clusterUpdateSettingsRequest.transientSettings((Map) source.get(TRANSIENT));
+            clusterUpdateSettingsRequest.transientSettings((Map<String, ?>) source.get(TRANSIENT));
         }
         if (source.containsKey(PERSISTENT)) {
-            clusterUpdateSettingsRequest.persistentSettings((Map) source.get(PERSISTENT));
+            clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
         }
 
         return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new RestToXContentListener<>(channel));

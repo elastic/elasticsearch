@@ -12,16 +12,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -29,6 +28,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 /**
  * A {@link LifecycleAction} that will convert the index into a searchable snapshot, by taking a snapshot of the index, creating a
@@ -133,7 +135,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     // The index is already a searchable snapshot, let's see if the repository matches
-                    String repo = indexMetadata.getSettings().get(RepositoriesService.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+                    String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
                     if (this.snapshotRepository.equals(repo) == false) {
                         // Okay, different repo, we need to go ahead with the searchable snapshot
                         logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
@@ -144,7 +146,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     }
 
                     // Check to the storage type to see if we need to convert between full <-> partial
-                    boolean partial = indexMetadata.getSettings().getAsBoolean("index.store.snapshot.partial", false);
+                    final boolean partial = indexMetadata.getSettings().getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false);
                     MountSearchableSnapshotRequest.Storage existingType =
                         partial ? MountSearchableSnapshotRequest.Storage.SHARED_CACHE : MountSearchableSnapshotRequest.Storage.FULL_COPY;
                     MountSearchableSnapshotRequest.Storage type = getConcreteStorageType(preActionBranchingKey);
@@ -208,8 +210,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
-        AsyncActionBranchingStep createSnapshotBranchingStep = new AsyncActionBranchingStep(
-            new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, client), cleanSnapshotKey, client);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, cleanSnapshotKey,
+            client);
 
         MountSearchableSnapshotRequest.Storage storageType = getConcreteStorageType(mountSnapshotKey);
 
@@ -251,7 +253,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         }
         steps.add(generateSnapshotNameStep);
         steps.add(cleanupSnapshotStep);
-        steps.add(createSnapshotBranchingStep);
+        steps.add(createSnapshotStep);
         steps.add(waitForDataTierStep);
         steps.add(mountSnapshotStep);
         steps.add(waitForGreenIndexHealthStep);

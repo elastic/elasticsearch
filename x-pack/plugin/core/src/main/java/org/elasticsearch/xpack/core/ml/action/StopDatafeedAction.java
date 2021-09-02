@@ -96,7 +96,9 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return resolvedStartedDatafeedIds;
         }
 
+        // This is used internally - the transport action sets it, not the user
         public void setResolvedStartedDatafeedIds(String[] resolvedStartedDatafeedIds) {
+            assert resolvedStartedDatafeedIds != null;
             this.resolvedStartedDatafeedIds = resolvedStartedDatafeedIds;
         }
 

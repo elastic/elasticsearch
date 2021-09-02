@@ -1,7 +1,7 @@
 {
   "ml.start_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-trained-model-deployment.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
       "description":"Start a trained model deployment."
     },
     "stability":"experimental",
@@ -20,7 +20,8 @@
           "parts":{
             "model_id":{
               "type":"string",
-              "description":"The ID of the model to deploy"
+              "description":"The unique identifier of the trained model.",
+              "required":true
             }
           }
         }
@@ -30,7 +31,8 @@
       "timeout":{
         "type":"time",
         "required":false,
-        "description":"Controls the time to wait until the model is deployed"
+        "description":"Controls the amount of time to wait for the model to deploy.",
+        "default": "20s"
       }
     }
   }

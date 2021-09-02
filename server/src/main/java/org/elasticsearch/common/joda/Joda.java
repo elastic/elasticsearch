@@ -47,7 +47,7 @@ public class Joda {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */

@@ -97,10 +97,13 @@ public class ReindexRestClientSslTests extends ESTestCase {
 
         final Path cert = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.crt").toURI());
         final Path key = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.key").toURI());
-        final X509ExtendedKeyManager keyManager = new PemKeyConfig(cert, key, password).createKeyManager();
+        final Path configPath = cert.getParent().getParent();
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert.toString(), key.toString(), password, configPath);
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
 
         final Path ca = PathUtils.get(ReindexRestClientSslTests.class.getResource("ca.pem").toURI());
-        final X509ExtendedTrustManager trustManager = new PemTrustConfig(Collections.singletonList(ca)).createTrustManager();
+        final List<String> caList = Collections.singletonList(ca.toString());
+        final X509ExtendedTrustManager trustManager = new PemTrustConfig(caList, configPath).createTrustManager();
 
         sslContext.init(new KeyManager[] { keyManager }, new TrustManager[] { trustManager }, null);
         return sslContext;

@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -69,7 +69,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         Map<String, Object> mapping = new HashMap<>();
         mapping.put("dynamic", false);
-        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("type", NestedObjectMapper.CONTENT_TYPE);
         mapping.put("properties", properties);
 
         FEATURE_INFLUENCE_MAPPING = Collections.unmodifiableMap(mapping);

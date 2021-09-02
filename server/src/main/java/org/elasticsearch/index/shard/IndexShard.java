@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -111,6 +112,8 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.FieldUsageStats;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -143,6 +146,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -192,6 +196,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
+    private final ShardFieldUsageTracker fieldUsageTracker;
+    private final String shardUuid = UUIDs.randomBase64UUID();
+    private final long shardCreationTime;
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
@@ -354,6 +361,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
                 this::getSafeCommitInfo,
                 pendingReplicationActions);
+        fieldUsageTracker = new ShardFieldUsageTracker();
+        shardCreationTime = threadPool.absoluteTimeInMillis();
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -445,6 +454,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /** Returns the primary term that is currently being used to assign to operations */
     public long getOperationPrimaryTerm() {
         return replicationTracker.getOperationPrimaryTerm();
+    }
+
+    /**
+     * Returns a unique UUID that identifies this IndexShard instance
+     */
+    public String getShardUuid() {
+        return shardUuid;
+    }
+
+    /**
+     * Returns the timestamp at which this IndexShard instance was created
+     */
+    public long getShardCreationTime() {
+        return shardCreationTime;
     }
 
     /**
@@ -1064,6 +1087,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return searchStats.stats(groups);
     }
 
+    public FieldUsageStats fieldUsageStats(String... fields) {
+        return fieldUsageTracker.stats(fields);
+    }
+
     public GetStats getStats() {
         return getService.stats();
     }
@@ -1293,7 +1320,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = wrapSearcher(searcher, fieldUsageTracker.createSession(), readerWrapper);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -1307,37 +1334,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
-                                        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
-        assert readerWrapper != null;
+                                        ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsTrackingSession,
+                                        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper)
+        throws IOException {
         final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
             ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
+        if (readerWrapper == null) {
+            readerWrapper = r -> r;
+        }
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
-        DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
-        if (reader != nonClosingReaderWrapper) {
-            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
-                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
-                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
-                    "used as cache keys since their are used only per request which would lead to subtle bugs");
-            }
-            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
-                // prevent that somebody wraps with a non-filter reader
-                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
-            }
+        // first apply field usage stats wrapping before applying other wrappers so that it can track the effects of these wrappers
+        DirectoryReader reader = readerWrapper.apply(
+            new FieldUsageTrackingDirectoryReader(nonClosingReaderWrapper, fieldUsageStatsTrackingSession));
+        if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
+            throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
+                "used as cache keys since their are used only per request which would lead to subtle bugs");
+        }
+        if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+            // prevent that somebody wraps with a non-filter reader
+            throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
         }
 
-        if (reader == nonClosingReaderWrapper) {
-            return engineSearcher;
-        } else {
-            // we close the reader to make sure wrappers can release resources if needed....
-            // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), reader,
-                engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
-                () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
-                    engineSearcher)); // this will run the closeable on the wrapped engine reader
-        }
+        // we close the reader to make sure wrappers can release resources if needed....
+        // our NonClosingReaderWrapper makes sure that our reader is not closed
+        return new Engine.Searcher(engineSearcher.source(), reader,
+            engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
+            () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
+                engineSearcher, // this will run the closeable on the wrapped engine reader
+                fieldUsageStatsTrackingSession)); // completes stats recording
     }
 
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {

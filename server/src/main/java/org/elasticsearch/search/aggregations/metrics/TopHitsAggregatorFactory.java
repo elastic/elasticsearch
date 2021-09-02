@@ -44,24 +44,26 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
-    TopHitsAggregatorFactory(String name,
-                                int from,
-                                int size,
-                                boolean explain,
-                                boolean version,
-                                boolean seqNoAndPrimaryTerm,
-                                boolean trackScores,
-                                Optional<SortAndFormats> sort,
-                                HighlightBuilder highlightBuilder,
-                                StoredFieldsContext storedFieldsContext,
-                                List<FieldAndFormat> docValueFields,
-                                List<FieldAndFormat> fetchFields,
-                                List<ScriptFieldsContext.ScriptField> scriptFields,
-                                FetchSourceContext fetchSourceContext,
-                                AggregationContext context,
-                                AggregatorFactory parent,
-                                AggregatorFactories.Builder subFactories,
-                                Map<String, Object> metadata) throws IOException {
+    TopHitsAggregatorFactory(
+        String name,
+        int from,
+        int size,
+        boolean explain,
+        boolean version,
+        boolean seqNoAndPrimaryTerm,
+        boolean trackScores,
+        Optional<SortAndFormats> sort,
+        HighlightBuilder highlightBuilder,
+        StoredFieldsContext storedFieldsContext,
+        List<FieldAndFormat> docValueFields,
+        List<FieldAndFormat> fetchFields,
+        List<ScriptFieldsContext.ScriptField> scriptFields,
+        FetchSourceContext fetchSourceContext,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactories, metadata);
         this.from = from;
         this.size = size;
@@ -96,7 +98,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         }
         if (docValueFields != null) {
             FetchDocValuesContext docValuesContext = new FetchDocValuesContext(
-                subSearchContext.getSearchExecutionContext(), docValueFields);
+                subSearchContext.getSearchExecutionContext(),
+                docValueFields
+            );
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {
@@ -105,7 +109,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {
             subSearchContext.scriptFields().add(field);
-            }
+        }
         if (fetchSourceContext != null) {
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }

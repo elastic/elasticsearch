@@ -569,7 +569,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         Terms terms = searchResponse.getAggregations().get("top-tags");
-        assertEquals(0, terms.getDocCountError());
+        assertEquals(0, terms.getDocCountError().longValue());
         assertEquals(0, terms.getSumOfOtherDocCounts());
         assertEquals(3, terms.getBuckets().size());
         for (Terms.Bucket bucket : terms.getBuckets()) {
@@ -581,7 +581,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertEquals(2, children.getDocCount());
             assertEquals(1, children.getAggregations().asList().size());
             Terms leafTerms = children.getAggregations().get("top-names");
-            assertEquals(0, leafTerms.getDocCountError());
+            assertEquals(0, leafTerms.getDocCountError().longValue());
             assertEquals(0, leafTerms.getSumOfOtherDocCounts());
             assertEquals(2, leafTerms.getBuckets().size());
             assertEquals(2, leafTerms.getBuckets().size());
@@ -1367,13 +1367,25 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithBasicLicensedQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
-        searchSourceBuilder.query(pinnedQuery);
-        searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
-        assertSearchHeader(searchResponse);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("1"));
+        {
+            PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
+            searchSourceBuilder.query(pinnedQuery);
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            assertSearchHeader(searchResponse);
+            assertFirstHit(searchResponse, hasId("2"));
+            assertSecondHit(searchResponse, hasId("1"));
+        }
+        {
+            PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(),
+                new PinnedQueryBuilder.Item("index", "2"), new PinnedQueryBuilder.Item("index", "1"));
+            searchSourceBuilder.query(pinnedQuery);
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            assertSearchHeader(searchResponse);
+            assertFirstHit(searchResponse, hasId("2"));
+            assertSecondHit(searchResponse, hasId("1"));
+        }
     }
 
     public void testPointInTime() throws Exception {

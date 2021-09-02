@@ -76,7 +76,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -333,6 +332,9 @@ public class InternalEngineTests extends EngineTestCase {
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
             // now, optimize and wait for merges, see that we have no merge flag
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+            // ensure that we have released the older segments with a refresh so they can be removed
+            assertFalse(engine.refreshNeeded());
 
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -5666,7 +5668,6 @@ public class InternalEngineTests extends EngineTestCase {
             indexer.join();
             refresher.join();
         }
-        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 
     public void testPruneAwayDeletedButRetainedIds() throws Exception {

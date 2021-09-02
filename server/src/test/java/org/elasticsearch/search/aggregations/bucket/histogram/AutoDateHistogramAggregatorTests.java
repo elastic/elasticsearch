@@ -85,12 +85,15 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         ZonedDateTime.of(2015, 6, 24, 13, 47, 43, 0, ZoneOffset.UTC),
         ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC),
         ZonedDateTime.of(2016, 3, 4, 17, 9, 50, 0, ZoneOffset.UTC),
-        ZonedDateTime.of(2017, 12, 12, 22, 55, 46, 0, ZoneOffset.UTC));
+        ZonedDateTime.of(2017, 12, 12, 22, 55, 46, 0, ZoneOffset.UTC)
+    );
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
 
     public void testMatchNoDocs() throws IOException {
-        testSearchCase(new MatchNoDocsQuery(), DATES_WITH_TIME,
+        testSearchCase(
+            new MatchNoDocsQuery(),
+            DATES_WITH_TIME,
             aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
             histogram -> {
                 assertEquals(0, histogram.getBuckets().size());
@@ -109,15 +112,20 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         expectedDocCount.put("2017-01-01T00:00:00.000Z", 1);
         expectedDocCount.put("2011-01-01T00:00:00.000Z", 0);
         expectedDocCount.put("2014-01-01T00:00:00.000Z", 0);
-        testSearchCase(DEFAULT_QUERY, DATES_WITH_TIME,
+        testSearchCase(
+            DEFAULT_QUERY,
+            DATES_WITH_TIME,
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
     public void testSubAggregations() throws IOException {
-        testSearchCase(DEFAULT_QUERY, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD)
+        testSearchCase(
+            DEFAULT_QUERY,
+            DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(8)
+                .field(DATE_FIELD)
                 .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
             histogram -> {
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
@@ -195,13 +203,17 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 assertEquals("2017-12-12T22:55:46.000Z", stats.getMaxAsString());
                 assertEquals(1L, stats.getCount());
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
-            });
+            }
+        );
     }
 
     public void testAsSubAgg() throws IOException {
-        AggregationBuilder builder = new TermsAggregationBuilder("k1").field("k1").subAggregation(
-            new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).setNumBuckets(3).subAggregation(
-                new MaxAggregationBuilder("max").field("n")));
+        AggregationBuilder builder = new TermsAggregationBuilder("k1").field("k1")
+            .subAggregation(
+                new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                    .setNumBuckets(3)
+                    .subAggregation(new MaxAggregationBuilder("max").field("n"))
+            );
         asSubAggTestCase(builder, (StringTerms terms) -> {
             StringTerms.Bucket a = terms.getBucketByKey("a");
             InternalAutoDateHistogram adh = a.getAggregations().get("dh");
@@ -271,14 +283,16 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             BytesRef cBytes = new BytesRef("c");
             int n = 0;
             for (long d = start; d < end; d += anHour) {
-                docs.add(List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                    new SortedSetDocValuesField("k1", aBytes),
-                    new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
-                    new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedNumericDocValuesField("n", n++)
-                ));
+                docs.add(
+                    List.of(
+                        new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
+                        new SortedSetDocValuesField("k1", aBytes),
+                        new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
+                        new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new SortedNumericDocValuesField("n", n++)
+                    )
+                );
             }
             /*
              * Intentionally add all documents at once to put them on the
@@ -286,9 +300,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
              */
             iw.addDocuments(docs);
         };
-        AggregationBuilder builder = new TermsAggregationBuilder("k1").field("k1").subAggregation(
-            new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).setNumBuckets(4).subAggregation(
-                new MaxAggregationBuilder("max").field("n")));
+        AggregationBuilder builder = new TermsAggregationBuilder("k1").field("k1")
+            .subAggregation(
+                new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                    .setNumBuckets(4)
+                    .subAggregation(new MaxAggregationBuilder("max").field("n"))
+            );
         asSubAggTestCase(builder, buildIndex, (StringTerms terms) -> {
             StringTerms.Bucket a = terms.getBucketByKey("a");
             InternalAutoDateHistogram adh = a.getAggregations().get("dh");
@@ -337,10 +354,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             List<List<IndexableField>> docs = new ArrayList<>();
             int n = 0;
             for (long d = start; d < end; d += anHour) {
-                docs.add(List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                    new SortedNumericDocValuesField("n", n % 100)
-                ));
+                docs.add(List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, d), new SortedNumericDocValuesField("n", n % 100)));
                 n++;
             }
             /*
@@ -349,12 +363,16 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
              */
             iw.addDocuments(docs);
         };
-        AggregationBuilder builder = new HistogramAggregationBuilder("n").field("n").interval(1).subAggregation(
-            new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).setNumBuckets(4).subAggregation(
-                new MaxAggregationBuilder("max").field("n")));
+        AggregationBuilder builder = new HistogramAggregationBuilder("n").field("n")
+            .interval(1)
+            .subAggregation(
+                new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                    .setNumBuckets(4)
+                    .subAggregation(new MaxAggregationBuilder("max").field("n"))
+            );
         asSubAggTestCase(builder, buildIndex, (InternalHistogram histo) -> {
             assertThat(histo.getBuckets(), hasSize(100));
-            for (int n = 0; n < 100; n ++) {
+            for (int n = 0; n < 100; n++) {
                 InternalHistogram.Bucket b = histo.getBuckets().get(n);
                 InternalAutoDateHistogram dh = b.getAggregations().get("dh");
                 assertThat(bucketCountsAsMap(dh), hasEntry(equalTo("2020-01-01T00:00:00.000Z"), either(equalTo(21)).or(equalTo(22))));
@@ -375,61 +393,48 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         final List<ZonedDateTime> dates = Collections.emptyList();
         final Consumer<AutoDateHistogramAggregationBuilder> aggregation = agg -> agg.setNumBuckets(10).field(DATE_FIELD);
 
-        testSearchCase(DEFAULT_QUERY, dates, aggregation,
-            histogram -> {
-                assertEquals(0, histogram.getBuckets().size());
-                assertFalse(AggregationInspectionHelper.hasValue(histogram));
-            }
-        );
-        testSearchCase(DEFAULT_QUERY, dates, aggregation,
-            histogram -> {
-                assertEquals(0, histogram.getBuckets().size());
-                assertFalse(AggregationInspectionHelper.hasValue(histogram));
-            }
-        );
+        testSearchCase(DEFAULT_QUERY, dates, aggregation, histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        });
+        testSearchCase(DEFAULT_QUERY, dates, aggregation, histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        });
     }
 
     public void testAggregateWrongField() throws IOException {
-        AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
-            setNumBuckets(10).field("bogus_bogus");
+        AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").setNumBuckets(10)
+            .field("bogus_bogus");
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY,
-            iw -> {},
-            (Consumer<InternalAutoDateHistogram>) histogram -> {
-                assertEquals(0, histogram.getBuckets().size());
-                assertFalse(AggregationInspectionHelper.hasValue(histogram));
-            }, fieldType);
+        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, fieldType);
     }
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(
-            new AutoDateHistogramAggregationBuilder("name").field(fieldName),
-            new MatchAllDocsQuery(),
-            iw -> {
-                Document d = new Document();
-                d.add(new SortedNumericDocValuesField(fieldName, 0));
-                iw.addDocument(d);
-            },
-            a -> {},
-            new BooleanFieldMapper.BooleanFieldType(fieldName)
-        );
+        testCase(new AutoDateHistogramAggregationBuilder("name").field(fieldName), new MatchAllDocsQuery(), iw -> {
+            Document d = new Document();
+            d.add(new SortedNumericDocValuesField(fieldName, 0));
+            iw.addDocument(d);
+        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
         assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testUnmappedMissing() throws IOException {
-        AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
-            setNumBuckets(10).field("bogus_bogus").missing("2017-12-12");
+        AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").setNumBuckets(10)
+            .field("bogus_bogus")
+            .missing("2017-12-12");
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY,
-            iw -> {},
-            (Consumer<InternalAutoDateHistogram>) histogram -> {
-                assertEquals(0, histogram.getBuckets().size());
-                assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+            assertEquals(0, histogram.getBuckets().size());
+            assertFalse(AggregationInspectionHelper.hasValue(histogram));
         }, fieldType);
     }
 
@@ -437,21 +442,17 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         final long start = LocalDate.of(2015, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final long end = LocalDate.of(2017, 12, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final Query rangeQuery = LongPoint.newRangeQuery(INSTANT_FIELD, start, end);
-        testSearchCase(rangeQuery, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
-            histogram -> {
-                final ZonedDateTime startDate = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(startDate, 3);
-                expectedDocCount.put(startDate.plusYears(1), 1);
-                expectedDocCount.put(startDate.plusYears(2), 1);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(expectedDocCount.size(), buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
-        );
+        testSearchCase(rangeQuery, DATES_WITH_TIME, aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD), histogram -> {
+            final ZonedDateTime startDate = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+            final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
+            expectedDocCount.put(startDate, 3);
+            expectedDocCount.put(startDate.plusYears(1), 1);
+            expectedDocCount.put(startDate.plusYears(2), 1);
+            final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+            assertEquals(expectedDocCount.size(), buckets.size());
+            buckets.forEach(bucket -> assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
+            assertTrue(AggregationInspectionHelper.hasValue(histogram));
+        });
     }
 
     public void testIntervalMonth() throws IOException {
@@ -461,24 +462,31 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 3, 4, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 3, 5, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 3, 6, 0, 0, 0, 0, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 3, 6, 0, 0, 0, 0, ZoneOffset.UTC)
+        );
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2017-01-01T00:00:00.000Z", 1);
         expectedDocCount.put("2017-02-01T00:00:00.000Z", 2);
         expectedDocCount.put("2017-03-01T00:00:00.000Z", 3);
-        testSearchCase(DEFAULT_QUERY, datesForMonthInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForMonthInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
     public void testWithLargeNumberOfBuckets() {
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> testSearchCase(DEFAULT_QUERY, DATES_WITH_TIME,
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> testSearchCase(
+                DEFAULT_QUERY,
+                DATES_WITH_TIME,
                 aggregation -> aggregation.setNumBuckets(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1).field(DATE_FIELD),
                 // since an exception is thrown, this assertion won't be invoked.
                 histogram -> fail()
-            ));
+            )
+        );
         assertThat(exception.getMessage(), Matchers.containsString("must be less than"));
     }
 
@@ -490,14 +498,17 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC)
+        );
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2017-02-01T00:00:00.000Z", 1);
         expectedDocCount.put("2017-02-02T00:00:00.000Z", 2);
         expectedDocCount.put("2017-02-03T00:00:00.000Z", 3);
         expectedDocCount.put("2017-02-05T00:00:00.000Z", 1);
         expectedDocCount.put("2017-02-04T00:00:00.000Z", 0);
-        testSearchCase(DEFAULT_QUERY, datesForDayInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForDayInterval,
             aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
@@ -511,17 +522,20 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC)
+        );
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2017-01-31T00:00:00.000-01:00", 1);
         expectedDocCount.put("2017-02-01T00:00:00.000-01:00", 2);
         expectedDocCount.put("2017-02-02T00:00:00.000-01:00", 3);
         expectedDocCount.put("2017-02-04T00:00:00.000-01:00", 1);
         expectedDocCount.put("2017-02-03T00:00:00.000-01:00", 0);
-        testSearchCase(DEFAULT_QUERY, datesForDayInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForDayInterval,
             aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
-         );
+        );
     }
 
     public void testIntervalHour() throws IOException {
@@ -535,7 +549,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 1, 15, 59, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 6, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 48, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC)
+        );
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2017-02-01T09:00:00.000Z", 2);
         expectedDocCount.put("2017-02-01T10:00:00.000Z", 1);
@@ -546,7 +561,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         expectedDocCount.put("2017-02-01T16:00:00.000Z", 3);
         expectedDocCount.put("2017-02-01T11:00:00.000Z", 0);
         expectedDocCount.put("2017-02-01T12:00:00.000Z", 0);
-        testSearchCase(DEFAULT_QUERY, datesForHourInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
@@ -554,7 +571,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         expectedDocCount.put("2017-02-01T09:00:00.000Z", 3);
         expectedDocCount.put("2017-02-01T12:00:00.000Z", 3);
         expectedDocCount.put("2017-02-01T15:00:00.000Z", 4);
-        testSearchCase(DEFAULT_QUERY, datesForHourInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
@@ -571,7 +590,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 1, 15, 59, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 6, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 48, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC)
+        );
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2017-02-01T08:00:00.000-01:00", 2);
         expectedDocCount.put("2017-02-01T09:00:00.000-01:00", 1);
@@ -581,7 +601,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         expectedDocCount.put("2017-02-01T15:00:00.000-01:00", 3);
         expectedDocCount.put("2017-02-01T10:00:00.000-01:00", 0);
         expectedDocCount.put("2017-02-01T11:00:00.000-01:00", 0);
-        testSearchCase(DEFAULT_QUERY, datesForHourInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
@@ -602,7 +624,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         bucketsToExpectedDocCountMap.put(10, 30);
         bucketsToExpectedDocCountMap.put(3, 60);
         final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
-        testSearchCase(DEFAULT_QUERY, dataset,
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
             aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -613,7 +637,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusSeconds(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
-            });
+            }
+        );
     }
 
     public void testRandomMinuteIntervals() throws IOException {
@@ -631,7 +656,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         bucketsToExpectedDocCountMap.put(10, 30);
         bucketsToExpectedDocCountMap.put(3, 60);
         final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
-        testSearchCase(DEFAULT_QUERY, dataset,
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
             aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -642,7 +669,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusMinutes(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
-            });
+            }
+        );
     }
 
     public void testRandomHourIntervals() throws IOException {
@@ -659,7 +687,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         bucketsToExpectedDocCountMap.put(12, 12);
         bucketsToExpectedDocCountMap.put(3, 24);
         final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
-        testSearchCase(DEFAULT_QUERY, dataset,
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
             aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -670,7 +700,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusHours(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
-            });
+            }
+        );
     }
 
     public void testRandomDayIntervals() throws IOException {
@@ -683,39 +714,33 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         }
         final int randomChoice = randomIntBetween(1, 3);
         if (randomChoice == 1) {
-            testSearchCase(DEFAULT_QUERY, dataset,
-                aggregation -> aggregation.setNumBuckets(length).field(DATE_FIELD),
-                histogram -> {
-                    final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    assertEquals(length, buckets.size());
-                    final int randomIndex = randomInt(length - 1);
-                    final Histogram.Bucket bucket = buckets.get(randomIndex);
-                    assertEquals(startDate.plusDays(randomIndex), bucket.getKey());
-                    assertEquals(1, bucket.getDocCount());
-                });
+            testSearchCase(DEFAULT_QUERY, dataset, aggregation -> aggregation.setNumBuckets(length).field(DATE_FIELD), histogram -> {
+                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(length, buckets.size());
+                final int randomIndex = randomInt(length - 1);
+                final Histogram.Bucket bucket = buckets.get(randomIndex);
+                assertEquals(startDate.plusDays(randomIndex), bucket.getKey());
+                assertEquals(1, bucket.getDocCount());
+            });
         } else if (randomChoice == 2) {
-            testSearchCase(DEFAULT_QUERY, dataset,
-                aggregation -> aggregation.setNumBuckets(60).field(DATE_FIELD),
-                histogram -> {
-                    final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    final int expectedDocCount = 7;
-                    assertEquals(20, buckets.size());
-                    final int randomIndex = randomInt(19);
-                    final Histogram.Bucket bucket = buckets.get(randomIndex);
-                    assertEquals(startDate.plusDays(randomIndex * expectedDocCount), bucket.getKey());
-                    assertEquals(expectedDocCount, bucket.getDocCount());
-                });
+            testSearchCase(DEFAULT_QUERY, dataset, aggregation -> aggregation.setNumBuckets(60).field(DATE_FIELD), histogram -> {
+                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                final int expectedDocCount = 7;
+                assertEquals(20, buckets.size());
+                final int randomIndex = randomInt(19);
+                final Histogram.Bucket bucket = buckets.get(randomIndex);
+                assertEquals(startDate.plusDays(randomIndex * expectedDocCount), bucket.getKey());
+                assertEquals(expectedDocCount, bucket.getDocCount());
+            });
         } else if (randomChoice == 3) {
-            testSearchCase(DEFAULT_QUERY, dataset,
-                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
-                histogram -> {
-                    final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    assertEquals(5, buckets.size());
-                    final int randomIndex = randomInt(2);
-                    final Histogram.Bucket bucket = buckets.get(randomIndex);
-                    assertEquals(startDate.plusMonths(randomIndex), bucket.getKey());
-                    assertEquals(YearMonth.from(startDate.plusMonths(randomIndex)).lengthOfMonth(), bucket.getDocCount());
-                });
+            testSearchCase(DEFAULT_QUERY, dataset, aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD), histogram -> {
+                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(5, buckets.size());
+                final int randomIndex = randomInt(2);
+                final Histogram.Bucket bucket = buckets.get(randomIndex);
+                assertEquals(startDate.plusMonths(randomIndex), bucket.getKey());
+                assertEquals(YearMonth.from(startDate.plusMonths(randomIndex)).lengthOfMonth(), bucket.getDocCount());
+            });
         }
     }
 
@@ -732,7 +757,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         bucketsToExpectedDocCountMap.put(30, 3);
         bucketsToExpectedDocCountMap.put(6, 12);
         final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
-        testSearchCase(DEFAULT_QUERY, dataset,
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
             aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -743,7 +770,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusMonths(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
-            });
+            }
+        );
     }
 
     public void testRandomYearIntervals() throws IOException {
@@ -762,7 +790,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         bucketsToExpectedDocCountMap.put(10, 50);
         bucketsToExpectedDocCountMap.put(5, 100);
         final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
-        testSearchCase(DEFAULT_QUERY, dataset,
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
             aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -773,7 +803,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusYears(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
-            });
+            }
+        );
     }
 
     public void testIntervalMinute() throws IOException {
@@ -782,7 +813,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 1, 9, 2, 59, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 9, 15, 37, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 9, 16, 4, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 2, 1, 9, 16, 42, 0, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 2, 1, 9, 16, 42, 0, ZoneOffset.UTC)
+        );
         Map<String, Integer> skeletonDocCount = new TreeMap<>();
         skeletonDocCount.put("2017-02-01T09:02:00.000Z", 2);
         skeletonDocCount.put("2017-02-01T09:15:00.000Z", 1);
@@ -791,7 +823,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         fullDocCount.put("2017-02-01T09:02:00.000Z", 2);
         fullDocCount.put("2017-02-01T09:07:00.000Z", 0);
         fullDocCount.put("2017-02-01T09:12:00.000Z", 3);
-        testSearchCase(DEFAULT_QUERY, datesForMinuteInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForMinuteInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(fullDocCount))
         );
@@ -800,7 +834,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         for (int minute = 3; minute < 15; minute++) {
             fullDocCount.put(String.format(Locale.ROOT, "2017-02-01T09:%02d:00.000Z", minute), 0);
         }
-        testSearchCase(DEFAULT_QUERY, datesForMinuteInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForMinuteInterval,
             aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(fullDocCount))
         );
@@ -813,7 +849,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2017, 2, 1, 0, 0, 7, 74, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 688, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 210, ZoneOffset.UTC),
-            ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 380, ZoneOffset.UTC));
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 380, ZoneOffset.UTC)
+        );
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2017-02-01T00:00:05.000Z", 1);
         expectedDocCount.put("2017-02-01T00:00:07.000Z", 2);
@@ -822,18 +859,27 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         expectedDocCount.put("2017-02-01T00:00:08.000Z", 0);
         expectedDocCount.put("2017-02-01T00:00:09.000Z", 0);
         expectedDocCount.put("2017-02-01T00:00:10.000Z", 0);
-        testSearchCase(DEFAULT_QUERY, datesForSecondInterval,
+        testSearchCase(
+            DEFAULT_QUERY,
+            datesForSecondInterval,
             aggregation -> aggregation.setNumBuckets(7).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
     public void testWithPipelineReductions() throws IOException {
-        testSearchCase(DEFAULT_QUERY, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(1).field(DATE_FIELD)
-                .subAggregation(AggregationBuilders.histogram("histo").field(NUMERIC_FIELD).interval(1)
-                    .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD))
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "max"))),
+        testSearchCase(
+            DEFAULT_QUERY,
+            DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(1)
+                .field(DATE_FIELD)
+                .subAggregation(
+                    AggregationBuilders.histogram("histo")
+                        .field(NUMERIC_FIELD)
+                        .interval(1)
+                        .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD))
+                        .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "max"))
+                ),
             histogram -> {
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -846,23 +892,23 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 InternalHistogram histo = (InternalHistogram) bucket.getAggregations().asList().get(0);
                 assertThat(histo.getBuckets().size(), equalTo(10));
                 for (int i = 0; i < 10; i++) {
-                    assertThat(histo.getBuckets().get(i).key, equalTo((double)i));
-                    assertThat(((InternalMax)histo.getBuckets().get(i).aggregations.get("max")).getValue(), equalTo((double)i));
+                    assertThat(histo.getBuckets().get(i).key, equalTo((double) i));
+                    assertThat(((InternalMax) histo.getBuckets().get(i).aggregations.get("max")).getValue(), equalTo((double) i));
                     if (i > 0) {
-                        assertThat(((InternalSimpleValue)histo.getBuckets().get(i).aggregations.get("deriv")).getValue(), equalTo(1.0));
+                        assertThat(((InternalSimpleValue) histo.getBuckets().get(i).aggregations.get("deriv")).getValue(), equalTo(1.0));
                     }
                 }
 
-
-            });
+            }
+        );
     }
 
     @Override
     protected IndexSettings createIndexSettings() {
-        final Settings nodeSettings = Settings.builder()
-            .put("search.max_buckets", 25000).build();
+        final Settings nodeSettings = Settings.builder().put("search.max_buckets", 25000).build();
         return new IndexSettings(
-            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetadata.builder("_index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -871,9 +917,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         );
     }
 
-    private void testSearchCase(final Query query, final List<ZonedDateTime> dataset,
-                                 final Consumer<AutoDateHistogramAggregationBuilder> configure,
-                                 final Consumer<InternalAutoDateHistogram> verify) throws IOException {
+    private void testSearchCase(
+        final Query query,
+        final List<ZonedDateTime> dataset,
+        final Consumer<AutoDateHistogramAggregationBuilder> configure,
+        final Consumer<InternalAutoDateHistogram> verify
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 indexSampleData(dataset, indexWriter);
@@ -889,13 +938,17 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
                 final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggregationBuilder.field());
 
-                MappedFieldType instantFieldType
-                    = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
-                MappedFieldType numericFieldType
-                    = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                final InternalAutoDateHistogram histogram =
-                    searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType, instantFieldType, numericFieldType);
+                final InternalAutoDateHistogram histogram = searchAndReduce(
+                    indexSearcher,
+                    query,
+                    aggregationBuilder,
+                    fieldType,
+                    instantFieldType,
+                    numericFieldType
+                );
                 verify.accept(histogram);
             }
         }

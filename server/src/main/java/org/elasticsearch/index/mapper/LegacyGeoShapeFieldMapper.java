@@ -18,8 +18,8 @@ import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
@@ -179,7 +179,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
 
-            this.pointsOnly.setValidator(v -> {
+            this.pointsOnly.addValidator(v -> {
                 if (v == null) {
                     return;
                 }
@@ -454,9 +454,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected Function<ShapeBuilder<?, ?, ?>, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
-            return (g) -> formatter.apply(g.buildGeometry());
+        protected Function<List<ShapeBuilder<?, ?, ?>>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, ShapeBuilder::buildGeometry);
         }
     }
 

@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="modules-scripting-other-layers"]
+=== Other security layers
+
+Refer to <<modules-scripting-security>>.
+
 [role="exclude",id="grok-basics"]
 === Grok basics
 
@@ -826,7 +831,7 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 [role="exclude",id="indices-component-templates"]
 === Component template APIs
 
-coming::[7.x]
+See <<index-templates-apis,index template APIs>>.
 
 [role="exclude",id="modules-indices"]
 === Indices module
@@ -1623,3 +1628,19 @@ See <<api-cron-expressions>>.
 === URL-based access control
 
 See <<api-url-access-control>>.
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="security-api-enroll-kibana"]
+=== Enroll {kib} API
+
+See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

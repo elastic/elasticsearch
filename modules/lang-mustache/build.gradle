@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -26,9 +26,6 @@ restResources {
   }
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'lang_mustache/60_typed_keys/Multisearch template with typed_keys parameter',
-    'lang_mustache/60_typed_keys/Search template with typed_keys parameter'
-  ].join(',')
+tasks.named("yamlRestTestV7CompatTransform").configure {task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
 }

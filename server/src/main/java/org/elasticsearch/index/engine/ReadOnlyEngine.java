@@ -69,7 +69,6 @@ public class ReadOnlyEngine extends Engine {
     private final ElasticsearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
-    private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
@@ -96,7 +95,6 @@ public class ReadOnlyEngine extends Engine {
                           Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
                           boolean lazilyLoadSoftDeletes) {
         super(config);
-        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         this.requireCompleteHistory = requireCompleteHistory;
         try {
             Store store = config.getStore();
@@ -119,7 +117,7 @@ public class ReadOnlyEngine extends Engine {
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 this.lazilyLoadSoftDeletes = lazilyLoadSoftDeletes;
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                readerManager = new ElasticsearchReaderManager(reader, refreshListener);
+                readerManager = new ElasticsearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
@@ -487,10 +485,6 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReader(ElasticsearchDirectoryReader reader) {
-        refreshListener.accept(reader, null);
-    }
-
     @Override
     public boolean refreshNeeded() {
         return false;
@@ -566,7 +560,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
-        return new SearcherSupplier(Function.identity()) {
+        return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {
                 delegate.close();

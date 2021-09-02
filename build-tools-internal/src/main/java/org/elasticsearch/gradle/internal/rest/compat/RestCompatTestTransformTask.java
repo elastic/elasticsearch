@@ -137,6 +137,17 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @see ReplaceKeyInDo
      * @param oldKeyName   the key name directly under do to replace.
      * @param newKeyName   the new key name directly under do.
+     * @param testName the testName to apply replacement
+     */
+    public void replaceKeyInDo(String oldKeyName, String newKeyName, String testName) {
+        transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, testName));
+    }
+
+    /**
+     * A transformation to replace the key in a do section for given REST test.
+     * @see ReplaceKeyInDo
+     * @param oldKeyName   the key name directly under do to replace.
+     * @param newKeyName   the new key name directly under do.
      */
     public void replaceKeyInDo(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, null));
@@ -209,7 +220,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a given key/value pairs for for given REST test.
+     * Replaces all the values of a given key/value pairs for given REST test.
      * For example "foo": "bar" can replaced as "foo": "baz"
      *
      * @param key the key to find
@@ -283,6 +294,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
+     * Removes one or more warnings
+     * @param warnings the warning(s) to remove
+     * @param testName the test name to remove the warning
+     */
+    public void removeWarningForTest(String warnings, String testName) {
+        transformations.add(new RemoveWarnings(Set.copyOf(Arrays.asList(warnings)), testName));
+    }
+
+    /**
      * Adds one or more allowed warnings
      * @param allowedWarnings the warning(s) to add
      */
@@ -296,6 +316,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void addAllowedWarningRegex(String... allowedWarningsRegex) {
         transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex)));
+    }
+
+    /**
+     * Adds one or more allowed regular expression warnings
+     * @param allowedWarningsRegex the regex warning(s) to add
+     * @testName the test name to add a allowedWarningRegex
+     */
+    public void addAllowedWarningRegexForTest(String allowedWarningsRegex, String testName) {
+        transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex), testName));
     }
 
     @OutputDirectory

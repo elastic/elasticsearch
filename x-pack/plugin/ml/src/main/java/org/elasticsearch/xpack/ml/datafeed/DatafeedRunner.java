@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -85,10 +87,10 @@ public class DatafeedRunner {
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-                datafeedJob -> {
-                    String jobId = datafeedJob.getJobId();
-                    Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob,
-                            new ProblemTracker(auditor, jobId), finishHandler);
+            datafeedJob -> {
+                String jobId = datafeedJob.getJobId();
+                Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob, new ProblemTracker(auditor, jobId), finishHandler);
+                if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
                     task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                         @Override
@@ -101,16 +103,31 @@ public class DatafeedRunner {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // The task was stopped in the meantime, no need to do anything
                                 logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
+                                runningDatafeedsOnThisNode.remove(task.getAllocationId());
+                                finishHandler.accept(null);
                             } else {
                                 finishHandler.accept(e);
                             }
                         }
                     });
-                }, finishHandler
+                } else {
+                    logger.info("[{}] Datafeed has been {} before running", task.getDatafeedId(),
+                        task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT));
+                    finishHandler.accept(null);
+                }
+            }, finishHandler
         );
 
         ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(
-            datafeedContext -> datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler),
+            datafeedContext -> {
+                if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
+                    datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler);
+                } else {
+                    logger.info("[{}] Datafeed has been {} while building context", task.getDatafeedId(),
+                        task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT));
+                    finishHandler.accept(null);
+                }
+            },
             finishHandler
         );
 
@@ -140,16 +157,16 @@ public class DatafeedRunner {
     }
 
     /**
-     * This is used before the JVM is killed.  It differs from stopAllDatafeedsOnThisNode in that it leaves
-     * the datafeed tasks in the "started" state, so that they get restarted on a different node.
+     * This is used before the JVM is killed.  It differs from {@link #stopAllDatafeedsOnThisNode} in that it
+     * leaves the datafeed tasks in the "started" state, so that they get restarted on a different node.  It
+     * differs from {@link #vacateAllDatafeedsOnThisNode} in that it does not proactively relocate the persistent
+     * tasks.  With this method the assumption is that the JVM is going to be killed almost immediately, whereas
+     * {@link #vacateAllDatafeedsOnThisNode} is used with more graceful shutdowns.
      */
-    public void isolateAllDatafeedsOnThisNodeBeforeShutdown() {
+    public void prepareForImmediateShutdown() {
         Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
         while (iter.hasNext()) {
-            Holder next = iter.next();
-            next.isolateDatafeed();
-            // TODO: it's not ideal that this "isolate" method does something a bit different to the one below
-            next.setNodeIsShuttingDown();
+            iter.next().setNodeIsShuttingDown();
             iter.remove();
         }
     }
@@ -160,6 +177,25 @@ public class DatafeedRunner {
         Holder holder = runningDatafeedsOnThisNode.get(allocationId);
         if (holder != null) {
             holder.isolateDatafeed();
+        }
+    }
+
+    /**
+     * Like {@link #prepareForImmediateShutdown} this is used when the node is
+     * going to shut down.  However, the difference is that in this case it's going to be a
+     * graceful shutdown, which could take a lot longer than the second or two expected in the
+     * case where {@link #prepareForImmediateShutdown} is called.  Therefore,
+     * in this case we actively ask for the datafeed persistent tasks to be unassigned, so that
+     * they can restart on a different node as soon as <em>their</em> corresponding job has
+     * persisted its state.  This means the small jobs can potentially restart sooner than if
+     * nothing relocated until <em>all</em> graceful shutdown activities on the node were
+     * complete.
+     */
+    public void vacateAllDatafeedsOnThisNode(String reason) {
+        for (Holder holder : runningDatafeedsOnThisNode.values()) {
+            if (holder.isIsolated() == false) {
+                holder.vacateNode(reason);
+            }
         }
     }
 
@@ -421,8 +457,26 @@ public class DatafeedRunner {
             datafeedJob.isolate();
         }
 
+        /**
+         * This method tells the datafeed to do as little work as possible from now on, but does not
+         * do anything to clean up local or persistent tasks, or other data structures.  The assumption
+         * is that cleanup will be achieved when the JVM stops running, and that is going to happen
+         * very soon.
+         */
         public void setNodeIsShuttingDown() {
+            isolateDatafeed();
             isNodeShuttingDown = true;
+        }
+
+        /**
+         * Tell the datafeed to do as little work as possible, and tell the master node to move its
+         * persistent task to a different node in the cluster.  This method should be called when it
+         * is known the node will shut down relatively soon, but all tasks are being gracefully
+         * migrated away first.
+         */
+        public void vacateNode(String reason) {
+            isolateDatafeed();
+            task.markAsLocallyAborted(reason);
         }
 
         public boolean isLookbackFinished() {

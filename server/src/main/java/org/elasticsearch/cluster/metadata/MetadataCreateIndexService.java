@@ -103,6 +103,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -503,7 +504,8 @@ public class MetadataCreateIndexService {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
         ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
-        if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
+        if (isDataStream && request.dataStreamName() == null) {
            throw new IllegalArgumentException("cannot create index with name [" + request.index() +
                "], because it matches with template [" + templateName + "] that creates data streams only, " +
                "use create data stream api instead");
@@ -518,14 +520,28 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
-            indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(),
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
-                Collections.singletonList(templateName), metadataTransformer);
+        return applyCreateIndexWithTemporaryService(
+            currentState,
+            request,
+            silent,
+            null,
+            tmpImd,
+            mappings,
+            indexService -> resolveAndValidateAliases(
+                request.index(),
+                // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
+                isDataStream ? Set.of() : request.aliases(),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
+                currentState.metadata(),
+                aliasValidator,
+                xContentRegistry,
+                // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+            ),
+            Collections.singletonList(templateName),
+            metadataTransformer
+        );
     }
 
     private ClusterState applyCreateIndexRequestForSystemDataStream(final ClusterState currentState,
@@ -561,7 +577,7 @@ public class MetadataCreateIndexService {
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(template, componentTemplates, null), currentState.metadata(),
+                MetadataIndexTemplateService.resolveAliases(template, componentTemplates), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
@@ -803,7 +819,9 @@ public class MetadataCreateIndexService {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
-            if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings)) {
+            // (Don't use IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings) here, otherwise
+            // we get the default value when `null` has been provided as value)
+            if (indexSettings.get(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey()) != null) {
                 routingNumShards = IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings);
             } else {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
@@ -1080,7 +1098,7 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(sourceMetadata.getSettings()))) {
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
             throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
         }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
@@ -1114,7 +1132,7 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(sourceMetadata.getSettings()))) {
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
             throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
         }
         IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
@@ -1122,7 +1140,7 @@ public class MetadataCreateIndexService {
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(sourceMetadata.getSettings()))) {
+        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
             for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
                 if (nonCloneableSetting.exists(targetIndexSettings) == false) {
                     throw new IllegalArgumentException("can't clone searchable snapshot index [" + sourceIndex + "]; setting ["
@@ -1256,9 +1274,12 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
-                "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+            deprecationLogger.deprecate(
+                DeprecationCategory.SETTINGS,
+                "translog_retention",
+                "Translog retention settings [index.translog.retention.age] and [index.translog.retention.size] are deprecated and "
+                    + "effectively ignored. They will be removed in a future version."
+            );
         }
     }
 

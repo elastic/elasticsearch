@@ -6,15 +6,19 @@
  */
 package org.elasticsearch.xpack.spatial;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -34,9 +38,6 @@ import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -50,10 +51,14 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGri
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,13 +68,15 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
-public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
+public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin, ExtensiblePlugin {
    private final SpatialUsage usage = new SpatialUsage();
 
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
     }
+    // register the vector tile factory from a different module
+    private final SetOnce<GeoFormatterFactory<Geometry>> geoFormatterFactory = new SetOnce<>();
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -84,7 +91,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
+            new GeoShapeWithDocValuesFieldMapper.TypeParser(geoFormatterFactory.get()));
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -204,5 +212,14 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             }
             return realParser.parse(parser, name);
         };
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        // we only expect one vector tile extension that comes from the vector tile module.
+        List<GeoFormatterFactory.FormatterFactory<Geometry>> formatterFactories = new ArrayList<>();
+        loader.loadExtensions(GeometryFormatterExtension.class).stream().map(GeometryFormatterExtension::getGeometryFormatterFactories)
+            .forEach(formatterFactories::addAll);
+        geoFormatterFactory.set(new GeoFormatterFactory<>(formatterFactories));
     }
 }

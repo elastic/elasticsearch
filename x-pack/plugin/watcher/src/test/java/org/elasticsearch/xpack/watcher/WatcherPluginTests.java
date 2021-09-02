@@ -81,7 +81,7 @@ public class WatcherPluginTests extends ESTestCase {
             .put("xpack.watcher.enabled", true)
             .put("path.home", createTempDir())
             .build();
-        NotificationService mockService = mock(NotificationService.class);
+        NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
@@ -93,7 +93,7 @@ public class WatcherPluginTests extends ESTestCase {
             .put("xpack.watcher.enabled", false)
             .put("path.home", createTempDir())
             .build();
-        NotificationService mockService = mock(NotificationService.class);
+        NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
@@ -102,7 +102,7 @@ public class WatcherPluginTests extends ESTestCase {
 
     private class TestWatcher extends Watcher {
 
-        TestWatcher(Settings settings, NotificationService service) {
+        TestWatcher(Settings settings, NotificationService<?> service) {
             super(settings);
             reloadableServices.add(service);
         }

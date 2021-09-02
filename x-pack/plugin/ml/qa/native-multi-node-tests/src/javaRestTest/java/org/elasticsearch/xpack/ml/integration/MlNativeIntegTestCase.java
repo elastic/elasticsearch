@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
@@ -280,6 +281,20 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         if (cluster() != null && cluster().size() > 0) {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    Metadata.Custom.class,
+                    TrainedModelAllocationMetadata.NAME,
+                    TrainedModelAllocationMetadata::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    TrainedModelAllocationMetadata.NAME,
+                    TrainedModelAllocationMetadata::readDiffFrom
+                )
+            );
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));

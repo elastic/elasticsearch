@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,13 +29,13 @@ import static org.mockito.Mockito.when;
 public class SecurityBaseRestHandlerTests extends ESTestCase {
 
     public void testSecurityBaseRestHandlerChecksLicenseState() throws Exception {
-        final boolean securityDefaultEnabled = randomBoolean();
+        final boolean securityEnabled = randomBoolean();
+        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), securityEnabled).build();
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(securityDefaultEnabled);
         when(licenseState.getOperationMode()).thenReturn(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD));
-        SecurityBaseRestHandler handler = new SecurityBaseRestHandler(Settings.EMPTY, licenseState) {
+        SecurityBaseRestHandler handler = new SecurityBaseRestHandler(settings, licenseState) {
 
             @Override
             public String getName() {
@@ -56,14 +57,14 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             }
         };
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityDefaultEnabled ? 0 : 1);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityEnabled ? 0 : 1);
 
         try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
             assertFalse(consumerCalled.get());
             verifyZeroInteractions(licenseState);
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
-            if (securityDefaultEnabled) {
+            if (securityEnabled) {
                 assertTrue(consumerCalled.get());
                 assertEquals(0, fakeRestChannel.responses().get());
                 assertEquals(0, fakeRestChannel.errors().get());

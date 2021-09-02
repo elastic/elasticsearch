@@ -53,7 +53,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in search requests is deprecated.";
-
+    public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
+        "support for empty first line before any action metadata in msearch API is deprecated " +
+            "and will be removed in the next major version";
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
@@ -185,6 +187,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
+            // support first line with \n
+            if (restApiVersion == RestApiVersion.V_7 && nextMarker == 0) {
+                deprecationLogger.compatibleApiWarning("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
+                from = nextMarker + 1;
+                continue;
+            }
+
             SearchRequest searchRequest = new SearchRequest();
             if (indices != null) {
                 searchRequest.indices(indices);

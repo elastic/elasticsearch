@@ -39,9 +39,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -86,10 +86,13 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -106,6 +109,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
@@ -118,7 +122,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends ESSingleNodeTestCase {
 
@@ -1190,8 +1193,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null);
 
         CountDownLatch latch1 = new CountDownLatch(1);
-        SearchShardTask task = mock(SearchShardTask.class);
-        when(task.isCancelled()).thenReturn(false);
+        SearchShardTask task = new SearchShardTask(1, "", "", "", TaskId.EMPTY_TASK_ID, emptyMap());
         service.executeQueryPhase(request, task, new ActionListener<>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
@@ -1232,7 +1234,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         AtomicBoolean searchContextCreated = new AtomicBoolean(false);
         service.setOnCreateSearchContext(c -> searchContextCreated.set(true));
         CountDownLatch latch3 = new CountDownLatch(1);
-        when(task.isCancelled()).thenReturn(true);
+        TaskCancelHelper.cancel(task, "simulated");
         service.executeQueryPhase(request, task, new ActionListener<>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
@@ -1247,7 +1249,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
-                assertThat(e.getMessage(), is("cancelled"));
+                assertThat(e.getMessage(), is("task cancelled [simulated]"));
                 assertThat(((TaskCancelledException)e).status(), is(RestStatus.BAD_REQUEST));
                 assertThat(searchContextCreated.get(), is(false));
                 latch3.countDown();
@@ -1271,7 +1273,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
-                assertThat(e.getMessage(), is("cancelled"));
+                assertThat(e.getMessage(), is("task cancelled [simulated]"));
                 assertThat(((TaskCancelledException)e).status(), is(RestStatus.BAD_REQUEST));
                 assertThat(searchContextCreated.get(), is(false));
                 latch4.countDown();
@@ -1305,8 +1307,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             .getScrollId();
         searchContextCreated.set(false);
         service.setOnCheckCancelled(t -> {
-            SearchShardTask task = mock(SearchShardTask.class);
-            when(task.isCancelled()).thenReturn(true);
+            SearchShardTask task = new SearchShardTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+            TaskCancelHelper.cancel(task, "simulated");
             return task;
         });
         CountDownLatch latch = new CountDownLatch(1);
@@ -1324,7 +1326,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onFailure(Exception e) {
                 Throwable cancelledExc = e.getCause().getCause();
                 assertThat(cancelledExc, is(instanceOf(TaskCancelledException.class)));
-                assertThat(cancelledExc.getMessage(), is("cancelled"));
+                assertThat(cancelledExc.getMessage(), is("task cancelled [simulated]"));
                 assertThat(((TaskCancelledException) cancelledExc).status(), is(RestStatus.BAD_REQUEST));
                 latch.countDown();
             }

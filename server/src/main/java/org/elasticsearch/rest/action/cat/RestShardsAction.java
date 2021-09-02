@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -347,7 +348,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getMemory));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, ss -> new ByteSizeValue(0)));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getIndexWriterMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getVersionMapMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getBitsetMemory));

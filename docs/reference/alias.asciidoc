@@ -124,8 +124,8 @@ POST _aliases
 === Add an alias at index creation
 
 You can also use a <<indices-component-template,component>> or
-<<indices-put-template,index template>> to add index aliases at index creation.
-You cannot use a component or index template to add a data stream alias.
+<<indices-put-template,index template>> to add index or data stream aliases
+when they are created.
 
 [source,console]
 ----
@@ -251,7 +251,7 @@ with a write index instead. See
 === Filter an alias
 
 The `filter` option uses <<query-dsl,Query DSL>> to limit the documents an alias
-can access. Data stream aliases do not support `filter`.
+can access.
 
 [source,console]
 ----

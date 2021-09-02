@@ -18,7 +18,7 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 
 /**
- * A transformation to replace a key/value combination. 
+ * A transformation to replace a key/value combination.
  */
 public class ReplaceTextual implements RestTestTransformByParentObject {
     private final String keyToReplaceName;

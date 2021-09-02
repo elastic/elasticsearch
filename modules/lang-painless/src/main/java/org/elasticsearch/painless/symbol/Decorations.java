@@ -417,6 +417,19 @@ public class Decorations {
         }
     }
 
+    public static class ThisPainlessMethod implements Decoration {
+
+        private final PainlessMethod thisPainlessMethod;
+
+        public ThisPainlessMethod(PainlessMethod thisPainlessMethod) {
+            this.thisPainlessMethod = Objects.requireNonNull(thisPainlessMethod);
+        }
+
+        public PainlessMethod getThisPainlessMethod() {
+            return thisPainlessMethod;
+        }
+    }
+
     public static class StandardPainlessClassBinding implements Decoration {
 
         private final PainlessClassBinding painlessClassBinding;

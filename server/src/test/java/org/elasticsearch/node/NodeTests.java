@@ -12,14 +12,20 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -29,9 +35,11 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 
@@ -40,6 +48,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +58,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -335,71 +343,70 @@ public class NodeTests extends ESTestCase {
         }
     }
 
-
-    interface MockRestApiVersion {
-        RestApiVersion minimumRestCompatibilityVersion();
+    @SuppressWarnings("unchecked")
+    private static ContextParser<Object, Integer> mockContextParser() {
+        return Mockito.mock(ContextParser.class);
     }
 
-    static MockRestApiVersion MockCompatibleVersion = Mockito.mock(MockRestApiVersion.class);
-
-    static NamedXContentRegistry.Entry v7CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name"), Mockito.mock(ContextParser.class));
-    static NamedXContentRegistry.Entry v8CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name2"), Mockito.mock(ContextParser.class));
+    static NamedXContentRegistry.Entry compatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
+        new ParseField("name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())), mockContextParser());
+    static NamedXContentRegistry.Entry currentVersionEntries = new NamedXContentRegistry.Entry(Integer.class,
+        new ParseField("name2").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())), mockContextParser());
 
     public static class TestRestCompatibility1 extends Plugin {
-
         @Override
-        public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
-            // real plugin will use CompatibleVersion.minimumRestCompatibilityVersion()
-            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
-                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiVersion.V_7)) {
-                //return set of N-1 entries
-                return List.of(v7CompatibleEntries);
-            }
-            // after major release, new compatible apis can be added before the old ones are removed.
-            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
-                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiVersion.V_8)) {
-                return List.of(v8CompatibleEntries);
-
-            }
-            return super.getNamedXContentForCompatibility();
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(compatibleEntries);
         }
     }
 
-    // This test shows an example on how multiple compatible namedxcontent can be present at the same time.
+    public static class TestRestCompatibility2 extends Plugin {
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(currentVersionEntries);
+        }
+    }
+
+    // This test shows an example on how multiple plugins register namedXContent entries
     public void testLoadingMultipleRestCompatibilityPlugins() throws IOException {
+        Settings.Builder settings = baseSettings();
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(TestRestCompatibility1.class);
+        plugins.add(TestRestCompatibility2.class);
 
-        Mockito.when(MockCompatibleVersion.minimumRestCompatibilityVersion())
-            .thenReturn(RestApiVersion.V_7);
+        try (Node node = new MockNode(settings.build(), plugins)) {
+            final NamedXContentRegistry namedXContentRegistry = node.namedXContentRegistry;
+            RestRequest compatibleRequest = request(namedXContentRegistry, RestApiVersion.minimumSupported());
+            try (XContentParser p = compatibleRequest.contentParser()) {
+                NamedXContentRegistry.Entry field = namedXContentRegistry.lookupParser(Integer.class, "name", p);
+                assertTrue(RestApiVersion.minimumSupported().matches(field.restApiCompatibility));
 
-        {
-            Settings.Builder settings = baseSettings();
+                field = namedXContentRegistry.lookupParser(Integer.class, "name2", p);
+                assertTrue(RestApiVersion.current().matches(field.restApiCompatibility));
+            }
 
-            // throw an exception when two plugins are registered
-            List<Class<? extends Plugin>> plugins = basePlugins();
-            plugins.add(TestRestCompatibility1.class);
+            RestRequest currentRequest = request(namedXContentRegistry, RestApiVersion.current());
+            try (XContentParser p = currentRequest.contentParser()) {
+                NamedXContentRegistry.Entry field = namedXContentRegistry.lookupParser(Integer.class, "name2", p);
+                assertTrue(RestApiVersion.minimumSupported().matches(field.restApiCompatibility));
 
-            try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents();
-                assertThat(compatibleNamedXContents, contains(v7CompatibleEntries));
+                expectThrows(NamedObjectNotFoundException.class, () -> namedXContentRegistry.lookupParser(Integer.class, "name", p));
             }
         }
-        // after version bump CompatibleVersion.minimumRestCompatibilityVersion() will return V_8
-        Mockito.when(MockCompatibleVersion.minimumRestCompatibilityVersion())
-            .thenReturn(RestApiVersion.V_8);
-        {
-            Settings.Builder settings = baseSettings();
+    }
 
-            // throw an exception when two plugins are registered
-            List<Class<? extends Plugin>> plugins = basePlugins();
-            plugins.add(TestRestCompatibility1.class);
+    private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {
+        String mediaType = XContentType.VND_JSON.toParsedMediaType()
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
+                String.valueOf(restApiVersion.major)));
+        List<String> mediaTypeList = Collections.singletonList(mediaType);
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject();
 
-            try (Node node = new MockNode(settings.build(), plugins)) {
-                List<NamedXContentRegistry.Entry> compatibleNamedXContents = node.getCompatibleNamedXContents();
-                assertThat(compatibleNamedXContents, contains(v8CompatibleEntries));
-            }
-        }
+        return new FakeRestRequest.Builder(namedXContentRegistry)
+            .withContent(BytesReference.bytes(b), RestRequest.parseContentType(mediaTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
+            .build();
     }
 
 

@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -88,9 +89,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder()
-                .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null)
-                .put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), (String) null)
-                .put("ingest.geoip.database_validity", (String) null))
+                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                .putNull("ingest.geoip.database_validity"))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
 
@@ -114,6 +115,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         ClusterUpdateSettingsResponse settingsResponse =
@@ -166,6 +168,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertFalse(result.getIngestDocument().hasField("ip-city"));
             assertFalse(result.getIngestDocument().hasField("ip-asn"));
             assertFalse(result.getIngestDocument().hasField("ip-country"));
+        });
+        settingsResponse =
+            client().admin().cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder()
+                    .putNull("ingest.geoip.database_validity"))
+                .get();
+        assertTrue(settingsResponse.isAcknowledged());
+        assertBusy(() -> {
+            for (Path geoIpTmpDir : geoIpTmpDirs) {
+                try (Stream<Path> files = Files.list(geoIpTmpDir)) {
+                    Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
+                    assertThat(names, hasItems("GeoLite2-ASN.mmdb","GeoLite2-City.mmdb","GeoLite2-Country.mmdb"));
+                }
+            }
         });
     }
 

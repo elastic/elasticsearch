@@ -497,7 +497,7 @@ public class JobResultsPersister {
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setResult(Result.NOOP);
                 return new BulkResponse(
-                    new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, notCreatedResponse.build())},
+                    new BulkItemResponse[]{BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, notCreatedResponse.build())},
                     0);
             }
         }

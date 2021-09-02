@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -90,6 +91,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final XPackLicenseState licenseState;
 
     private volatile ClusterState clusterState;
 
@@ -99,13 +101,15 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                           DatafeedConfigProvider datafeedConfigProvider,
                                           MlMemoryTracker memoryTracker,
                                           Client client,
-                                          IndexNameExpressionResolver expressionResolver) {
+                                          IndexNameExpressionResolver expressionResolver,
+                                          XPackLicenseState licenseState) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -196,6 +200,9 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     @Override
+    // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,
+    // are ignored.  Core services will be stopping in response to the SIGTERM and we want the
+    // job to try to open again on another node, not spuriously fail on the dying node.
     protected void nodeOperation(AllocatedPersistentTask task, OpenJobAction.JobParams params, PersistentTaskState state) {
         JobTask jobTask = (JobTask) task;
         jobTask.setAutodetectProcessManager(autodetectProcessManager);
@@ -205,13 +212,17 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             mappingsUpdate -> jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
                 r -> runJob(jobTask, jobState, params),
                 e -> {
-                    logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
-                    runJob(jobTask, jobState, params);
+                    if (autodetectProcessManager.isNodeDying() == false) {
+                        logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
+                        runJob(jobTask, jobState, params);
+                    }
                 }
             )),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
-                jobTask.markAsFailed(e);
+                if (autodetectProcessManager.isNodeDying() == false) {
+                    logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
+                    jobTask.markAsFailed(e);
+                }
             }
         );
         // We need to update the results index as we MAY update the current forecast results, setting the running forcasts to failed
@@ -225,7 +236,16 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             resultsMappingUpdateHandler);
     }
 
+    // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,
+    // are ignored.  Core services will be stopping in response to the SIGTERM and we want the
+    // job to try to open again on another node, not spuriously fail on the dying node.
     private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params) {
+        // If the node is already running its exit handlers then do nothing - shortly
+        // the persistent task will get assigned to a new node and the code below will
+        // run there instead.
+        if (autodetectProcessManager.isNodeDying()) {
+            return;
+        }
         // If the job is closing, simply stop and return
         if (JobState.CLOSING.equals(jobState)) {
             // Mark as completed instead of using `stop` as stop assumes native processes have started
@@ -246,12 +266,23 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
                     // This job has a running datafeed attached to it.
                     // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
-                    revertToCurrentSnapshot(jobTask.getJobId(), ActionListener.wrap(response -> openJob(jobTask), jobTask::markAsFailed));
+                    revertToCurrentSnapshot(jobTask.getJobId(), ActionListener.wrap(
+                        response -> openJob(jobTask),
+                        e -> {
+                            if (autodetectProcessManager.isNodeDying() == false) {
+                                jobTask.markAsFailed(e);
+                            }
+                        }
+                    ));
                 } else {
                     openJob(jobTask);
                 }
             },
-            jobTask::markAsFailed
+            e -> {
+                if (autodetectProcessManager.isNodeDying() == false) {
+                    jobTask.markAsFailed(e);
+                }
+            }
         );
 
         hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
@@ -322,22 +353,35 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
     }
 
+    // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,
+    // are ignored.  Core services will be stopping in response to the SIGTERM and we want the
+    // job to try to open again on another node, not spuriously fail on the dying node.
     private void openJob(JobTask jobTask) {
         String jobId = jobTask.getJobId();
         autodetectProcessManager.openJob(jobTask, clusterState, PERSISTENT_TASK_MASTER_NODE_TIMEOUT, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {
-                if (shouldFinalizeJob) {
+                // Beyond this point it's too late to change our minds about whether we're closing or vacating
+                if (jobTask.isVacating()) {
+                    jobTask.markAsLocallyAborted(
+                        "previously assigned node [" + clusterState.nodes().getLocalNode().getName() + "] is shutting down");
+                } else if (shouldFinalizeJob) {
                     FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
                     finalizeRequest.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                         ActionListener.wrap(
                             response -> jobTask.markAsCompleted(),
                             e -> {
+                                // This error is logged even if the node is dying.  This is a nasty place for the node to get killed,
+                                // as most of the job's close sequence has executed, just not the finalization step.  The job will
+                                // restart on a different node.  If the coordinating node for the close request notices that the job
+                                // changed nodes while waiting for it to close then it will remove the persistent task, which should
+                                // stop the job doing anything significant on its new node.  However, the finish time of the job will
+                                // not be set correctly.
                                 logger.error(new ParameterizedMessage("[{}] error finalizing job", jobId), e);
                                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                                 if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                     jobTask.markAsCompleted();
-                                } else {
+                                } else if (autodetectProcessManager.isNodeDying() == false) {
                                     jobTask.markAsFailed(e);
                                 }
                             }
@@ -345,7 +389,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 } else {
                     jobTask.markAsCompleted();
                 }
-            } else {
+            } else if (autodetectProcessManager.isNodeDying() == false) {
                 jobTask.markAsFailed(e2);
             }
         });
@@ -355,7 +399,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                  Map<String, String> headers) {
-        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers, licenseState);
     }
 
     public static Optional<ElasticsearchException> checkAssignmentState(PersistentTasksCustomMetadata.Assignment assignment,

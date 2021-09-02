@@ -136,8 +136,8 @@ setup:
 ---
 "point-in-time with slicing":
   - skip:
-      version: "all"
-      reason: "https://github.com/elastic/elasticsearch/issues/75212"
+      version: " - 7.14.99"
+      reason: "support for slicing was added in 7.15"
   - do:
       open_point_in_time:
         index: test
@@ -157,9 +157,6 @@ setup:
           sort: [{ age: desc }, { id: desc }]
           pit:
             id: "$point_in_time_id"
-
-  - match: {hits.total.value: 2 }
-  - length: {hits.hits: 1 }
 
   - do:
       close_point_in_time:

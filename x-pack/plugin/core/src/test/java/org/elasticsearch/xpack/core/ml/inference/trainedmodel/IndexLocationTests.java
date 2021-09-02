@@ -18,7 +18,7 @@ public class IndexLocationTests extends AbstractSerializingTestCase<IndexLocatio
     private final boolean lenient = randomBoolean();
 
     public static IndexLocation randomInstance() {
-        return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+        return new IndexLocation(randomAlphaOfLength(7));
     }
 
     @Override

@@ -1,8 +1,6 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
-
 Here are the highlights of what's new and improved in {es} {minor-version}!
 
 For detailed information about this release, see the <<es-release-notes>> and

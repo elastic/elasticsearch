@@ -22,14 +22,17 @@ esplugin {
   name 'vector-tile'
   description 'A plugin for mapbox vector tile features'
   classname 'org.elasticsearch.xpack.vectortile.VectorTilePlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['spatial']
 }
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
   api "com.google.protobuf:protobuf-java:3.14.0"
+  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
   javaRestTestImplementation("com.wdtinc:mapbox-vector-tile:3.1.0")
   javaRestTestImplementation("com.google.protobuf:protobuf-java:3.14.0")
 }
@@ -38,15 +41,6 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
-  }
-}
-
-tasks.named("test").configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
-  }
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -62,8 +56,8 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreMissingClasses(
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory'
+    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
+    'org.slf4j.ext.EventData',
   )
 }
 

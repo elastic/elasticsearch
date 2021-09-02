@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,7 +35,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()), new MetadataFieldMapper[0], null);
+        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null);
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;

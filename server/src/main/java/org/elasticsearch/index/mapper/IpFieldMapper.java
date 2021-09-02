@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -89,7 +90,7 @@ public class IpFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, indexed, hasDocValues);
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .setValidator(v -> {
+                .addValidator(v -> {
                     if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                         throw new IllegalArgumentException(
                             "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
@@ -354,6 +355,11 @@ public class IpFieldMapper extends FieldMapper {
             public int size() {
                 return count;
             }
+
+            @Override
+            public org.elasticsearch.script.Field<String> toField(String fieldName) {
+                return new org.elasticsearch.script.Field.IpField(fieldName, this);
+            }
         }
 
         @Override
@@ -372,13 +378,8 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return DocValueFormat.IP;
         }
 
@@ -443,34 +444,28 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        Object addressAsObject = context.parser().textOrNull();
-
-        if (addressAsObject == null) {
-            addressAsObject = nullValue;
-        }
-
-        if (addressAsObject == null) {
-            return;
-        }
-
-        String addressAsString = addressAsObject.toString();
         InetAddress address;
-        if (addressAsObject instanceof InetAddress) {
-            address = (InetAddress) addressAsObject;
-        } else {
-            try {
-                address = InetAddresses.forString(addressAsString);
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed) {
-                    context.addIgnoredField(fieldType().name());
-                    return;
-                } else {
-                    throw e;
-                }
+        try {
+            address = value(context.parser(), nullValue);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMalformed) {
+                context.addIgnoredField(fieldType().name());
+                return;
+            } else {
+                throw e;
             }
         }
+        if (address != null) {
+            indexValue(context, address);
+        }
+    }
 
-        indexValue(context, address);
+    private static InetAddress value(XContentParser parser, InetAddress nullValue) throws IOException {
+        String value = parser.textOrNull();
+        if (value == null) {
+            return nullValue;
+        }
+        return InetAddresses.forString(value);
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
@@ -507,5 +502,4 @@ public class IpFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
     }
-
 }

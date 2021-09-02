@@ -131,7 +131,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
                         (randomAlphaOfLengthBetween(1, 5) + "," + randomAlphaOfLengthBetween(1, 5) + "," + randomAlphaOfLengthBetween(1, 5))
                             .getBytes(StandardCharsets.UTF_8)
                     )
-                : null
+                : null,
+            randomIntBetween(responses.size(), responses.size() + 100),
+            randomIntBetween(0, 100)
         );
     }
 

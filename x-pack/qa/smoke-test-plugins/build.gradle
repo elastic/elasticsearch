@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -14,19 +14,16 @@ def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, p
   // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
   def ignoreIngestAttachment = BuildParams.inFipsJvm && pluginName == "ingest-attachment"
 
-  // This plugin has to be configured to work via system properties
-  def ignoreQuotaWareFs = pluginName == 'quota-aware-fs'
-
-  return ignoreIngestAttachment == false && ignoreQuotaWareFs == false
+  return ignoreIngestAttachment == false
 }.collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
-        'expected.plugins.count': pluginPaths.size()
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {
   inputs.properties(project.expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {

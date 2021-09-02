@@ -64,7 +64,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,
                 "Found shared data path configured. Discontinue use of this setting.",
-                null)));
+                false, null)));
     }
 
     public void testCheckReservedPrefixedRealmNames() {
@@ -135,6 +135,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 expectedUrl,
                 "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured." +
                     " Discontinue use of this setting.",
-                null)));
+                false, null)));
     }
 }

@@ -25,8 +25,8 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -196,8 +196,8 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final String mountedIndexName = mountSnapshot(fsRepoName, snapshotName, indexName, Settings.EMPTY);
 
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));

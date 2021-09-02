@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
@@ -10,7 +10,7 @@ final File repoDir = file("$buildDir/testclusters/repo")
 
 restResources {
   restApi {
-    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots', 'cluster', 'open_point_in_time', 'close_point_in_time'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots', 'cluster', 'open_point_in_time', 'close_point_in_time', 'security'
   }
 }
 
@@ -26,5 +26,6 @@ testClusters.all {
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
 
-  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }

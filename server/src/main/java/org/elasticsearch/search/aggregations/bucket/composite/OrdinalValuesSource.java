@@ -66,9 +66,16 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private Long lastLookupOrd; // null if nothing cached
     private BytesRef lastLookupValue;
 
-    OrdinalValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer, MappedFieldType type,
-                        CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                        DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+    OrdinalValuesSource(
+        BigArrays bigArrays,
+        LongConsumer breakerConsumer,
+        MappedFieldType type,
+        CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        int size,
+        int reverseMul
+    ) {
         super(bigArrays, format, type, missingBucket, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
@@ -198,7 +205,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         assert invariant();
         if (missingBucket && value == null) {
             afterValue = null;
@@ -267,7 +274,8 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
+    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next)
+        throws IOException {
         final boolean leafReaderContextChanged = context.ord != leafReaderOrd;
         assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         if (value.getClass() != BytesRef.class) {
@@ -367,9 +375,9 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

@@ -283,6 +283,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private static Version readMappingVersion(String indexName, MappingMetadata mappingMetadata, Logger logger) {
         try {
+            @SuppressWarnings("unchecked")
             Map<String, Object> meta =
                     (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {

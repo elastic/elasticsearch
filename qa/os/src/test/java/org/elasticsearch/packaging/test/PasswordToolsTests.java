@@ -17,9 +17,7 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,15 +39,13 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test010Install() throws Exception {
         install();
-        Files.write(
-            installation.config("elasticsearch.yml"),
-            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true"),
-            StandardOpenOption.APPEND
-        );
+        // Enable security for this test only where it is necessary, until we can enable it for all
+        ServerUtils.enableSecurityFeatures(installation);
     }
 
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
+            ServerUtils.waitForElasticsearch(installation);
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {

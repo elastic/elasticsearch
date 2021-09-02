@@ -470,7 +470,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
             try (Directory dir = newDirectory()) {
                 int numDocs = randomIntBetween(10, 30);
-                final Comparable[] values = new Comparable[numDocs];
+                @SuppressWarnings("rawtypes")
+                final Comparable<?>[] values = new Comparable[numDocs];
                 try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                     for (int i = 0; i < numDocs; i++) {
                         Document doc = new Document();

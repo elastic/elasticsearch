@@ -644,7 +644,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoShapeQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         return new GeoShapeQueryBuilder(name, shape.buildGeometry());
     }
 
@@ -668,7 +668,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.INTERSECTS);
         return builder;
@@ -696,7 +696,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoWithinQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.WITHIN);
         return builder;
@@ -724,7 +724,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoDisjointQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.DISJOINT);
         return builder;

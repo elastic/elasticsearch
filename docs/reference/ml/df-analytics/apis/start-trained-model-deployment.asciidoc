@@ -1,0 +1,54 @@
+[role="xpack"]
+[testenv="basic"]
+[[start-trained-model-deployment]]
+= Start trained model deployment API
+[subs="attributes"]
+++++
+<titleabbrev>Start trained model deployment</titleabbrev>
+++++
+
+[[start-trained-model-deployment-request]]
+== {api-request-title}
+
+`POST _ml/trained_models/<model_id>/deployent/_start` 
+////
+[[start-trained-model-deployment-prereq]]
+== {api-prereq-title}
+
+////
+////
+[[start-trained-model-deployment-desc]]
+== {api-description-title}
+
+////
+
+[[start-trained-model-deployment-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+[[start-trained-model-deployment-query-params]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time)
+Controls the amount of time to wait for the model to deploy. Defaults
+to 20 seconds.
+////
+[role="child_attributes"]
+[[start-trained-model-deployment-results]]
+== {api-response-body-title}
+
+////
+////
+[[ml-get-trained-models-response-codes]]
+== {api-response-codes-title}
+
+////
+////
+[[start-trained-model-deployment-example]]
+== {api-examples-title}
+
+////

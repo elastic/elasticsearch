@@ -63,7 +63,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         assertTrue(createRandomInstance().indexSurvives());
     }
 
-    public void testFreeze() {
+    public void testFreeze() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -79,7 +79,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
         FreezeStep step = createRandomInstance();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -98,7 +98,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
         FreezeStep step = createRandomInstance();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
     }
 
@@ -114,7 +114,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
 
         FreezeStep step = createRandomInstance();
         Exception e = expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
         assertThat(e.getMessage(), is("freeze index request failed to be acknowledged"));
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -63,7 +64,7 @@ public class TransportNodesActionTests extends ESTestCase {
     private TransportService transportService;
 
     public void testRequestIsSentToEachNode() throws Exception {
-        TransportNodesAction action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
@@ -74,7 +75,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testNodesSelectors() {
-        TransportNodesAction action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
@@ -130,7 +131,8 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testCustomResolving() throws Exception {
-        TransportNodesAction action = getDataNodesOnlyTransportNodesAction(transportService);
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action =
+            getDataNodesOnlyTransportNodesAction(transportService);
         TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
@@ -151,12 +153,8 @@ public class TransportNodesActionTests extends ESTestCase {
 
         TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        Task cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
-            @Override
-            public boolean isCancelled() {
-                return true;
-            }
-        };
+        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
         action.doExecute(cancellableTask, request, listener);
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {

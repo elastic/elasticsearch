@@ -137,8 +137,13 @@ Template to be applied. It may optionally include an `aliases`, `mappings`, or
 [%collapsible%open]
 ====
 `aliases`::
-(Optional, object of objects) Aliases for the index. If the index template
-includes `data_stream`, this parameter is not supported.
+(Optional, object of objects) Aliases to add.
++
+// tag::template-ds-alias[]
+If the index template includes a `data_stream` object, these are data stream
+aliases. Otherwise, these are index aliases. Data stream aliases ignore the
+`index_routing`, `routing`, and `search_routing` options.
+// end::template-ds-alias[]
 +
 include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 

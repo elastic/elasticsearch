@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
@@ -667,18 +668,12 @@ class NodeDeprecationChecks {
         );
     }
 
-    /*
-     * This is here so that the unit test can simulate setting a system property without actually having to set the system property,
-     * which requires disabling the security manager for the unit test.
-     */
-    static String permitsHandshakesFromIncompatibleBuildsSupplier =
-        System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
-
     static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(final Settings settings,
                                                                          final PluginsAndModules pluginsAndModules,
                                                                          final ClusterState clusterState,
-                                                                         final XPackLicenseState licenseState) {
-        if (permitsHandshakesFromIncompatibleBuildsSupplier != null) {
+                                                                         final XPackLicenseState licenseState,
+                                                                         Supplier<String> permitsHandshakesFromIncompatibleBuildsSupplier) {
+        if (permitsHandshakesFromIncompatibleBuildsSupplier.get() != null) {
             final String message = String.format(
                 Locale.ROOT,
                 "the [%s] system property is deprecated and will be removed in the next major release",

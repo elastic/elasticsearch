@@ -38,7 +38,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
-            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
+            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+            ClusterDeprecationChecks::checkGeoShapeTemplates
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -94,8 +95,19 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSharedDataPathSetting,
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
+                    NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
                     NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
+                    NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,
+                    NodeDeprecationChecks::checkJoinTimeoutSetting,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
+                    NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
+                    NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
+                    NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
+                    NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
@@ -112,7 +124,11 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexDataPath,
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
             IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::storeTypeSettingCheck
+            IndexDeprecationChecks::storeTypeSettingCheck,
+            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
+            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
+            IndexDeprecationChecks::checkGeoShapeMappings
         ));
 
     /**

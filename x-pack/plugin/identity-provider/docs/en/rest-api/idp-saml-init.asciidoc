@@ -88,7 +88,7 @@ Provider that should receive this SAML Response.
 --------------------------------------------------------------------
 {
   "post_url" : "https://sp1.kibana.org/saml/acs",
-  "saml_response" : "<?xml version="1.0" encoding="UTF-8"?><saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Destination="https://sp.some.org/api/security/v1/saml" ID="_845fbfc9f3254162ce1e161c91b07d85311d65cd" IssueInstant="2020-03-19T15:45:00.158Z" ...removed for brevity ... </saml2p:Response>",
+  "saml_response" : "<?xml version="1.0" encoding="UTF-8"?><saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Destination="https://sp.some.org/api/security/saml/callback" ID="_845fbfc9f3254162ce1e161c91b07d85311d65cd" IssueInstant="2020-03-19T15:45:00.158Z" ...removed for brevity ... </saml2p:Response>",
   "saml_status" : "urn:oasis:names:tc:SAML:2.0:status:Success",
   "error" : null,
   "service_provider" : {

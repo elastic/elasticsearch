@@ -51,6 +51,9 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 
 class NodeDeprecationChecks {
@@ -649,10 +652,43 @@ class NodeDeprecationChecks {
         );
     }
 
+    static DeprecationIssue checkClusterRoutingRequireSetting(final Settings settings,
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            CLUSTER_ROUTING_REQUIRE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkClusterRoutingIncludeSetting(final Settings settings,
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            CLUSTER_ROUTING_INCLUDE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkClusterRoutingExcludeSetting(final Settings settings,
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            CLUSTER_ROUTING_EXCLUDE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
     static DeprecationIssue checkAcceptDefaultPasswordSetting(final Settings settings,
-                                                                                   final PluginsAndModules pluginsAndModules,
-                                                                                   final ClusterState clusterState,
-                                                                                   final XPackLicenseState licenseState) {
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             Setting.boolSetting(SecurityField.setting("authc.accept_default_password"),true, Setting.Property.Deprecated),
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
@@ -661,9 +697,9 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkAcceptRolesCacheMaxSizeSetting(final Settings settings,
-                                                              final PluginsAndModules pluginsAndModules,
-                                                              final ClusterState clusterState,
-                                                              final XPackLicenseState licenseState) {
+                                                                final PluginsAndModules pluginsAndModules,
+                                                                final ClusterState clusterState,
+                                                                final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             Setting.intSetting(SecurityField.setting("authz.store.roles.index.cache.max_size"), 10000, Setting.Property.Deprecated),
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
@@ -672,9 +708,9 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkRolesCacheTTLSizeSetting(final Settings settings,
-                                                                final PluginsAndModules pluginsAndModules,
-                                                                final ClusterState clusterState,
-                                                                final XPackLicenseState licenseState) {
+                                                          final PluginsAndModules pluginsAndModules,
+                                                          final ClusterState clusterState,
+                                                          final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             Setting.timeSetting(SecurityField.setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20),
                 Setting.Property.Deprecated),

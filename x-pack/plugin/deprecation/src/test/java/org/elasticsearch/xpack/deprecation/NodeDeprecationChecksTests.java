@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -28,6 +29,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -41,6 +43,9 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -921,6 +926,72 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 () -> randomFrom(License.OperationMode.values())));
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
+    }
+
+    public void testTierAllocationSettings() {
+        String settingValue = DataTier.DATA_HOT;
+        final Settings settings = settings(Version.CURRENT)
+            .put(INDEX_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(INDEX_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .build();
+        final DeprecationIssue expectedRequireIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_REQUIRE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+        final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_INCLUDE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+        final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_EXCLUDE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            equalTo(expectedRequireIssue)
+        );
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            equalTo(expectedIncludeIssue)
+        );
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            equalTo(expectedExcludeIssue)
+        );
+
+        final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.";
+        final String[] expectedWarnings = {
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+        };
+
+        assertWarnings(expectedWarnings);
     }
 
     private void checkSimpleSetting(String settingKey, String settingValue, String url, DeprecationChecks.NodeDeprecationCheck<Settings,

@@ -97,6 +97,10 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
                     NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
                     NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
@@ -117,6 +121,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
             IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
             IndexDeprecationChecks::storeTypeSettingCheck,
+            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
+            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
             IndexDeprecationChecks::checkGeoShapeMappings
         ));
 

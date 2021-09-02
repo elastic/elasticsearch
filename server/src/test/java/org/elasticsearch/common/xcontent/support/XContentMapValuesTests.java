@@ -10,13 +10,13 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -28,8 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.contains;
@@ -61,9 +61,10 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             sourceExcludes = excludes.toArray(new String[excludes.size()]);
         }
 
-        assertEquals("Filtered map must be equal to the expected map",
-                toMap(expected, xContentType, humanReadable),
-                XContentMapValues.filter(toMap(actual, xContentType, humanReadable), sourceIncludes, sourceExcludes));
+        assertMap(
+            XContentMapValues.filter(toMap(actual, xContentType, humanReadable), sourceIncludes, sourceExcludes),
+            matchesMap(toMap(expected, xContentType, humanReadable))
+        );
     }
 
     @SuppressWarnings({"unchecked"})
@@ -593,10 +594,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     }
 
     @Override
-    public void testSimpleArrayOfObjectsExclusive() throws Exception {
-        //Empty arrays are preserved by XContentMapValues, they get removed only if explicitly excluded.
-        //See following tests around this specific behaviour
-        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors"));
+    protected boolean removesEmptyArrays() {
+        return false;
     }
 
     public void testArraySubFieldExclusion() {

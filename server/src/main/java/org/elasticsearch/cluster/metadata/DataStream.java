@@ -52,8 +52,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     }
                 } catch (IOException e) {
                 }
-                throw new IllegalArgumentException("Datastream index segment doesn't contain an expected " +
-                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + " field!");
+                throw new IllegalStateException("Datastream index segment doesn't contain an expected [" +
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field!");
             })
         .reversed();
 

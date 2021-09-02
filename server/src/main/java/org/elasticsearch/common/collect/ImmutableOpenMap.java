@@ -22,10 +22,8 @@ import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Spliterator;
-import java.util.Spliterators;
+import java.util.Objects;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -169,15 +167,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a sequential unordered stream of the map entries.
      *
-     * @return a {@link Stream} of the map entries as {@link ObjectObjectCursor}
+     * @return a {@link Stream} of the map entries as {@link Entry}
      */
-    public Stream<ObjectObjectCursor<KType, VType>> stream() {
-        return StreamSupport.stream(spliterator(), false);
-    }
-
-    @Override
-    public Spliterator<ObjectObjectCursor<KType, VType>> spliterator() {
-        return Spliterators.spliterator(map.iterator(), map.size(), 0);
+    public Stream<Entry<KType, VType>> stream() {
+        Stream.Builder<Entry<KType, VType>> stream = Stream.builder();
+        for (ObjectObjectCursor<KType, VType> cursor : map) {
+            stream.add(new Entry<>(cursor.key, cursor.value));
+        }
+        return stream.build();
     }
 
     @Override
@@ -413,4 +410,34 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return map.visualizeKeyDistribution(characters);
         }
     }
+
+    public static final class Entry<K, V> {
+
+        public final K key;
+        public final V value;
+
+        private Entry(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Entry<?, ?> that = (Entry<?, ?>) o;
+            return Objects.equals(key, that.key) && Objects.equals(value, that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        @Override
+        public String toString() {
+            return "[key: " + key + ", value: " + value + "]";
+        }
+    }
+
 }

@@ -10,6 +10,8 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,6 +30,11 @@ public class ImmutableOpenMapTests extends ESTestCase {
     public void testStreamOperationsAreSupported() {
         assertThat(regionCurrencySymbols.stream().filter(e -> e.key.startsWith("U")).map(e -> e.value).collect(Collectors.toSet()),
             equalTo(Set.of("£", "$")));
+    }
+
+    public void testSortedStream() {
+        assertThat(regionCurrencySymbols.stream().sorted(Comparator.comparing(e -> e.key)).map(e -> e.value).collect(Collectors.toList()),
+            equalTo(List.of("€", "¥", "₩", "£", "$")));
     }
 
     public void testEmptyStreamWorks() {

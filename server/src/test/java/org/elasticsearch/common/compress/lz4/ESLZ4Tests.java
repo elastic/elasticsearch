@@ -231,7 +231,7 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
 
     public void testRoundtripGeo() throws IOException {
         // Modified path to point at resource
-        testRoundTrip("calgary/geo");
+        testRoundTrip("calgary/geo.binary");
     }
 
     public void testRoundtripBook1() throws IOException {
@@ -241,7 +241,7 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
 
     public void testRoundtripPic() throws IOException {
         // Modified path to point at resource
-        testRoundTrip("calgary/pic");
+        testRoundTrip("calgary/pic.binary");
     }
 
     public void testNullMatchDec() {

@@ -33,23 +33,33 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
         final String requestBreaker = randomIntBetween(1, 10000) + "kb";
         logger.info("--> Using request breaker setting: {}", requestBreaker);
 
-        indexRandom(true, IntStream.range(0, randomIntBetween(10, 1000))
-            .mapToObj(i ->
-                client().prepareIndex("test", "_doc").setId("id_" + i)
-                    .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
-                ).toArray(IndexRequestBuilder[]::new));
+        indexRandom(
+            true,
+            IntStream.range(0, randomIntBetween(10, 1000))
+                .mapToObj(
+                    i -> client().prepareIndex("test", "_doc")
+                        .setId("id_" + i)
+                        .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
+                )
+                .toArray(IndexRequestBuilder[]::new)
+        );
 
-        client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-                requestBreaker))
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestBreaker)
+            )
             .get();
 
         try {
             client().prepareSearch("test")
-                .addAggregation(terms("terms").field("field0.keyword")
-                    .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("cardinality", randomBoolean()))
-                    .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword")))
+                .addAggregation(
+                    terms("terms").field("field0.keyword")
+                        .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
+                        .order(BucketOrder.aggregation("cardinality", randomBoolean()))
+                        .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
+                )
                 .get();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
@@ -57,7 +67,9 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
             }
         }
 
-        client().admin().cluster().prepareUpdateSettings()
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()))
             .get();
 

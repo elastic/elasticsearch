@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -90,6 +91,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final XPackLicenseState licenseState;
 
     private volatile ClusterState clusterState;
 
@@ -99,13 +101,15 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                           DatafeedConfigProvider datafeedConfigProvider,
                                           MlMemoryTracker memoryTracker,
                                           Client client,
-                                          IndexNameExpressionResolver expressionResolver) {
+                                          IndexNameExpressionResolver expressionResolver,
+                                          XPackLicenseState licenseState) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -395,7 +399,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                  Map<String, String> headers) {
-        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers, licenseState);
     }
 
     public static Optional<ElasticsearchException> checkAssignmentState(PersistentTasksCustomMetadata.Assignment assignment,

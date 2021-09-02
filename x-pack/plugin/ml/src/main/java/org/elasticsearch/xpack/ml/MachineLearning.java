@@ -51,6 +51,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -415,6 +417,24 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
     };
+
+    public static final String ML_FEATURE_FAMILY = "machine-learning";
+
+    public static final LicensedFeature.Persistent ML_ANOMALY_JOBS_FEATURE = LicensedFeature.persistent(
+        ML_FEATURE_FAMILY,
+        "anomaly-detection-job",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent ML_ANALYTICS_JOBS_FEATURE = LicensedFeature.persistent(
+        ML_FEATURE_FAMILY,
+        "data-frame-analytics-job",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent ML_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
+        ML_FEATURE_FAMILY,
+        "model-inference",
+        License.OperationMode.PLATINUM
+    );
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -810,7 +830,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             trainedModelStatsService,
             settings,
             clusterService.getNodeName(),
-            inferenceModelBreaker.get());
+            inferenceModelBreaker.get(),
+            getLicenseState()
+        );
         this.modelLoadingService.set(modelLoadingService);
 
         // Data frame analytics components
@@ -899,7 +921,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     datafeedConfigProvider.get(),
                     memoryTracker.get(),
                     client,
-                    expressionResolver),
+                    expressionResolver,
+                    getLicenseState()),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings,
                     client,
@@ -907,13 +930,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     dataFrameAnalyticsManager.get(),
                     dataFrameAnalyticsAuditor.get(),
                     memoryTracker.get(),
-                    expressionResolver),
+                    expressionResolver,
+                    getLicenseState()),
                 new SnapshotUpgradeTaskExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
                     memoryTracker.get(),
                     expressionResolver,
-                    client)
+                    client,
+                    getLicenseState())
         );
     }
 

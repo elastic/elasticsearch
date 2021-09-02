@@ -6,9 +6,11 @@
 <titleabbrev>Rate</titleabbrev>
 ++++
 
-A `rate` metrics aggregation can be used only inside a `date_histogram` and calculates a rate of documents or a field in each
-`date_histogram` bucket. The field values can be generated extracted from specific numeric or
+A `rate` metrics aggregation can be used only inside a `date_histogram` or `composite` aggregation. It calculates a rate of documents
+or a field in each bucket. The field values can be generated extracted from specific numeric or
 <<histogram,histogram fields>> in the documents.
+
+NOTE: For `composite` aggregations, there must be exactly one `date_histogram` source for the `rate` aggregation to be supported.
 
 ==== Syntax
 
@@ -166,6 +168,142 @@ The response will contain the average daily sale prices for each month.
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+You can also take advantage of `composite` aggregations to calculate the average daily sale price for each item in
+your inventory
+
+[source,console]
+--------------------------------------------------
+GET sales/_search?filter_path=aggregations&size=0
+{
+  "aggs": {
+    "buckets": {
+      "composite": { <1>
+        "sources": [
+          {
+            "month": {
+              "date_histogram": { <2>
+                "field": "date",
+                "calendar_interval": "month"
+              }
+            }
+          },
+          {
+            "type": { <3>
+              "terms": {
+                "field": "type"
+              }
+            }
+          }
+        ]
+      },
+      "aggs": {
+        "avg_price": {
+          "rate": {
+            "field": "price", <4>
+            "unit": "day" <5>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+<1> Composite aggregation with a date histogram source
+    and a source for the item type.
+<2> The date histogram source grouping monthly
+<3> The terms source grouping for each sale item type
+<4> Calculate sum of all sale prices, per month and item
+<5> Convert to average daily sales per item
+
+The response will contain the average daily sale prices for each month per item.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations" : {
+    "buckets" : {
+      "after_key" : {
+        "month" : 1425168000000,
+        "type" : "t-shirt"
+      },
+      "buckets" : [
+        {
+          "key" : {
+            "month" : 1420070400000,
+            "type" : "bag"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 4.838709677419355
+          }
+        },
+        {
+          "key" : {
+            "month" : 1420070400000,
+            "type" : "hat"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 6.451612903225806
+          }
+        },
+        {
+          "key" : {
+            "month" : 1420070400000,
+            "type" : "t-shirt"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 6.451612903225806
+          }
+        },
+        {
+          "key" : {
+            "month" : 1422748800000,
+            "type" : "hat"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 1.7857142857142858
+          }
+        },
+        {
+          "key" : {
+            "month" : 1422748800000,
+            "type" : "t-shirt"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 0.35714285714285715
+          }
+        },
+        {
+          "key" : {
+            "month" : 1425168000000,
+            "type" : "hat"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 6.451612903225806
+          }
+        },
+        {
+          "key" : {
+            "month" : 1425168000000,
+            "type" : "t-shirt"
+          },
+          "doc_count" : 1,
+          "avg_price" : {
+            "value" : 5.645161290322581
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
 
 By adding the `mode` parameter with the value `value_count`, we can change the calculation from `sum` to the number of values of the field:
 

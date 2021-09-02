@@ -76,30 +76,43 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private final MetadataCreateIndexService metadataCreateIndexService;
 
     @Inject
-    public TransportRollupAction(Client client,
-                                 ClusterService clusterService,
-                                 TransportService transportService,
-                                 ThreadPool threadPool,
-                                 MetadataCreateIndexService metadataCreateIndexService,
-                                 ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RollupAction.NAME, transportService, clusterService, threadPool, actionFilters, RollupAction.Request::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportRollupAction(
+        Client client,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        MetadataCreateIndexService metadataCreateIndexService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            RollupAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            RollupAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     @Override
-    protected void masterOperation(RollupAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(RollupAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         logger.warn("attempt to execute a rollup action without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(Task task, RollupAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws IOException {
+    protected void masterOperation(
+        Task task,
+        RollupAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws IOException {
         String originalIndexName = request.getSourceIndex();
 
         final String rollupIndexName;
@@ -119,33 +132,36 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
-            .indices(originalIndexName)
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(originalIndexName)
             .fields(request.getRollupConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // Add the source index name and UUID to the rollup index metadata. If the original index is a rollup index itself,
         // we will add the name and UUID of the raw index that we initially rolled up.
         IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
-        String sourceIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(originalIndexMetadata.getSettings()) ?
-            IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(originalIndexMetadata.getSettings()) : originalIndexName;
-        String sourceIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(originalIndexMetadata.getSettings()) ?
-            IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(originalIndexMetadata.getSettings()) : originalIndexMetadata.getIndexUUID();
+        String sourceIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(originalIndexMetadata.getSettings())
+            ? IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(originalIndexMetadata.getSettings())
+            : originalIndexName;
+        String sourceIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(originalIndexMetadata.getSettings())
+            ? IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(originalIndexMetadata.getSettings())
+            : originalIndexMetadata.getIndexUUID();
 
         // Using the CreateIndexRequest class only to produce the transformation to the mappings map.
         // Alternatively, we would have to copy-paste that part of the code.
         Map<String, String> mappingAsMap = new CreateIndexRequest().mapping("_doc", mapping).mappings();
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest =
-            new CreateIndexClusterStateUpdateRequest("rollup", tmpIndexName, tmpIndexName)
-                .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
-                .mappings(mappingAsMap);
+        CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
+            "rollup",
+            tmpIndexName,
+            tmpIndexName
+        ).settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build()).mappings(mappingAsMap);
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
-        resizeRequest.getTargetIndexRequest()
-            .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
         UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
-            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(), tmpIndexName);
+            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(),
+            tmpIndexName
+        );
 
         // 1. validate Rollup Config against Field Caps
         // 2. create hidden temporary index
@@ -158,8 +174,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
             RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
             if (fieldCapsResponse.get().size() == 0) {
-                validationException.addValidationError("Could not find any fields in the index ["
-                    + originalIndexName + "] that were configured in job");
+                validationException.addValidationError(
+                    "Could not find any fields in the index [" + originalIndexName + "] that were configured in job"
+                );
                 listener.onFailure(validationException);
                 return;
             }
@@ -172,13 +189,20 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             clusterService.submitStateUpdateTask("rollup create index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return metadataCreateIndexService
-                        .applyCreateIndexRequest(currentState, createIndexClusterStateUpdateRequest, true,
-                            (builder, indexMetadata) -> builder.put(IndexMetadata.builder(indexMetadata).settings(Settings.builder()
-                                .put(indexMetadata.getSettings())
-                                .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
-                                .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
-                            )));
+                    return metadataCreateIndexService.applyCreateIndexRequest(
+                        currentState,
+                        createIndexClusterStateUpdateRequest,
+                        true,
+                        (builder, indexMetadata) -> builder.put(
+                            IndexMetadata.builder(indexMetadata)
+                                .settings(
+                                    Settings.builder()
+                                        .put(indexMetadata.getSettings())
+                                        .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
+                                        .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
+                                )
+                        )
+                    );
                 }
 
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
@@ -191,18 +215,30 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                         if (resizeResponse.isAcknowledged()) {
                                             publishMetadata(originalIndexName, tmpIndexName, rollupIndexName, listener);
                                         } else {
-                                            deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                                new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
+                                            deleteTmpIndex(
+                                                originalIndexName,
+                                                tmpIndexName,
+                                                listener,
+                                                new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]")
+                                            );
                                         }
                                     }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
                                 } else {
-                                    deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                        new ElasticsearchException("Unable to update settings of temp rollup index [" +tmpIndexName+ "]"));
+                                    deleteTmpIndex(
+                                        originalIndexName,
+                                        tmpIndexName,
+                                        listener,
+                                        new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]")
+                                    );
                                 }
                             }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
                         } else {
-                            deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]"));
+                            deleteTmpIndex(
+                                originalIndexName,
+                                tmpIndexName,
+                                listener,
+                                new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]")
+                            );
                         }
                     }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
                 }
@@ -232,14 +268,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     private static XContentBuilder getDynamicTemplates(XContentBuilder builder) throws IOException {
         return builder.startArray("dynamic_templates")
-                .startObject()
-                    .startObject("strings")
-                        .field("match_mapping_type", "string")
-                        .startObject("mapping")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject()
+            .startObject("strings")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
             .endArray();
     }
 
@@ -254,24 +290,27 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         String dateField = dateHistogramConfig.getField();
         String dateIntervalType = dateHistogramConfig.getIntervalTypeName();
         String dateInterval = dateHistogramConfig.getInterval().toString();
-        String tz = dateHistogramConfig.getTimeZone() != null ? dateHistogramConfig.getTimeZone() :
-            RollupActionDateHistogramGroupConfig.DEFAULT_TIMEZONE;
+        String tz = dateHistogramConfig.getTimeZone() != null
+            ? dateHistogramConfig.getTimeZone()
+            : RollupActionDateHistogramGroupConfig.DEFAULT_TIMEZONE;
 
-        builder.startObject(dateField).field("type", DateFieldMapper.CONTENT_TYPE)
-                .startObject("meta")
-                    .field(dateIntervalType, dateInterval)
-                    .field(RollupActionDateHistogramGroupConfig.CalendarInterval.TIME_ZONE, tz)
-                .endObject()
+        builder.startObject(dateField)
+            .field("type", DateFieldMapper.CONTENT_TYPE)
+            .startObject("meta")
+            .field(dateIntervalType, dateInterval)
+            .field(RollupActionDateHistogramGroupConfig.CalendarInterval.TIME_ZONE, tz)
+            .endObject()
             .endObject();
 
         HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
         if (histogramGroupConfig != null) {
             for (String field : histogramGroupConfig.getFields()) {
-                builder.startObject(field).field("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
+                builder.startObject(field)
+                    .field("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
                     .startObject("meta")
-                        .field(HistogramGroupConfig.INTERVAL, String.valueOf(histogramGroupConfig.getInterval()))
+                    .field(HistogramGroupConfig.INTERVAL, String.valueOf(histogramGroupConfig.getInterval()))
                     .endObject()
-                .endObject();
+                    .endObject();
             }
         }
 
@@ -289,8 +328,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return builder.endObject();
     }
 
-    private void publishMetadata(String originalIndexName, String tmpIndexName, String rollupIndexName,
-                                 ActionListener<AcknowledgedResponse> listener) {
+    private void publishMetadata(
+        String originalIndexName,
+        String tmpIndexName,
+        String rollupIndexName,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         // Update rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
@@ -314,8 +357,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     // considered a write index
                     backingIndices.add(rollupIndex);
                     backingIndices.addAll(originalDataStream.getIndices());
-                    DataStream dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
-                        backingIndices, originalDataStream.getGeneration(), originalDataStream.getMetadata());
+                    DataStream dataStream = new DataStream(
+                        originalDataStream.getName(),
+                        originalDataStream.getTimeStampField(),
+                        backingIndices,
+                        originalDataStream.getGeneration(),
+                        originalDataStream.getMetadata()
+                    );
                     metadataBuilder.put(dataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
@@ -323,8 +371,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(String source, Exception e) {
-                deleteTmpIndex(originalIndexName, tmpIndexName,
-                    listener, new ElasticsearchException("failed to publish new cluster state with rollup metadata", e));
+                deleteTmpIndex(
+                    originalIndexName,
+                    tmpIndexName,
+                    listener,
+                    new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)
+                );
             }
         });
     }

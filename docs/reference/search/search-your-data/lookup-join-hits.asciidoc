@@ -1,5 +1,5 @@
 [[lookup-join-hits]]
-=== Lookup join hits
+== Lookup join hits
 
 The `join_hits` option is used to enrich search hits with corresponding
 documents from related indices.
@@ -115,8 +115,9 @@ The search returns
 can be used to filter the `_source` of join hits.
 
 
+[discrete]
 [[join-hits-notes]]
-==== Notes
+=== Notes
 
 IMPORTANT: Queries with join hits are considered expensive. If
 <<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>>

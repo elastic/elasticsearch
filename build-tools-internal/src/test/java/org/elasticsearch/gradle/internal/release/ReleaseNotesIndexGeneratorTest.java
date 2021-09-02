@@ -8,9 +8,9 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
 public class ReleaseNotesIndexGeneratorTest {
 
     /**
@@ -46,11 +47,9 @@ public class ReleaseNotesIndexGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesIndexGeneratorTest.generateFile.asciidoc"
         );
-        final StringWriter writer = new StringWriter();
 
         // when:
-        ReleaseNotesIndexGenerator.generateFile(versions, template, writer);
-        final String actualOutput = writer.toString();
+        final String actualOutput = ReleaseNotesIndexGenerator.generateFile(versions, template);
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

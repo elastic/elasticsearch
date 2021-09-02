@@ -58,11 +58,6 @@ tasks.named("test").configure {
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
-tasks.named("yamlRestCompatTest").configure {
-    systemProperty 'tests.rest.blacklist', [
-    ].join(',')
-}
-
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {

@@ -21,16 +21,16 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Query that runs an Automaton across all binary doc values (but only for docs that also 
+ * Query that runs an Automaton across all binary doc values (but only for docs that also
  * match a provided approximation query which is key to getting good performance).
  */
 public class BinaryDvConfirmedAutomatonQuery extends Query {
@@ -46,14 +46,14 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
         this.matchPattern = matchPattern;
         bytesMatcher = new ByteRunAutomaton(automaton);
     }
-    
+
     private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, ByteRunAutomaton bytesMatcher) {
         this.approxQuery = approximation;
         this.field = field;
         this.matchPattern = matchPattern;
         this.bytesMatcher = bytesMatcher;
-    }    
-    
+    }
+
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query approxRewrite = approxQuery.rewrite(reader);
@@ -61,17 +61,17 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
             return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, matchPattern, bytesMatcher);
         }
         return this;
-    }    
+    }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
-        
+
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                ByteArrayDataInput badi = new ByteArrayDataInput();
+                ByteArrayStreamInput bytes = new ByteArrayStreamInput();
                 final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
                 Scorer approxScorer = approxWeight.scorer(context);
                 if (approxScorer == null) {
@@ -89,16 +89,16 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
                             return false;
                         }
                         BytesRef arrayOfValues = values.binaryValue();
-                        badi.reset(arrayOfValues.bytes);
-                        badi.setPosition(arrayOfValues.offset);
+                        bytes.reset(arrayOfValues.bytes);
+                        bytes.setPosition(arrayOfValues.offset);
 
-                        int size = badi.readVInt();
+                        int size = bytes.readVInt();
                         for (int i=0; i< size; i++) {
-                            int valLength = badi.readVInt();
-                            if (bytesMatcher.run(arrayOfValues.bytes, badi.getPosition(), valLength)) {
+                            int valLength = bytes.readVInt();
+                            if (bytesMatcher.run(arrayOfValues.bytes, bytes.getPosition(), valLength)) {
                                 return true;
                             }
-                            badi.skipBytes(valLength);
+                            bytes.skipBytes(valLength);
                         }
                         return false;
                     }
@@ -130,7 +130,7 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
         }
         BinaryDvConfirmedAutomatonQuery other = (BinaryDvConfirmedAutomatonQuery) obj;
         return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
-            && Objects.equals(bytesMatcher, other.bytesMatcher) 
+            && Objects.equals(bytesMatcher, other.bytesMatcher)
             && Objects.equals(approxQuery, other.approxQuery);
     }
 
@@ -138,7 +138,7 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
     public int hashCode() {
         return Objects.hash(classHash(), field, matchPattern, bytesMatcher, approxQuery);
     }
-    
+
     Query getApproximationQuery() {
         return approxQuery;
     }

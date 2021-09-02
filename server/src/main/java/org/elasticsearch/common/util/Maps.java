@@ -44,7 +44,8 @@ public class Maps {
         Objects.requireNonNull(value);
         assert checkIsImmutableMap(map, key, value);
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
-        @SuppressWarnings("rawtypes") final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
+        @SuppressWarnings("rawtypes")
+        final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
         map.entrySet().toArray(entries);
         entries[entries.length - 1] = Map.entry(key, value);
         return Map.ofEntries(entries);
@@ -74,10 +75,10 @@ public class Maps {
      * Remove the specified key from the provided immutable map by copying the underlying map and filtering out the specified
      * key if that key exists.
      *
-     * @param map the immutable map to remove the key from
-     * @param key the key to be removed
-     * @param <K> the type of the keys in the map
-     * @param <V> the type of the values in the map
+     * @param map   the immutable map to remove the key from
+     * @param key   the key to be removed
+     * @param <K>   the type of the keys in the map
+     * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map with the provided key removed
      */
     public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
@@ -145,14 +146,14 @@ public class Maps {
 
     /**
      * Returns an array where all internal maps and optionally arrays are flattened into the root map.
-     * <p>
+     *
      * For example the map {"foo": {"bar": 1, "baz": [2, 3]}} will become {"foo.bar": 1, "foo.baz.0": 2, "foo.baz.1": 3}. Note that if
      * maps contains keys with "." or numbers it is possible that such keys will be silently overridden. For example the map
      * {"foo": {"bar": 1}, "foo.bar": 2} will become {"foo.bar": 1} or {"foo.bar": 2}.
      *
-     * @param map           - input to be flattened
+     * @param map - input to be flattened
      * @param flattenArrays - if false, arrays will be ignored
-     * @param ordered       - if true the resulted map will be sorted
+     * @param ordered - if true the resulted map will be sorted
      * @return
      */
     public static Map<String, Object> flatten(Map<String, Object> map, boolean flattenArrays, boolean ordered) {

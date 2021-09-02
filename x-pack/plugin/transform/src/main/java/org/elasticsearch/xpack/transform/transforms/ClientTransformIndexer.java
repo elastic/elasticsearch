@@ -393,12 +393,12 @@ class ClientTransformIndexer extends TransformIndexer {
         Tuple<String, SearchRequest> namedSearchRequest,
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
-        if (disablePit) {
+        SearchRequest searchRequest = namedSearchRequest.v2();
+        if (disablePit || searchRequest.indices().length == 0) {
             listener.onResponse(namedSearchRequest);
             return;
         }
 
-        SearchRequest searchRequest = namedSearchRequest.v2();
         PointInTimeBuilder pit = namedPits.get(namedSearchRequest.v1());
         if (pit != null) {
             searchRequest.source().pointInTimeBuilder(pit);

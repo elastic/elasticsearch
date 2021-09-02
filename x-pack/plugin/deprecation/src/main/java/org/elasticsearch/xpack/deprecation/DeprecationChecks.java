@@ -95,8 +95,16 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSharedDataPathSetting,
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
+                    NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
                     NodeDeprecationChecks::checkJoinTimeoutSetting,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
+                    NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
+                    NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
+                    NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
@@ -114,6 +122,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
             IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
             IndexDeprecationChecks::storeTypeSettingCheck,
+            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
+            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
             IndexDeprecationChecks::checkGeoShapeMappings
         ));
 

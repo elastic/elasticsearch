@@ -17,7 +17,7 @@ import java.util.function.Predicate;
 
 public class CheckNullProcessor implements Processor {
 
-    public enum CheckNullOperation implements Function<Object, Boolean> {
+    public enum CheckNullOperation implements Predicate<Object> {
 
         IS_NULL(Objects::isNull, "IS NULL"),
         IS_NOT_NULL(Objects::nonNull, "IS NOT NULL");
@@ -40,7 +40,7 @@ public class CheckNullProcessor implements Processor {
         }
 
         @Override
-        public Boolean apply(Object o) {
+        public boolean test(Object o) {
             return process.test(o);
         }
     }
@@ -69,7 +69,7 @@ public class CheckNullProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        return operation.apply(input);
+        return operation.test(input);
     }
 
     @Override

@@ -51,9 +51,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                         return LongPoint.decodeDimension(sortValue, 0);
                     }
                 } catch (IOException e) {
+                    throw new IllegalStateException("Failed reading [" +
+                        DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
                 }
-                throw new IllegalStateException("Datastream index segment doesn't contain an expected [" +
-                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field!");
+                // this may happen if the segment contains only deleted documents
+                assert(r.numDocs() == 0);
+                return Long.MIN_VALUE;
             })
         .reversed();
 

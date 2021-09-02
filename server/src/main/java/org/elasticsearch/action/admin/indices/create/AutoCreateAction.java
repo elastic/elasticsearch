@@ -194,10 +194,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     String aliasName = descriptor.getAliasName();
 
                     // if we are writing to the alias name, we should create the primary index here
-                    String targetIndex = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
+                    String concreteIndexName = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
 
                     CreateIndexClusterStateUpdateRequest updateRequest =
-                        new CreateIndexClusterStateUpdateRequest(request.cause(), targetIndex, request.index())
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
                             .ackTimeout(request.timeout())
                             .masterNodeTimeout(request.masterNodeTimeout());
 
@@ -213,7 +213,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest.aliases(Set.of(new Alias(aliasName)));
                     }
 
-                    logger.debug("Auto-creating system index {}", indexName);
+                    if (logger.isDebugEnabled()) {
+                        if (concreteIndexName.equals(indexName) == false) {
+                            logger.debug("Auto-creating backing system index {} for alias {}", concreteIndexName, indexName);
+                        } else {
+                            logger.debug("Auto-creating system index {}", concreteIndexName);
+                        }
+                    }
 
                     return updateRequest;
                 }

@@ -245,7 +245,7 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
 
             @Override
             public SortField sortField(boolean reversed) {
-                SortField sortField = new SortField("field", SortField.Type.STRING_VAL, reversed);
+                SortField sortField = new SortField("field", SortField.Type.STRING, reversed);
                 sortField.setMissingValue(reversed ? SortField.STRING_FIRST : SortField.STRING_LAST);
                 return sortField;
             }

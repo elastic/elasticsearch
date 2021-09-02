@@ -18,9 +18,9 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -35,6 +35,7 @@ import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -291,10 +293,19 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Index indexForFollowing(String id, long seqNo, Engine.Operation.Origin origin) {
         final long version = randomBoolean() ? 1 : randomNonNegativeLong();
+        return indexForFollowing(id, seqNo, origin, version);
+    }
+
+    private Engine.Index indexForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
         final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Index(EngineTestCase.newUid(parsedDocument), parsedDocument, seqNo, primaryTerm.get(), version,
             VersionType.EXTERNAL, origin, System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean(),
             SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+    }
+
+    private Engine.Delete deleteForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
+        return IndexShard.prepareDelete(id, seqNo, primaryTerm.get(), version, VersionType.EXTERNAL,
+            origin, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
     }
 
     private Engine.Index indexForPrimary(String id) {
@@ -448,6 +459,85 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(getNumVersionLookups(follower), equalTo(numVersionLookups + 1L));
         });
+    }
+
+    public void testConcurrentIndexOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates() throws Exception {
+        // See #72527 for more details
+        Settings followerSettings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.version.created", Version.CURRENT)
+            .put("index.xpack.ccr.following_index", true)
+            .build();
+
+        IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
+        IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, Settings.EMPTY);
+        try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
+            EngineConfig followerConfig =
+                engineConfig(shardId, followerIndexSettings, threadPool, followerStore, logger, xContentRegistry());
+            followerStore.createEmpty();
+            String translogUuid = Translog.createEmptyTranslog(followerConfig.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                1L
+            );
+            followerStore.associateIndexWithNewTranslog(translogUuid);
+            CountDownLatch concurrentDeleteOpLatch = new CountDownLatch(1);
+            final long indexNewDocWithSameIdSeqNo = 4;
+            FollowingEngine followingEngine = new FollowingEngine(followerConfig) {
+                @Override
+                protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+                    if (seqNo == indexNewDocWithSameIdSeqNo) {
+                        // wait until the concurrent delete finishes meaning that processedLocalCheckpoint == maxSeqNoOfUpdatesOrDeletes
+                        try {
+                            concurrentDeleteOpLatch.await();
+                            assertThat(getProcessedLocalCheckpoint(), equalTo(getMaxSeqNoOfUpdatesOrDeletes()));
+                        } catch (Exception exception) {
+                            throw new RuntimeException(exception);
+                        }
+                    }
+                    super.advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
+                }
+            };
+            TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), followerConfig.getIndexSettings());
+            followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            try (followingEngine) {
+                final long leaderMaxSeqNoOfUpdatesOnPrimary = 3;
+                followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(leaderMaxSeqNoOfUpdatesOnPrimary);
+
+                followingEngine.index(indexForFollowing("1", 0, Engine.Operation.Origin.PRIMARY, 1));
+                followingEngine.delete(deleteForFollowing("1", 1, Engine.Operation.Origin.PRIMARY, 2));
+                followingEngine.index(indexForFollowing("2", 2, Engine.Operation.Origin.PRIMARY, 1));
+                assertThat(followingEngine.getProcessedLocalCheckpoint(), equalTo(2L));
+
+                CyclicBarrier barrier = new CyclicBarrier(3);
+                Thread thread1 = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        followingEngine.delete(deleteForFollowing("2", 3, Engine.Operation.Origin.PRIMARY, 2));
+                        concurrentDeleteOpLatch.countDown();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                Thread thread2 = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        followingEngine.index(indexForFollowing("1", indexNewDocWithSameIdSeqNo, Engine.Operation.Origin.PRIMARY, 3));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                thread1.start();
+                thread2.start();
+                barrier.await();
+                thread1.join();
+                thread2.join();
+
+                assertThat(followingEngine.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leaderMaxSeqNoOfUpdatesOnPrimary));
+            }
+        }
     }
 
     private void runFollowTest(CheckedBiConsumer<InternalEngine, FollowingEngine, Exception> task) throws Exception {

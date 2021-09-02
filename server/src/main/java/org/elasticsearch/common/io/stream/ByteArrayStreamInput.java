@@ -27,6 +27,10 @@ public class ByteArrayStreamInput extends StreamInput {
         reset(BytesRef.EMPTY_BYTES);
     }
 
+    public ByteArrayStreamInput(byte[] bytes) {
+        reset(bytes);
+    }
+
     @Override
     public int read() throws IOException {
         return readByte() & 0xFF;

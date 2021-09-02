@@ -70,7 +70,6 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
             super(shardSize, bigArrays(), circuitBreakerConsumer);
         }
 
-
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
             // Make sure we do not allow size > maxDoc, to prevent accidental OOM
@@ -109,8 +108,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
                         docID = target;
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
@@ -58,8 +58,10 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c);
-        return CollectionUtils.appendToCopy(getDefaultNamedXContents(),
-                new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser));
+        return CollectionUtils.appendToCopy(
+            getDefaultNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser)
+        );
     }
 
     @Override
@@ -83,35 +85,35 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         MatrixStatsResults matrixStatsResults = instance.getResults();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            String[] fields = Arrays.copyOf(this.fields, this.fields.length + 1);
-            fields[fields.length - 1] = "field_" + (fields.length - 1);
-            double[] values = new double[fields.length];
-            for (int i = 0; i < fields.length; i++) {
-                values[i] = randomDouble() * 200;
-            }
-            runningStats = new RunningStats();
-            runningStats.add(fields, values);
-            break;
-        case 2:
-            if (matrixStatsResults == null) {
-                matrixStatsResults = new MatrixStatsResults(runningStats);
-            } else {
-                matrixStatsResults = null;
-            }
-            break;
-        case 3:
-        default:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                String[] fields = Arrays.copyOf(this.fields, this.fields.length + 1);
+                fields[fields.length - 1] = "field_" + (fields.length - 1);
+                double[] values = new double[fields.length];
+                for (int i = 0; i < fields.length; i++) {
+                    values[i] = randomDouble() * 200;
+                }
+                runningStats = new RunningStats();
+                runningStats.add(fields, values);
+                break;
+            case 2:
+                if (matrixStatsResults == null) {
+                    matrixStatsResults = new MatrixStatsResults(runningStats);
+                } else {
+                    matrixStatsResults = null;
+                }
+                break;
+            case 3:
+            default:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
         }
         return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, metadata);
     }
@@ -135,7 +137,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             double valueB = randomDouble();
             bValues.add(valueB);
 
-            runningStats.add(new String[]{"a", "b"}, new double[]{valueA, valueB});
+            runningStats.add(new String[] { "a", "b" }, new double[] { valueA, valueB });
             if (++valuePerShardCounter == valuesPerShard) {
                 shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
                 runningStats = new RunningStats();
@@ -152,7 +154,11 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, mockScriptService, b -> {}, PipelineTree.EMPTY);
+            bigArrays,
+            mockScriptService,
+            b -> {},
+            PipelineTree.EMPTY
+        );
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());
     }

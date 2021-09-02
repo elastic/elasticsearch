@@ -60,7 +60,6 @@ def projectPathsToExclude = [
   ':libs:elasticsearch-secure-sm',
   ':libs:elasticsearch-ssl-config',
   ':libs:elasticsearch-x-content',
-  ':modules:aggs-matrix-stats',
   ':modules:analysis-common',
   ':modules:ingest-common',
   ':modules:ingest-geoip',
@@ -110,7 +109,6 @@ def projectPathsToExclude = [
   ':test:logger-usage',
   ':x-pack:license-tools',
   ':x-pack:plugin',
-  ':x-pack:plugin:analytics',
   ':x-pack:plugin:async-search',
   ':x-pack:plugin:async-search:qa',
   ':x-pack:plugin:async-search:qa:security',
@@ -149,8 +147,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:repository-encrypted:qa:azure',
   ':x-pack:plugin:repository-encrypted:qa:gcs',
   ':x-pack:plugin:repository-encrypted:qa:s3',
-  ':x-pack:plugin:rollup',
-  ':x-pack:plugin:rollup:qa:rest',
   ':x-pack:plugin:search-business-rules',
   ':x-pack:plugin:security',
   ':x-pack:plugin:security:cli',
@@ -211,9 +207,9 @@ subprojects {
                    'src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java',
                    'src/*/java/org/elasticsearch/index/snapshots/**/*.java',
                    'src/*/java/org/elasticsearch/repositories/**/*.java',
+                   'src/*/java/org/elasticsearch/search/aggregations/**/*.java',
                    'src/*/java/org/elasticsearch/snapshots/**/*.java'
 
-            targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
           } else {
             // Normally this isn't necessary, but we have Java sources in
             // non-standard places

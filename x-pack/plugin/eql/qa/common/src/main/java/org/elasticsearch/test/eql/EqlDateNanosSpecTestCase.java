@@ -7,23 +7,22 @@
 
 package org.elasticsearch.test.eql;
 
-import static org.elasticsearch.test.eql.DataLoader.DATE_NANOS_INDEX;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import java.util.HashSet;
 import java.util.List;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import static org.elasticsearch.test.eql.DataLoader.TEST_NANOS_INDEX;
 
 public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
-        return asArray(EqlSpecLoader.load("/test_queries_date_nanos.toml", new HashSet<>()));
+        return asArray(EqlSpecLoader.load("/test_queries_date_nanos.toml", "/test_queries.toml"));
     }
 
     // constructor for "local" rest tests
     public EqlDateNanosSpecTestCase(String query, String name, long[] eventIds) {
-        this(DATE_NANOS_INDEX, query, name, eventIds);
+        this(TEST_NANOS_INDEX, query, name, eventIds);
     }
 
     // constructor for multi-cluster tests

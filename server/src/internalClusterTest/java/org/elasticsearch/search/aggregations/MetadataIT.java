@@ -26,48 +26,40 @@ import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.m
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-
 public class MetadataIT extends ESIntegTestCase {
 
     public void testMetadataSetOnAggregationResult() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "name", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "name", "type=keyword").get());
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
-                .startObject()
-                    .field("name", name)
-                    .field("value", randomInt())
-                .endObject());
+            builders[i] = client().prepareIndex("idx", "type")
+                .setSource(jsonBuilder().startObject().field("name", name).field("value", randomInt()).endObject());
         }
         indexRandom(true, builders);
         ensureSearchable();
 
-        final Map<String, Object> nestedMetadata = new HashMap<String, Object>() {{
-            put("nested", "value");
-        }};
+        final Map<String, Object> nestedMetadata = new HashMap<String, Object>() {
+            {
+                put("nested", "value");
+            }
+        };
 
-        Map<String, Object> metadata = new HashMap<String, Object>() {{
-            put("key", "value");
-            put("numeric", 1.2);
-            put("bool", true);
-            put("complex", nestedMetadata);
-        }};
+        Map<String, Object> metadata = new HashMap<String, Object>() {
+            {
+                put("key", "value");
+                put("numeric", 1.2);
+                put("bool", true);
+                put("complex", nestedMetadata);
+            }
+        };
 
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                    terms("the_terms")
-                        .setMetadata(metadata)
-                        .field("name")
-                        .subAggregation(
-                            sum("the_sum")
-                                .setMetadata(metadata)
-                                .field("value")
-                            )
-                )
-                .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
-                .get();
+            .addAggregation(
+                terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
+            )
+            .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
+            .get();
 
         assertSearchResponse(response);
 
@@ -104,7 +96,7 @@ public class MetadataIT extends ESIntegTestCase {
         assertNotNull(nestedObject);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> nestedMap = (Map<String, Object>)nestedObject;
+        Map<String, Object> nestedMap = (Map<String, Object>) nestedObject;
         assertEquals("value", nestedMap.get("nested"));
     }
 }

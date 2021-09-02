@@ -70,8 +70,7 @@ public class NestedIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
 
-        assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
+        assertAcked(prepareCreate("idx").addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -93,68 +92,89 @@ public class NestedIT extends ESIntegTestCase {
         assertTrue(totalChildren > 0);
 
         for (int i = 0; i < numParents; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .field("value", i + 1)
-                    .startArray("nested");
+            XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).startArray("nested");
             for (int j = 0; j < numChildren[i]; ++j) {
                 source = source.startObject().field("value", i + 1 + j).endObject();
             }
             source = source.endArray().endObject();
-            builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(source));
+            builders.add(client().prepareIndex("idx", "type", "" + i + 1).setSource(source));
         }
 
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .startArray("nested")
-                    .startObject().field("value", i + 1).endObject()
-                    .startObject().field("value", i + 2).endObject()
-                    .startObject().field("value", i + 3).endObject()
-                    .startObject().field("value", i + 4).endObject()
-                    .startObject().field("value", i + 5).endObject()
-                    .endArray()
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("value", i * 2)
+                            .startArray("nested")
+                            .startObject()
+                            .field("value", i + 1)
+                            .endObject()
+                            .startObject()
+                            .field("value", i + 2)
+                            .endObject()
+                            .startObject()
+                            .field("value", i + 3)
+                            .endObject()
+                            .startObject()
+                            .field("value", i + 4)
+                            .endObject()
+                            .startObject()
+                            .field("value", i + 5)
+                            .endObject()
+                            .endArray()
+                            .endObject()
+                    )
+            );
         }
 
-        assertAcked(prepareCreate("idx_nested_nested_aggs")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("nested1")
-                            .field("type", "nested")
-                            .startObject("properties")
-                                .startObject("nested2")
-                                    .field("type", "nested")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .endObject().endObject().endObject()));
+        assertAcked(
+            prepareCreate("idx_nested_nested_aggs").addMapping(
+                "type",
+                jsonBuilder().startObject()
+                    .startObject("type")
+                    .startObject("properties")
+                    .startObject("nested1")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nested2")
+                    .field("type", "nested")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ensureGreen("idx_nested_nested_aggs");
 
         builders.add(
-                client().prepareIndex("idx_nested_nested_aggs", "type", "1")
-                        .setSource(jsonBuilder().startObject()
-                                .startArray("nested1")
-                                    .startObject()
-                                    .field("a", "a")
-                                        .startArray("nested2")
-                                            .startObject()
-                                                .field("b", 2)
-                                            .endObject()
-                                        .endArray()
-                                    .endObject()
-                                    .startObject()
-                                        .field("a", "b")
-                                        .startArray("nested2")
-                                            .startObject()
-                                                .field("b", 2)
-                                            .endObject()
-                                        .endArray()
-                                    .endObject()
-                                .endArray()
-                            .endObject())
+            client().prepareIndex("idx_nested_nested_aggs", "type", "1")
+                .setSource(
+                    jsonBuilder().startObject()
+                        .startArray("nested1")
+                        .startObject()
+                        .field("a", "a")
+                        .startArray("nested2")
+                        .startObject()
+                        .field("b", 2)
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                        .startObject()
+                        .field("a", "b")
+                        .startArray("nested2")
+                        .startObject()
+                        .field("b", 2)
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                )
         );
         indexRandom(true, builders);
         ensureSearchable();
@@ -162,12 +182,10 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(nested("nested", "nested")
-                        .subAggregation(stats("nested_value_stats").field("nested.value")))
-                .get();
+            .addAggregation(nested("nested", "nested").subAggregation(stats("nested_value_stats").field("nested.value")))
+            .get();
 
         assertSearchResponse(response);
-
 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -200,9 +218,8 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
-                .addAggregation(nested("nested", "value")
-                        .subAggregation(stats("nested_value_stats").field("nested.value")))
-                .get();
+            .addAggregation(nested("nested", "value").subAggregation(stats("nested_value_stats").field("nested.value")))
+            .get();
 
         Nested nested = searchResponse.getAggregations().get("nested");
         assertThat(nested, Matchers.notNullValue());
@@ -212,13 +229,12 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestedWithSubTermsAgg() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(nested("nested", "nested")
-                        .subAggregation(terms("values").field("nested.value").size(100)
-                                .collectMode(aggCollectionMode)))
-                .get();
+            .addAggregation(
+                nested("nested", "nested").subAggregation(terms("values").field("nested.value").size(100).collectMode(aggCollectionMode))
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         long docCount = 0;
         long[] counts = new long[numParents + 6];
@@ -240,7 +256,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
         assertThat(nested.getDocCount(), equalTo(docCount));
-        assertThat(((InternalAggregation)nested).getProperty("_count"), equalTo(docCount));
+        assertThat(((InternalAggregation) nested).getProperty("_count"), equalTo(docCount));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         LongTerms values = nested.getAggregations().get("values");
@@ -258,19 +274,20 @@ public class NestedIT extends ESIntegTestCase {
                 assertEquals(counts[i], bucket.getDocCount());
             }
         }
-        assertThat(((InternalAggregation)nested).getProperty("values"), sameInstance(values));
+        assertThat(((InternalAggregation) nested).getProperty("values"), sameInstance(values));
     }
 
     public void testNestedAsSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("top_values").field("value").size(100)
-                        .collectMode(aggCollectionMode)
-                        .subAggregation(nested("nested", "nested")
-                                .subAggregation(max("max_value").field("nested.value"))))
-                .get();
+            .addAggregation(
+                terms("top_values").field("value")
+                    .size(100)
+                    .collectMode(aggCollectionMode)
+                    .subAggregation(nested("nested", "nested").subAggregation(max("max_value").field("nested.value")))
+            )
+            .get();
 
         assertSearchResponse(response);
-
 
         LongTerms values = response.getAggregations().get("top_values");
         assertThat(values, notNullValue());
@@ -291,14 +308,15 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestNestedAggs() throws Exception {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
-                .addAggregation(nested("level1", "nested1")
-                        .subAggregation(terms("a").field("nested1.a.keyword")
-                                .collectMode(aggCollectionMode)
-                        .subAggregation(nested("level2", "nested1.nested2")
-                                        .subAggregation(sum("sum").field("nested1.nested2.b")))))
-                .get();
+            .addAggregation(
+                nested("level1", "nested1").subAggregation(
+                    terms("a").field("nested1.a.keyword")
+                        .collectMode(aggCollectionMode)
+                        .subAggregation(nested("level2", "nested1.nested2").subAggregation(sum("sum").field("nested1.nested2.b")))
+                )
+            )
+            .get();
         assertSearchResponse(response);
-
 
         Nested level1 = response.getAggregations().get("level1");
         assertThat(level1, notNullValue());
@@ -326,10 +344,9 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(nested("nested", "nested")))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(nested("nested", "nested")))
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -345,10 +362,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestedOnObjectField() throws Exception {
         try {
-            client().prepareSearch("idx")
-                    .setQuery(matchAllQuery())
-                    .addAggregation(nested("object_field", "incorrect"))
-                    .get();
+            client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(nested("object_field", "incorrect")).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("[nested] nested path [incorrect] is not nested"));
@@ -357,69 +371,107 @@ public class NestedIT extends ESIntegTestCase {
 
     // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
-                    .startObject("comments")
-                        .field("type", "nested")
-                        .startObject("properties")
-                            .startObject("cid").field("type", "long").endObject()
-                            .startObject("identifier").field("type", "keyword").endObject()
-                            .startObject("tags")
-                                .field("type", "nested")
-                                .startObject("properties")
-                                    .startObject("tid").field("type", "long").endObject()
-                                    .startObject("name").field("type", "keyword").endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("dates")
-                        .field("type", "object")
-                        .startObject("properties")
-                            .startObject("day").field("type", "date").field("format", "date_optional_time").endObject()
-                            .startObject("month")
-                                .field("type", "object")
-                                .startObject("properties")
-                                    .startObject("end").field("type", "date").field("format", "date_optional_time").endObject()
-                                    .startObject("start").field("type", "date").field("format", "date_optional_time").endObject()
-                                    .startObject("label").field("type", "keyword").endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().endObject();
-        assertAcked(prepareCreate("idx2")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("provider", mapping));
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("provider")
+            .startObject("properties")
+            .startObject("comments")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("cid")
+            .field("type", "long")
+            .endObject()
+            .startObject("identifier")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("tags")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("tid")
+            .field("type", "long")
+            .endObject()
+            .startObject("name")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("dates")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("day")
+            .field("type", "date")
+            .field("format", "date_optional_time")
+            .endObject()
+            .startObject("month")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("end")
+            .field("type", "date")
+            .field("format", "date_optional_time")
+            .endObject()
+            .startObject("start")
+            .field("type", "date")
+            .field("format", "date_optional_time")
+            .endObject()
+            .startObject("label")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertAcked(
+            prepareCreate("idx2").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("provider", mapping)
+        );
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2", "provider", "1")
-                .setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, " +
-                        "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [" +
-                        "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
-        indexRequests.add(client().prepareIndex("idx2", "provider", "2")
-                .setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, " +
-                        "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [" +
-                        "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(
+            client().prepareIndex("idx2", "provider", "1")
+                .setSource(
+                    "{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, "
+                        + "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": ["
+                        + "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}",
+                    XContentType.JSON
+                )
+        );
+        indexRequests.add(
+            client().prepareIndex("idx2", "provider", "2")
+                .setSource(
+                    "{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, "
+                        + "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": ["
+                        + "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}",
+                    XContentType.JSON
+                )
+        );
         indexRandom(true, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
-                .addAggregation(
-                        terms("startDate").field("dates.month.start").subAggregation(
-                                terms("endDate").field("dates.month.end").subAggregation(
-                                        terms("period").field("dates.month.label").subAggregation(
-                                                nested("ctxt_idfier_nested", "comments")
-                                                .subAggregation(filter("comment_filter", termQuery("comments.identifier", "29111"))
-                                                        .subAggregation(nested("nested_tags", "comments.tags")
-                                                                .subAggregation(
-                                                                        terms("tag").field("comments.tags.name")
-                                                                )
-                                                        )
+        SearchResponse response = client().prepareSearch("idx2")
+            .setTypes("provider")
+            .addAggregation(
+                terms("startDate").field("dates.month.start")
+                    .subAggregation(
+                        terms("endDate").field("dates.month.end")
+                            .subAggregation(
+                                terms("period").field("dates.month.label")
+                                    .subAggregation(
+                                        nested("ctxt_idfier_nested", "comments").subAggregation(
+                                            filter("comment_filter", termQuery("comments.identifier", "29111")).subAggregation(
+                                                nested("nested_tags", "comments.tags").subAggregation(
+                                                    terms("tag").field("comments.tags.name")
                                                 )
+                                            )
                                         )
-                                )
-                        )
-                ).get();
+                                    )
+                            )
+                    )
+            )
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
 
@@ -462,39 +514,58 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestedSameDocIdProcessedMultipleTime() throws Exception {
         assertAcked(
-                prepareCreate("idx4")
-                        .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            prepareCreate("idx4").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 
-        client().prepareIndex("idx4", "product", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("idx4", "product", "1")
+            .setSource(
+                jsonBuilder().startObject()
                     .field("name", "product1")
                     .array("categories", "1", "2", "3", "4")
                     .startArray("property")
-                        .startObject().field("id", 1).endObject()
-                        .startObject().field("id", 2).endObject()
-                        .startObject().field("id", 3).endObject()
+                    .startObject()
+                    .field("id", 1)
+                    .endObject()
+                    .startObject()
+                    .field("id", 2)
+                    .endObject()
+                    .startObject()
+                    .field("id", 3)
+                    .endObject()
                     .endArray()
-                .endObject()).get();
-        client().prepareIndex("idx4", "product", "2").setSource(jsonBuilder().startObject()
-                .field("name", "product2")
-                .array("categories", "1", "2")
-                .startArray("property")
-                .startObject().field("id", 1).endObject()
-                .startObject().field("id", 5).endObject()
-                .startObject().field("id", 4).endObject()
-                .endArray()
-                .endObject()).get();
+                    .endObject()
+            )
+            .get();
+        client().prepareIndex("idx4", "product", "2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("name", "product2")
+                    .array("categories", "1", "2")
+                    .startArray("property")
+                    .startObject()
+                    .field("id", 1)
+                    .endObject()
+                    .startObject()
+                    .field("id", 5)
+                    .endObject()
+                    .startObject()
+                    .field("id", 4)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("idx4").setTypes("product")
-                .addAggregation(terms("category").field("categories").subAggregation(
-                        nested("property", "property").subAggregation(
-                                terms("property_id").field("property.id")
-                        )
-                ))
-                .get();
+        SearchResponse response = client().prepareSearch("idx4")
+            .setTypes("product")
+            .addAggregation(
+                terms("category").field("categories")
+                    .subAggregation(nested("property", "property").subAggregation(terms("property_id").field("property.id")))
+            )
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
 
@@ -547,110 +618,150 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testFilterAggInsideNestedAgg() throws Exception {
-        assertAcked(prepareCreate("classes")
-                .addMapping("class", jsonBuilder().startObject().startObject("class").startObject("properties")
-                        .startObject("name").field("type", "text").endObject()
-                        .startObject("methods")
-                            .field("type", "nested")
-                            .startObject("properties")
-                                .startObject("name").field("type", "text").endObject()
-                                .startObject("return_type").field("type", "keyword").endObject()
-                                .startObject("parameters")
-                                    .field("type", "nested")
-                                    .startObject("properties")
-                                        .startObject("name").field("type", "text").endObject()
-                                        .startObject("type").field("type", "keyword").endObject()
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject().endObject().endObject().endObject()));
+        assertAcked(
+            prepareCreate("classes").addMapping(
+                "class",
+                jsonBuilder().startObject()
+                    .startObject("class")
+                    .startObject("properties")
+                    .startObject("name")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("methods")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("name")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("return_type")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("parameters")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("name")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("type")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
-        client().prepareIndex("classes", "class", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("classes", "class", "1")
+            .setSource(
+                jsonBuilder().startObject()
                     .field("name", "QueryBuilder")
                     .startArray("methods")
-                        .startObject()
-                            .field("name", "toQuery")
-                            .field("return_type", "Query")
-                            .startArray("parameters")
-                                .startObject()
-                                    .field("name", "context")
-                                    .field("type", "SearchExecutionContext")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                        .startObject()
-                            .field("name", "queryName")
-                            .field("return_type", "QueryBuilder")
-                            .startArray("parameters")
-                                .startObject()
-                                    .field("name", "queryName")
-                                    .field("type", "String")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                        .startObject()
-                            .field("name", "boost")
-                            .field("return_type", "QueryBuilder")
-                            .startArray("parameters")
-                                .startObject()
-                                    .field("name", "boost")
-                                    .field("type", "float")
-                                .endObject()
-                            .endArray()
-                        .endObject()
+                    .startObject()
+                    .field("name", "toQuery")
+                    .field("return_type", "Query")
+                    .startArray("parameters")
+                    .startObject()
+                    .field("name", "context")
+                    .field("type", "SearchExecutionContext")
+                    .endObject()
                     .endArray()
-                .endObject()).get();
-        client().prepareIndex("classes", "class", "2").setSource(jsonBuilder().startObject()
+                    .endObject()
+                    .startObject()
+                    .field("name", "queryName")
+                    .field("return_type", "QueryBuilder")
+                    .startArray("parameters")
+                    .startObject()
+                    .field("name", "queryName")
+                    .field("type", "String")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("name", "boost")
+                    .field("return_type", "QueryBuilder")
+                    .startArray("parameters")
+                    .startObject()
+                    .field("name", "boost")
+                    .field("type", "float")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        client().prepareIndex("classes", "class", "2")
+            .setSource(
+                jsonBuilder().startObject()
                     .field("name", "Document")
                     .startArray("methods")
-                        .startObject()
-                            .field("name", "add")
-                            .field("return_type", "void")
-                            .startArray("parameters")
-                                .startObject()
-                                    .field("name", "field")
-                                    .field("type", "IndexableField")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                        .startObject()
-                            .field("name", "removeField")
-                            .field("return_type", "void")
-                            .startArray("parameters")
-                                .startObject()
-                                    .field("name", "name")
-                                    .field("type", "String")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                        .startObject()
-                            .field("name", "removeFields")
-                            .field("return_type", "void")
-                            .startArray("parameters")
-                                .startObject()
-                                    .field("name", "name")
-                                    .field("type", "String")
-                                .endObject()
-                            .endArray()
-                        .endObject()
+                    .startObject()
+                    .field("name", "add")
+                    .field("return_type", "void")
+                    .startArray("parameters")
+                    .startObject()
+                    .field("name", "field")
+                    .field("type", "IndexableField")
+                    .endObject()
                     .endArray()
-                .endObject()).get();
+                    .endObject()
+                    .startObject()
+                    .field("name", "removeField")
+                    .field("return_type", "void")
+                    .startArray("parameters")
+                    .startObject()
+                    .field("name", "name")
+                    .field("type", "String")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("name", "removeFields")
+                    .field("return_type", "void")
+                    .startArray("parameters")
+                    .startObject()
+                    .field("name", "name")
+                    .field("type", "String")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("classes").addAggregation(nested("to_method", "methods")
-                .subAggregation(filter("num_string_params",
-                        nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)))
-        ).get();
+        SearchResponse response = client().prepareSearch("classes")
+            .addAggregation(
+                nested("to_method", "methods").subAggregation(
+                    filter(
+                        "num_string_params",
+                        nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)
+                    )
+                )
+            )
+            .get();
         Nested toMethods = response.getAggregations().get("to_method");
         Filter numStringParams = toMethods.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(3L));
 
-        response = client().prepareSearch("classes").addAggregation(nested("to_method", "methods")
-                .subAggregation(terms("return_type").field("methods.return_type").subAggregation(
-                                filter("num_string_params", nestedQuery("methods.parameters",
-                                        termQuery("methods.parameters.type", "String"), ScoreMode.None))
+        response = client().prepareSearch("classes")
+            .addAggregation(
+                nested("to_method", "methods").subAggregation(
+                    terms("return_type").field("methods.return_type")
+                        .subAggregation(
+                            filter(
+                                "num_string_params",
+                                nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)
+                            )
                         )
-                )).get();
+                )
+            )
+            .get();
         toMethods = response.getAggregations().get("to_method");
         Terms terms = toMethods.getAggregations().get("return_type");
         Bucket bucket = terms.getBucketByKey("void");
@@ -671,43 +782,47 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
         assertAcked(
-            prepareCreate("idxduplicatehitnames")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            prepareCreate("idxduplicatehitnames").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            ).addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxduplicatehitnames");
 
-        SearchRequestBuilder searchRequestBuilder = client()
-            .prepareSearch("idxduplicatehitnames")
-            .setQuery(boolQuery()
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1"))));
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("idxduplicatehitnames")
+            .setQuery(
+                boolQuery().should(
+                    nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1"))
+                )
+                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
+                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
+            );
 
         assertFailures(
             searchRequestBuilder,
             RestStatus.BAD_REQUEST,
-            containsString("[inner_hits] already contains an entry for key [ih1]"));
+            containsString("[inner_hits] already contains an entry for key [ih1]")
+        );
     }
 
     public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
         assertAcked(
-            prepareCreate("idxnullhitnames")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            prepareCreate("idxnullhitnames").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            ).addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxnullhitnames");
 
-        SearchRequestBuilder searchRequestBuilder = client()
-            .prepareSearch("idxnullhitnames")
-            .setQuery(boolQuery()
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder())));
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("idxnullhitnames")
+            .setQuery(
+                boolQuery().should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+            );
 
         assertFailures(
             searchRequestBuilder,
             RestStatus.BAD_REQUEST,
-            containsString("[inner_hits] already contains an entry for key [property]"));
+            containsString("[inner_hits] already contains an entry for key [property]")
+        );
     }
 }

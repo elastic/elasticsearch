@@ -16,10 +16,12 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface CardinalityAggregatorSupplier {
-    Aggregator build(String name,
-                     ValuesSourceConfig valuesSourceConfig,
-                     int precision,
-                     AggregationContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        int precision,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

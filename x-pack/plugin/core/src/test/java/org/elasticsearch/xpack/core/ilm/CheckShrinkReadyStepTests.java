@@ -361,7 +361,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .indices(indices.build())
                 .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
                     SingleNodeShutdownMetadata.builder()
-                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                        .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
                         .setStartedAtMillis(randomNonNegativeLong())
                         .setReason("test")
                         .setNodeId("node1")
@@ -412,7 +412,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .indices(indices.build())
             .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
                 SingleNodeShutdownMetadata.builder()
-                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                    .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setReason("test")
                     .setNodeId("node1")

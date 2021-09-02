@@ -192,6 +192,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
+        assert this.licenseLevel.equals(License.OperationMode.PLATINUM) || this.licenseLevel.equals(License.OperationMode.BASIC) :
+                "[" + LICENSE_LEVEL.getPreferredName() + "] only [platinum] or [basic] is supported";
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
         this.inferenceConfig = inferenceConfig;
         this.location = location;
@@ -330,6 +332,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return estimatedOperations;
     }
 
+    //TODO if we ever support anything other than "basic" and platinum, we need to adjust our feature tracking logic
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
     }

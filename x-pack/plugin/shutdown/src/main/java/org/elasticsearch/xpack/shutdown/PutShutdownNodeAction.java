@@ -78,7 +78,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             SingleNodeShutdownMetadata.Type type,
             String reason,
             @Nullable TimeValue allocationDelay,
-            String targetNodeName
+            @Nullable String targetNodeName
         ) {
             this.nodeId = nodeId;
             this.type = type;

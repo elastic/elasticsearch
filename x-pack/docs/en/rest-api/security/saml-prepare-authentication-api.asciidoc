@@ -77,7 +77,6 @@ POST /_security/saml/prepare
   "realm" : "saml1"
 }
 --------------------------------------------------
-// TEST[skip:Additional configuration needed in yml files]
 
 The following example generates a SAML authentication request for the SAML realm with an Assertion
 Consuming Service URL matching `https://kibana.org/api/security/saml/callback`
@@ -89,7 +88,6 @@ POST /_security/saml/prepare
   "acs" : "https://kibana.org/api/security/saml/callback"
 }
 --------------------------------------------------
-// TEST[skip:Additional configuration needed in yml files]
 
 This API returns the following response:
 

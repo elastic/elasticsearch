@@ -9,9 +9,11 @@
 package org.elasticsearch.gradle.internal.test;
 
 import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.InvalidPluginMetadataException;
 import org.gradle.testkit.runner.InvalidRunnerConfigurationException;
+import org.gradle.testkit.runner.TaskOutcome;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.gradle.testkit.runner.UnexpectedBuildSuccess;
 import org.jetbrains.annotations.Nullable;
@@ -21,14 +23,14 @@ import java.io.Writer;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class InternalAwareGradleRunner extends GradleRunner {
-    private GradleRunner delegate;
+import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString;
 
-    public InternalAwareGradleRunner(GradleRunner delegate) {
+public class NormalizeOutputGradleRunner extends GradleRunner {
+
+    public NormalizeOutputGradleRunner(GradleRunner delegate, File projectRootDir) {
         this.delegate = delegate;
+        this.projectRootDir = projectRootDir;
     }
 
     @Override
@@ -73,10 +75,7 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        List<String> collect = Stream.concat(arguments.stream(), Stream.of("-Dtest.external=true"))
-                .collect(Collectors.toList());
-        delegate.withArguments(collect);
-        return this;
+        return delegate.withArguments(arguments);
     }
 
     @Override
@@ -113,17 +112,17 @@ public class InternalAwareGradleRunner extends GradleRunner {
         return this;
     }
 
-    @Nullable
     @Override
     public Map<String, String> getEnvironment() {
         return delegate.getEnvironment();
     }
 
     @Override
-    public GradleRunner withEnvironment(@Nullable Map<String, String> map) {
+    public GradleRunner withEnvironment(Map<String, String> map) {
         delegate.withEnvironment(map);
         return this;
     }
+
 
     @Override
     public GradleRunner forwardStdOutput(Writer writer) {
@@ -145,11 +144,52 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public BuildResult build() throws InvalidRunnerConfigurationException, UnexpectedBuildFailure {
-        return delegate.build();
+        return new NormalizedBuildResult(delegate.build());
     }
 
     @Override
     public BuildResult buildAndFail() throws InvalidRunnerConfigurationException, UnexpectedBuildSuccess {
-        return delegate.buildAndFail();
+        return new NormalizedBuildResult(delegate.buildAndFail());
+    }
+
+    private GradleRunner delegate;
+    private File projectRootDir;
+
+    private class NormalizedBuildResult implements BuildResult {
+        private BuildResult delegate;
+        private String normalizedString;
+
+        NormalizedBuildResult(BuildResult delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getOutput() {
+            if (normalizedString == null) {
+                normalizedString = normalizeString(delegate.getOutput(), projectRootDir);
+            }
+            return normalizedString;
+        }
+
+        @Override
+        public List<BuildTask> getTasks() {
+            return delegate.getTasks();
+        }
+
+        @Override
+        public List<BuildTask> tasks(TaskOutcome taskOutcome) {
+            return delegate.tasks(taskOutcome);
+        }
+
+        @Override
+        public List<String> taskPaths(TaskOutcome taskOutcome) {
+            return delegate.taskPaths(taskOutcome);
+        }
+
+        @Nullable
+        @Override
+        public BuildTask task(String s) {
+            return delegate.task(s);
+        }
     }
 }

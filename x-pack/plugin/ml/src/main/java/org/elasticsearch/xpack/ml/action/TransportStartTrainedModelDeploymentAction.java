@@ -93,7 +93,7 @@ public class TransportStartTrainedModelDeploymentAction
 
         ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart =
             ActionListener.wrap(
-                modelAllocation -> waitForDeploymentStarted(
+                modelAllocation -> waitForDeploymentState(
                     request.getModelId(),
                     request.getTimeout(),
                     request.getWaitForState(),
@@ -183,7 +183,7 @@ public class TransportStartTrainedModelDeploymentAction
         );
     }
 
-    private void waitForDeploymentStarted(
+    private void waitForDeploymentState(
         String modelId,
         TimeValue timeout,
         AllocationState state,

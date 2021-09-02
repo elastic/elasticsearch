@@ -217,12 +217,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         });
     }
 
-    private static ClusterState update(
-        ClusterState currentState,
-        TrainedModelAllocationMetadata.Builder modelAllocations,
-        boolean force
-    ) {
-        if (force || modelAllocations.isChanged()) {
+    private static ClusterState update(ClusterState currentState, TrainedModelAllocationMetadata.Builder modelAllocations) {
+        if (modelAllocations.isChanged()) {
             return ClusterState.builder(currentState)
                 .metadata(
                     Metadata.builder(currentState.metadata()).putCustom(TrainedModelAllocationMetadata.NAME, modelAllocations.build())
@@ -231,10 +227,6 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         } else {
             return currentState;
         }
-    }
-
-    private static ClusterState update(ClusterState currentState, TrainedModelAllocationMetadata.Builder modelAllocations) {
-        return update(currentState, modelAllocations, false);
     }
 
     ClusterState createModelAllocation(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
@@ -287,8 +279,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             return clusterState;
         }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(clusterState);
-        final boolean isChanged = builder.getAllocation(modelId).stopAllocation(reason).isChanged();
-        return update(clusterState, builder, isChanged);
+        builder.getAllocation(modelId).stopAllocation(reason);
+        return update(clusterState, builder);
     }
 
     static ClusterState updateModelRoutingTable(ClusterState currentState, UpdateTrainedModelAllocationStateAction.Request request) {
@@ -313,11 +305,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             if (existingAllocation == null || existingAllocation.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
-            boolean isChanged = builder.getAllocation(modelId).removeRoutingEntry(nodeId).isChanged();
-            if (isChanged) {
-                isChanged |= builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes).isChanged();
-            }
-            return update(currentState, builder, isChanged);
+            builder.getAllocation(modelId).removeRoutingEntry(nodeId).calculateAndSetAllocationState(allocatableNodes);
+            return update(currentState, builder);
         }
 
         if (existingAllocation == null) {
@@ -336,12 +325,11 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (existingAllocation.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("allocation for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
         }
-        boolean isChanged = builder.getAllocation(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingState()).isChanged();
-        // Maybe the state has moved to STARTED or PARTIALLY_STARTED
-        if (isChanged) {
-            isChanged |= builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes).isChanged();
-        }
-        return update(currentState, builder, isChanged);
+        builder.getAllocation(modelId)
+            .updateExistingRoutingEntry(nodeId, request.getRoutingState())
+            .calculateAndSetAllocationState(allocatableNodes);
+
+        return update(currentState, builder);
     }
 
     static ClusterState removeAllocation(ClusterState currentState, String modelId) {
@@ -379,7 +367,6 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         // It could probably be O(max(n, m))
         // Add nodes and keep track of currently routed nodes
         // Should we indicate a partial allocation somehow if some nodes don't have space?
-        boolean isChanged = false;
         for (Map.Entry<String, TrainedModelAllocation> modelAllocationEntry : previousState.modelAllocations().entrySet()) {
             // Don't bother adding/removing nodes if this allocation is stopping
             if (modelAllocationEntry.getValue().getAllocationState().equals(AllocationState.STOPPING)) {
@@ -400,13 +387,13 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                         if (failure.isPresent()) {
                             nodeToReason.put(node.getName(), failure.get());
                         } else {
-                            isChanged |= builder.getAllocation(modelId).addNewRoutingEntry(node.getId()).isChanged();
+                            builder.getAllocation(modelId).addNewRoutingEntry(node.getId());
                         }
                     }
                 }
             }
             if (nodeToReason.isEmpty() == false) {
-                isChanged |= builder.getAllocation(modelId)
+                builder.getAllocation(modelId)
                     .setReason(
                         nodeToReason.entrySet()
                             .stream()
@@ -419,21 +406,20 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                                 )
                             )
                             .collect(Collectors.joining("|"))
-                    )
-                    .isChanged();
+                    );
             } else {
-                isChanged |= builder.getAllocation(modelId).clearReason().isChanged();
+                builder.getAllocation(modelId).clearReason();
             }
             for (String nodeId : modelAllocationEntry.getValue().getNodeRoutingTable().keySet()) {
                 if (currentNotShuttingDownNodes.contains(nodeId) == false) {
-                    isChanged |= builder.getAllocation(modelId).removeRoutingEntry(nodeId).isChanged();
+                    builder.getAllocation(modelId).removeRoutingEntry(nodeId);
                 }
             }
             // It may be we moved from STARTED to PARTIALLY_STARTED with the addition of new nodes
             // Or moved from PARTIALLY_STARTED to STARTED if a node was removed
-            isChanged |= builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes).isChanged();
+            builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes);
         }
-        return update(currentState, builder, isChanged);
+        return update(currentState, builder);
     }
 
     static boolean shouldAllocateModels(final ClusterChangedEvent event) {
@@ -492,8 +478,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     }
 
     /**
-     * Returns true if the given node is marked as shutting down with any
-     * shutdown type.
+     * Returns the set of nodes that are currently shutting down
      */
     static Set<String> nodesShuttingDown(final ClusterState state) {
         return NodesShutdownMetadata.getShutdowns(state)

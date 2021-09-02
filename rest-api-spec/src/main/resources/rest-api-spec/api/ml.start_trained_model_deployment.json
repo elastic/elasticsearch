@@ -37,7 +37,8 @@
       "wait_for":{
         "type":"string",
         "required":false,
-        "description":"The allocation state for which to wait. Valid values are: starting, partially_started, started",
+        "description":"The allocation state for which to wait",
+        "options": ["starting", "partially_started", "started"],
         "default": "started"
       }
     }

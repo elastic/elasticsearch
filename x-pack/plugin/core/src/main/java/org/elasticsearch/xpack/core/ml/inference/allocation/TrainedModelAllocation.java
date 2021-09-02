@@ -208,6 +208,12 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
+        // For testing purposes
+        Builder addRoutingEntry(String nodeId, RoutingState state) {
+            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(state, ""));
+            return this;
+        }
+
         public Builder addNewFailedRoutingEntry(String nodeId, String reason) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(

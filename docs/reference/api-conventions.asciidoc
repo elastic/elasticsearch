@@ -227,7 +227,7 @@ having to coordinate the necessary changes can be an impediment to upgrading.
 To enable an application to continue to function without modification after an upgrade, 
 you can include API compatibility headers that tell {es} that 
 you are still using the previous version of the REST API. 
-Using the headers allows the structure of requests and responses to remain the same,
+Using the headers allows the structure of requests and responses to remain the same;
 it does not guarantee the same behavior. 
 
 

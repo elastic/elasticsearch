@@ -138,11 +138,11 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.onlyIf(t -> isEnabled(project));
             });
 
-        String testTaskName = "yamlRestTestV"+ compatibleVersion + "Compat";
+        String testTaskName = "yamlRestTestV"+ compatibleVersion + "CompatTest";
 
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
-            .register(testTaskName + "Transform", RestCompatTestTransformTask.class, task -> {
+            .register("yamlRestTestV"+ compatibleVersion + "CompatTransform", RestCompatTestTransformTask.class, task -> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));

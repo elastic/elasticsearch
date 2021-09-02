@@ -175,7 +175,7 @@ def v7compatibilityNotSupportedTests = {
   ]
 }
 
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
       systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
 }
 

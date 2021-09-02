@@ -63,7 +63,7 @@ testClusters.all {
   }, PropertyNormalization.IGNORE_VALUE
 }
 
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'repository_url/10_basic/Get a non existing snapshot',
     'repository_url/10_basic/Restore with repository-url using http://',

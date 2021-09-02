@@ -142,7 +142,7 @@ def v7compatibilityNotSupportedTests = {
   ]
 }
 
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.

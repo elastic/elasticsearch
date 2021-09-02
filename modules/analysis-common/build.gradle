@@ -25,7 +25,7 @@ dependencies {
   compileOnly project(':modules:lang-painless')
 }
 
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'search.query/50_queries_with_synonyms/Test common terms query with stacked tokens',
     'indices.analyze/10_analyze/htmlStrip_deprecated',

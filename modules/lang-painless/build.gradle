@@ -49,7 +49,7 @@ tasks.named("test").configure {
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
     ].join(',')
 }

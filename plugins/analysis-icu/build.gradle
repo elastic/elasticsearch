@@ -37,7 +37,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
   ].join(',')

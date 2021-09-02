@@ -74,7 +74,7 @@ def v7compatibilityNotSupportedTests = {
           'indices.upgrade/*/*'
   ]
 }
-tasks.named("yamlRestTestV7Compat").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   onlyIf {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS

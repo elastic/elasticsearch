@@ -163,7 +163,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         internalCluster().startNodes(2, nonMasterNode());
         ensureStableCluster(5, (String) null);
 
-        assertAcked(prepareCreate(SOURCE_INDEX_NAME).addMapping(MATCH_FIELD, "type=keyword"));
+        assertAcked(prepareCreate(SOURCE_INDEX_NAME).addMapping("_doc", MATCH_FIELD, "type=keyword"));
         EnrichPolicy enrichPolicy = new EnrichPolicy(
             EnrichPolicy.MATCH_TYPE,
             null,
@@ -193,7 +193,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         internalCluster().startNodes(3);
         ensureStableCluster(3, (String) null);
 
-        assertAcked(prepareCreate(SOURCE_INDEX_NAME).addMapping(MATCH_FIELD, "type=keyword"));
+        assertAcked(prepareCreate(SOURCE_INDEX_NAME).addMapping("_doc", MATCH_FIELD, "type=keyword"));
         EnrichPolicy enrichPolicy = new EnrichPolicy(
             EnrichPolicy.MATCH_TYPE,
             null,

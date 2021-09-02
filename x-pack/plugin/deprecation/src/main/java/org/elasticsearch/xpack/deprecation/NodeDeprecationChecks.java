@@ -534,7 +534,7 @@ class NodeDeprecationChecks {
             && clusterState.getNodes().getDataNodes().size() == 1 && clusterState.getNodes().getLocalNode().isMasterNode()) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT, "the default value [false] of setting [%s] is deprecated and will be changed to true" +
                     " in a future version. This cluster has only one data node and behavior will therefore change when upgrading", key),
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +

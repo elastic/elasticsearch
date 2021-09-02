@@ -735,7 +735,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                 "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+        DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "the default value [false] of setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node]" +
                 " is deprecated and will be changed to true in a future version." +
                 " This cluster has only one data node and behavior will therefore change when upgrading",

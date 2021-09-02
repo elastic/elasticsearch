@@ -45,7 +45,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         static final TimestampFieldType INSTANCE = new TimestampFieldType();
 
-        public TimestampFieldType() {
+        private TimestampFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
         }
 

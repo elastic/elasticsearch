@@ -36,6 +36,14 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         assertThat(response.indices().length, is(1));
     }
 
+    public void testAutoCreatePrimaryIndexFromAlias() throws Exception {
+        CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
+        client().execute(AutoCreateAction.INSTANCE, request).get();
+
+        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        assertThat(response.indices().length, is(1));
+    }
+
     public void testAutoCreateNonPrimaryIndex() throws Exception {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
         client().execute(AutoCreateAction.INSTANCE, request).get();

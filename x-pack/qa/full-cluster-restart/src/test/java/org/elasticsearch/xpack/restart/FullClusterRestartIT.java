@@ -816,7 +816,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 putBody.startObject();
                 {
                     // Use the types available from as early as possible
-                    final String type = randomFrom("restart", "replace");
+                    final String type = randomFrom("restart", "remove");
                     putBody.field("type", type);
                     putBody.field("reason", this.getTestName());
                 }

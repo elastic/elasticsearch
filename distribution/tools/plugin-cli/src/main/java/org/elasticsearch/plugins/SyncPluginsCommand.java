@@ -59,6 +59,23 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
         final boolean isPurge = options.has(purgeOption);
         final boolean isDry = options.has(dryOption);
 
+        execute(terminal, env, isBatch, isPurge, isDry);
+    }
+
+    protected void execute(Terminal terminal, Environment env, boolean isBatch, boolean isPurge, boolean isDry) throws Exception {
+        final RemovePluginAction removePluginAction = new RemovePluginAction(terminal, env, isPurge);
+        final InstallPluginAction installPluginAction = new InstallPluginAction(terminal, env, isBatch);
+
+        execute(terminal, env, isDry, removePluginAction, installPluginAction);
+    }
+
+    protected void execute(
+        Terminal terminal,
+        Environment env,
+        boolean isDry,
+        RemovePluginAction removePluginAction,
+        InstallPluginAction installPluginAction
+    ) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new UserException(1, "Plugins directory missing: " + env.pluginsFile());
         }
@@ -86,18 +103,12 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
 
         // 5. Remove any plugins that are not in the descriptor
         if (pluginsToRemove.isEmpty() == false) {
-            final RemovePluginAction removePluginAction = new RemovePluginAction(terminal, env, isPurge);
             removePluginAction.execute(pluginsToRemove);
         }
 
         // 6. Add any plugins that are in the descriptor but missing from disk
         if (pluginsToInstall.isEmpty() == false) {
-            final InstallPluginAction installPluginAction = new InstallPluginAction(
-                terminal,
-                env,
-                isBatch,
-                buildProxy(pluginsManifest.getProxy())
-            );
+            installPluginAction.setProxy(buildProxy(pluginsManifest.getProxy()));
             installPluginAction.execute(pluginsToInstall);
         }
     }

@@ -10,11 +10,12 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.Proxy;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Path;
 
 /**
@@ -31,39 +32,66 @@ public class ProxyUtils {
      * @throws UserException when passed an invalid URI
      */
     static void validateProxy(String proxy, String pluginId, Path manifestPath) throws UserException {
-        String pluginDescription = pluginId == null ? "" : "for plugin [" + pluginId + "] ";
+        String pluginDescription = pluginId == null ? "" : " for plugin [" + pluginId + "]";
+        String message = "Malformed [proxy]" + pluginDescription + ", expected [host:port] in " + manifestPath;
+
         try {
-            URI uri = new URI(proxy);
-            if (uri.getHost().isBlank()) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed host " + pluginDescription + "in [proxy] value in: " + manifestPath);
+            String proxyUrl;
+            if (proxy.matches("^(?:https?|socks[45]?)://.*")) {
+                proxyUrl = proxy;
+            } else {
+                String[] parts = proxy.split(":");
+                if (parts.length != 2) {
+                    throw new UserException(ExitCodes.CONFIG, message);
+                }
+                proxyUrl = "http://" + proxy;
             }
-            if (uri.getPort() == -1) {
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "Malformed or missing port " + pluginDescription + "in [proxy] value in: " + manifestPath
-                );
+            URL url = new URL(proxyUrl);
+            if (url.getHost().isBlank()) {
+                throw new UserException(ExitCodes.CONFIG, message);
             }
-        } catch (URISyntaxException e) {
-            throw new UserException(ExitCodes.CONFIG, "Malformed [proxy] value " + pluginDescription + "in: " + manifestPath);
+            if (url.getPort() == -1) {
+                throw new UserException(ExitCodes.CONFIG, message);
+            }
+        } catch (MalformedURLException e) {
+            throw new UserException(ExitCodes.CONFIG, message);
         }
     }
 
     /**
-     * Constructs an HTTP proxy from the given URI string. Assumes that the string has already been validated using
-     * {@link #validateProxy(String, String, Path)}.
+     * Constructs a proxy from the given string. Assumes that the string has already been validated using
+     * {@link #validateProxy(String, String, Path)}. If {@code null} is passed, then either a proxy will
+     * be returned using the system proxy settings, or {@link Proxy#NO_PROXY} will be returned.
      *
-     * @param proxy the string to use
+     * @param proxy the string to use, which must either be a well-formed URL or have the form "host:port"
      * @return a proxy
      */
     static Proxy buildProxy(String proxy) throws UserException {
+        String proxyUrl;
+
         if (proxy == null) {
-            return Proxy.NO_PROXY;
+            String proxyHost = System.getProperty("http.proxyHost");
+            String proxyPort = System.getProperty("http.proxyPort");
+            if (Strings.isNullOrEmpty(proxyHost) == false && Strings.isNullOrEmpty(proxyPort) == false) {
+                proxy = "http://" + proxyHost + ":" + proxyPort;
+            } else {
+                return Proxy.NO_PROXY;
+            }
+        }
+
+        if (proxy.matches("^(?:https?|socks[45]?)://.*")) {
+            proxyUrl = proxy;
+        } else {
+            proxyUrl = "http://" + proxy;
         }
 
         try {
-            URI uri = new URI(proxy);
-            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(uri.getHost(), uri.getPort()));
-        } catch (URISyntaxException e) {
+            URL url = new URL(proxyUrl);
+            return new Proxy(
+                url.getProtocol().startsWith("socks") ? Proxy.Type.SOCKS : Proxy.Type.HTTP,
+                new InetSocketAddress(url.getHost(), url.getPort())
+            );
+        } catch (MalformedURLException e) {
             throw new UserException(ExitCodes.CONFIG, "Malformed proxy value : [" + proxy + "]");
         }
     }

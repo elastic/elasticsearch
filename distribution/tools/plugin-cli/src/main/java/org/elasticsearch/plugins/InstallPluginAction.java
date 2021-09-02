@@ -180,17 +180,16 @@ class InstallPluginAction implements Closeable {
     private final Terminal terminal;
     private Environment env;
     private boolean batch;
-    private Proxy proxy;
+    private Proxy proxy = Proxy.NO_PROXY;
 
     InstallPluginAction(Terminal terminal, Environment env) {
-        this(terminal, env, false, Proxy.NO_PROXY);
+        this(terminal, env, false);
     }
 
-    InstallPluginAction(Terminal terminal, Environment env, boolean batch, Proxy proxy) {
+    InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
         this.env = env;
         this.batch = batch;
-        this.proxy = proxy;
     }
 
     // pkg private for testing

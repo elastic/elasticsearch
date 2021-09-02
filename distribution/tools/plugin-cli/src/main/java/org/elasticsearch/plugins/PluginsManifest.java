@@ -67,7 +67,7 @@ public class PluginsManifest {
 
     }
 
-    public static PluginsManifest parseManifest(Environment env) throws UserException, IOException {
+    public static PluginsManifest parseManifest(Environment env) throws UserException {
         final Path manifestPath = env.configFile().resolve("elasticsearch-plugins.yml");
         if (Files.exists(manifestPath) == false) {
             throw new UserException(1, "Plugin manifest file missing: " + manifestPath);
@@ -78,7 +78,8 @@ public class PluginsManifest {
 
         PluginsManifest pluginsManifest;
         try {
-            pluginsManifest = mapper.readValue(manifestPath.toFile(), PluginsManifest.class);
+            byte[] manifestBytes = Files.readAllBytes(manifestPath);
+            pluginsManifest = mapper.readValue(manifestBytes, PluginsManifest.class);
         } catch (IOException e) {
             throw new UserException(2, "Cannot parse plugin manifest file [" + manifestPath + "]: " + e.getMessage());
         }

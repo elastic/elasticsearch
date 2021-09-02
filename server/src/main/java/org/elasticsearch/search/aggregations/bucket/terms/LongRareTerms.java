@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
@@ -88,8 +87,15 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
         }
     }
 
-    LongRareTerms(String name, BucketOrder order, Map<String, Object> metadata, DocValueFormat format,
-                  List<LongRareTerms.Bucket> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
+    LongRareTerms(
+        String name,
+        BucketOrder order,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        List<LongRareTerms.Bucket> buckets,
+        long maxDocCount,
+        SetBackedScalingCuckooFilter filter
+    ) {
         super(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 

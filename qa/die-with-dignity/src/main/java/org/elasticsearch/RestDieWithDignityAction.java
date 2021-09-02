@@ -9,8 +9,12 @@
 package org.elasticsearch;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
@@ -32,7 +36,23 @@ public class RestDieWithDignityAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        throw new OutOfMemoryError("die with dignity");
+        return channel -> {
+            /*
+             * This is to force the size of the array to be non-deterministic so that a sufficiently smart compiler can not optimize away
+             * getting the length of the array to a constant.
+             */
+            final int length = Randomness.get().nextBoolean() ? Integer.MAX_VALUE - 1 : Integer.MAX_VALUE;
+            final long[] array = new long[length];
+            // this is to force the array to be consumed so that it can not be optimized away by a sufficiently smart compiler
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                {
+                    builder.field("length", array.length);
+                }
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 
 }

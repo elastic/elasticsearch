@@ -25,7 +25,7 @@ public class DateHistogramValuesSource extends LongValuesSource implements Sized
         MappedFieldType fieldType,
         RoundingValuesSource roundingValuesSource,
         DocValueFormat format,
-        boolean missingBucket,
+        MissingBucket missingBucket,
         int size,
         int reverseMul
     ) {

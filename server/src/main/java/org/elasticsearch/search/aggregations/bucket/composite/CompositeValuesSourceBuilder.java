@@ -53,7 +53,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        // TODO: use V_7_16_0 once PR is backported to 7.x
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.missingBucket = MissingBucket.readFromStream(in);
         } else {
             this.missingBucket = in.readBoolean() ? MissingBucket.INCLUDE : MissingBucket.IGNORE;
@@ -76,7 +77,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             userValueTypeHint.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        // TODO: use V_7_16_0 once PR is backported to 7.x
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             missingBucket.writeTo(out);
         } else {
             out.writeBoolean(missingBucket.include());

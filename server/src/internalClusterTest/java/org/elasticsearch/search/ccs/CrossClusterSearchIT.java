@@ -11,10 +11,12 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -24,13 +26,18 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.JoinHitLookupBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
@@ -51,8 +58,12 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -208,6 +219,121 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
+    }
+
+    /**
+     * Makes sure the join hit lookup is executed on the local cluster
+     */
+    public void testLookupJoinHits() throws Exception {
+        // Sometimes create the `user` index on the remote cluster
+        if (randomBoolean()) {
+            cluster("cluster_a").ensureAtMostNumDataNodes(1);
+        }
+        if (randomBoolean()) {
+            cluster(LOCAL_CLUSTER).ensureAtMostNumDataNodes(1);
+        }
+        if (randomBoolean()) {
+            cluster("cluster_a").ensureAtMostNumDataNodes(1);
+        }
+        if (randomBoolean()) {
+            cluster("cluster_a").client()
+                .admin().indices().prepareCreate("user")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .get();
+            cluster("cluster_a").client().prepareBulk("user")
+                .add(new IndexRequest().id("u1").source("device", "ios", "name", "Remote Kim"))
+                .add(new IndexRequest().id("u2").source("device", "android", "name", "Remote Joe"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+        client()
+            .admin().indices().prepareCreate("user")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .get();
+        client().prepareBulk("user")
+            .add(new IndexRequest().id("u1").source("device", "ios", "name", "John New York"))
+            .add(new IndexRequest().id("u2").source("device", "android", "name", "Mike Boston"))
+            .add(new IndexRequest().id("u3").source("device", "linux", "name", "Jack Austin"))
+            .add(new IndexRequest().id("u4").source("device", "macos", "name", "Tony London"))
+            .add(new IndexRequest().id("u5").source("device", "macos", "name", "Tim Tokyo"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Calls on the remote cluster
+        client().admin().indices().prepareCreate("call")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
+            .get();
+        client().prepareBulk("call")
+            .add(new IndexRequest().source("from_user", "u1", "to_user", List.of("u2", "u4"), "duration", 20))
+            .add(new IndexRequest().source("from_user", "u2", "to_user", "u1", "duration", 25))
+            .add(new IndexRequest().source("from_user", "u3", "to_user", "u5", "duration", 30))
+            .add(new IndexRequest().source("from_user", "u4", "to_user", List.of("u1"), "duration", 35))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Calls on the remote cluster
+        cluster("cluster_a").client().admin().indices().prepareCreate("call")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
+            .get();
+        cluster("cluster_a").client().prepareBulk("call")
+            .add(new IndexRequest().source("from_user", "u1", "to_user", "u2", "duration", 45))
+            .add(new IndexRequest().source("from_user", "u2", "to_user", "u1", "duration", 50))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Search the remote index only
+        {
+            final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+                .query(new TermQueryBuilder("from_user", "u1"))
+                .sort(new FieldSortBuilder("duration"))
+                .fetchField("from_user")
+                .lookupJoinHitBuilder(new JoinHitLookupBuilder("from_user", "user", "from_user"));
+            final SearchRequest request = new SearchRequest("cluster_a:call").source(searchSourceBuilder);
+            request.setCcsMinimizeRoundtrips(randomBoolean());
+            final SearchResponse response = client().search(request).actionGet();
+            final SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits, arrayWithSize(1));
+            final List<SearchHit.JoinHit> fromUsers = hits[0].getJoinHits().get("from_user");
+            assertThat(fromUsers, hasSize(1));
+            assertThat(fromUsers.get(0).getId(), equalTo("u1"));
+            assertThat(fromUsers.get(0).getFailure(), nullValue());
+            assertThat(SourceLookup.sourceAsMap(fromUsers.get(0).getSource()).get("name"), equalTo("John New York"));
+            assertThat(SourceLookup.sourceAsMap(fromUsers.get(0).getSource()).get("device"), equalTo("ios"));
+        }
+
+        // Search both local and remote indices
+        {
+            final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+                .query(new TermQueryBuilder("from_user", "u1"))
+                .sort(new FieldSortBuilder("duration"))
+                .lookupJoinHitBuilder(new JoinHitLookupBuilder("to_user", "user", "to_user"))
+                .fetchField("to_user");
+            final SearchRequest request = new SearchRequest("call", "cluster_a:call").source(searchSourceBuilder);
+            request.setCcsMinimizeRoundtrips(randomBoolean());
+            final SearchResponse response = client().search(request).actionGet();
+            final SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits, arrayWithSize(2));
+
+            List<SearchHit.JoinHit> toUsers = hits[0].getJoinHits().get("to_user");
+            assertThat(toUsers, hasSize(2));
+            assertThat(toUsers.get(0).getId(), equalTo("u2"));
+            assertThat(toUsers.get(0).getFailure(), nullValue());
+            assertThat(SourceLookup.sourceAsMap(toUsers.get(0).getSource()).get("name"), equalTo("Mike Boston"));
+            assertThat(SourceLookup.sourceAsMap(toUsers.get(0).getSource()).get("device"), equalTo("android"));
+            assertThat(toUsers.get(1).getId(), equalTo("u4"));
+            assertThat(toUsers.get(1).getFailure(), nullValue());
+            assertThat(SourceLookup.sourceAsMap(toUsers.get(1).getSource()).get("name"), equalTo("Tony London"));
+            assertThat(SourceLookup.sourceAsMap(toUsers.get(1).getSource()).get("device"), equalTo("macos"));
+
+            toUsers = hits[1].getJoinHits().get("to_user");
+            assertThat(toUsers, hasSize(1));
+            assertThat(toUsers.get(0).getId(), equalTo("u2"));
+            assertThat(toUsers.get(0).getFailure(), nullValue());
+            assertThat(SourceLookup.sourceAsMap(toUsers.get(0).getSource()).get("name"), equalTo("Mike Boston"));
+            assertThat(SourceLookup.sourceAsMap(toUsers.get(0).getSource()).get("device"), equalTo("android"));
+        }
     }
 
     @Override

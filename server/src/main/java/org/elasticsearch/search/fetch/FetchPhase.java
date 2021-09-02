@@ -13,18 +13,28 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.LookupJoinHitSearchPhase;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -153,8 +163,9 @@ public class FetchPhase {
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();
-        context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
-
+        final SearchHits searchHits = new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
+        tryLookupJoinHitsLocally(fetchContext.getSearchContext(), searchHits);
+        context.fetchResult().hits(searchHits);
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context) {
@@ -426,6 +437,57 @@ public class FetchPhase {
      * stored sequentially (Dn = Dn-1 + 1).
      */
     static boolean hasSequentialDocs(DocIdToIndex[] docs) {
-        return docs.length > 0 && docs[docs.length-1].docId - docs[0].docId == docs.length - 1;
+        return docs.length > 0 && docs[docs.length - 1].docId - docs[0].docId == docs.length - 1;
+    }
+
+    /**
+     * An optimization of {@link org.elasticsearch.action.search.LookupJoinHitSearchPhase} that tries to lookup join hits from shards
+     * that are allocated on this node to avoid network requests if these lookup requests are executed on the coordinating node.
+     */
+    static void tryLookupJoinHitsLocally(SearchContext searchContext, SearchHits searchHits) {
+        // We can't fetch join hits on the remote cluster
+        if (searchContext.request().getClusterAlias() != null) {
+            return;
+        }
+        if (searchContext.request().source() == null || searchContext.request().source().lookupJoinHitBuilders().isEmpty()) {
+            return;
+        }
+        final ClusterState clusterState = searchContext.clusterService().state();
+        final IndexNameExpressionResolver indexNameExpressionResolver = searchContext.indicesService().getIndexNameExpressionResolver();
+        final List<LookupJoinHitSearchPhase.LookupRequest> lookupRequests =
+            LookupJoinHitSearchPhase.getLookupRequests(searchContext.request().source().lookupJoinHitBuilders(), searchHits);
+        for (LookupJoinHitSearchPhase.LookupRequest lookupRequest : lookupRequests) {
+            final SearchHit.JoinHit joinHit;
+            try {
+                final IndicesRequest indicesRequest = new IndicesRequest() {
+                    @Override
+                    public String[] indices() {
+                        return new String[]{lookupRequest.getIndex()};
+                    }
+
+                    @Override
+                    public IndicesOptions indicesOptions() {
+                        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+                    }
+                };
+                final String indexName = indexNameExpressionResolver.concreteSingleIndex(clusterState, indicesRequest).getName();
+                final ShardId shardId = searchContext.clusterService().operationRouting().shardId(
+                    clusterState, indexName, lookupRequest.getMatchId(), null);
+                final IndexShard indexShard = searchContext.indicesService().getShardOrNull(shardId);
+                if (indexShard == null) {
+                    continue;
+                }
+                final GetResult getResult = indexShard.getService().get(lookupRequest.getMatchId(),
+                    lookupRequest.getQuery().getStoredFields(), true, Versions.MATCH_ANY, VersionType.INTERNAL,
+                    lookupRequest.getQuery().getFetchSourceContext());
+                joinHit = LookupJoinHitSearchPhase.joinHitFromGetResult(lookupRequest, getResult);
+            } catch (Exception ignored) {
+                // Ok, we will try to lookup join hits again on the coordinating node
+                continue;
+            }
+            for (SearchHit leftHit : lookupRequest.getLeftHits()) {
+                leftHit.addJoinHit(lookupRequest.getName(), joinHit);
+            }
+        }
     }
 }

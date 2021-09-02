@@ -1,0 +1,180 @@
+setup:
+  - do:
+      indices.create:
+        index: user
+        body:
+          mappings:
+            properties:
+              name:
+                type: text
+              device:
+                type: text
+              city:
+                type: text
+  - do:
+      index:
+        index: user
+        id: u1
+        body: { name: 'John New York', department: Engineering, region: 'New york' }
+
+  - do:
+      index:
+        index: user
+        id: u2
+        body: { name: 'Mike Boston', department: Sales, region: 'Boston' }
+
+  - do:
+      index:
+        index: user
+        id: u3
+        body: { name: 'Jack Austin', department: Marketing, region: 'Austin' }
+
+  - do:
+      index:
+        index: user
+        id: u4
+        body: { name: 'Tony London', department: Sales, region: 'London' }
+
+  - do:
+      index:
+        index: user
+        id: u5
+        body: { name: 'Tim Tokyo', department: Sales, region: 'Tokyo' }
+
+  - do:
+      indices.create:
+        index: call
+        body:
+          mappings:
+            properties:
+              from_user:
+                type: keyword
+              to_user:
+                type: keyword
+              start_time:
+                type: date
+                format: 'yyyy-MM-dd HH:mm:ss'
+              end_time:
+                type: date
+                format: 'yyyy-MM-dd HH:mm:ss'
+
+  - do:
+      index:
+        index: call
+        body: { from: 'u1', to: 'u2', start_time: '2020-08-20 08:30:01', end_time: '2020-08-20 08:40:01' }
+
+  - do:
+      index:
+        index: call
+        body: { from: 'u2', to: [ 'u1', 'u3' ], start_time: '2020-08-20 08:45:01', end_time: '2020-08-20 09:20:01' }
+
+  - do:
+      index:
+        index: call
+        body: { from: 'u1', to: [ 'u2', 'u3' ], start_time: '2020-08-21 10:01:01', end_time: '2020-08-21 10:15:01' }
+
+  - do:
+      index:
+        index: call
+        body: { from: 'unknown', to: [ 'u5' ], start_time: '2030-01-01 10:01:01', end_time: '2030-01-01 10:15:01' }
+
+  - do:
+      indices.refresh:
+        index: "user,call"
+
+---
+"Lookup join hits by id":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Lookup join hits by ids are introduced in 8.0"
+  - do:
+      search:
+        index: call
+        body:
+          query:
+            match:
+              from: 'u1'
+          _source: false
+          sort: start_time
+          fields:
+            - from
+            - to
+            - start_time
+            - end_time
+          join_hits:
+            - name: from_user
+              index: user
+              match_field: from
+
+            - name: to_user
+              index: user
+              match_field: to
+              _source:
+                - name
+                - department
+
+  - match: { hits.hits.0.fields.from: [ 'u1' ] }
+  - match: { hits.hits.0.fields.to: [ 'u2' ] }
+  - match: { hits.hits.0.fields.start_time: [ '2020-08-20 08:30:01' ] }
+  - match: { hits.hits.0.fields.end_time: [ '2020-08-20 08:40:01' ] }
+  - match: { hits.hits.0.join_hits.from_user.0._id: 'u1' }
+  - match: { hits.hits.0.join_hits.from_user.0._source.name: 'John New York' }
+  - match: { hits.hits.0.join_hits.from_user.0._source.department: 'Engineering' }
+  - match: { hits.hits.0.join_hits.from_user.0._source.region: 'New york' }
+  - match: { hits.hits.0.join_hits.to_user.0._id: 'u2' }
+  - match: { hits.hits.0.join_hits.to_user.0._source.name: 'Mike Boston' }
+  - match: { hits.hits.0.join_hits.to_user.0._source.department: 'Sales' }
+  - match: { hits.hits.1.join_hits.to_user.0._source.region: null }
+
+  - match: { hits.hits.1.fields.from: [ 'u1' ] }
+  - match: { hits.hits.1.fields.to: [ 'u2', 'u3' ] }
+  - match: { hits.hits.1.fields.start_time: [ '2020-08-21 10:01:01' ] }
+  - match: { hits.hits.1.fields.end_time: [ '2020-08-21 10:15:01' ] }
+  - match: { hits.hits.1.join_hits.from_user.0._id: 'u1' }
+  - match: { hits.hits.1.join_hits.from_user.0._source.name: 'John New York' }
+  - match: { hits.hits.1.join_hits.from_user.0._source.department: 'Engineering' }
+  - match: { hits.hits.1.join_hits.from_user.0._source.region: 'New york' }
+  - match: { hits.hits.1.join_hits.to_user.0._id: 'u2' }
+  - match: { hits.hits.1.join_hits.to_user.0._source.name: 'Mike Boston' }
+  - match: { hits.hits.1.join_hits.to_user.0._source.department: 'Sales' }
+  - match: { hits.hits.1.join_hits.to_user.1._id: 'u3' }
+  - match: { hits.hits.1.join_hits.to_user.1._source.name: 'Jack Austin' }
+  - match: { hits.hits.1.join_hits.to_user.1._source.department: 'Marketing' }
+  - match: { hits.hits.1.join_hits.to_user.1._source.region: null }
+
+  - do:
+      search:
+        index: call
+        body:
+          query:
+            match:
+              to: 'u5'
+          _source: false
+          sort: start_time
+          fields:
+            - from
+            - to
+            - start_time
+            - end_time
+          join_hits:
+            - name: from_user
+              index: user
+              match_field: from
+
+            - name: to_user
+              index: user
+              match_field: to
+              _source:
+                - name
+                - department
+
+  - match: { hits.hits.0.fields.from: [ 'unknown' ] }
+  - match: { hits.hits.0.fields.to: [ 'u5' ] }
+  - match: { hits.hits.0.fields.start_time: [ '2030-01-01 10:01:01' ] }
+  - match: { hits.hits.0.fields.end_time: [ '2030-01-01 10:15:01' ] }
+  - match: { hits.hits.0.join_hits.from_user.0._id: 'unknown' }
+  - match: { hits.hits.0.join_hits.from_user.0.error.type: 'resource_not_found_exception' }
+  - match: { hits.hits.0.join_hits.from_user.0.error.reason: "join hit for id [unknown] on index [user] doesn't exist" }
+  - match: { hits.hits.0.join_hits.to_user.0._id: 'u5' }
+  - match: { hits.hits.0.join_hits.to_user.0._source.name: 'Tim Tokyo' }
+  - match: { hits.hits.0.join_hits.to_user.0._source.department: 'Sales' }

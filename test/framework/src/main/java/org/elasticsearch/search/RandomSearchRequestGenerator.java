@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.JoinHitLookupBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -371,6 +372,13 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.runtimeMappings(randomRuntimeMappings.get());
+        }
+        if (randomBoolean()) {
+            int numJoinHitLookups = randomIntBetween(1, 5);
+            for (int i = 0; i < numJoinHitLookups; i++) {
+                builder.lookupJoinHitBuilder(
+                    new JoinHitLookupBuilder("group-" + between(1, 5), "index-" + between(1, 5), "field-" + between(1, 5)));
+            }
         }
         return builder;
     }

@@ -106,6 +106,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    public static final ParseField JOIN_HITS = new ParseField("join_hits");
+
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -165,6 +167,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
     private List<FieldAndFormat> fetchFields;
+    private List<JoinHitLookupBuilder> joinHitLookupBuilders = List.of();
 
     private AggregatorFactories.Builder aggregations;
 
@@ -252,6 +255,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             runtimeMappings = in.readMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            joinHitLookupBuilders = in.readList(JoinHitLookupBuilder::new);
+        } else {
+            joinHitLookupBuilders = List.of();
+        }
     }
 
     @Override
@@ -321,6 +329,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     "Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
                 );
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeList(joinHitLookupBuilders);
         }
     }
 
@@ -920,6 +931,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return scriptFields;
     }
 
+
+    public List<JoinHitLookupBuilder> lookupJoinHitBuilders() {
+        return joinHitLookupBuilders;
+    }
+
+    public SearchSourceBuilder lookupJoinHitBuilder(JoinHitLookupBuilder builder) {
+        if (joinHitLookupBuilders.isEmpty()) {
+            joinHitLookupBuilders = new ArrayList<>();
+        }
+        joinHitLookupBuilders.add(builder);
+        return this;
+    }
+
     /**
      * Sets the boost a specific index or alias will receive when the query is executed
      * against it.
@@ -1042,6 +1066,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (rewritten) {
             return shallowCopy(queryBuilder, postQueryBuilder, aggregations, this.sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
         }
+
+        // TODO: Should we automatically add fields that are needed by join hit lookup?
         return this;
     }
 
@@ -1092,6 +1118,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
+        rewrittenBuilder.joinHitLookupBuilders = joinHitLookupBuilders;
         return rewrittenBuilder;
     }
 
@@ -1277,6 +1304,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                 } else if (SEARCH_AFTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
+                } else if (JOIN_HITS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        lookupJoinHitBuilder(JoinHitLookupBuilder.fromXContent(parser));
+                    }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1448,6 +1479,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
 
+        if (joinHitLookupBuilders.isEmpty() == false) {
+            builder.startArray(JOIN_HITS.getPreferredName());
+            for (JoinHitLookupBuilder joinHitLookupBuilder : joinHitLookupBuilders) {
+                builder.value(joinHitLookupBuilder);
+            }
+            builder.endArray();
+        }
         return builder;
     }
 
@@ -1660,7 +1698,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.hash(aggregations, explain, fetchSourceContext, fetchFields, docValueFields, storedFieldsContext, from,
             highlightBuilder, indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
             sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, pointInTimeBuilder, runtimeMappings);
+            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, pointInTimeBuilder, runtimeMappings,
+            joinHitLookupBuilders);
     }
 
     @Override
@@ -1702,7 +1741,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(collapse, other.collapse)
                 && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
                 && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
-                && Objects.equals(runtimeMappings, other.runtimeMappings);
+                && Objects.equals(runtimeMappings, other.runtimeMappings)
+                && Objects.equals(joinHitLookupBuilders, other.joinHitLookupBuilders);
     }
 
     @Override

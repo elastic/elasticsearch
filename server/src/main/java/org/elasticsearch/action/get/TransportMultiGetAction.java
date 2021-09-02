@@ -94,6 +94,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                                       Map<ShardId, MultiGetShardRequest> shardRequests) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
+        // TODO: Limit the number of outstanding get requests like we did with MultiSearch?
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
             client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener.Delegating<>(listener) {
                 @Override

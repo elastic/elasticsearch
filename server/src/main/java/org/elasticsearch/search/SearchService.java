@@ -309,6 +309,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
     }
 
+    public boolean isAllowExpensiveQueries() {
+        return indicesService.isAllowExpensiveQueries();
+    }
+
     @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
@@ -808,7 +812,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try {
             SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 reader.indexShard().shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-            searchContext = new DefaultSearchContext(reader, request, shardTarget,
+            searchContext = new DefaultSearchContext(clusterService, indicesService, reader, request, shardTarget,
                 threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

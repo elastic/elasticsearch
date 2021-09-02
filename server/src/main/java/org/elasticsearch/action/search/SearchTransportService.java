@@ -14,6 +14,9 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OriginSettingClient;
@@ -188,6 +191,12 @@ public class SearchTransportService {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
         transportService.sendChildRequest(connection, MultiSearchAction.NAME, request, task,
                 new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId()));
+    }
+
+    void sendMultiGetRequest(MultiGetRequest multiGetRequest, SearchTask task, ActionListener<MultiGetResponse> listener) {
+        final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
+        transportService.sendChildRequest(connection, MultiGetAction.NAME, multiGetRequest, task,
+            new ConnectionCountingHandler<>(listener, MultiGetResponse::new, clientConnections, connection.getNode().getId()));
     }
 
     public RemoteClusterService getRemoteClusterService() {

@@ -214,4 +214,8 @@ public class FetchContext {
             return hitContext.sourceLookup();
         }
     }
+
+    public SearchContext getSearchContext() {
+        return searchContext;
+    }
 }

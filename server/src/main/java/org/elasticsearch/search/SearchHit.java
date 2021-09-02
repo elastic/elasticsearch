@@ -9,6 +9,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
@@ -46,11 +47,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -107,6 +110,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private Map<String, Object> sourceAsMap;
 
     private Map<String, SearchHits> innerHits;
+    private Map<String, List<JoinHit>> joinHits = Map.of();
 
     //used only in tests
     public SearchHit(int docId) {
@@ -196,6 +200,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             innerHits = null;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            joinHits = in.readMap(StreamInput::readString, i -> i.readList(JoinHit::new));
+        } else {
+            joinHits = Map.of();
+        }
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -284,6 +294,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(joinHits, StreamOutput::writeString, StreamOutput::writeList);
         }
     }
 
@@ -560,6 +573,17 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.innerHits = innerHits;
     }
 
+    public void addJoinHit(String name, JoinHit hit) {
+        if (joinHits.isEmpty()) {
+            joinHits = new HashMap<>();
+        }
+        joinHits.computeIfAbsent(name, k -> new ArrayList<>()).add(hit);
+    }
+
+    public Map<String, List<JoinHit>> getJoinHits() {
+        return joinHits;
+    }
+
     public static class Fields {
         static final String _INDEX = "_index";
         static final String _ID = "_id";
@@ -576,6 +600,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String DESCRIPTION = "description";
         static final String DETAILS = "details";
         static final String INNER_HITS = "inner_hits";
+        static final String JOIN_HITS = "join_hits";
         static final String _SHARD = "_shard";
         static final String _NODE = "_node";
     }
@@ -682,6 +707,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
+            }
+            builder.endObject();
+        }
+        if (joinHits.isEmpty() == false) {
+            builder.startObject(Fields.JOIN_HITS);
+            for (String joinKey : joinHits.keySet().stream().sorted().collect(Collectors.toList())) {
+                builder.startArray(joinKey);
+                final List<JoinHit> hits = this.joinHits.get(joinKey);
+                hits.sort(Comparator.comparing(JoinHit::getId));
+                for (JoinHit h : hits) {
+                    h.toXContent(builder, params);
+                }
+                builder.endArray();
             }
             builder.endObject();
         }
@@ -917,13 +955,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 && Objects.equals(shard, other.shard)
                 && Objects.equals(innerHits, other.innerHits)
                 && Objects.equals(index, other.index)
-                && Objects.equals(clusterAlias, other.clusterAlias);
+                && Objects.equals(clusterAlias, other.clusterAlias)
+                && Objects.equals(joinHits, other.joinHits);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, nestedIdentity, version, seqNo, primaryTerm, source, documentFields, metaFields, getHighlightFields(),
-            Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias);
+            Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias, joinHits);
     }
 
     /**
@@ -1050,5 +1089,89 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public static final class JoinHit implements Writeable, ToXContentObject {
+        private final String id;
+        private final Map<String, DocumentField> fields;
+        private final BytesReference source;
+        private final Exception failure;
+
+        public JoinHit(String id, Exception failure) {
+            this.id = Objects.requireNonNull(id);
+            this.fields = null;
+            this.source = null;
+            this.failure = failure;
+        }
+
+        public JoinHit(String id, Map<String, DocumentField> fields, BytesReference source) {
+            this.id = Objects.requireNonNull(id);
+            this.fields = Objects.requireNonNull(fields);
+            this.source = source;
+            this.failure = null;
+        }
+
+        public JoinHit(StreamInput in) throws IOException {
+            this.id = in.readString();
+            if (in.readBoolean()) {
+                this.fields = in.readMap(StreamInput::readString, DocumentField::new);
+                this.source = in.readOptionalBytesReference();
+                this.failure = null;
+            } else {
+                this.fields = null;
+                this.source = null;
+                failure = in.readException();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(id);
+            out.writeBoolean(failure == null);
+            if (failure == null) {
+                out.writeMap(fields, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+                out.writeOptionalBytesReference(source);
+            } else {
+                out.writeException(failure);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Fields._ID, id);
+            if (failure != null) {
+                ElasticsearchException.generateFailureXContent(builder, params, failure, true);
+            } else {
+                if (source != null) {
+                    final BytesReference bytes = CompressorFactory.uncompressIfNeeded(this.source);
+                    XContentHelper.writeRawField(SourceFieldMapper.NAME, bytes, builder, params);
+                }
+                // ignore fields all together if they are all empty
+                if (fields.isEmpty() == false && fields.values().stream().anyMatch(df -> df.getValues().isEmpty() == false)) {
+                    builder.startObject(Fields.FIELDS);
+                    for (DocumentField field : fields.values()) {
+                        if (field.getValues().size() > 0) {
+                            field.toXContent(builder, params);
+                        }
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public Exception getFailure() {
+            return failure;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public BytesReference getSource() {
+            return source;
+        }
     }
 }

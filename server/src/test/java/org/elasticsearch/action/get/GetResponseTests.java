@@ -126,10 +126,10 @@ public class GetResponseTests extends ESTestCase {
     }
 
     private static GetResponse copyGetResponse(GetResponse getResponse) {
-        return new GetResponse(copyGetResult(getResponse.getResult));
+        return new GetResponse(copyGetResult(getResponse.getResult()));
     }
 
     private static GetResponse mutateGetResponse(GetResponse getResponse) {
-        return new GetResponse(mutateGetResult(getResponse.getResult));
+        return new GetResponse(mutateGetResult(getResponse.getResult()));
     }
 }

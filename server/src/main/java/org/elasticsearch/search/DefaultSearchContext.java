@@ -17,6 +17,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -127,8 +129,12 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
+    private final ClusterService clusterService;
+    private final IndicesService indicesService;
 
-    DefaultSearchContext(ReaderContext readerContext,
+    DefaultSearchContext(ClusterService clusterService,
+                         IndicesService indicesService,
+                         ReaderContext readerContext,
                          ShardSearchRequest request,
                          SearchShardTarget shardTarget,
                          LongSupplier relativeTimeSupplier,
@@ -145,6 +151,8 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
+        this.clusterService = clusterService;
+        this.indicesService = indicesService;
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
@@ -728,5 +736,15 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    @Override
+    public ClusterService clusterService() {
+        return clusterService;
+    }
+
+    @Override
+    public IndicesService indicesService() {
+        return indicesService;
     }
 }

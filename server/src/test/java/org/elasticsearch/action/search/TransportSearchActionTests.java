@@ -49,6 +49,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.JoinHitLookupBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -836,10 +837,28 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
                 }
+                if (source.lookupJoinHitBuilders().isEmpty() == false) {
+                    source.lookupJoinHitBuilders().clear();
+                }
             }
             searchRequest.setCcsMinimizeRoundtrips(true);
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequestTests searchRequestTests = new SearchRequestTests();
+            searchRequestTests.setUp();
+            SearchRequest searchRequest = searchRequestTests.createSearchRequest();
+            if (searchRequest.source() == null) {
+                searchRequest.source(new SearchSourceBuilder());
+            }
+            int numJoinHits = randomIntBetween(1, 10);
+            for (int i = 0; i < numJoinHits; i++) {
+                searchRequest.source().lookupJoinHitBuilder(
+                    new JoinHitLookupBuilder(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            }
+            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
     }

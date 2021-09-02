@@ -1,0 +1,132 @@
+[[lookup-join-hits]]
+=== Lookup join hits
+
+The `join_hits` option is used to enrich search hits with corresponding
+documents from related indices.
+
+The following search returns the detailed document from the `sensors`
+index for each search hit from the `sensor-logs` index.
+
+[source,console]
+----
+GET sensor-logs/_search
+{
+  "query": {
+    "range": {
+        "temperature": {
+            "gt": 100
+        }
+    }
+  },
+  "sort": ["timestamp", "sensor_id"],
+  "join_hits": [
+    {
+        "name": "sensor", <1>
+        "index": "sensors", <2>
+        "match_field": "sensor_id" <3>
+    }
+  ]
+}
+----
+// TEST[setup:join_hits]
+
+
+<1> The group name of join hits returned under this lookup request
+
+<2> The name of the external index to lookup
+
+<3> The name of the field whose values are used to lookup join hits.
+In this example, the search request looks up `sensor` documents from
+the `sensors` index whose `_id` matches the `sensor_id` field of the
+documents of the `sensor-logs` index.
+
+The search returns
+
+[source,console-response]
+--------------------------------------------------
+{
+    ...,
+    "hits":{
+        "total": {...},
+        "max_score": null,
+        "hits":[
+            {
+                "_index": "sensor-logs",
+                "_id": "hit_id_0",
+                "_score": null,
+                "_source":{
+                    "sensor_id": "s1",
+                    "temperature": 101,
+                    "timestamp": "2021-08-29 06:20:40"
+                },
+                "sort": [...],
+                "join_hits": {
+                    "sensor": [ <1>
+                        {
+                            "_id": "s1", <2>
+                            "_source": <3>
+                            {
+                                "model": "basic",
+                                "location": "Living room",
+                                "make": "Honeywell"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "_index": "sensor-logs",
+                "_id": "hit_id_1",
+                "_score": null,
+                "_source":{
+                    "sensor_id": "s2",
+                    "temperature": 103,
+                    "timestamp": "2021-08-29 06:20:40"
+                },
+                "sort": [...],
+                "join_hits":{
+                    "sensor":[
+                        {
+                            "_id": "s2",
+                            "_source": {
+                                "model": "premium",
+                                "location": "Office",
+                                "make": "Nest"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/: \[\.\.\.\]/: $body.$_path/]
+// TESTRESPONSE[s/: \{\.\.\.\}/: $body.$_path/]
+// TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+// TESTRESPONSE[s/"_id": "hit_id_0"/"_id": "$body.hits.hits.0._id"/]
+// TESTRESPONSE[s/"_id": "hit_id_1"/"_id": "$body.hits.hits.1._id"/]
+
+<1> The list of join hits for a lookup request for a single search hit
+
+<2> The `_id` of a returned join hit
+
+<3> The `_source` of a returned join hit. <<request-body-search-source-filtering,Source filtering>>
+can be used to filter the `_source` of join hits.
+
+
+[[join-hits-notes]]
+==== Notes
+
+IMPORTANT: Queries with join hits are considered expensive. If
+<<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>>
+is set to `false`, expensive queries are not allowed and {es} will
+reject any queries with join hits.
+
+If a search performance with join hits is an issue, you might consider
+<<ingest-enriching-data,enrich data>> at indexing time instead.
+The <<enrich-processor,enrich processor>> allows you to add data from existing
+indices to incoming documents during ingest. Comparing to join hits lookup, this
+approach uses more disk space, decreases indexing throughput, and has to reindex
+when the data of the join indices change. However, it offers a better search
+performance.

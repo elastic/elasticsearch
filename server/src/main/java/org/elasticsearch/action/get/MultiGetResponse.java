@@ -119,7 +119,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         this.responses = responses;
     }
 
-    MultiGetResponse(StreamInput in) throws IOException {
+    public MultiGetResponse(StreamInput in) throws IOException {
         super(in);
         responses = in.readArray(MultiGetItemResponse::new, MultiGetItemResponse[]::new);
     }

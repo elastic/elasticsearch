@@ -1685,6 +1685,14 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
+    public boolean isAllowExpensiveQueries() {
+        return allowExpensiveQueries;
+    }
+
+    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return indexNameExpressionResolver;
+    }
+
     // visible for testing
     public boolean allPendingDanglingIndicesWritten() {
         return nodeWriteDanglingIndicesInfo == false ||

@@ -1577,3 +1577,67 @@ setups['setup-repository'] = '''
     setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
   }
 }
+
+buildRestTests.setups['join_hits'] = '''
+  - do:
+      indices.create:
+        index: sensors
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: keyword
+              model:
+                type: text
+              location:
+                type: text
+  - do:
+      bulk:
+        index: sensors
+        refresh: true
+        body: |
+          {"index":{"_id": "s1"}}
+          {"make": "Honeywell", "model": "basic", "location": "Living room"}
+          {"index":{"_id": "s2"}}
+          {"make": "Nest", "model": "premium", "location": "Office"}
+          {"index":{"_id": "s3"}}
+          {"make": "Thermometer", "model": "pro", "location": "Kids room"}
+
+  - do:
+      indices.create:
+        index: sensor-logs
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              sensor_id:
+                type: keyword
+              timestamp:
+                type: date
+                format: "yyyy-MM-dd HH:mm:ss"
+              temperature:
+                type: long
+
+  - do:
+      bulk:
+        index: sensor-logs
+        refresh: true
+        body: |
+          {"index":{}}
+          {"sensor_id": "s1", "timestamp": "2021-08-29 06:20:10", "temperature": 98}
+          {"index":{}}
+          {"sensor_id": "s2", "timestamp": "2021-08-29 06:20:10", "temperature": 97}
+          {"index":{}}
+          {"sensor_id": "s3", "timestamp": "2021-08-29 06:20:10", "temperature": 88}
+          {"index":{}}
+          {"sensor_id": "s1", "timestamp": "2021-08-29 06:20:40", "temperature": 101}
+          {"index":{}}
+          {"sensor_id": "s2", "timestamp": "2021-08-29 06:20:40", "temperature": 103}
+          {"index":{}}
+          {"sensor_id": "s3", "timestamp": "2021-08-29 06:20:40", "temperature": 88}
+'''

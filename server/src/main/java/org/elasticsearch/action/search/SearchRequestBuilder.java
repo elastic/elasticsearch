@@ -18,6 +18,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.builder.JoinHitLookupBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -332,6 +333,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addScriptField(String name, Script script) {
         sourceBuilder().scriptField(name, script);
+        return this;
+    }
+
+    /**
+     * Adds a join hit lookup request to the search request
+     */
+    public SearchRequestBuilder addJoinHitLookup(JoinHitLookupBuilder joinHitLookupBuilder) {
+        sourceBuilder().lookupJoinHitBuilder(joinHitLookupBuilder);
         return this;
     }
 

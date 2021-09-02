@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public class GetResponse extends ActionResponse implements Iterable<DocumentField>, ToXContentObject {
 
-    GetResult getResult;
+    private final GetResult getResult;
 
     GetResponse(StreamInput in) throws IOException {
         super(in);
@@ -141,6 +141,10 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     public DocumentField getField(String name) {
         return getResult.field(name);
+    }
+
+    public GetResult getResult() {
+        return getResult;
     }
 
     /**

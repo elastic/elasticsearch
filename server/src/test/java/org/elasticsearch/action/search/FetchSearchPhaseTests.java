@@ -31,6 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,13 +63,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             numHits = 0;
         }
 
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
-            (searchResponse, scrollId) -> new SearchPhase("test") {
-            @Override
-            public void run() {
-                mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-            }
-        });
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext, Collections.emptyList());
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
@@ -121,13 +117,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
-            (searchResponse, scrollId) -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                }
-            });
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext, Collections.emptyList());
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
@@ -180,13 +170,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
-            (searchResponse, scrollId) -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                }
-            });
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext, Collections.emptyList());
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
@@ -234,13 +218,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         CountDownLatch latch = new CountDownLatch(1);
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
-            (searchResponse, scrollId) -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                    latch.countDown();
-                }
-            });
+            List.of((context, searchResponse, queryResults, onFinish) ->
+                new FetchSearchPhase.ExtendedPhase("test", context, searchResponse, queryResults, onFinish) {
+                    @Override
+                    public void run() {
+                        onFinish.onResponse(null);
+                        latch.countDown();
+                    }
+                }));
         assertEquals("fetch", phase.getName());
         phase.run();
         latch.await();
@@ -306,13 +291,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
-            (searchResponse, scrollId) -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                }
-            });
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext, List.of());
         assertEquals("fetch", phase.getName());
         phase.run();
         assertNotNull(mockSearchPhaseContext.phaseFailure.get());
@@ -360,13 +339,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
-            (searchResponse, scrollId) -> new SearchPhase("test") {
-                @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                }
-            });
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext, List.of());
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();

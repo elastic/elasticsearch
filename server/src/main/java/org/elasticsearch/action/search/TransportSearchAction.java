@@ -86,6 +86,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -268,6 +269,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 SearchRequest original,
                                 SearchAsyncActionProvider searchAsyncActionProvider,
                                 ActionListener<SearchResponse> listener) {
+        if (original.source() != null && original.source().lookupJoinHitBuilders().isEmpty() == false
+            && searchService.isAllowExpensiveQueries() == false) {
+            throw new IllegalArgumentException("query with [join_hits] cannot be executed when " +
+                "[" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to false.");
+        }
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
             new SearchTimeProvider(original.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
@@ -342,9 +348,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
             return false;
         }
-        SearchSourceBuilder source = searchRequest.source();
-        return source == null || source.collapse() == null || source.collapse().getInnerHits() == null ||
-            source.collapse().getInnerHits().isEmpty();
+        final SearchSourceBuilder source = searchRequest.source();
+
+        // Join hits lookup must be executed on the local cluster
+        if (source != null && source.lookupJoinHitBuilders().isEmpty() == false) {
+            return false;
+        }
+        // Field collapsing must be executed on the local cluster
+        if (source != null && source.collapse() != null
+            && source.collapse().getInnerHits() != null
+            && source.collapse().getInnerHits().isEmpty() == false) {
+            return false;
+        }
+        return true;
     }
 
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -1077,4 +1078,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
         checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkRolesCacheTTLSizeSetting);
     }
+
+    public void testCheckMaxLocalStorageNodesSetting() {
+        String settingKey = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey();
+        String settingValue = Integer.toString(randomIntBetween(1, 100));
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_node_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkMaxLocalStorageNodesSetting);
+    }
+
 }

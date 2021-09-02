@@ -28,7 +28,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
     def READER = MAPPER.readerFor(ObjectNode.class)
     def WRITER = MAPPER.writerFor(ObjectNode.class)
 
-    def "yamlRestTestCompat does nothing when there are no tests"() {
+    def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
         addSubProject(":distribution:bwc:minor") << """
         configurations { checkout }
@@ -44,16 +44,16 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestTestV${compatibleVersion}Compat", '--stacktrace').build()
+        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest", '--stacktrace').build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}Compat").outcome == TaskOutcome.NO_SOURCE
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestTestCompat executes and copies api and transforms tests from :bwc:minor"() {
+    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:minor"() {
         given:
         internalBuild()
 
@@ -93,10 +93,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
-        def result = gradleRunner("yamlRestTestV${compatibleVersion}Compat").build()
+        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}Compat").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
         result.task(transformTask).outcome == TaskOutcome.SUCCESS
@@ -123,16 +123,16 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
-        result = gradleRunner("yamlRestTestV${compatibleVersion}Compat").build()
+        result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}Compat").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
     }
 
-    def "yamlRestTestCompat is wired into check and checkRestCompat"() {
+    def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
         given:
 
         addSubProject(":distribution:bwc:minor") << """
@@ -155,7 +155,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestTestV${compatibleVersion}Compat").outcome == TaskOutcome.NO_SOURCE
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
@@ -169,7 +169,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestTestV${compatibleVersion}Compat").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
         result.task(transformTask).outcome == TaskOutcome.SKIPPED
@@ -266,7 +266,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - match: {}
         """.stripIndent()
         when:
-        def result = gradleRunner("yamlRestTestV${compatibleVersion}Compat").build()
+        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
 
         then:
 

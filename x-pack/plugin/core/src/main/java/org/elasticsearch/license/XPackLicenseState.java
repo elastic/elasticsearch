@@ -512,7 +512,7 @@ public class XPackLicenseState {
                 HeaderWarning.addWarning(warning);
             }
         }
-        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
+        return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
     }
 
     /**
@@ -618,7 +618,7 @@ public class XPackLicenseState {
 
         @Override
         public String toString() {
-            return context == null ? feature.name : feature.name + ":" + context;
+            return context == null ? feature.getName() : feature.getName() + ":" + context;
         }
 
         @Override

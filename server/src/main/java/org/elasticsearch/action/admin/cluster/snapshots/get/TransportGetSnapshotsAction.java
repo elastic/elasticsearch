@@ -484,7 +484,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private static final Comparator<SnapshotInfo> BY_INDICES_COUNT = Comparator.<SnapshotInfo>comparingInt(sni -> sni.indices().size())
         .thenComparing(SnapshotInfo::snapshotId);
 
+    private static final Comparator<SnapshotInfo> BY_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::totalShards)
+        .thenComparing(SnapshotInfo::snapshotId);
+
+    private static final Comparator<SnapshotInfo> BY_FAILED_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::failedShards)
+        .thenComparing(SnapshotInfo::snapshotId);
+
     private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
+
+    private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
+        .thenComparing(SnapshotInfo::snapshotId);
 
     private static SnapshotsInRepo sortSnapshots(
         final List<SnapshotInfo> snapshotInfos,
@@ -507,6 +516,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 break;
             case INDICES:
                 comparator = BY_INDICES_COUNT;
+                break;
+            case SHARDS:
+                comparator = BY_SHARDS_COUNT;
+                break;
+            case FAILED_SHARDS:
+                comparator = BY_FAILED_SHARDS_COUNT;
+                break;
+            case REPOSITORY:
+                comparator = BY_REPOSITORY;
                 break;
             default:
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
@@ -546,6 +564,23 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         order
                     );
                     break;
+                case SHARDS:
+                    isAfter = filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(after.value()), snapshotName, repoName, order);
+                    break;
+                case FAILED_SHARDS:
+                    isAfter = filterByLongOffset(
+                        SnapshotInfo::failedShards,
+                        Integer.parseInt(after.value()),
+                        snapshotName,
+                        repoName,
+                        order
+                    );
+                    break;
+                case REPOSITORY:
+                    isAfter = order == SortOrder.ASC
+                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
+                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
+                    break;
                 default:
                     throw new AssertionError("unexpected sort column [" + sortBy + "]");
             }
@@ -580,6 +615,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final long val = extractor.applyAsLong(info);
             return after > val || (after == val && compareName(snapshotName, repoName, info) > 0);
         };
+    }
+
+    private static int compareRepositoryName(String name, String repoName, SnapshotInfo info) {
+        final int res = repoName.compareTo(info.repository());
+        if (res != 0) {
+            return res;
+        }
+        return name.compareTo(info.snapshotId().getName());
     }
 
     private static int compareName(String name, String repoName, SnapshotInfo info) {

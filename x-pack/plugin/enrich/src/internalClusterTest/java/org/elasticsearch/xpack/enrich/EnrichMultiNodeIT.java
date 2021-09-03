@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.enrich;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -45,11 +47,16 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.NodeRoles.ingestOnlyNode;
+import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class EnrichMultiNodeIT extends ESIntegTestCase {
@@ -144,6 +151,61 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         createSourceIndex(64);
         Exception e = expectThrows(IllegalStateException.class, EnrichMultiNodeIT::createAndExecutePolicy);
         assertThat(e.getMessage(), equalTo("no ingest nodes in this cluster"));
+    }
+
+    public void testExecutePolicyWithDedicatedMasterNodes() throws Exception {
+        var masterNodes = internalCluster().startNodes(3, masterOnlyNode());
+        var regularNodes = internalCluster().startNodes(2, nonMasterNode());
+        ensureStableCluster(5, (String) null);
+
+        assertAcked(prepareCreate(SOURCE_INDEX_NAME).setMapping(MATCH_FIELD, "type=keyword"));
+        var enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS)
+        );
+        var putPolicyRequest = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
+        assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
+        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(POLICY_NAME);
+        executePolicyRequest.setWaitForCompletion(false); // From tne returned taks id the node that executes the policy can be determined
+        var executePolicyResponse = client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
+        assertThat(executePolicyResponse.getStatus(), nullValue());
+        assertThat(executePolicyResponse.getTaskId(), notNullValue());
+
+        var getTaskRequest = new GetTaskRequest().setTaskId(executePolicyResponse.getTaskId()).setWaitForCompletion(true);
+        client().admin().cluster().getTask(getTaskRequest).actionGet();
+
+        var discoNodes = client().admin().cluster().state(new ClusterStateRequest()).actionGet().getState().nodes();
+        assertThat(discoNodes.get(executePolicyResponse.getTaskId().getNodeId()).isMasterNode(), is(false));
+    }
+
+    public void testExecutePolicyNeverOnElectedMaster() throws Exception {
+        internalCluster().startNodes(3);
+        ensureStableCluster(3, (String) null);
+
+        assertAcked(prepareCreate(SOURCE_INDEX_NAME).setMapping(MATCH_FIELD, "type=keyword"));
+        var enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS)
+        );
+        var putPolicyRequest = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
+        assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
+        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(POLICY_NAME);
+        executePolicyRequest.setWaitForCompletion(false); // From tne returned taks id the node that executes the policy can be determined
+        var executePolicyResponse = client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
+        assertThat(executePolicyResponse.getStatus(), nullValue());
+        assertThat(executePolicyResponse.getTaskId(), notNullValue());
+
+        var getTaskRequest = new GetTaskRequest().setTaskId(executePolicyResponse.getTaskId()).setWaitForCompletion(true);
+        client().admin().cluster().getTask(getTaskRequest).actionGet();
+
+        var discoNodes = client().admin().cluster().state(new ClusterStateRequest()).actionGet().getState().nodes();
+        assertThat(executePolicyResponse.getTaskId().getNodeId(), not(equalTo(discoNodes.getMasterNodeId())));
     }
 
     private static void enrich(List<String> keys, String coordinatingNode) {

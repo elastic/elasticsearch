@@ -10,9 +10,6 @@ package org.elasticsearch.qa.die_with_dignity;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;
@@ -30,21 +27,35 @@ import static org.hamcrest.Matchers.not;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
-        expectThrows(
-            IOException.class,
-            () -> client().performRequest(new Request("GET", "/_die_with_dignity"))
-        );
+        // there should be an Elasticsearch process running with the die.with.dignity.test system property
+        {
+            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
+            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
+
+            boolean found = false;
+            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+                String line;
+                while ((line = in.readLine()) != null) {
+                    if (line.contains("-Ddie.with.dignity.test=true")) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            assertTrue(found);
+        }
+
+        expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
             final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
 
-            try (InputStream is = process.getInputStream();
-                 BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
                 String line;
                 while ((line = in.readLine()) != null) {
-                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test")));
+                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test=true")));
                 }
             }
         });
@@ -61,8 +72,10 @@ public class DieWithDignityIT extends ESRestTestCase {
                 final String line = it.next();
                 if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*javaRestTest-0.*fatal error.*")) {
                     fatalError = true;
-                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*javaRestTest-0.*"
-                    + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
+                } else if (line.matches(
+                    ".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*javaRestTest-0.*"
+                        + "fatal error in thread \\[Thread-\\d+\\], exiting.*"
+                )) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());
                     assertThat(it.next(), containsString("java.lang.OutOfMemoryError: Requested array size exceeds VM limit"));
@@ -98,18 +111,6 @@ public class DieWithDignityIT extends ESRestTestCase {
     protected boolean preserveClusterUponCompletion() {
         // as the cluster is dead its state can not be wiped successfully so we have to bypass wiping the cluster
         return true;
-    }
-
-    @Override
-    protected final Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(super.restClientSettings())
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            // increase the timeout here to 90 seconds to handle long waits for a green
-            // cluster health. the waits for green need to be longer than a minute to
-            // account for delayed shards
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "1s")
-            .build();
     }
 
 }

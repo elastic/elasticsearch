@@ -49,7 +49,7 @@ Using `SHOW TABLES` command again:
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeWildcard]
 ----
 
-The pattern matches all tables that start with `emp`. 
+The pattern matches all tables that start with `emp`.
 
 This command supports _escaping_ as well, for example:
 
@@ -88,7 +88,7 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-By default, {es-sql} doesn't search <<freeze-index-api,frozen indices>>. To
+By default, {es-sql} doesn't search frozen indices. To
 search frozen indices, use one of the following features:
 
 dedicated configuration parameter::

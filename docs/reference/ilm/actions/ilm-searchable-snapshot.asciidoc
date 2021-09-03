@@ -18,8 +18,7 @@ index>> to the frozen tier. In other phases, the action mounts a
 <<fully-mounted,fully mounted index>> to the corresponding data tier.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the hot phase the
-subsequent phases cannot include the `shrink`, `forcemerge`, or `freeze`
-actions.
+subsequent phases cannot include the `shrink` or `forcemerge` actions.
 
 [NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do

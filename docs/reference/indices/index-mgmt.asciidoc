@@ -15,7 +15,7 @@ You'll learn how to:
 
 * View and edit index settings.
 * View mappings and statistics for an index.
-* Perform index-level operations, such as refreshes and freezes.
+* Perform index-level operations, such as refreshes.
 * View and manage data streams.
 * Create index templates to automatically configure new data streams and indices.
 
@@ -43,7 +43,7 @@ Open {kib}'s main menu and click *Stack Management > Index Management*.
 image::images/index-mgmt/management_index_labels.png[Index Management UI]
 
 The *Index Management* page contains an overview of your indices.
-Badges indicate if an index is <<freeze-index-api,frozen>>, a
+Badges indicate if an index is a
 <<ccr-put-follow,follower index>>, or a
 <<rollup-get-rollup-index-caps,rollup index>>.
 
@@ -68,7 +68,6 @@ indices on the overview page. The menu includes the following actions:
 * <<indices-forcemerge,*Force merge index*>>
 * <<indices-refresh,*Refresh index*>>
 * <<indices-flush,*Flush index*>>
-* <<freeze-index-api,*Freeze index*>>
 * <<indices-delete-index,*Delete index*>>
 * *Add* <<set-up-lifecycle-policy,*lifecycle policy*>>
 

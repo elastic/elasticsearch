@@ -25,12 +25,7 @@ Unfreezes an index.
 ==== {api-description-title}
 
 When a frozen index is unfrozen, the index goes through the normal recovery
-process and becomes writeable again. See <<freeze-index-api>>.
-
-IMPORTANT: Freezing an index will close the index and reopen it within the same
-API call. This causes primaries to not be allocated for a short amount of time
-and causes the cluster to go red until the primaries are allocated again. This
-limitation might be removed in the future.
+process and becomes writeable again.
 
 [[unfreeze-index-api-path-parms]]
 ==== {api-path-parms-title}
@@ -41,11 +36,10 @@ limitation might be removed in the future.
 [[unfreeze-index-api-examples]]
 ==== {api-examples-title}
 
-The following example freezes and unfreezes an index:
+The following example unfreezes an index:
 
 [source,console]
 --------------------------------------------------
-POST /my-index-000001/_freeze
 POST /my-index-000001/_unfreeze
 --------------------------------------------------
 // TEST[s/^/PUT my-index-000001\n/]

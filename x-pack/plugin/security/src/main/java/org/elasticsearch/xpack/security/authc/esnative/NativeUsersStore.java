@@ -296,7 +296,7 @@ public class NativeUsersStore {
                     .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(elasticUserInfo.passwordHash),
                         Fields.ENABLED.getPreferredName(), true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE).request(),
-                listener.<IndexResponse>delegateFailure((l, indexResponse) -> l.onResponse(elasticUserInfo.deepClone())),
+                listener.<IndexResponse>delegateFailure((l, indexResponse) -> getReservedUserInfo(ElasticUser.NAME, l)),
                 client::index);
         });
     }

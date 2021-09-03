@@ -119,7 +119,7 @@ public class NerProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // No validation
     }
 
@@ -142,17 +142,20 @@ public class NerProcessor implements NlpTask.Processor {
 
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-            if (tokenization.getTokens().isEmpty()) {
+            if (tokenization.getTokenizations().isEmpty() ||
+                tokenization.getTokenizations().get(0).getTokens().isEmpty()) {
                 return new NerResults(Collections.emptyList());
             }
+            // TODO - process all results in the batch
+
             // TODO It might be best to do the soft max after averaging scores for
             // sub-tokens. If we had a word that is "elastic" which is tokenized to
             // "el" and "astic" then perhaps we get a prediction for org of 10 for "el"
             // and -5 for "astic". Averaging after softmax would produce a prediction
             // of maybe (1 + 0) / 2 = 0.5 while before softmax it'd be exp(10 - 5) / normalization
             // which could easily be close to 1.
-            double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult());
-            List<TaggedToken> taggedTokens = tagTokens(tokenization, normalizedScores);
+            double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0]);
+            List<TaggedToken> taggedTokens = tagTokens(tokenization.getTokenizations().get(0), normalizedScores, iobMap);
             List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
             return new NerResults(entities);
         }
@@ -163,7 +166,9 @@ public class NerProcessor implements NlpTask.Processor {
          * in the original input replacing them with a single token that
          * gets labelled based on the average score of all its sub-tokens.
          */
-        private List<TaggedToken> tagTokens(TokenizationResult tokenization, double[][] scores) {
+        static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization,
+                                           double[][] scores,
+                                           IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
             while (startTokenIndex < tokenization.getTokens().size()) {

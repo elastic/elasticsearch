@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -69,8 +68,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
     private final SecurityIndexManager securityIndex;
-    private final boolean bootstrapPasswordExists;
-    private final boolean autoconfigHashExists;
+    private final boolean autoconfigured;
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
@@ -87,11 +85,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
         final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-        autoconfigHashExists = AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.exists(settings);
-        bootstrapPasswordExists = BOOTSTRAP_ELASTIC_PASSWORD.exists(settings);
-        final char[] hash = (bootstrapPasswordExists || autoconfigHashExists == false) ?
-            (BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ?
-                new char[0] : reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings))) :
+        autoconfigured =
+            AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.exists(settings) && BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false;
+        final char[] hash = autoconfigured == false ? (BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0]
+            : reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings))) :
             AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.get(settings).getChars();
         bootstrapUserInfo = new ReservedUserInfo(hash, true);
     }
@@ -121,7 +118,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
                 } else {
-                    result = AuthenticationResult.terminate("] [" + token.principal() + "]", null);
+                    result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                 }
                 // we want the finally block to clear out the chars before we proceed further so we handle the result here
                 listener.onResponse(result);
@@ -178,7 +175,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-
     public void users(ActionListener<Collection<User>> listener) {
         if (realmEnabled == false) {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
@@ -222,20 +218,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private void getUserInfo(final String username, @Nullable SecureString credentials, ActionListener<ReservedUserInfo> listener) {
         if (securityIndex.indexExists() == false) {
-            if ((bootstrapPasswordExists == false && autoconfigHashExists) && username.equals(ElasticUser.NAME)
-                && bootstrapUserInfo.verifyPassword(credentials)) {
-                nativeUsersStore.createReservedUserAndGetUserInfo(username, bootstrapUserInfo.passwordHash,
-                    WriteRequest.RefreshPolicy.IMMEDIATE, listener);
+            if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
+                nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
             } else {
                 listener.onResponse(getDefaultUserInfo(username));
             }
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
                 if (userInfo == null) {
-                    if ((bootstrapPasswordExists == false && autoconfigHashExists) && username.equals(ElasticUser.NAME)
-                        && bootstrapUserInfo.verifyPassword(credentials)) {
-                        nativeUsersStore.createReservedUserAndGetUserInfo(username, bootstrapUserInfo.passwordHash,
-                            WriteRequest.RefreshPolicy.IMMEDIATE, listener);
+                    if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
+                        nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
                     } else {
                         listener.onResponse(getDefaultUserInfo(username));
                     }

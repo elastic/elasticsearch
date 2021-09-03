@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -286,21 +287,16 @@ public class NativeUsersStore {
         });
     }
 
-    /**
-     * Asynchronous method to create a security index if necessary and a reserved user if one doesn't exist
-     */
-    public void createReservedUserAndGetUserInfo(String username, char[] passwordHash, RefreshPolicy refresh,
-                                                ActionListener<ReservedUserInfo> listener) {
+    void storeAutoconfiguredElasticUser(ReservedUserInfo elasticUserInfo, ActionListener<ReservedUserInfo> listener) {
         securityIndex.prepareIndexIfNeededThenExecute((e) -> { listener.onFailure(new ElasticsearchStatusException(e.getMessage(),
-                INTERNAL_SERVER_ERROR, e.getCause())); },
+            INTERNAL_SERVER_ERROR, e.getCause())); },
             () -> { executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                 client.prepareIndex(SECURITY_MAIN_ALIAS).setOpType(DocWriteRequest.OpType.CREATE)
-                    .setId(getIdForUser(RESERVED_USER_TYPE, username))
-                    .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash),
-                        Fields.ENABLED.getPreferredName(),
-                        true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                    .setRefreshPolicy(refresh).request(),
-                listener.<IndexResponse>delegateFailure((l, indexResponse) -> getReservedUserInfo(username, l)),
+                    .setId(getIdForUser(RESERVED_USER_TYPE, ElasticUser.NAME))
+                    .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(elasticUserInfo.passwordHash),
+                        Fields.ENABLED.getPreferredName(), true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
+                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE).request(),
+                listener.<IndexResponse>delegateFailure((l, indexResponse) -> l.onResponse(elasticUserInfo.deepClone())),
                 client::index);
         });
     }

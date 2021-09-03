@@ -410,21 +410,21 @@ public class ReservedRealmTests extends ESTestCase {
         mockSecureSettings.setString("autoconfiguration.password_hash", "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX" +
             "43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        ReservedUserInfo elasticUserInfo =
+            new ReservedUserInfo(mockSecureSettings.getString("autoconfiguration.password_hash").getChars(), true);
         when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             @SuppressWarnings("rawtypes")
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(null);
             return null;
-        }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        }).when(usersStore).getReservedUserInfo(eq(ElasticUser.NAME), anyActionListener());
         doAnswer((i) -> {
             @SuppressWarnings("rawtypes")
-                ActionListener callbackOnCreate = (ActionListener) i.getArguments()[3];
-            char[] hash = mockSecureSettings.getString("autoconfiguration.password_hash").getChars();
-            ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
-            callbackOnCreate.onResponse(userInfo);
+            ActionListener callbackOnCreate = (ActionListener) i.getArguments()[1];
+            callbackOnCreate.onResponse(elasticUserInfo);
             return null;
-        }).when(usersStore).createReservedUserAndGetUserInfo(eq("elastic"), anyObject(), anyObject(), anyActionListener());
+        }).when(usersStore).storeAutoconfiguredElasticUser(anyObject(), anyActionListener());
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();

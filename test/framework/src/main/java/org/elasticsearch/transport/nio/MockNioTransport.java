@@ -265,7 +265,6 @@ public class MockNioTransport extends TcpTransport {
         private final Releasable releasable;
 
         LeakAwareRefCounted(Releasable releasable) {
-            super("leak-aware-ref-counted");
             this.releasable = releasable;
             leak = LeakTracker.INSTANCE.track(releasable);
         }

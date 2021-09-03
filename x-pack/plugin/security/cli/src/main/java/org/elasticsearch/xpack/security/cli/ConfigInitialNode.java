@@ -295,8 +295,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
-                            StandardCopyOption.COPY_ATTRIBUTES);
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }

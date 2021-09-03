@@ -170,11 +170,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      * @return a {@link Stream} of the map entries as {@link Entry}
      */
     public Stream<Entry<KType, VType>> stream() {
-        Stream.Builder<Entry<KType, VType>> stream = Stream.builder();
+        Stream.Builder<Entry<KType, VType>> streamBuilder = Stream.builder();
         for (ObjectObjectCursor<KType, VType> cursor : map) {
-            stream.add(new Entry<>(cursor.key, cursor.value));
+            streamBuilder.add(new Entry<>(cursor.key, cursor.value));
         }
-        return stream.build();
+        return streamBuilder.build();
     }
 
     @Override

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restApi {
@@ -22,4 +22,3 @@ testClusters.all {
   // TODO: reduce the need for superuser here
   user username: 'ccr-user', password: 'ccr-user-password', role: 'superuser'
 }
-

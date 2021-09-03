@@ -152,8 +152,8 @@ gradlePlugin {
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
     }
     yamlRestTest {
-      id = 'elasticsearch.yaml-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin'
+      id = 'elasticsearch.internal-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
   }
 }

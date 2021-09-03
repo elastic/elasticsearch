@@ -22,7 +22,7 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTest
 /**
  * Apply this plugin to run the YAML based REST tests.
  */
-public class YamlRestTestPlugin implements Plugin<Project> {
+public class InternalYamlRestTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "yamlRestTest";
 

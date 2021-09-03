@@ -1368,7 +1368,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
+            connectToNodesAsync(newClusterState, () -> {
+                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService take charge of
+                // these connections
+            });
         }
 
         @Override

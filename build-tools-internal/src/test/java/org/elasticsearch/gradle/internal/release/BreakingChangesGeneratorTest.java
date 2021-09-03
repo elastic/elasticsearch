@@ -19,6 +19,7 @@ import java.util.Objects;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class BreakingChangesGeneratorTest {
@@ -34,12 +35,13 @@ public class BreakingChangesGeneratorTest {
             "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateFile.asciidoc"
         );
 
-        assertThat("Expected breaking changes output contains carriage returns!", expectedOutput, not(containsString("\\r")));
-
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
         final String actualOutput = BreakingChangesGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
+
+        assertFalse("Expected output contains carriage returns!", expectedOutput.contains("\r"));
+        assertFalse("Actual output contains carriage returns!", actualOutput.contains("\r"));
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

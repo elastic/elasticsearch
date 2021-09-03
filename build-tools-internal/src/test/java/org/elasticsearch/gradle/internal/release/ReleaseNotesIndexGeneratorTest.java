@@ -18,9 +18,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesIndexGeneratorTest {
@@ -48,10 +47,11 @@ public class ReleaseNotesIndexGeneratorTest {
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesIndexGeneratorTest.generateFile.asciidoc"
         );
 
-        assertThat("Expected release notes index output contains carriage returns!", expectedOutput, not(containsString("\\r")));
-
         // when:
         final String actualOutput = ReleaseNotesIndexGenerator.generateFile(versions, template);
+
+        assertFalse("Expected output contains carriage returns!", expectedOutput.contains("\r"));
+        assertFalse("Actual output contains carriage returns!", actualOutput.contains("\r"));
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

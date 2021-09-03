@@ -16,9 +16,8 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseHighlightsGeneratorTest {
@@ -34,12 +33,13 @@ public class ReleaseHighlightsGeneratorTest {
             "/org/elasticsearch/gradle/internal/release/ReleaseHighlightsGeneratorTest.generateFile.asciidoc"
         );
 
-        assertThat("Expected release highlights output contains carriage returns!", expectedOutput, not(containsString("\\r")));
-
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
         final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
+
+        assertFalse("Expected output contains carriage returns!", expectedOutput.contains("\r"));
+        assertFalse("Actual output contains carriage returns!", actualOutput.contains("\r"));
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

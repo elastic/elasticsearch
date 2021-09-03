@@ -21,9 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
@@ -39,12 +38,13 @@ public class ReleaseNotesGeneratorTest {
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
         );
 
-        assertThat("Expected release notes output contains carriage returns!", expectedOutput, not(containsString("\\r")));
-
         final Map<QualifiedVersion, Set<ChangelogEntry>> entries = getEntries();
 
         // when:
         final String actualOutput = ReleaseNotesGenerator.generateFile(template, entries);
+
+        assertFalse("Expected output contains carriage returns!", expectedOutput.contains("\r"));
+        assertFalse("Actual output contains carriage returns!", actualOutput.contains("\r"));
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

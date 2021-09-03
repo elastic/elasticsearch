@@ -85,7 +85,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                    ActionListener<Response> listener) {
         TrainedModelConfig config = request.getTrainedModelConfig();
         try {
-            config.ensureParsedDefinition(xContentRegistry);
+            if (request.isDeferDefinitionDecompression() == false) {
+                config.ensureParsedDefinition(xContentRegistry);
+            }
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
                 ex,
@@ -93,6 +95,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return;
         }
 
+        // NOTE: hasModelDefinition is false if we don't parse it. But, if the fully parsed model was already provided, continue
         boolean hasModelDefinition = config.getModelDefinition() != null;
         if (hasModelDefinition) {
             try {
@@ -148,9 +151,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 return;
             }
         }
-
-
-
 
         TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config)
             .setVersion(Version.CURRENT)

@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
@@ -137,16 +136,16 @@ public class TrainedModelProvider {
             return;
         }
 
+        BytesReference definition;
         try {
-            trainedModelConfig.ensureParsedDefinition(xContentRegistry);
+            definition = trainedModelConfig.getCompressedDefinition();
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.serverError(
-                "Unexpected serialization error when parsing model definition for model [" + trainedModelConfig.getModelId() + "]",
-                ex));
+                "Unexpected IOException while serializing definition for storage for model [{}]",
+                ex,
+                trainedModelConfig.getModelId()));
             return;
         }
-
-        TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
         TrainedModelLocation location = trainedModelConfig.getLocation();
         if (definition == null && location == null) {
             listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] or [{}] is required",

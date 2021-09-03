@@ -206,7 +206,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                         )
                     )
                     .setModelId(TRAINED_MODEL_ID)
-                    .build()
+                    .build(),
+                false
             )
         ).actionGet();
         client().execute(

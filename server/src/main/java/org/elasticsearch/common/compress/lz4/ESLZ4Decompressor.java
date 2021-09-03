@@ -30,7 +30,7 @@ import java.nio.ByteBuffer;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
- * net.jpountz.lz4.LZ4Decompressor.
+ * net.jpountz.lz4.LZ4JavaSafeFastDecompressor.
  *
  * It modifies the original implementation to use custom LZ4SafeUtils and SafeUtils implementations which
  * include performance improvements.

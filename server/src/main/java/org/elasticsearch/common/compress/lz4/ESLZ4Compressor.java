@@ -31,7 +31,7 @@ import java.util.Arrays;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
- * net.jpountz.lz4.LZ4Compressor.
+ * net.jpountz.lz4.LZ4JavaSafeCompressor.
  *
  * It modifies the original implementation to use custom LZ4SafeUtils and SafeUtils implementations which
  * include performance improvements. Additionally, instead of allocating a new hashtable for each compress

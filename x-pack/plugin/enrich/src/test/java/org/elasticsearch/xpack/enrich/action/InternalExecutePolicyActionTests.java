@@ -92,8 +92,8 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     public void testSelectNodeForPolicyExecutionMixedVersions() {
-        var node1 = newNode(randomAlphaOfLength(4), Version.V_7_16_0);
-        var node2 = newNode(randomAlphaOfLength(4), Version.V_7_16_0);
+        var node1 = newNode(randomAlphaOfLength(4), Version.V_7_14_0);
+        var node2 = newNode(randomAlphaOfLength(4), Version.V_7_14_0);
         var node3 = newNode(randomAlphaOfLength(4));
         var discoNodes = DiscoveryNodes.builder()
             .add(node1)
@@ -122,7 +122,7 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId) {
-        return newNode(nodeId, Version.V_8_0_0);
+        return newNode(nodeId, Version.V_7_15_0);
     }
 
     private static DiscoveryNode newNode(String nodeId, Version version) {
@@ -131,7 +131,7 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return newNode(nodeId, roles, Version.V_8_0_0);
+        return newNode(nodeId, roles, Version.V_7_15_0);
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles, Version version) {

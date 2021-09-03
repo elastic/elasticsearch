@@ -39,7 +39,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 == {api-response-body-title}
 ////
 ////
-[[ml-get-trained-models-response-codes]]
+[[stop-trained-models-response-codes]]
 == {api-response-codes-title}
 ////
 

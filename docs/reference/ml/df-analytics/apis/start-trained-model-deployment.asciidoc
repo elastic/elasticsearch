@@ -43,7 +43,7 @@ to 20 seconds.
 
 ////
 ////
-[[ml-get-trained-models-response-codes]]
+[[start-trained-models-response-codes]]
 == {api-response-codes-title}
 
 ////

@@ -29,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutTrainedModelDefinitionPartAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutTrainedModelDefinitionPartAction INSTANCE = new PutTrainedModelDefinitionPartAction();
-    public static final String NAME = "cluster:admin/xpack/ml/inference/part/put";
+    public static final String NAME = "cluster:admin/xpack/ml/trained_models/part/put";
 
     private PutTrainedModelDefinitionPartAction() {
         super(NAME, AcknowledgedResponse::readFrom);

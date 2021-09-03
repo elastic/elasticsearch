@@ -205,9 +205,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         putModelDefinition(modelFoo);
 
         String modelBar = "bar";
-        putModelDefinition(modelBar);
-        putVocabulary(List.of("once", "twice"), modelBar);
         createTrainedModel(modelBar);
+        putVocabulary(List.of("once", "twice"), modelBar);
+        putModelDefinition(modelBar);
 
         startDeployment(modelFoo);
         startDeployment(modelBar);

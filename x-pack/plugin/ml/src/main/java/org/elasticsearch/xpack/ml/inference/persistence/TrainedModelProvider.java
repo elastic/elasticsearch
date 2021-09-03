@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
@@ -134,20 +133,20 @@ public class TrainedModelProvider {
             return;
         }
 
+        String definition;
         try {
-            trainedModelConfig.ensureParsedDefinition(xContentRegistry);
+            definition = trainedModelConfig.getCompressedDefinition();
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.serverError(
-                "Unexpected serialization error when parsing model definition for model [" + trainedModelConfig.getModelId() + "]",
-                ex));
+                "Unexpected IOException while serializing definition for storage for model [{}]",
+                ex,
+                trainedModelConfig.getModelId()));
             return;
         }
-
-        TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
         if (definition == null) {
             listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] is required",
                 trainedModelConfig.getModelId(),
-                TrainedModelConfig.DEFINITION.getPreferredName()));
+                TrainedModelConfig.COMPRESSED_DEFINITION.getPreferredName()));
             return;
         }
 

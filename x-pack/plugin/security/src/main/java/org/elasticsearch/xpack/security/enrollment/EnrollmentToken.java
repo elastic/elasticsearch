@@ -8,13 +8,21 @@
 package org.elasticsearch.xpack.security.enrollment;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class EnrollmentToken {
     private final String apiKey;
@@ -27,6 +35,21 @@ public class EnrollmentToken {
     public String getVersion() { return version; }
     public List<String> getBoundAddress() { return boundAddress; }
 
+    private static final ParseField API_KEY = new ParseField("key");
+    private static final ParseField FINGERPRINT = new ParseField("fgr");
+    private static final ParseField VERSION = new ParseField("ver");
+    private static final ParseField ADDRESS = new ParseField("adr");
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<EnrollmentToken, Void> PARSER = new ConstructingObjectParser<>("enrollment_token", false,
+        a -> new EnrollmentToken((String) a[0], (String) a[1], (String) a[2], (List<String>) a[3]));
+
+    static {
+        PARSER.declareString(constructorArg(), API_KEY);
+        PARSER.declareString(constructorArg(), FINGERPRINT);
+        PARSER.declareString(constructorArg(), VERSION);
+        PARSER.declareStringArray(constructorArg(), ADDRESS);
+    }
     /**
      * Create an EnrollmentToken
      *
@@ -60,5 +83,37 @@ public class EnrollmentToken {
     public String getEncoded() throws Exception {
         final String jsonString = getRaw();
         return Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Decodes and parses an enrollment token from it's serialized form (created with {@link EnrollmentToken#getEncoded()}
+     * @param encoded The Base64 encoded JSON representation of the enrollment token
+     * @return the parsed EnrollmentToken
+     * @throws IOException when failing to decode the serialized token
+     */
+    public static EnrollmentToken decodeFromString(String encoded) throws IOException {
+        if (Strings.isNullOrEmpty(encoded)) {
+            throw new IOException("Cannot decode enrollment token from an empty string");
+        }
+        final XContentParser jsonParser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            Base64.getDecoder().decode(encoded)
+        );
+        return EnrollmentToken.PARSER.parse(jsonParser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EnrollmentToken that = (EnrollmentToken) o;
+        return apiKey.equals(that.apiKey) && fingerprint.equals(that.fingerprint) && version.equals(that.version) && boundAddress.equals(
+            that.boundAddress);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(apiKey, fingerprint, version, boundAddress);
     }
 }

@@ -18,17 +18,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class EnrollmentTokenTests extends ESTestCase {
-    EnrollmentToken createEnrollmentToken() {
-        final String apiKey = randomAlphaOfLength(16);
-        final String fingerprint = randomAlphaOfLength(64);
-        final String version = randomAlphaOfLength(5);
-        final List<String> boundAddresses = Arrays.asList(generateRandomStringArray(4, randomIntBetween(2, 32), false));
-        return new EnrollmentToken(apiKey, fingerprint, version, boundAddresses);
-    }
 
     public void testEnrollmentToken() throws Exception {
-        EnrollmentToken enrollmentToken = createEnrollmentToken();
+        final EnrollmentToken enrollmentToken = createEnrollmentToken();
         final String apiKey = enrollmentToken.getApiKey();
         final String fingerprint = enrollmentToken.getFingerprint();
         final String version = enrollmentToken.getVersion();
@@ -47,5 +42,19 @@ public class EnrollmentTokenTests extends ESTestCase {
         assertEquals(enrollmentMap.get("ver"), version);
         assertEquals(enrollmentMap.get("adr"), "[" + boundAddresses.stream().collect(Collectors.joining(", ")) + "]");
         assertEquals(new String(Base64.getDecoder().decode(encoded), StandardCharsets.UTF_8), jsonString);
+    }
+
+    public void testDeserialization() throws Exception {
+        final EnrollmentToken enrollmentToken = createEnrollmentToken();
+        final EnrollmentToken deserialized = EnrollmentToken.decodeFromString(enrollmentToken.getEncoded());
+        assertThat(enrollmentToken, equalTo(deserialized));
+    }
+
+    private EnrollmentToken createEnrollmentToken() {
+        final String apiKey = randomAlphaOfLength(16);
+        final String fingerprint = randomAlphaOfLength(64);
+        final String version = randomAlphaOfLength(5);
+        final List<String> boundAddresses = Arrays.asList(generateRandomStringArray(4, randomIntBetween(2, 32), false));
+        return new EnrollmentToken(apiKey, fingerprint, version, boundAddresses);
     }
 }

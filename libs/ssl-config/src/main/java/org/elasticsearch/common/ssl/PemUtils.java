@@ -213,6 +213,13 @@ public final class PemUtils {
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
     }
 
+    public static PrivateKey parsePKCS8PemString(String pem) throws IOException, GeneralSecurityException{
+        byte[] keyBytes = Base64.getDecoder().decode(pem);
+        String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
+        return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+    }
+
     /**
      * Creates a {@link PrivateKey} from the contents of {@code bReader} that contains an EC private key encoded in
      * OpenSSL traditional format.

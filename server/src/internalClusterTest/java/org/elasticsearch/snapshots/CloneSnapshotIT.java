@@ -794,6 +794,34 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
     }
 
+    public void testCloneAfterFailedShardSnapshot() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createIndex(testIndex);
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+        indexRandomDocs(testIndex, randomIntBetween(1, 100));
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "full-snapshot")
+            .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repoName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture = client(masterNode).admin()
+            .cluster()
+            .prepareCloneSnapshot(repoName, sourceSnapshot, "target-snapshot")
+            .setIndices(testIndex)
+            .execute();
+        awaitNumberOfSnapshotsInProgress(2);
+        internalCluster().stopNode(dataNode);
+        assertAcked(cloneFuture.get());
+        assertTrue(snapshotFuture.isDone());
+    }
+
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(
         String repoName,
         String sourceSnapshot,

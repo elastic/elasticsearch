@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
-        super("multi_file_writer");
         this.store = store;
         this.indexState = indexState;
         this.tempFilePrefix = tempFilePrefix;

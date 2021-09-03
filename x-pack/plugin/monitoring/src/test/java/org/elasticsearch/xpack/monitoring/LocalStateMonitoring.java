@@ -139,7 +139,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected void doExecute(Task task, EnrichStatsAction.Request request, ActionListener<EnrichStatsAction.Response> listener) {
-            listener.onResponse(new EnrichStatsAction.Response(Collections.emptyList(), Collections.emptyList()));
+            listener.onResponse(new EnrichStatsAction.Response(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
         }
     }
 

@@ -133,11 +133,11 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         return (req, handler) -> {
             try {
                 CompletableFuture<SearchResponse> cacheEntry = enrichCache.computeIfAbsent(req, request -> {
-                    CompletableFuture completableFuture = new CompletableFuture();
+                    CompletableFuture<SearchResponse> completableFuture = new CompletableFuture<>();
                     originClient.execute(
                         EnrichCoordinatorProxyAction.INSTANCE,
                         request,
-                        ActionListener.wrap(resp -> completableFuture.complete(resp), e -> completableFuture.completeExceptionally(e))
+                        ActionListener.wrap(completableFuture::complete, completableFuture::completeExceptionally)
                     );
                     return completableFuture;
                 });

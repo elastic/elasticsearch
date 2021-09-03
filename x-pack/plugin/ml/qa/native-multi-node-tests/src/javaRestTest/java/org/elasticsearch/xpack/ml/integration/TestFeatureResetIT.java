@@ -246,7 +246,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                         )
                         .setLocation(new IndexLocation(indexname))
                         .setModelId(TRAINED_MODEL_ID)
-                        .build()
+                        .build(),
+                    false
                 )
             )
             .actionGet();

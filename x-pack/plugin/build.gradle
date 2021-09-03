@@ -89,7 +89,7 @@ tasks.named("yamlRestTest").configure {
   dependsOn "copyExtraResources"
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceKeyInDo("license.delete", "xpack-license.delete")
   task.replaceKeyInDo("license.get", "xpack-license.get")
   task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
@@ -113,8 +113,11 @@ tasks.named("transformV7RestTests").configure({ task ->
 
   task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
   task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
+  task.replaceValueInMatch("_type", "_doc")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
 })
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
       // to support it, it would require to almost revert back the #48725 and complicate the code
       'vectors/10_dense_vector_basic/Deprecated function signature',
@@ -207,8 +210,3 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
-  task.replaceValueInMatch("_type", "_doc")
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-})

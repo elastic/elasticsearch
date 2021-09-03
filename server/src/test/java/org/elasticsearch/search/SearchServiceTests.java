@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -344,7 +345,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 } catch (AlreadyClosedException ex) {
                     throw ex;
                 } catch (IllegalStateException ex) {
-                    assertEquals("reader_context is already closed can't increment refCount current count [0]", ex.getMessage());
+                    assertEquals(AbstractRefCounted.ALREADY_CLOSED_MESSAGE, ex.getMessage());
                 } catch (SearchContextMissingException ex) {
                     // that's fine
                 }

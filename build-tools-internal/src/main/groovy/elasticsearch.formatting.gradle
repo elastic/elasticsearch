@@ -204,6 +204,8 @@ subprojects {
           if (project.path == ':server') {
             target 'src/*/java/org/elasticsearch/action/admin/cluster/repositories/**/*.java',
                    'src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java',
+                   'src/test/java/org/elasticsearch/common/xcontent/support/AbstractFilteringTestCase.java',
+                   'src/test/java/org/elasticsearch/common/xcontent/support/XContentMapValuesTests.java',
                    'src/*/java/org/elasticsearch/index/snapshots/**/*.java',
                    'src/*/java/org/elasticsearch/repositories/**/*.java',
                    'src/*/java/org/elasticsearch/search/aggregations/**/*.java',

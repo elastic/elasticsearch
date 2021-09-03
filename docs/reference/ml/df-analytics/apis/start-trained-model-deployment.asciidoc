@@ -44,17 +44,18 @@ Valid values are: "starting", "partially_started", and "started". Each
 indicating, respectively, deployment is starting but not yet on any
 node, the model has started on at least one node, the deployment has
 started on all valid nodes.
+
 ////
 [role="child_attributes"]
 [[start-trained-model-deployment-results]]
 == {api-response-body-title}
+////
 
 ////
-////
-[[ml-get-trained-models-response-codes]]
+[[start-trained-models-response-codes]]
 == {api-response-codes-title}
-
 ////
+
 ////
 [[start-trained-model-deployment-example]]
 == {api-examples-title}

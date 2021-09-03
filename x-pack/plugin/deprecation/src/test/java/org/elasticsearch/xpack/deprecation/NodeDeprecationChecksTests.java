@@ -1243,8 +1243,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testCheckFixedAutoQueueSizeThreadpool() {
-        String settingKey = "thread_pool.search.min_queue_size";
-        String settingValue = "";
         Settings settings = Settings.builder()
             .put("thread_pool.search.min_queue_size", randomIntBetween(30, 100))
             .put("thread_pool.search.max_queue_size", randomIntBetween(1, 25))
@@ -1403,5 +1401,70 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         String settingValue = Integer.toString(randomIntBetween(1, 100));
         String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_node_changes";
         checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkMaxLocalStorageNodesSetting);
+    }
+
+    public void testCheckSamlNameIdFormatSetting() {
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml1.nameid_format", randomIntBetween(1, 25))
+            .build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .build();
+        DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
+                "longer used",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html",
+            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]",
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml2.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml2.nameid_format", randomIntBetween(1, 25))
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
+                "longer used",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html",
+            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]",
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml2.attributes.principal", randomIntBetween(30, 100))
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
+                "longer used",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html",
+            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]," +
+                "no value for [xpack.security.authc.realms.saml.saml2.nameid_format] set in realm [xpack.security.authc.realms.saml.saml2]",
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
     }
 }

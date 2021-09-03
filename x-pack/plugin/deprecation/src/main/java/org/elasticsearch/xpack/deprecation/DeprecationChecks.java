@@ -117,6 +117,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
                     NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
+                    NodeDeprecationChecks::checkSamlNameIdFormatSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());

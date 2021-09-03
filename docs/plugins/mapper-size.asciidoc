@@ -65,7 +65,7 @@ GET my-index-000001/_search
       }
     }
   ],
-  "fields": ["_size"],                <4>
+  "docvalue_fields": ["_size"],                <4>
   "script_fields": {
     "size": {
       "script": "doc['_size']"        <5>

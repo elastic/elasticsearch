@@ -26,33 +26,33 @@ mounted indices>> exclusively.
 
 `index.routing.allocation.include._tier`::
 
-    Assign the index to a node whose `node.roles` configuration has at
-    least one of to the comma-separated values.
-
-    deprecated::[7.13, Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated, use <<tier-preference-allocation-filter,_tier_preference>> instead]
+Assign the index to a node whose `node.roles` configuration has at
+least one of to the comma-separated values.
++
+deprecated::[7.13,"Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated. Use <<tier-preference-allocation-filter,_tier_preference>> instead."]
 
 `index.routing.allocation.require._tier`::
 
-    Assign the index to a node whose `node.roles` configuration has _all_
-    of the comma-separated values.
-
-    deprecated::[7.13, Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated, use <<tier-preference-allocation-filter,_tier_preference>> instead]
+Assign the index to a node whose `node.roles` configuration has _all_
+of the comma-separated values.
++
+deprecated::[7.13,"Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated. Use <<tier-preference-allocation-filter,_tier_preference>> instead."]
 
 `index.routing.allocation.exclude._tier`::
 
-    Assign the index to a node whose `node.roles` configuration has _none_ of the
-    comma-separated values.
-
-    deprecated::[7.13, Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated, use <<tier-preference-allocation-filter,_tier_preference>> instead]
+Assign the index to a node whose `node.roles` configuration has _none_ of the
+comma-separated values.
++
+deprecated::[7.13,"Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated. Use <<tier-preference-allocation-filter,_tier_preference>> instead."]
 
 [[tier-preference-allocation-filter]]
 `index.routing.allocation.include._tier_preference`::
 
-    Assign the index to the first tier in the list that has an available node.
-    This prevents indices from remaining unallocated if no nodes are available
-    in the preferred tier.
-    For example, if you set `index.routing.allocation.include._tier_preference`
-    to `data_warm,data_hot`, the index is allocated to the warm tier if there
-    are nodes with the `data_warm` role. If there are no nodes in the warm tier,
-    but there are nodes with the `data_hot` role, the index is allocated to
-    the hot tier.
+Assign the index to the first tier in the list that has an available node.
+This prevents indices from remaining unallocated if no nodes are available
+in the preferred tier.
+For example, if you set `index.routing.allocation.include._tier_preference`
+to `data_warm,data_hot`, the index is allocated to the warm tier if there
+are nodes with the `data_warm` role. If there are no nodes in the warm tier,
+but there are nodes with the `data_hot` role, the index is allocated to
+the hot tier.

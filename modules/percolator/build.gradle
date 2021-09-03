@@ -16,7 +16,6 @@ esplugin {
 
 dependencies {
   testImplementation project(':modules:parent-join')
-  testImplementation project(':modules:geo')
 }
 
 restResources {

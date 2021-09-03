@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -20,14 +21,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -40,7 +45,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.coordination.JoinHelper.JOIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -372,6 +381,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(1, deprecationIssues.size());
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
+        assertEquals(DeprecationIssue.Level.WARNING, deprecationIssue.getLevel());
         assertEquals("Realm names cannot start with [_] in a future major release.", deprecationIssue.getMessage());
         assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
             "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names", deprecationIssue.getUrl());
@@ -735,7 +745,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                 "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+        DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "the default value [false] of setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node]" +
                 " is deprecated and will be changed to true in a future version." +
                 " This cluster has only one data node and behavior will therefore change when upgrading",
@@ -790,6 +800,95 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(
                 Locale.ROOT,
                 "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
+                joinedNames
+            ), false, null)));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
+    public void testJoinTimeoutSetting() {
+        String settingValue = randomTimeValue(1, 1000, new String[]{"d", "h", "ms", "s", "m"});
+        String settingKey = JOIN_TIMEOUT_SETTING.getKey();
+        final Settings nodeSettings = Settings.builder().put(settingKey, settingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_cluster_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                settingKey,
+                settingValue),
+            false, null
+        );
+
+        assertThat(
+            NodeDeprecationChecks.checkJoinTimeoutSetting(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
+    }
+
+    public void testCheckSearchRemoteSettings() {
+        // test for presence of deprecated exporter passwords
+        final int numClusters = randomIntBetween(1, 3);
+        final String[] clusterNames = new String[numClusters];
+        final Settings.Builder settingsBuilder = Settings.builder();
+        for (int k = 0; k < numClusters; k++) {
+            clusterNames[k] = randomAlphaOfLength(5);
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".seeds", randomAlphaOfLength(5));
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".proxy", randomAlphaOfLength(5));
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".skip_unavailable", randomBoolean());
+        }
+        settingsBuilder.put("search.remote.connections_per_cluster", randomIntBetween(0, 100));
+        settingsBuilder.put("search.remote.initial_connect_timeout", randomIntBetween(30, 60));
+        settingsBuilder.put("search.remote.connect", randomBoolean());
+        final Settings settings = settingsBuilder.build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSearchRemoteSettings(settings, null, null , licenseState);
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
+        String joinedNames = Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".seeds")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",";
+        joinedNames += Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".proxy")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",";
+        joinedNames += Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".skip_unavailable")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",search.remote.connections_per_cluster,search.remote.initial_connect_timeout,search.remote.connect";
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "search.remote settings [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "replace search.remote settings [%s] with their secure 'cluster.remote' replacements",
                 joinedNames
             ), false, null)));
 
@@ -905,10 +1004,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
-                "none of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], or [xpack.security.transport" +
-                    ".ssl.certificate] are set. If [xpack.security.transport.ssl.enabled] is true either [xpack.security.transport.ssl" +
-                    ".keystore.path] must be set, or [xpack.security.transport.ssl.key] and [xpack.security.transport.ssl.certificate] " +
-                    "must be set",
+            "none of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], or [xpack.security.transport" +
+                ".ssl.certificate] are set. If [xpack.security.transport.ssl.enabled] is true either [xpack.security.transport.ssl" +
+                ".keystore.path] must be set, or [xpack.security.transport.ssl.key] and [xpack.security.transport.ssl.certificate] " +
+                "must be set",
             false,null
         );
         assertThat(
@@ -992,5 +1091,253 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
             equalTo(expectedIssue)
         );
+    }
+
+    @SuppressForbidden(reason = "sets and unsets es.unsafely_permit_handshake_from_incompatible_builds")
+    public void testCheckNoPermitHandshakeFromIncompatibleBuilds() {
+        final DeprecationIssue expectedNullIssue =
+            NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(Settings.EMPTY,
+                null,
+                ClusterState.EMPTY_STATE,
+                new XPackLicenseState(Settings.EMPTY, () -> 0),
+                () -> null);
+        assertEquals(null, expectedNullIssue);
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(Settings.EMPTY,
+                null,
+                ClusterState.EMPTY_STATE,
+                new XPackLicenseState(Settings.EMPTY, () -> 0),
+                () -> randomAlphaOfLengthBetween(1, 10));
+        assertNotNull(issue.getDetails());
+        assertThat(issue.getDetails(), containsString("system property must be removed"));
+        assertThat(issue.getUrl(),
+            equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes"));
+    }
+
+    public void testCheckTransportClientProfilesFilterSetting() {
+        final int numProfiles = randomIntBetween(1, 3);
+        final String[] profileNames = new String[numProfiles];
+        final Settings.Builder b = Settings.builder();
+        for (int k = 0; k < numProfiles; k++) {
+            profileNames[k] = randomAlphaOfLength(5);
+            b.put("transport.profiles." + profileNames[k] + ".xpack.security.type", randomAlphaOfLengthBetween(3, 10));
+        }
+        final Settings settings = b.build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(settings, null, null, licenseState);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#separating-node-and-client-traffic";
+        final String joinedNames = Arrays
+            .stream(profileNames)
+            .map(s -> "transport.profiles." + s + ".xpack.security.type")
+            .sorted()
+            .collect(Collectors.joining(","));
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "settings [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "transport client will be removed in the next major version so transport client related settings [%s] must be removed",
+                joinedNames
+            ), false, null)));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(Settings.builder().build(), null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
+    public void testCheckDelayClusterStateRecoverySettings() {
+        Settings settings = Settings.builder()
+            .put(GatewayService.EXPECTED_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .put(GatewayService.EXPECTED_MASTER_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), randomIntBetween(2, 10))
+            .build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "cannot use properties related to delaying cluster state recovery after a majority of master nodes have joined because they " +
+                "have been deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "cannot use properties [gateway.expected_nodes,gateway.expected_master_nodes,gateway.recover_after_nodes,gateway" +
+                ".recover_after_master_nodes] because they have been deprecated and will be removed in the next major version",
+            false, null
+        );
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        assertThat(
+            NodeDeprecationChecks.checkDelayClusterStateRecoverySettings(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+    }
+
+    public void testCheckFixedAutoQueueSizeThreadpool() {
+        String settingKey = "thread_pool.search.min_queue_size";
+        String settingValue = "";
+        Settings settings = Settings.builder()
+            .put("thread_pool.search.min_queue_size", randomIntBetween(30, 100))
+            .put("thread_pool.search.max_queue_size", randomIntBetween(1, 25))
+            .put("thread_pool.search.auto_queue_frame_size", randomIntBetween(1, 25))
+            .put("thread_pool.search.target_response_time", randomIntBetween(1, 25))
+            .put("thread_pool.search_throttled.min_queue_size", randomIntBetween(30, 100))
+            .put("thread_pool.search_throttled.max_queue_size", randomIntBetween(1, 25))
+            .put("thread_pool.search_throttled.auto_queue_frame_size", randomIntBetween(1, 25))
+            .put("thread_pool.search_throttled.target_response_time", randomIntBetween(1, 25))
+            .build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "cannot use properties [thread_pool.search.min_queue_size,thread_pool.search.max_queue_size,thread_pool.search" +
+                ".auto_queue_frame_size,thread_pool.search.target_response_time,thread_pool.search_throttled.min_queue_size," +
+                "thread_pool.search_throttled.max_queue_size,thread_pool.search_throttled.auto_queue_frame_size,thread_pool" +
+                ".search_throttled.target_response_time] because fixed_auto_queue_size threadpool type has been deprecated" +
+                " and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_threadpool_changes",
+            "cannot use properties [thread_pool.search.min_queue_size,thread_pool.search.max_queue_size,thread_pool.search" +
+                ".auto_queue_frame_size,thread_pool.search.target_response_time,thread_pool.search_throttled.min_queue_size," +
+                "thread_pool.search_throttled.max_queue_size,thread_pool.search_throttled.auto_queue_frame_size,thread_pool" +
+                ".search_throttled.target_response_time] because fixed_auto_queue_size threadpool type has been deprecated" +
+                " and will be removed in the next major version",
+            false, null
+        );
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        assertThat(
+            NodeDeprecationChecks.checkFixedAutoQueueSizeThreadpool(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+    }
+
+    public void testTierAllocationSettings() {
+        String settingValue = DataTier.DATA_HOT;
+        final Settings settings = settings(Version.CURRENT)
+            .put(INDEX_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(INDEX_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .build();
+        final DeprecationIssue expectedRequireIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_REQUIRE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+        final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_INCLUDE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+        final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_EXCLUDE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            equalTo(expectedRequireIssue)
+        );
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            equalTo(expectedIncludeIssue)
+        );
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            equalTo(expectedExcludeIssue)
+        );
+
+        final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.";
+        final String[] expectedWarnings = {
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+        };
+
+        assertWarnings(expectedWarnings);
+    }
+
+    private void checkSimpleSetting(String settingKey, String settingValue, String url, DeprecationChecks.NodeDeprecationCheck<Settings,
+        PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue> checkFunction) {
+        final Settings nodeSettings =
+            Settings.builder().put(settingKey, settingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            url,
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                settingKey,
+                settingValue),
+            false,null
+        );
+
+        assertThat(
+            checkFunction.apply(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
+    }
+
+    public void testCheckAcceptDefaultPasswordSetting() {
+        String settingKey = "xpack.security.authc.accept_default_password";
+        String settingValue = String.valueOf(randomBoolean());
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkAcceptDefaultPasswordSetting);
+    }
+
+    public void testCheckAcceptRolesCacheMaxSizeSetting() {
+        String settingKey = "xpack.security.authz.store.roles.index.cache.max_size";
+        String settingValue = String.valueOf(randomIntBetween(1, 10000));
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting);
+    }
+
+    public void testCheckRolesCacheTTLSizeSetting() {
+        String settingKey = "xpack.security.authz.store.roles.index.cache.ttl";
+        String settingValue = randomPositiveTimeValue();
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkRolesCacheTTLSizeSetting);
+    }
+
+    public void testCheckMaxLocalStorageNodesSetting() {
+        String settingKey = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey();
+        String settingValue = Integer.toString(randomIntBetween(1, 100));
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_node_changes";
+        checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkMaxLocalStorageNodesSetting);
     }
 }

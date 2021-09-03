@@ -22,7 +22,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
 @Ignore("https://github.com/elastic/elasticsearch/issues/77190")
@@ -38,6 +40,9 @@ public class ReleaseNotesGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
         );
+
+        assertThat("Expected release notes output contains carriage returns!", expectedOutput, not(containsString("\\r")));
+
         final Map<QualifiedVersion, Set<ChangelogEntry>> entries = getEntries();
 
         // when:

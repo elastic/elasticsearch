@@ -154,33 +154,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
-<<<<<<< HEAD
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
-            QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
-        // As a single collector expects segments in order of doc,
-        // and we reordered segments, we have to create a separate collector for each segment.
-        final List<Collector> collectors = new ArrayList<>(leaves.size());
-        for (LeafReaderContext ctx : leaves) {
-            final Collector collector = manager.newCollector();
-            searchLeaf(ctx, weight, collector);
-            collectors.add(collector);
-        }
-        TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
-        // Lucene sets shards indexes during merging of topDocs from different collectors
-        // We need to reset shard index; ES will set shard index later during reduce stage
-        for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
-            scoreDoc.shardIndex = -1;
-        }
-        if (totalHits != null) { // we have already precalculated totalHits for the whole index
-            mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
-        }
-        result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
-    }
-
-=======
->>>>>>> master
-    @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);

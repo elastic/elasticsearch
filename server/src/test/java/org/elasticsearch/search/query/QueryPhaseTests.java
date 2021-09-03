@@ -681,15 +681,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
             if (i % 3500 == 0) writer.flush();
         }
         writer.close();
+
         final IndexReader reader = DirectoryReader.open(dir);
-
-<<<<<<< HEAD
-=======
         TestSearchContext searchContext = spy(new TestSearchContext(
-            searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0, true)));
+            searchExecutionContext, indexShard, newContextSearcher(reader)));
 
-        // 1. Test a sort on long field
->>>>>>> master
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
         final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
         sortFieldLong.setMissingValue(Long.MAX_VALUE);
@@ -710,7 +706,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 1. Test sort optimization on long field
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -723,7 +718,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 2. Test sort optimization on long field with after
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             int afterDoc = (int) randomLongBetween(0, 30);
             long afterValue = startLongValue + afterDoc;
             FieldDoc after = new FieldDoc(afterDoc, Float.NaN, new Long[] {afterValue});
@@ -743,7 +737,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 3. Test sort optimization on long field + date field
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             searchContext.sort(formatsLongDate);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -756,7 +749,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 4. Test sort optimization on date field
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             searchContext.sort(formatsDate);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -769,7 +761,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 5. Test sort optimization on date field + long field
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             searchContext.sort(formatsDateLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -782,7 +773,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 6. Test sort optimization on when from > 0 and size = 0
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -796,43 +786,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 7. Test that sort optimization doesn't break a case where from = 0 and size= 0
         {
-            TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newContextSearcher(reader)));
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
             searchContext.setSize(0);
             QueryPhase.executeInternal(searchContext);
-        }
-
-        {
-            // 7. Test a sort with terminate after
-            sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
-            TestSearchContext newSearchContext = spy(new TestSearchContext(
-                searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0, true)));
-            newSearchContext.sort(sortAndFormats);
-            newSearchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-            newSearchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-            newSearchContext.setSize(10);
-            int terminateAfter = randomIntBetween(1, numDocs/2);
-            newSearchContext.terminateAfter(terminateAfter);
-            QueryPhase.executeInternal(newSearchContext);
-            assertSortResults(newSearchContext.queryResult().topDocs().topDocs, terminateAfter, false);
-            assertTrue(newSearchContext.queryResult().terminatedEarly());
-        }
-
-        {
-            // 8. Test a sort with timeout
-            sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
-            TestSearchContext newSearchContext = spy(new TestSearchContext(
-                searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0, false)));
-            newSearchContext.sort(sortAndFormats);
-            newSearchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-            newSearchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-            newSearchContext.setSize(10);
-            newSearchContext.searcher().addQueryCancellation(() -> { throw new QueryPhase.TimeExceededException(); });
-            QueryPhase.executeInternal(newSearchContext);
-            assertSortResults(newSearchContext.queryResult().topDocs().topDocs, 0, false);
-            assertTrue(newSearchContext.queryResult().searchTimedOut());
         }
 
         reader.close();
@@ -1009,35 +967,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         };
     }
 
-<<<<<<< HEAD
-=======
-    // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader,
-                                                                    int queryType,
-                                                                    boolean wrapExitable) throws IOException {
-        return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), wrapExitable) {
-
-            @Override
-            public void search(List<LeafReaderContext> ctx, Weight weight, Collector collector) throws IOException {
-                final Query query = weight.getQuery();
-                assertTrue(query instanceof BooleanQuery);
-                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-                assertTrue(clauses.size() == 2);
-                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
-                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue(clauses.get(1).getQuery().getClass() ==
-                        LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(ctx, weight, collector);
-            }
-        };
-    }
-
->>>>>>> master
     private static class AssertingEarlyTerminationFilterCollector extends FilterCollector {
         private final int size;
 

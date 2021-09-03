@@ -78,11 +78,8 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
-<<<<<<< HEAD
     private FieldDoc searchAfter;
-=======
     private final ShardSearchRequest request;
->>>>>>> master
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 

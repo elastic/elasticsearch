@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.protocol.xpack.frozen;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
@@ -20,10 +21,12 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * Despite its name, this class handles only _unfreeze_ requests.
+ */
 public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
     implements IndicesRequest.Replaceable {
     private String[] indices;
-    private boolean freeze = true;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
@@ -35,7 +38,12 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
         super(in);
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         indices = in.readStringArray();
-        freeze = in.readBoolean();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.readBoolean()) {
+                // reject freeze requests in mixed clusters
+                throw new IllegalArgumentException("freeze requests are not supported in clusters with 8.x nodes");
+            }
+        }
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
@@ -48,21 +56,15 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
         return validationException;
     }
 
-    public FreezeRequest setFreeze(boolean freeze) {
-        this.freeze = freeze;
-        return this;
-    }
-
-    public boolean freeze() {
-        return freeze;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(indices);
-        out.writeBoolean(freeze);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // supports only unfreeze requests
+            out.writeBoolean(false);
+        }
         waitForActiveShards.writeTo(out);
     }
 

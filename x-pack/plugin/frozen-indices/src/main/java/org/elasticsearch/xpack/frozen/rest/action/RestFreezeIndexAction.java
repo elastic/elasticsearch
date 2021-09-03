@@ -29,25 +29,21 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/{index}/_freeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build(),
-            Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build()
-        );
+        return List.of(Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build());
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        boolean freeze = request.path().endsWith("/_freeze");
-        FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
-        freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));
-        freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
+        // Supports only _unfreeze_ requests
+        FreezeRequest unfreezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        unfreezeRequest.timeout(request.paramAsTime("timeout", unfreezeRequest.timeout()));
+        unfreezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", unfreezeRequest.masterNodeTimeout()));
+        unfreezeRequest.indicesOptions(IndicesOptions.fromRequest(request, unfreezeRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
-            freezeRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+            unfreezeRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        freezeRequest.setFreeze(freeze);
-        return channel -> client.execute(FreezeIndexAction.INSTANCE, freezeRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(FreezeIndexAction.INSTANCE, unfreezeRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

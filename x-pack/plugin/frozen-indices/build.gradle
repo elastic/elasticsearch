@@ -12,3 +12,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
+
+// Because only unfreezing indices is supported, the tests for freezing indices have been removed
+tasks.named("testingConventions").configure { enabled = false }
+

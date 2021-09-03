@@ -15,21 +15,18 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdate
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -45,13 +42,11 @@ import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.SortedMap;
 
 public final class TransportFreezeIndexAction extends TransportMasterNodeAction<FreezeRequest, FreezeResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportFreezeIndexAction.class);
 
-    private final DestructiveOperations destructiveOperations;
     private final MetadataIndexStateService indexStateService;
 
     @Inject
@@ -61,8 +56,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        DestructiveOperations destructiveOperations
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             FreezeIndexAction.NAME,
@@ -75,13 +69,11 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             FreezeResponse::new,
             ThreadPool.Names.SAME
         );
-        this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
     }
 
     @Override
     protected void doExecute(Task task, FreezeRequest request, ActionListener<FreezeResponse> listener) {
-        destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
     }
 
@@ -90,16 +82,14 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         for (Index index : indexNameExpressionResolver.concreteIndices(state, request)) {
             IndexMetadata metadata = state.metadata().index(index);
             Settings settings = metadata.getSettings();
-            // only unfreeze if we are frozen and only freeze if we are not frozen already.
-            // this prevents all indices that are already frozen that match a pattern to
-            // go through the cycles again.
-            if ((request.freeze() && FrozenEngine.INDEX_FROZEN.get(settings) == false)
-                || (request.freeze() == false && FrozenEngine.INDEX_FROZEN.get(settings))) {
+            // only unfreeze if we are frozen so that all indices that are already unfrozen that match a pattern
+            // do not go through the cycles again
+            if (FrozenEngine.INDEX_FROZEN.get(settings)) {
                 indices.add(index);
             }
         }
         if (indices.isEmpty() && request.indicesOptions().allowNoIndices() == false) {
-            throw new ResourceNotFoundException("no index found to " + (request.freeze() ? "freeze" : "unfreeze"));
+            throw new ResourceNotFoundException("no index found to unfreeze");
         }
         return indices.toArray(Index.EMPTY_ARRAY);
     }
@@ -161,24 +151,6 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             })) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    List<String> writeIndices = new ArrayList<>();
-                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
-                    for (Index index : concreteIndices) {
-                        IndexAbstraction ia = lookup.get(index.getName());
-                        if (ia != null
-                            && ia.getParentDataStream() != null
-                            && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
-                            writeIndices.add(index.getName());
-                        }
-                    }
-                    if (writeIndices.size() > 0) {
-                        throw new IllegalArgumentException(
-                            "cannot freeze the following data stream write indices ["
-                                + Strings.collectionToCommaDelimitedString(writeIndices)
-                                + "]"
-                        );
-                    }
-
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     for (Index index : concreteIndices) {
@@ -187,18 +159,11 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                             throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                         }
                         final Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
-                        if (request.freeze()) {
-                            settingsBuilder.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
-                            settingsBuilder.put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true);
-                            settingsBuilder.put("index.blocks.write", true);
-                            blocks.addIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
-                        } else {
-                            settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
-                            settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
-                            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
-                                settingsBuilder.remove("index.blocks.write");
-                                blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
-                            }
+                        settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
+                        settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
+                        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                            settingsBuilder.remove("index.blocks.write");
+                            blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                         }
                         builder.put(
                             IndexMetadata.builder(indexMetadata)

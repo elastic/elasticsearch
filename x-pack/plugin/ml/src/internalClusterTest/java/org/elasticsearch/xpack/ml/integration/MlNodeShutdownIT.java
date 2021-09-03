@@ -80,8 +80,8 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
                 nodeIdToShutdown.get(),
                 randomFrom(SingleNodeShutdownMetadata.Type.values()),
                 "just testing",
-                null
-            )
+                null,
+                null)
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
@@ -150,8 +150,8 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
                 nodeIdToShutdown.get(),
                 randomFrom(SingleNodeShutdownMetadata.Type.values()),
                 "just testing",
-                null
-            )
+                null,
+                null)
         )
             .actionGet();
 

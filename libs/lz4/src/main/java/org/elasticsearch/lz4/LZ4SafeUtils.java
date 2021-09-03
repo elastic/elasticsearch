@@ -21,7 +21,7 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.common.compress.lz4;
+package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.util.Utils;
@@ -30,10 +30,10 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.LAST_LITERALS;
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.ML_BITS;
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.ML_MASK;
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.RUN_MASK;
+import static org.elasticsearch.lz4.LZ4Constants.LAST_LITERALS;
+import static org.elasticsearch.lz4.LZ4Constants.ML_BITS;
+import static org.elasticsearch.lz4.LZ4Constants.ML_MASK;
+import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file

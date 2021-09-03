@@ -21,7 +21,7 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.common.compress.lz4;
+package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Exception;

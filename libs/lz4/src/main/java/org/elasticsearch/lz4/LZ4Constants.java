@@ -21,7 +21,7 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.common.compress.lz4;
+package org.elasticsearch.lz4;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file

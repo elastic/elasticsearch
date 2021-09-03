@@ -15,9 +15,9 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.lz4.ESLZ4Compressor;
-import org.elasticsearch.common.compress.lz4.ESLZ4Decompressor;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.lz4.ESLZ4Compressor;
+import org.elasticsearch.lz4.ESLZ4Decompressor;
 
 import java.io.IOException;
 import java.io.OutputStream;

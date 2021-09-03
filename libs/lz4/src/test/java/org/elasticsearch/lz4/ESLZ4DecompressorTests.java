@@ -6,12 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.compress.lz4;
+package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Compressor;
-
 import net.jpountz.lz4.LZ4Factory;
-
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -20,9 +18,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class ESLZ4CompressorTests extends ESTestCase {
+public class ESLZ4DecompressorTests extends ESTestCase {
 
-    public void testCompressRealisticUnicode() {
+    public void testDecompressRealisticUnicode() {
         for (int i = 0; i < 15; ++i) {
             int stringLengthMultiplier = randomFrom(5, 10, 20, 40, 80, 160, 320);
 
@@ -30,14 +28,10 @@ public class ESLZ4CompressorTests extends ESTestCase {
             byte[] uncompressed = uncompressedString.getBytes(StandardCharsets.UTF_8);
 
             byte[] compressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
-            byte[] unForkedCompressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
-            LZ4Compressor compressor = ESLZ4Compressor.INSTANCE;
+            LZ4Compressor compressor = LZ4Factory.safeInstance().fastCompressor();
             compressor.compress(uncompressed, compressed);
-            LZ4Compressor unForkedCompressor = LZ4Factory.safeInstance().fastCompressor();
-            unForkedCompressor.compress(uncompressed, unForkedCompressed);
-            assertArrayEquals(compressed, unForkedCompressed);
 
-            LZ4FastDecompressor decompressor = LZ4Factory.safeInstance().fastDecompressor();
+            LZ4FastDecompressor decompressor = ESLZ4Decompressor.INSTANCE;
             byte[] output = new byte[uncompressed.length];
             decompressor.decompress(compressed, output);
 
@@ -45,7 +39,7 @@ public class ESLZ4CompressorTests extends ESTestCase {
         }
     }
 
-    public void testCompressRandomIntBytes() throws IOException {
+    public void testDecompressRandomBytes() throws IOException {
         for (int i = 0; i < 15; ++i) {
             int uncompressedBytesLength = randomFrom(16, 32, 64, 128, 256, 512, 1024) * 1024;
 
@@ -57,14 +51,10 @@ public class ESLZ4CompressorTests extends ESTestCase {
             bytesStreamOutput.bytes().streamInput().read(uncompressed);
 
             byte[] compressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
-            byte[] unForkedCompressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
-            LZ4Compressor compressor = ESLZ4Compressor.INSTANCE;
+            LZ4Compressor compressor = LZ4Factory.safeInstance().fastCompressor();
             compressor.compress(uncompressed, compressed);
-            LZ4Compressor unForkedCompressor = LZ4Factory.safeInstance().fastCompressor();
-            int compressedSize = unForkedCompressor.compress(uncompressed, unForkedCompressed);
-            assertArrayEquals(compressed, unForkedCompressed);
 
-            LZ4FastDecompressor decompressor = LZ4Factory.safeInstance().fastDecompressor();
+            LZ4FastDecompressor decompressor = ESLZ4Decompressor.INSTANCE;
             byte[] output = new byte[uncompressed.length];
             decompressor.decompress(compressed, output);
 

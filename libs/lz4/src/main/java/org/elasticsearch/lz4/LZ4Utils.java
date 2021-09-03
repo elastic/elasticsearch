@@ -21,12 +21,12 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.common.compress.lz4;
+package org.elasticsearch.lz4;
 
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.HASH_LOG;
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.HASH_LOG_64K;
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.HASH_LOG_HC;
-import static org.elasticsearch.common.compress.lz4.LZ4Constants.MIN_MATCH;
+import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG;
+import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG_64K;
+import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG_HC;
+import static org.elasticsearch.lz4.LZ4Constants.MIN_MATCH;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file

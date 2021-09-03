@@ -1,0 +1,24 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.publish'
+
+dependencies {
+  api project(':libs:elasticsearch-core')
+  api 'org.lz4:lz4-java:1.8.0'
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-lz4'
+  }
+}
+
+
+tasks.named('forbiddenApisMain').configure {
+  // nio does not depend on core, so only jdk signatures should be checked
+  // es-all is not checked as we connect and accept sockets
+  replaceSignatureFiles 'jdk-signatures'
+}

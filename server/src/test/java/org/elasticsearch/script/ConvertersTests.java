@@ -21,7 +21,8 @@ import java.util.stream.LongStream;
 
 public class ConvertersTests extends ESTestCase {
     public void testLongToBigIntegerToLong() {
-        long[] raw = { Long.MIN_VALUE, Long.MAX_VALUE, ((long) Integer.MIN_VALUE - 1), ((long) Integer.MAX_VALUE + 1), -1L, 0L, 1L };
+        long[] raw = { randomLong(), Long.MIN_VALUE, Long.MAX_VALUE, ((long) Integer.MIN_VALUE - 1), ((long) Integer.MAX_VALUE + 1),
+                       -1L, 0L, 1L };
         Field<Long> src = new Field.LongField("", new FieldValues<Long>() {
             @Override
             public boolean isEmpty() {
@@ -59,6 +60,7 @@ public class ConvertersTests extends ESTestCase {
         List<BigInteger> expected = LongStream.of(raw).mapToObj(BigInteger::valueOf).collect(Collectors.toList());
         assertEquals(expected, dst.getValues());
         assertEquals(expected.get(0), dst.getValue(null));
+        // dst has data so a junk default value should be ignored
         assertEquals(raw[0], dst.getLong(10));
         assertEquals((double) raw[0], dst.getDouble(10.0d), 0.1d);
 
@@ -124,12 +126,14 @@ public class ConvertersTests extends ESTestCase {
     }
 
     public void testStringToBigInteger() {
-        List<String> raw = List.of(Long.MAX_VALUE + "0", Long.MIN_VALUE + "0", Double.MAX_VALUE + "", Double.MIN_VALUE + "");
+        List<String> raw = List.of(Long.MAX_VALUE + "0", randomLong() + "", Long.MIN_VALUE + "0", Double.MAX_VALUE + "",
+                                   Double.MIN_VALUE + "");
         Field<String> src = new Field.StringField("", new ListFieldValues<>(raw));
 
         Field<BigInteger> dst = src.as(Field.BigInteger);
         BigInteger maxDouble = new BigInteger("17976931348623157" + "0".repeat(292));
-        List<BigInteger> expected = List.of(new BigInteger(raw.get(0)), new BigInteger(raw.get(1)), maxDouble, BigInteger.ZERO);
+        List<BigInteger> expected = List.of(new BigInteger(raw.get(0)), new BigInteger(raw.get(1)), new BigInteger(raw.get(2)), maxDouble,
+                                            BigInteger.ZERO);
         assertEquals(expected, dst.getValues());
         assertEquals(expected.get(0), dst.getValue(null));
         assertEquals(-10L, dst.getLong(10)); // overflow
@@ -137,14 +141,15 @@ public class ConvertersTests extends ESTestCase {
     }
 
     public void testStringToLong() {
-        List<String> raw = List.of(Long.MAX_VALUE + "", Long.MIN_VALUE + "", "0", "100");
+        long rand = randomLong();
+        List<String> raw = List.of(rand + "", Long.MAX_VALUE + "", Long.MIN_VALUE + "", "0", "100");
         Field<String> src = new Field.StringField("", new ListFieldValues<>(raw));
 
         Field<Long> dst = src.as(Field.Long);
-        assertEquals(List.of(Long.MAX_VALUE, Long.MIN_VALUE, 0L, 100L), dst.getValues());
-        assertEquals(Long.valueOf(Long.MAX_VALUE), dst.getValue(null));
-        assertEquals(Long.MAX_VALUE, dst.getLong(10)); // overflow
-        assertEquals(Long.MAX_VALUE + 0.0d, dst.getDouble(10.0d), 0.1d);
+        assertEquals(List.of(rand, Long.MAX_VALUE, Long.MIN_VALUE, 0L, 100L), dst.getValues());
+        assertEquals(Long.valueOf(rand), dst.getValue(null));
+        assertEquals(rand, dst.getLong(10)); // overflow
+        assertEquals(rand + 0.0d, dst.getDouble(10.0d), 0.9d);
     }
 
     public void testBooleanTo() {

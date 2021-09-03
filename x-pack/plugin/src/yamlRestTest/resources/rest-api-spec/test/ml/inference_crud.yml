@@ -954,3 +954,78 @@ setup:
       ml.delete_trained_model_alias:
         model_alias: "regression-model"
         model_id: "a-regression-model-0"
+---
+"Test put with defer_definition_decompression with invalid compressed definition":
+  - do:
+      ml.put_trained_model:
+        defer_definition_decompression: true
+        model_id: my-regression-model-with-bad-compressed-definition
+        body: >
+          {
+            "description": "model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"classification": {}},
+            "estimated_heap_memory_usage_bytes": 1024,
+            "compressed_definition": "H4sIAAAAAAAAAEy92a5mW26l9y55HWdj9o3u9RS+SMil4yrBUgpIpywY9fLmR3LMFSpI"
+          }
+
+---
+"Test put with defer_definition_decompression with invalid compression definition and no memory estimate":
+  - do:
+      catch: /when \[defer_definition_decompression\] is true and a compressed definition is provided, estimated_heap_memory_usage_bytes must be set/
+      ml.put_trained_model:
+        defer_definition_decompression: true
+        model_id: my-regression-model-compressed-failed
+        body: >
+          {
+            "description": "model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"classification": {}},
+            "compressed_definition": "H4sIAAAAAAAAAEy92a5mW26l9y55HWdj9o3u9RS+SMil4yrBUgpIpywY9fLmR3LMFSpI"
+          }
+
+---
+"Test put with defer_definition_decompression with invalid definition and no memory estimate":
+  - do:
+      catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/
+      ml.put_trained_model:
+        defer_definition_decompression: true
+        model_id: my-regression-model
+        body: >
+          {
+            "description": "model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "ensemble": {
+                    "target_type": "regression",
+                    "trained_models": [
+                      {
+                        "tree": {
+                          "feature_names": ["field1", "field2"],
+                          "tree_structure": [
+                             {"node_index": 0, "threshold": 2, "left_child": 1, "right_child": 2},
+                             {"node_index": 1, "leaf_value": 0},
+                             {"node_index": 2, "leaf_value": 1}
+                          ],
+                          "target_type": "regression"
+                        }
+                      },
+                      {
+                        "tree": {
+                          "feature_names": ["field1", "field2"],
+                          "tree_structure": [
+                             {"node_index": 0, "threshold": 2, "left_child": 1, "right_child": 2},
+                             {"node_index": 1, "leaf_value": 0},
+                             {"node_index": 2, "leaf_value": 1}
+                          ],
+                          "target_type": "regression"
+                        }
+                      }
+                    ]
+                  }
+               }
+            }
+          }

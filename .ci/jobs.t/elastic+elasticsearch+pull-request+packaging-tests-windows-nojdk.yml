@@ -1,8 +1,8 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+packaging-tests-windows"
-    display-name: "elastic / elasticsearch - pull request packaging-tests-windows"
-    description: "Testing of Elasticsearch pull requests - packaging-tests-windows"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-windows-nojdk"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-windows-nojdk"
+    description: "Testing of Elasticsearch pull requests - packaging-tests-windows-nojdk"
     # We use a hard-coded workspace directory here to avoid hitting windows path length limits
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
     project-type: matrix

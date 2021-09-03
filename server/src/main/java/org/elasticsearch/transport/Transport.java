@@ -128,6 +128,17 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
+
+        /**
+         * Called after this connection is removed from the transport service.
+         */
+        void onRemoved();
+
+        /**
+         * Similar to {@link #addCloseListener} except that these listeners are notified once the connection is removed from the transport
+         * service.
+         */
+        void addRemovedListener(ActionListener<Void> listener);
     }
 
     /**

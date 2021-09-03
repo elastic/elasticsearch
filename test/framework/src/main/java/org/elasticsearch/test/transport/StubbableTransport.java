@@ -229,6 +229,10 @@ public class StubbableTransport implements Transport {
             connection.addCloseListener(listener);
         }
 
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
+        }
 
         @Override
         public boolean isClosed() {
@@ -248,6 +252,11 @@ public class StubbableTransport implements Transport {
         @Override
         public void close() {
             connection.close();
+        }
+
+        @Override
+        public void onRemoved() {
+            connection.onRemoved();
         }
 
         public Transport.Connection getConnection() {

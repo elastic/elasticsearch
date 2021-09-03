@@ -19,10 +19,16 @@ import org.elasticsearch.core.CompletableContext;
 public abstract class CloseableConnection extends AbstractRefCounted implements Transport.Connection {
 
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final CompletableContext<Void> removeContext = new CompletableContext<>();
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         closeContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public void addRemovedListener(ActionListener<Void> listener) {
+        removeContext.addListener(ActionListener.toBiConsumer(listener));
     }
 
     @Override
@@ -35,6 +41,11 @@ public abstract class CloseableConnection extends AbstractRefCounted implements 
         // This method is safe to call multiple times as the close context will provide concurrency
         // protection and only be completed once. The attached listeners will only be notified once.
         closeContext.complete(null);
+    }
+
+    @Override
+    public void onRemoved() {
+        removeContext.complete(null);
     }
 
     @Override

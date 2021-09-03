@@ -39,7 +39,7 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist',  [
             // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
             'cat*/*/*',
@@ -84,6 +84,7 @@ tasks.named("yamlRestCompatTest").configure {
             // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
             'indices.upgrade/*/*',
 
+
             'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
             'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
 
@@ -99,7 +100,7 @@ tasks.named("yamlRestCompatTest").configure {
     ].join(',')
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

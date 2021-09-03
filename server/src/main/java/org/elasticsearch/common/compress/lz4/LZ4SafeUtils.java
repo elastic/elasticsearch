@@ -69,24 +69,15 @@ enum LZ4SafeUtils {
 
     // Modified wildIncrementalCopy to mirror version in LZ4UnsafeUtils
     static void wildIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchCopyEnd) {
-        if (dOff - matchOff >= 4) {
-            if (dOff - matchOff < 8) {
-                copy8Bytes(dest, matchOff, dest, dOff);
-                dOff += dOff - matchOff;
-            }
-        } else {
-            for(int i = 0; i < 4; ++i) {
+        if (dOff - matchOff < 4) {
+            for (int i = 0; i < 4; ++i) {
                 dest[dOff + i] = dest[matchOff + i];
             }
-
             dOff += 4;
             matchOff += 4;
             int dec = 0;
-
             assert dOff >= matchOff && dOff - matchOff < 8;
-
-            // Modified switch statement to conform to ES formatting
-            switch(dOff - matchOff) {
+            switch (dOff - matchOff) {
                 case 1:
                     matchOff -= 3;
                     break;
@@ -97,10 +88,6 @@ enum LZ4SafeUtils {
                     matchOff -= 3;
                     dec = -1;
                     break;
-                case 4:
-                    break;
-                default:
-                    break;
                 case 5:
                     dec = 1;
                     break;
@@ -110,14 +97,18 @@ enum LZ4SafeUtils {
                 case 7:
                     dec = 3;
                     break;
+                default:
+                    break;
             }
 
             copy4Bytes(dest, matchOff, dest, dOff);
             dOff += 4;
             matchOff -= dec;
+        } else if (dOff - matchOff < LZ4Constants.COPY_LENGTH) {
+            copy8Bytes(dest, matchOff, dest, dOff);
+            dOff += dOff - matchOff;
         }
-
-        while(dOff < matchCopyEnd) {
+        while (dOff < matchCopyEnd) {
             copy8Bytes(dest, matchOff, dest, dOff);
             dOff += 8;
             matchOff += 8;

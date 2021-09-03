@@ -175,7 +175,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      */
     public Stream<Entry<KType, VType>> stream() {
         Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED) {
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(),
+            Spliterator.SIZED | Spliterator.DISTINCT) {
             @Override
             public boolean tryAdvance(Consumer<? super Entry<KType, VType>> action) {
                 if (mapIterator.hasNext() == false) {

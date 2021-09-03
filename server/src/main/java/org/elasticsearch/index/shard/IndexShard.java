@@ -9,6 +9,7 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -185,6 +186,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DATASTREAM_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -283,6 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    private final boolean isDataStreamIndex; // if a shard is a part of data stream
 
     public IndexShard(
             final ShardRouting shardRouting,
@@ -387,6 +390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
     }
 
     public ThreadPool getThreadPool() {
@@ -2912,7 +2916,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointSupplier,
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
-                snapshotCommitSupplier);
+                snapshotCommitSupplier,
+                isDataStreamIndex ? DATASTREAM_LEAF_READERS_SORTER : null);
     }
 
     /**

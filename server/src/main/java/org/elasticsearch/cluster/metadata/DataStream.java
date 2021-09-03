@@ -49,14 +49,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     if (points != null) {
                         byte[] sortValue = points.getMaxPackedValue();
                         return LongPoint.decodeDimension(sortValue, 0);
+                    } else if (r.numDocs() == 0) {
+                        // points can be null if the segment contains only deleted documents
+                        return Long.MIN_VALUE;
                     }
                 } catch (IOException e) {
-                    throw new IllegalStateException("Failed reading [" +
-                        DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
                 }
-                // this may happen if the segment contains only deleted documents
-                assert(r.numDocs() == 0);
-                return Long.MIN_VALUE;
+                throw new IllegalStateException("Can't access [" +
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
             })
         .reversed();
 

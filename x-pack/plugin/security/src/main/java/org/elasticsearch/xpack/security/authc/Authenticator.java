@@ -39,6 +39,24 @@ public interface Authenticator {
 
     void authenticate(Context context, ActionListener<Result> listener);
 
+    /**
+     * Gets the token from the <code>Authorization</code> header if the header begins with
+     * <code>Bearer </code>
+     */
+    static SecureString extractBearerTokenFromHeader(ThreadContext threadContext) {
+        String header = threadContext.getHeader("Authorization");
+        if (Strings.hasText(header) && header.regionMatches(true,
+            0,
+            "Bearer ",
+            0,
+            "Bearer ".length()) && header.length() > "Bearer ".length()) {
+            char[] chars = new char[header.length() - "Bearer ".length()];
+            header.getChars("Bearer ".length(), header.length(), chars, 0);
+            return new SecureString(chars);
+        }
+        return null;
+    }
+
     class Context implements Closeable {
         private final ThreadContext threadContext;
         private final AuthenticationService.AuditableRequest request;
@@ -57,8 +75,8 @@ public interface Authenticator {
             AuthenticationService.AuditableRequest request,
             User fallbackUser,
             boolean fallbackToAnonymous,
-            Realms realms) {
-
+            Realms realms
+        ) {
             this.threadContext = threadContext;
             this.request = request;
             this.fallbackUser = fallbackUser;
@@ -130,24 +148,6 @@ public interface Authenticator {
         @Override
         public void close() throws IOException {
             authenticationTokens.forEach(AuthenticationToken::clearCredentials);
-        }
-
-        /**
-         * Gets the token from the <code>Authorization</code> header if the header begins with
-         * <code>Bearer </code>
-         */
-        private static SecureString extractBearerTokenFromHeader(ThreadContext threadContext) {
-            String header = threadContext.getHeader("Authorization");
-            if (Strings.hasText(header) && header.regionMatches(true,
-                0,
-                "Bearer ",
-                0,
-                "Bearer ".length()) && header.length() > "Bearer ".length()) {
-                char[] chars = new char[header.length() - "Bearer ".length()];
-                header.getChars("Bearer ".length(), header.length(), chars, 0);
-                return new SecureString(chars);
-            }
-            return null;
         }
     }
 

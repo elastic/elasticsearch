@@ -214,8 +214,10 @@ public class RealmsAuthenticator implements Authenticator {
     }
 
     private void consumeNullUser(
-        Context context, Map<Realm, Tuple<String, Exception>> messages,
-        ActionListener<Result> listener) {
+        Context context,
+        Map<Realm, Tuple<String, Exception>> messages,
+        ActionListener<Result> listener
+    ) {
         messages.forEach((realm, tuple) -> {
             final String message = tuple.v1();
             final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
@@ -249,7 +251,8 @@ public class RealmsAuthenticator implements Authenticator {
             final long startInvalidationNum = numInvalidation.get();
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
                 if (tuple == null) {
-                    logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, authentication.getUser().principal());
+                    logger.debug("Cannot find run-as user [{}] for authenticated user [{}]",
+                        runAsUsername, authentication.getUser().principal());
                     listener.onResponse(null);
                 } else {
                     User foundUser = Objects.requireNonNull(tuple.v1());
@@ -262,15 +265,14 @@ public class RealmsAuthenticator implements Authenticator {
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
                     listener.onResponse(tuple);
                 }
-            }, exception -> listener.onFailure(context.getRequest().exceptionProcessingRequest(exception, context.getAuthenticationToken()))));
+            }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getAuthenticationToken()))));
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {
             logger.debug("user [{}] attempted to runAs with an empty username", authentication.getUser().principal());
-            listener.onFailure(context.getRequest()
-                .runAsDenied(
-                    new Authentication(new User(runAsUsername, null, authentication.getUser()), authentication.getAuthenticatedBy(), null),
-                    context.getAuthenticationToken()));
+            listener.onFailure(context.getRequest().runAsDenied(
+                new Authentication(new User(runAsUsername, null, authentication.getUser()), authentication.getAuthenticatedBy(), null),
+                context.getAuthenticationToken()));
         }
     }
 

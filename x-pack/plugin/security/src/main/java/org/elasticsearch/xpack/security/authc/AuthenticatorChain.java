@@ -57,8 +57,8 @@ public class AuthenticatorChain {
         AnonymousUser anonymousUser,
         AtomicLong numInvalidation,
         Cache<String, Realm> lastSuccessfulAuthCache,
-        AuthenticationContextSerializer authenticationSerializer) {
-
+        AuthenticationContextSerializer authenticationSerializer
+    ) {
         this.nodeName = nodeName;
         this.runAsEnabled = runAsEnabled;
         this.operatorPrivilegesService = operatorPrivilegesService;
@@ -74,8 +74,9 @@ public class AuthenticatorChain {
     }
 
     public void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
-        // TODO: should we still try token and api key auth?
+        // TODO: wrap listener so it clears all authentication token from context
         if (context.getDefaultOrderedRealmList().isEmpty()) {
+            // TODO: should we still try token and api key auth?
             // this happens when the license state changes between the call to authenticate and the actual invocation
             // to get the realm list
             logger.debug("No realms available, failing authentication");
@@ -111,7 +112,7 @@ public class AuthenticatorChain {
         doAuthenticate(context, existingCredentialsAuthenticators, false, listener);
     }
 
-    public void doAuthenticate(
+    private void doAuthenticate(
         Authenticator.Context context,
         List<Authenticator> authenticators,
         boolean shouldExtractCredentials,
@@ -168,16 +169,14 @@ public class AuthenticatorChain {
                 }
                 listener.onResponse(result);
             }, e -> {
-                ElasticsearchSecurityException ese;
                 if (e instanceof ElasticsearchSecurityException) {
-                    ese = (ElasticsearchSecurityException) e;
-                } else {
-                    ese = Exceptions.authenticationError("failed to authenticate with {}", e, authenticator.name());
+                    final ElasticsearchSecurityException ese = (ElasticsearchSecurityException) e;
+                    if (false == context.getUnsuccessfulMessages().isEmpty()) {
+                        addMetadata(context, ese);
+                    }
                 }
-                if (false == context.getUnsuccessfulMessages().isEmpty()) {
-                    addMetadata(context, ese);
-                }
-                listener.onFailure(ese);
+                // Not adding additional metadata if the exception is not security related, e.g. server busy
+                listener.onFailure(e);
             }));
         };
     }
@@ -221,8 +220,7 @@ public class AuthenticatorChain {
                     new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName));
             }
             finishAuthentication(context, finalAuth, listener);
-
-        }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getAuthenticationToken()))));
+        }, listener::onFailure));
     }
 
     /**
@@ -295,6 +293,8 @@ public class AuthenticatorChain {
 
         if (authentication != null) {
             // TODO: we can also support run-as for fallback users if needed
+            // TODO: the authentication for fallback user is now serialised in the inner threadContext
+            //       instead of at the AuthenticationService level
             writeAuthToContext(context, authentication, listener);
         } else {
             final ElasticsearchSecurityException ese = context.getRequest().anonymousAccessDenied();

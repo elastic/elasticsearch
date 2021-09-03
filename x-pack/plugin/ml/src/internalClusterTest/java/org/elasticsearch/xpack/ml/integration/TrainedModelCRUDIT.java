@@ -77,7 +77,8 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
                         )
                     )
                     .setModelId(modelId)
-                    .build()
+                    .build(),
+                false
             )
         ).actionGet().getResponse();
 

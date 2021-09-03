@@ -205,7 +205,8 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -233,7 +234,8 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +

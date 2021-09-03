@@ -16,6 +16,9 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -37,14 +40,14 @@ import java.util.Objects;
  */
 public final class EnrichCache {
 
-    private final Cache<CacheKey, SearchResponse> cache;
+    private final Cache<CacheKey, CompletableFuture<SearchResponse>> cache;
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
-        this.cache = CacheBuilder.<CacheKey, SearchResponse>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, CompletableFuture<SearchResponse>>builder().setMaximumWeight(maxSize).build();
     }
 
-    SearchResponse get(SearchRequest searchRequest) {
+    CompletableFuture<SearchResponse> get(SearchRequest searchRequest) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
@@ -52,6 +55,10 @@ public final class EnrichCache {
     }
 
     void put(SearchRequest searchRequest, SearchResponse searchResponse) {
+        put(searchRequest, CompletableFuture.completedFuture(searchResponse));
+    }
+
+    void put(SearchRequest searchRequest, CompletableFuture<SearchResponse> searchResponse) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
 
@@ -77,6 +84,23 @@ public final class EnrichCache {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
         return ia.getIndices().get(0).getIndex().getName();
+    }
+
+    CompletableFuture<SearchResponse> computeIfAbsent(
+        SearchRequest searchRequest,
+        Function<SearchRequest, CompletableFuture<SearchResponse>> computeFunction
+    ) throws ExecutionException {
+        String enrichIndex = getEnrichIndexKey(searchRequest);
+        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
+
+        return cache.computeIfAbsent(cacheKey, key -> computeFunction.apply(key.searchRequest));
+    }
+
+    public void invalidate(SearchRequest searchRequest, CompletableFuture<SearchResponse> searchResponse) {
+        String enrichIndex = getEnrichIndexKey(searchRequest);
+        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
+
+        cache.invalidate(cacheKey, searchResponse);
     }
 
     private static class CacheKey {

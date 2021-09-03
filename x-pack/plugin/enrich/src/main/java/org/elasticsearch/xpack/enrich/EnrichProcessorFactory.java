@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -129,15 +131,30 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     ) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (req, handler) -> {
-            // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-            SearchResponse response = enrichCache.get(req);
-            if (response != null) {
-                handler.accept(response, null);
-            } else {
-                originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(resp -> {
-                    enrichCache.put(req, resp);
-                    handler.accept(resp, null);
-                }, e -> { handler.accept(null, e); }));
+            try {
+                CompletableFuture<SearchResponse> cacheEntry = enrichCache.computeIfAbsent(req, request -> {
+                    CompletableFuture completableFuture = new CompletableFuture();
+                    originClient.execute(
+                        EnrichCoordinatorProxyAction.INSTANCE,
+                        request,
+                        ActionListener.wrap(resp -> completableFuture.complete(resp), e -> completableFuture.completeExceptionally(e))
+                    );
+                    return completableFuture;
+                });
+                cacheEntry.whenComplete((response, throwable) -> {
+                    Exception exception = null;
+                    if (throwable != null) {
+                        enrichCache.invalidate(req, cacheEntry);
+                        if (throwable instanceof Exception) {
+                            exception = (Exception) throwable;
+                        } else {
+                            exception = new Exception("Unexpected error", throwable);
+                        }
+                    }
+                    handler.accept(response, exception);
+                });
+            } catch (ExecutionException e) {
+                handler.accept(null, e);
             }
         };
     }

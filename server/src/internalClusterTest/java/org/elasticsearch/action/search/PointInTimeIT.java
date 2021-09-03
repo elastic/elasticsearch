@@ -159,7 +159,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertHitCount(resp, numDocs);
             assertThat(resp.pointInTimeId(), equalTo(pitId));
             final Set<String> dataNodes = clusterService().state().nodes().getDataNodes().stream()
-                .map(e -> e.value.getId()).collect(Collectors.toSet());
+                .map(e -> e.getValue().getId()).collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
             assertAcked(client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)).build()));
@@ -313,7 +313,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     public void testPartialResults() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final List<String> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes().stream()
-            .map(e -> e.value.getName())
+            .map(e -> e.getValue().getName())
             .collect(Collectors.toList());
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 

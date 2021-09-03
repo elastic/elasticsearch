@@ -218,7 +218,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             .nodes()
             .getDataNodes()
             .stream()
-            .map(e -> e.value.getName())
+            .map(e -> e.getValue().getName())
             .collect(Collectors.toList());
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";

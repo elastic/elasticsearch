@@ -1283,7 +1283,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     public void testRecoverLocallyUpToGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> nodes = randomSubsetOf(2, clusterService().state().nodes().getDataNodes().stream()
-            .map(node -> node.value.getName()).collect(Collectors.toSet()));
+            .map(node -> node.getValue().getName()).collect(Collectors.toSet()));
         String indexName = "test-index";
         createIndex(indexName, Settings.builder()
             .put("index.number_of_shards", 1)

@@ -1,0 +1,118 @@
+[[remote-clusters-privileges]]
+=== Configure remote cluster privileges
+After <<remote-clusters-connect,connecting to remote clusters>>, you create a
+user role on both the local and remote clusters and assign necessary privileges.
+These roles are required to use {ccr} and {ccs}.
+
+IMPORTANT: You must use the same role names on both the local
+and remote clusters. For example, the following configuration for {ccr} uses the
+`ccr_user` role name on both the local and remote clusters. However, you can
+specify different role definitions.
+
+You can manage users and roles in {kib} from by selecting
+*Stack Management > Security > Roles*. You can also use the
+<<security-role-mapping-apis,role management APIs>> to add, update, remove, and
+retrieve roles dynamically. When you use the APIs to manage roles in the
+`native` realm, the roles are stored in an internal {es} index.
+
+[[remote-clusters-privileges-ccr]]
+==== Configure privileges for {ccr}
+The {ccr} user requires different cluster and index privileges on the remote
+cluster and local cluster. 
+
+[[clusters-privileges-ccr-remote]]
+On the *remote* cluster that contains the leader index, the `ccr_user` requires
+the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
+leader index.
+
+[source,console]
+----
+POST /_security/role/ccr_user
+{
+  "cluster": [
+    "read_ccr"
+  ],
+  "indices": [
+    {
+      "names": [
+        "leader-index"
+      ],
+      "privileges": [
+        "monitor",
+        "read"
+      ]
+    }
+  ]
+}
+----
+
+[[clusters-privileges-ccr-local]]
+On the *local* cluster that contains the follower index, the `ccr_user` requires
+the `manage_ccr` cluster privilege, and `monitor`, `read`, `write`, and
+`manage_follow_index` privileges on the follower index.
+
+[source,console]
+----
+POST /_security/role/ccr_user
+{
+  "cluster": [
+    "manage_ccr"
+  ],
+  "indices": [
+    {
+      "names": [
+        "follower-index"
+      ],
+      "privileges": [
+        "monitor",
+        "read",
+        "write",
+        "manage_follow_index"
+      ]
+    }
+  ]
+}
+----
+
+If you are managing
+<<remote-clusters-connect,connecting to the remote cluster>> using
+the cluster update settings API, you will also need a user with the `all`
+cluster privilege.
+
+[[remote-clusters-privileges-ccs]]
+==== Configure privileges for {ccs}
+The {ccs} user requires different cluster and index privileges on the remote
+cluster and local cluster. 
+
+[[clusters-privileges-ccs-remote]]
+On the *remote* cluster, the `ccs_user` requires the `read` and
+`read_cross_cluster` privileges for the target indices.
+
+[source,console]
+----
+POST /_security/role/ccs_user
+{
+  "indices": [
+    {
+      "names": [
+        "target-indices"
+      ],
+      "privileges": [
+        "read",
+        "read_cross_cluster"
+      ]
+    }
+  ]
+}
+----
+
+[[clusters-privileges-ccs-local]]
+On the *local* cluster, which is the cluster used to initiate cross cluster
+search, a user only needs to have the `ccs_user` role. The role privileges for
+this user can be empty.
+
+[source,console]
+----
+POST /_security/role/ccs_user
+{}
+----

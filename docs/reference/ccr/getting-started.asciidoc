@@ -73,21 +73,18 @@ can <<modules-cross-cluster-search,search across clusters>> and set up {ccr}.
 To complete this tutorial, you need:
 
 * A license on both clusters that includes {ccr}. {kibana-ref}/managing-licenses.html[Activate a free 30-day trial].
-* The `read_ccr` cluster privilege and `monitor` and `read` privileges
-for the leader index on the remote cluster. <<stack-management-ccr-remote,Configure remote cluster privileges>>.
-* The `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
-`manage_follow_index` privileges to configure remote clusters and follower
-indices on the local cluster. <<stack-management-ccr-local,Configure local cluster privileges>>.
-* At least one <<connect-remote-clusters,remote cluster configured>>.
+* At least one <<remote-clusters-connect,remote cluster configured>>.
+* Configured <<remote-clusters-privileges-ccr,user privileges>> on both the
+remote and local cluster.
 * An index on the remote cluster that contains the data you want to replicate.
 This tutorial uses the sample eCommerce orders data set.
 {kibana-ref}/get-started.html#gs-get-data-into-kibana[Load sample data].
 * In the local cluster, all nodes with the `master` <<node-roles,node role>> must
-  also have the <<remote-node,`remote_cluster_client`>> role. The local cluster
-  must also have at least one node with both a data role and the
-  <<remote-node,`remote_cluster_client`>> role. Individual tasks for coordinating
-  replication scale based on the number of data nodes with the
-  `remote_cluster_client` role in the local cluster.
+also have the <<remote-node,`remote_cluster_client`>> role. The local cluster
+must also have at least one node with both a data role and the
+<<remote-node,`remote_cluster_client`>> role. Individual tasks for coordinating
+replication scale based on the number of data nodes with the
+`remote_cluster_client` role in the local cluster.
 
 [[ccr-enable-soft-deletes]]
 ==== Enable soft deletes on leader indices
@@ -125,7 +122,7 @@ in the follower index.
 [role="screenshot"]
 image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
 
-[%collapsible]
+[%collapsible%open]
 .API example
 ====
 Use the <<ccr-put-follow,create follower API>> to create follower indices.
@@ -138,13 +135,13 @@ When initiating the follower request, the response returns before the
 to complete, add the `wait_for_active_shards` parameter to your request.
 
 [source,console]
---------------------------------------------------
+----
 PUT /server-metrics-follower/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "leader",
   "leader_index" : "server-metrics"
 }
---------------------------------------------------
+----
 // TEST[continued]
 
 //////////////////////////
@@ -162,7 +159,7 @@ PUT /server-metrics-follower/_ccr/follow?wait_for_active_shards=1
 
 Use the
 <<ccr-get-follow-stats,get follower stats API>> to inspect the status of
-replication
+replication.
 
 //////////////////////////
 
@@ -212,14 +209,14 @@ image::images/auto-follow-patterns.png["The Auto-follow patterns page in {kib}"]
 
 // end::ccr-create-auto-follow-pattern-tag[]
 
-[%collapsible]
+[%collapsible%open]
 .API example
 ====
 Use the <<ccr-put-auto-follow-pattern,create auto-follow pattern API>> to
 configure auto-follow patterns.
 
 [source,console]
---------------------------------------------------
+----
 PUT /_ccr/auto_follow/beats
 {
   "remote_cluster" : "leader",
@@ -230,7 +227,7 @@ PUT /_ccr/auto_follow/beats
   ],
   "follow_index_pattern" : "{{leader_index}}-copy" <3>
 }
---------------------------------------------------
+----
 // TEST[continued]
 <1> Automatically follow new {metricbeat} indices.
 <2> Automatically follow new {packetbeat} indices.

@@ -19,11 +19,13 @@ nodes in the remote cluster. {es} requires these connections to remain open,
 even if the connections are idle for an extended period.
 
 You can use the <<cluster-remote-info, remote cluster info API>> to get
-information about registered remote clusters.
+information about registered remote clusters. If you're enabling and configuring
+security for {es}, refer to 
+<<remote-clusters-security,remote clusters and security>>.
 
 [[sniff-mode]]
 [discrete]
-==== Sniff mode
+=== Sniff mode
 
 In sniff mode, a cluster is created using a name and a list of seed nodes. When
 a remote cluster is registered, its cluster state is retrieved from one of the
@@ -75,8 +77,7 @@ to satisfy the two above requirements.
 
 [[proxy-mode]]
 [discrete]
-==== Proxy mode
-
+=== Proxy mode
 In proxy mode, a cluster is created using a name and a single proxy address.
 When you register a remote cluster, a configurable number of socket connections
 are opened to the proxy address. The proxy is required to route those
@@ -88,5 +89,7 @@ to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
 
-include::cluster/connect-remote-clusters.asciidoc[]
-include::cluster/remote-cluster-settings.asciidoc[]
+include::cluster/remote-clusters-connect.asciidoc[]
+include::cluster/remote-clusters-privileges.asciidoc[]
+include::cluster/remote-clusters-security.asciidoc[]
+include::cluster/remote-clusters-settings.asciidoc[]

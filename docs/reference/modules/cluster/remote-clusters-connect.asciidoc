@@ -1,4 +1,4 @@
-[[connect-remote-clusters]]
+[[remote-clusters-connect]]
 === Connect to remote clusters
 To replicate an index on a remote cluster (Cluster A) to a local cluster (Cluster B), you configure Cluster A as a remote on Cluster B.
 
@@ -16,7 +16,7 @@ Alternatively, use the <<cluster-update-settings,cluster update settings API>>
 to add a remote cluster:
 
 [source,console]
---------------------------------------------------
+----
 PUT /_cluster/settings
 {
   "persistent" : {
@@ -31,7 +31,7 @@ PUT /_cluster/settings
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 <1> Specifies the hostname and transport port of a seed node in the remote
@@ -41,16 +41,16 @@ You can verify that the local cluster is successfully connected to the remote
 cluster.
 
 [source,console]
---------------------------------------------------
+----
 GET /_remote/info
---------------------------------------------------
+----
 // TEST[continued]
 
 The API will respond by showing that the local cluster is connected to the
 remote cluster.
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "leader" : {
     "seeds" : [
@@ -64,7 +64,7 @@ remote cluster.
     "mode" : "sniff"
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
@@ -84,7 +84,7 @@ Use the <<cluster-update-settings,cluster update settings API>> to dynamically
 configure remote settings on every node in the cluster. For example:
 
 [source,console]
---------------------------------
+----
 PUT _cluster/settings
 {
   "persistent": {
@@ -111,7 +111,7 @@ PUT _cluster/settings
     }
   }
 }
---------------------------------
+----
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
@@ -120,7 +120,7 @@ you must include the `seeds` or `proxy_address` in the settings update request.
 For example:
 
 [source,console]
---------------------------------
+----
 PUT _cluster/settings
 {
   "persistent": {
@@ -148,7 +148,7 @@ PUT _cluster/settings
     }
   }
 }
---------------------------------
+----
 // TEST[continued]
 
 NOTE: When the compression or ping schedule settings change, all the existing
@@ -156,16 +156,18 @@ node connections must close and re-open, which can cause in-flight requests to
 fail.
 
 You can delete a remote cluster from the cluster settings by passing `null`
-values for each remote cluster setting:
+values for each remote cluster setting. The following request removes
+`cluster_two` from the cluster settings, leaving `cluster_one` and 
+`cluster_three` intact.:
 
 [source,console]
---------------------------------
+----
 PUT _cluster/settings
 {
   "persistent": {
     "cluster": {
       "remote": {
-        "cluster_two": { <1>
+        "cluster_two": {
           "mode": null,
           "seeds": null,
           "skip_unavailable": null,
@@ -175,42 +177,44 @@ PUT _cluster/settings
     }
   }
 }
---------------------------------
+----
 // TEST[continued]
-
-<1> `cluster_two` would be removed from the cluster settings, leaving
-`cluster_one` and `cluster_three` intact.
 
 [[configure-remote-clusters-static]]
 ==== Statically configure remote clusters
-If you specify settings in `elasticsearch.yml` files, only the nodes with
-those settings can connect to the remote cluster and serve remote cluster requests. For example:
+If you specify settings in `elasticsearch.yml`, only the nodes with
+those settings can connect to the remote cluster and serve remote cluster 
+requests.
+
+In the following example, `cluster_one`, `cluster_two`, and `cluster_three` are 
+arbitrary _cluster aliases_ representing the connection to each cluster. These 
+names are subsequently used to distinguish between local and remote indices.
+
+Use the `seeds` parameter to specify the hostname and
+<<transport-settings,transport port>> (default `9300`) of a seed node in the 
+remote cluster.
+
+The `mode` parameter determines the configured connection mode, which defaults
+to <<sniff-mode,`sniff`>>. Because `cluster_one` doesn't specify a `mode`, it
+uses the default. Both `cluster_two` and `cluster_three` explicitly use
+different modes.
 
 [source,yaml]
---------------------------------
+----
 cluster:
     remote:
-        cluster_one: <1>
-            seeds: 127.0.0.1:9300 <2>
-        cluster_two: <1>
-            mode: sniff <3>
-            seeds: 127.0.0.1:9301 <2>
-            transport.compress: true <4>
-            skip_unavailable: true <5>
-        cluster_three: <1>
-            mode: proxy <3>
-            proxy_address: 127.0.0.1:9302 <6>
+        cluster_one:
+            seeds: 127.0.0.1:9300
+        cluster_two:
+            mode: sniff
+            seeds: 127.0.0.1:9301
+            transport.compress: true      <1>
+            skip_unavailable: true        <2>
+        cluster_three:
+            mode: proxy
+            proxy_address: 127.0.0.1:9302 <3>
 
---------------------------------
-<1> `cluster_one`, `cluster_two`, and `cluster_three` are arbitrary _cluster aliases_
-representing the connection to each cluster. These names are subsequently used to
-distinguish between local and remote indices.
-<2> The hostname and <<transport-settings,transport port>> (default: 9300) of a
-seed node in the remote cluster.
-<3> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so
-the mode is implicit for `cluster_one`. However, it can be explicitly configured
-as demonstrated by `cluster_two` and must be explicitly configured for
-<<proxy-mode,proxy mode>> as demonstrated by `cluster_three`.
-<4> Compression is explicitly enabled for requests to `cluster_two`.
-<5> Disconnected remote clusters are optional for `cluster_two`.
-<6> The address for the proxy endpoint used to connect to `cluster_three`.
+----
+<1> Compression is explicitly enabled for requests to `cluster_two`.
+<2> Disconnected remote clusters are optional for `cluster_two`.
+<3> The address for the proxy endpoint used to connect to `cluster_three`.

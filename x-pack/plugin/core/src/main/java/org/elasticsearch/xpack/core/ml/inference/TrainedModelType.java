@@ -68,6 +68,14 @@ public enum TrainedModelType {
                 return new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME);
             case PYTORCH:
                 return new IndexLocation(InferenceIndexConstants.customDefinitionStore(modelId));
+            default:
+                throw new IllegalArgumentException(
+                    "can not determine appropriate location for type ["
+                        + this
+                        + " for model ["
+                        + modelId
+                        + "]"
+                );
         }
     }
 }

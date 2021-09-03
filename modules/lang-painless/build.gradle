@@ -8,7 +8,7 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -56,11 +56,6 @@ restResources {
 tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
-}
-
-tasks.named("yamlRestCompatTest").configure {
-    systemProperty 'tests.rest.blacklist', [
-    ].join(',')
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the

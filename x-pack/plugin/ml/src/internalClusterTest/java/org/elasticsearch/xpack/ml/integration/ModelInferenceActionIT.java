@@ -355,7 +355,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }
     }
 
-    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
+    static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())

@@ -1574,6 +1574,8 @@ See <<search-terms-enum>>.
 [role="exclude",id="frozen-indices"]
 === Frozen indices
 
+// tag::frozen-index-redirect[]
+
 For API documentation, see <<unfreeze-index-api>>.
 // end::frozen-index-redirect[]
 

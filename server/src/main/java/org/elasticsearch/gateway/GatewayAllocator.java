@@ -168,7 +168,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         DiscoveryNodes nodes = allocation.nodes();
         if (hasNewNodes(nodes)) {
             final Set<String> newEphemeralIds = nodes.getDataNodes().stream()
-                .map(node -> node.value.getEphemeralId()).collect(Collectors.toSet());
+                .map(node -> node.getValue().getEphemeralId()).collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
             // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but

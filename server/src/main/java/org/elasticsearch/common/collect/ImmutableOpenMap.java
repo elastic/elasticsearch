@@ -20,9 +20,9 @@ import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import java.util.AbstractMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -173,17 +173,17 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      *
      * @return a {@link Stream} of the map entries as {@link Entry}
      */
-    public Stream<Entry<KType, VType>> stream() {
+    public Stream<Map.Entry<KType, VType>> stream() {
         Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
         return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(),
             Spliterator.SIZED | Spliterator.DISTINCT) {
             @Override
-            public boolean tryAdvance(Consumer<? super Entry<KType, VType>> action) {
+            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
                 if (mapIterator.hasNext() == false) {
                     return false;
                 }
                 ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
-                action.accept(new Entry<>(cursor.key, cursor.value));
+                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
                 return true;
             }
         }, false);
@@ -422,34 +422,4 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return map.visualizeKeyDistribution(characters);
         }
     }
-
-    public static final class Entry<K, V> {
-
-        public final K key;
-        public final V value;
-
-        private Entry(K key, V value) {
-            this.key = key;
-            this.value = value;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Entry<?, ?> that = (Entry<?, ?>) o;
-            return Objects.equals(key, that.key) && Objects.equals(value, that.value);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(key, value);
-        }
-
-        @Override
-        public String toString() {
-            return "[key: " + key + ", value: " + value + "]";
-        }
-    }
-
 }

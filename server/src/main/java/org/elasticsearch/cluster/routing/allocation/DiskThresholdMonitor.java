@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -295,7 +296,7 @@ public class DiskThresholdMonitor {
             listener.onResponse(null);
         }
         final Set<String> indicesToAutoRelease = state.routingTable().indicesRouting().stream()
-            .map(c -> c.key)
+            .map(Map.Entry::getKey)
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());

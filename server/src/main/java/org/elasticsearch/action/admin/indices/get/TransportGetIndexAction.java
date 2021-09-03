@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -62,7 +63,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
             .putAll(state.metadata().findDataStreams(concreteIndices).stream()
-                .collect(Collectors.toMap(k -> k.key, v -> v.value.getName())))
+                .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName())))
             .build();
         Feature[] features = request.features();
         boolean doneAliases = false;

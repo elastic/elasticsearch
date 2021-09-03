@@ -169,7 +169,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
         return Stream.concat(
-            masterNodes.stream().map(cur -> cur.value),
+            masterNodes.stream().map(Map.Entry::getValue),
             StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false));
     }
 

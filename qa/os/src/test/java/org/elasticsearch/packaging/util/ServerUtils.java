@@ -173,8 +173,10 @@ public class ServerUtils {
                 .findFirst()
                 .get();
             caCert = autoConfigTlsDir.resolve("http_ca.crt");
+            logger.info("Node has TLS auto-configured [" + caCert + "]");
             assert Files.exists(caCert);
         } else if (Files.exists(caCert) == false) {
+            logger.info("No TLS certificate configured");
             caCert = null; // no cert, so don't use ssl
         }
         return caCert;
@@ -199,7 +201,7 @@ public class ServerUtils {
                 try {
 
                     final HttpResponse response = execute(
-                        Request.Get("http://localhost:9200/_cluster/health")
+                        Request.Get((caCert != null ? "https" : "http") + "//localhost:9200/_cluster/health")
                             .connectTimeout((int) timeoutLength)
                             .socketTimeout((int) timeoutLength),
                         username,
@@ -239,9 +241,18 @@ public class ServerUtils {
 
         final String url;
         if (index == null) {
-            url = "http://localhost:9200/_cluster/health?wait_for_status=" + status + "&timeout=60s&pretty";
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health?wait_for_status="
+                + status
+                + "&timeout=60s"
+                + "&pretty";
         } else {
-            url = "http://localhost:9200/_cluster/health/" + index + "?wait_for_status=" + status + "&timeout=60s&pretty";
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health/"
+                + index
+                + "?wait_for_status="
+                + status
+                + "&timeout=60s&pretty";
         }
 
         final String body = makeRequest(Request.Get(url), username, password, caCert);
@@ -259,7 +270,7 @@ public class ServerUtils {
     public static void runElasticsearchTests(String username, String password, Path caCert) throws Exception {
 
         makeRequest(
-            Request.Post("http" + (caCert != null ? "s" : "") + "://localhost:9200/library/_doc/1?refresh=true&pretty")
+            Request.Post((caCert != null ? "https" : "http") + "://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
             username,
             password,
@@ -267,7 +278,7 @@ public class ServerUtils {
         );
 
         makeRequest(
-            Request.Post("http" + (caCert != null ? "s" : "") + "://localhost:9200/library/_doc/2?refresh=true&pretty")
+            Request.Post((caCert != null ? "https" : "http") + "://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
             username,
             password,
@@ -275,14 +286,14 @@ public class ServerUtils {
         );
 
         String count = makeRequest(
-            Request.Get("http" + (caCert != null ? "s" : "") + "://localhost:9200/_count?pretty"),
+            Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/_count?pretty"),
             username,
             password,
             caCert
         );
         assertThat(count, containsString("\"count\" : 2"));
 
-        makeRequest(Request.Delete("http" + (caCert != null ? "s" : "") + "://localhost:9200/library"), username, password, caCert);
+        makeRequest(Request.Delete((caCert != null ? "https" : "http") + "://localhost:9200/library"), username, password, caCert);
     }
 
     public static String makeRequest(Request request) throws Exception {

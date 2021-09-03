@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -131,7 +132,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
 
@@ -182,7 +184,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), ByteSizeValue.ofBytes(20L)).build(),
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         // We want to be notified when the models are loaded which happens in a background thread
         ModelLoadedTracker loadedTracker = new ModelLoadedTracker(Arrays.asList(modelIds));
@@ -297,7 +300,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
 
@@ -323,7 +327,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
@@ -352,7 +357,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(model, future);
@@ -376,7 +382,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         for(int i = 0; i < 3; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
@@ -400,7 +407,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         for(int i = 0; i < 3; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
@@ -429,7 +437,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.addModelLoadedListener(model3, ActionListener.wrap(
             r -> fail("Should not have succeeded to load model as breaker should be reached"),
@@ -469,7 +478,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
 
@@ -503,7 +513,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
 
@@ -533,7 +544,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(modelId, future);
@@ -554,7 +566,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.clusterChanged(aliasChangeEvent(
             true,
@@ -610,7 +623,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
-            circuitBreaker);
+            circuitBreaker,
+            mock(XPackLicenseState.class));
 
         modelLoadingService.clusterChanged(aliasChangeEvent(
             false,

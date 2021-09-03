@@ -22,7 +22,6 @@ public class AmazonEc2Reference extends AbstractRefCounted implements Releasable
     private final AmazonEC2 client;
 
     AmazonEc2Reference(AmazonEC2 client) {
-        super("AWS_EC2_CLIENT");
         this.client = client;
     }
 

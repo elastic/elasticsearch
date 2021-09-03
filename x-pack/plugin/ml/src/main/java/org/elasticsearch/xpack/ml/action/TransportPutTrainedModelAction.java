@@ -72,6 +72,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     protected void masterOperation(Request request,
                                    ClusterState state,
                                    ActionListener<Response> listener) {
+
+        final TrainedModelConfig config = request.getTrainedModelConfig();
         // 7.8.0 introduced splitting the model definition across multiple documents.
         // This means that new models will not be usable on nodes that cannot handle multiple definition documents
         if (state.nodes().getMinNodeVersion().before(Version.V_7_8_0)) {
@@ -82,8 +84,10 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return;
         }
         try {
-            request.getTrainedModelConfig().ensureParsedDefinition(xContentRegistry);
-            request.getTrainedModelConfig().getModelDefinition().getTrainedModel().validate();
+            if (request.isDeferDefinitionDecompression() == false) {
+                config.ensureParsedDefinition(xContentRegistry);
+                config.getModelDefinition().getTrainedModel().validate();
+            }
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
                 ex,
@@ -95,43 +99,47 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 request.getTrainedModelConfig().getModelId()));
             return;
         }
-        if (request.getTrainedModelConfig()
-            .getInferenceConfig()
-            .isTargetTypeSupported(request.getTrainedModelConfig()
-                .getModelDefinition()
-                .getTrainedModel()
-                .targetType()) == false) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Model [{}] inference config type [{}] does not support definition target type [{}]",
-                request.getTrainedModelConfig().getModelId(),
-                request.getTrainedModelConfig().getInferenceConfig().getName(),
-                request.getTrainedModelConfig()
+
+        // NOTE: hasModelDefinition is false if we don't parse it. But, if the fully parsed model was already provided, continue
+        boolean hasModelDefinition = config.getModelDefinition() != null;
+        if (hasModelDefinition) {
+            if (config.getInferenceConfig()
+                .isTargetTypeSupported(config
                     .getModelDefinition()
                     .getTrainedModel()
-                    .targetType()));
-            return;
+                    .targetType()) == false) {
+                listener.onFailure(ExceptionsHelper.badRequestException(
+                    "Model [{}] inference config type [{}] does not support definition target type [{}]",
+                    config.getModelId(),
+                    config.getInferenceConfig().getName(),
+                    config.getModelDefinition().getTrainedModel().targetType()));
+                return;
+            }
+
+            Version minCompatibilityVersion = config
+                .getModelDefinition()
+                .getTrainedModel()
+                .getMinimalCompatibilityVersion();
+            if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
+                listener.onFailure(ExceptionsHelper.badRequestException(
+                    "Definition for [{}] requires that all nodes are at least version [{}]",
+                    request.getTrainedModelConfig().getModelId(),
+                    minCompatibilityVersion.toString()));
+                return;
+            }
         }
 
-        Version minCompatibilityVersion = request.getTrainedModelConfig()
-            .getModelDefinition()
-            .getTrainedModel()
-            .getMinimalCompatibilityVersion();
-        if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Definition for [{}] requires that all nodes are at least version [{}]",
-                request.getTrainedModelConfig().getModelId(),
-                minCompatibilityVersion.toString()));
-            return;
-        }
-
-        TrainedModelConfig trainedModelConfig = new TrainedModelConfig.Builder(request.getTrainedModelConfig())
+        TrainedModelConfig.Builder trainedModelConfigBuilder = new TrainedModelConfig.Builder(config)
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
-            .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
-            .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())
-            .build();
+            .setLicenseLevel(License.OperationMode.PLATINUM.description());
+        if (hasModelDefinition) {
+            trainedModelConfigBuilder.setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
+                .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations());
+        }
+        TrainedModelConfig trainedModelConfig = trainedModelConfigBuilder.build();
+
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",

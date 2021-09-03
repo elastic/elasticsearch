@@ -537,5 +537,4 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).init(this);
     }
 
-
 }

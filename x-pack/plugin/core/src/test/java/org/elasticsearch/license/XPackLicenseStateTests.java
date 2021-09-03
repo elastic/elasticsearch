@@ -518,7 +518,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat("feature.check tracks usage", lastUsed, aMapWithSize(1));
 
         XPackLicenseState.FeatureUsage usage = Iterables.get(lastUsed.keySet(), 0);
-        assertThat(usage.feature().name, equalTo("goldFeature"));
+        assertThat(usage.feature().getName(), equalTo("goldFeature"));
         assertThat(usage.contextName(), nullValue());
         assertThat(lastUsed.get(usage), equalTo(100L));
 
@@ -546,7 +546,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(lastUsed, aMapWithSize(1));
 
         XPackLicenseState.FeatureUsage usage = Iterables.get(lastUsed.keySet(), 0);
-        assertThat(usage.feature().name, equalTo("goldFeature"));
+        assertThat(usage.feature().getName(), equalTo("goldFeature"));
         assertThat(usage.contextName(), equalTo("somecontext"));
         assertThat(lastUsed.get(usage), equalTo(200L));
 

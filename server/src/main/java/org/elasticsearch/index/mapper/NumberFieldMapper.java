@@ -95,7 +95,7 @@ public class NumberFieldMapper extends FieldMapper {
          * For the numeric fields gauge and counter metric types are
          * supported
          */
-        private final Parameter<String> metric;
+        private final Parameter<MetricType> metric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -137,18 +137,14 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 });
 
-            this.metric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
-                null,
-                MetricType.gauge.name(),
-                MetricType.counter.name()
-            ).addValidator(v -> {
-                if (v != null && v.isEmpty() == false && hasDocValues.getValue() == false) {
-                    throw new IllegalArgumentException(
-                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
-                    );
-                }
-            });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter)
+                .addValidator(v -> {
+                    if (v != null && hasDocValues.getValue() == false) {
+                        throw new IllegalArgumentException(
+                            "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                        );
+                    }
+                });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -176,7 +172,7 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder metric(String metric) {
+        public Builder metric(MetricType metric) {
             this.metric.setValue(metric);
             return this;
         }
@@ -1026,7 +1022,7 @@ public class NumberFieldMapper extends FieldMapper {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
                 builder.scriptValues(), builder.dimension.getValue(),
-                MetricType.fromString(builder.metric.getValue()));
+                builder.metric.getValue());
         }
 
         public NumberFieldType(String name, NumberType type) {
@@ -1173,7 +1169,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
         this.dimension = builder.dimension.getValue();
-        this.metricType = MetricType.fromString(builder.metric.getValue());
+        this.metricType = builder.metric.getValue();
         this.builder = builder;
     }
 
@@ -1263,7 +1259,7 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
             .dimension(dimension)
-            .metric(metricType != null ? metricType.name() : null)
+            .metric(metricType)
             .init(this);
     }
 }

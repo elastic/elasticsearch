@@ -343,7 +343,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [gauge] for field [time_series_metric] - accepted values are [null, histogram]")
+                containsString("Unknown value [gauge] for field [time_series_metric] - accepted values are [histogram]")
             );
         }
         {
@@ -354,7 +354,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [null, histogram]")
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [histogram]")
             );
         }
     }

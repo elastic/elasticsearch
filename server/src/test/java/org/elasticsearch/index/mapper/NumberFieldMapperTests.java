@@ -290,7 +290,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [null, gauge, counter]")
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
             );
         }
         {
@@ -301,7 +301,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [null, gauge, counter]")
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
             );
         }
     }

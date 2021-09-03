@@ -137,7 +137,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
          * For {@link AggregateDoubleMetricFieldMapper} fields gauge, counter and summary metric types are
          * supported.
          */
-        private final Parameter<String> timeSeriesMetric;
+        private final Parameter<MetricType> timeSeriesMetric;
 
         /**
          * Set the default metric so that query operations are delegated to it.
@@ -160,11 +160,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             );
 
             this.timeSeriesMetric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
-                null,
-                MetricType.gauge.name(),
-                MetricType.counter.name(),
-                MetricType.summary.name()
+                m -> toType(m).metricType,
+                MetricType.gauge,
+                MetricType.counter,
+                MetricType.summary
             );
         }
 
@@ -173,7 +172,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return List.of(ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric);
         }
 
-        public Builder metric(String metric) {
+        public Builder metric(MetricType metric) {
             this.timeSeriesMetric.setValue(metric);
             return this;
         }
@@ -241,7 +240,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
                 buildFullName(context),
                 meta.getValue(),
-                MetricType.fromString(timeSeriesMetric.getValue())
+                timeSeriesMetric.getValue()
             );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
@@ -525,7 +524,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         this.metrics = builder.metrics.getValue();
         this.defaultMetric = builder.defaultMetric.getValue();
         this.metricFieldMappers = metricFieldMappers;
-        this.metricType = TimeSeriesParams.MetricType.fromString(builder.timeSeriesMetric.getValue());
+        this.metricType = builder.timeSeriesMetric.getValue();
     }
 
     boolean ignoreMalformed() {
@@ -652,6 +651,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).metric(metricType != null ? metricType.name() : null).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault).metric(metricType).init(this);
     }
 }

@@ -584,9 +584,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString(
-                    "Unknown value [histogram] for field [time_series_metric] - accepted values are [null, gauge, counter, summary]"
-                )
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter, summary]")
             );
         }
         {
@@ -597,9 +595,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString(
-                    "Unknown value [unknown] for field [time_series_metric] - accepted values are [null, gauge, counter, summary]"
-                )
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter, summary]")
             );
         }
     }

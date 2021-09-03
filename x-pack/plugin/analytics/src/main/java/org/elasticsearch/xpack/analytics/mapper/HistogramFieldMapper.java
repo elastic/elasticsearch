@@ -78,7 +78,7 @@ public class HistogramFieldMapper extends FieldMapper {
          * Parameter that marks this field as a time series metric defining its time series metric type.
          * For {@link HistogramFieldMapper} fields only the histogram metric type is supported.
          */
-        private final Parameter<String> metric;
+        private final Parameter<TimeSeriesParams.MetricType> metric;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
@@ -89,11 +89,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 ignoreMalformedByDefault
             );
 
-            this.metric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
-                null,
-                TimeSeriesParams.MetricType.histogram.name()
-            );
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.histogram);
         }
 
         @Override
@@ -105,11 +101,7 @@ public class HistogramFieldMapper extends FieldMapper {
         public HistogramFieldMapper build(ContentPath contentPath) {
             return new HistogramFieldMapper(
                 name,
-                new HistogramFieldType(
-                    buildFullName(contentPath),
-                    meta.getValue(),
-                    TimeSeriesParams.MetricType.fromString(metric.getValue())
-                ),
+                new HistogramFieldType(buildFullName(contentPath), meta.getValue(), metric.getValue()),
                 multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(),
                 this
@@ -138,7 +130,7 @@ public class HistogramFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
-        this.metricType = TimeSeriesParams.MetricType.fromString(builder.metric.getValue());
+        this.metricType = builder.metric.getValue();
     }
 
     boolean ignoreMalformed() {

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.function.Function;
 
 /**
@@ -17,25 +19,27 @@ public final class TimeSeriesParams {
 
     public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
 
-    private TimeSeriesParams() {
-    }
+    private TimeSeriesParams() {}
 
     public enum MetricType {
         gauge,
         counter,
         histogram,
-        summary;
-
-        /**
-         * Convert string to MetricType value returning null for null values
-         */
-        public static MetricType fromString(String name) {
-            return name != null ? valueOf(name) : null;
-        }
+        summary
     }
 
-    public static FieldMapper.Parameter<String> metricParam(Function<FieldMapper, String> initializer, String... values) {
-        return FieldMapper.Parameter.restrictedStringParam(TIME_SERIES_METRIC_PARAM, false, initializer, values).acceptsNull();
+    public static FieldMapper.Parameter<MetricType> metricParam(Function<FieldMapper, MetricType> initializer, MetricType... values) {
+        assert values.length > 0;
+        EnumSet<MetricType> acceptedValues = EnumSet.noneOf(MetricType.class);
+        acceptedValues.addAll(Arrays.asList(values));
+        return FieldMapper.Parameter.restrictedEnumParam(
+            TIME_SERIES_METRIC_PARAM,
+            false,
+            initializer,
+            null,
+            MetricType.class,
+            acceptedValues
+        ).acceptsNull();
     }
 
 }

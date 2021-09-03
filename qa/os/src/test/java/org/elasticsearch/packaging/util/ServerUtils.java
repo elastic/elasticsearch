@@ -168,8 +168,10 @@ public class ServerUtils {
         boolean enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
         if (enrollmentEnabled) {
             assert Files.exists(caCert) == false;
-            Path autoConfigTlsDir = Files.list(installation.config).filter(p -> p.getFileName().toString().startsWith(
-                    "tls_auto_config_initial_node_")).findFirst().get();
+            Path autoConfigTlsDir = Files.list(installation.config)
+                .filter(p -> p.getFileName().toString().startsWith("tls_auto_config_initial_node_"))
+                .findFirst()
+                .get();
             caCert = autoConfigTlsDir.resolve("http_ca.crt");
             assert Files.exists(caCert);
         } else if (Files.exists(caCert) == false) {
@@ -257,19 +259,19 @@ public class ServerUtils {
     public static void runElasticsearchTests(String username, String password, Path caCert) throws Exception {
 
         makeRequest(
-                Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                        .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
-                username,
-                password,
-                caCert
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
+                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
+            username,
+            password,
+            caCert
         );
 
         makeRequest(
-                Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
-                        .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
-                username,
-                password,
-                caCert
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
+                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
+            username,
+            password,
+            caCert
         );
 
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"), username, password, caCert);

@@ -176,30 +176,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         });
     }
 
-    public void testSearchResultsWhenFrozen() throws Exception {
-        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
-            final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-            freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
-            assertOK(client().performRequest(freezeRequest));
-            ensureGreen(restoredIndexName);
-            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            final Map<String, Object> frozenIndexSettings = indexSettings(restoredIndexName);
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.frozen")), equalTo(true));
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.search.throttled")), equalTo(true));
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
-
-            final Request unfreezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_unfreeze");
-            unfreezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
-            assertOK(client().performRequest(unfreezeRequest));
-            ensureGreen(restoredIndexName);
-            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            final Map<String, Object> unfrozenIndexSettings = indexSettings(restoredIndexName);
-            assertThat(extractValue(unfrozenIndexSettings, "index.frozen"), nullValue());
-            assertThat(extractValue(unfrozenIndexSettings, "index.search.throttled"), nullValue());
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
-        });
-    }
-
     public void testSourceOnlyRepository() throws Exception {
         runSearchableSnapshotsTest((indexName, numDocs) -> {
             for (int i = 0; i < 10; i++) {

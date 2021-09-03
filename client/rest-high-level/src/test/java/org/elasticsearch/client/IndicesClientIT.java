@@ -1533,24 +1533,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertNotNull(detailsResponse.detail());
     }
 
-    public void testFreezeAndUnfreeze() throws IOException {
-        createIndex("test", Settings.EMPTY);
-        RestHighLevelClient client = highLevelClient();
-
-        final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
-
-        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
-            client.indices()::freezeAsync, freezeIndexOptions);
-        assertTrue(freeze.isShardsAcknowledged());
-        assertTrue(freeze.isAcknowledged());
-
-        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
-            client.indices()::unfreezeAsync, freezeIndexOptions);
-        assertTrue(unfreeze.isShardsAcknowledged());
-        assertTrue(unfreeze.isAcknowledged());
-    }
-
     public void testReloadAnalyzer() throws IOException {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();

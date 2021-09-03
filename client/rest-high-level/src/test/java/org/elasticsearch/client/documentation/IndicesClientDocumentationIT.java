@@ -55,22 +55,21 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
-import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
-import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -89,10 +88,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -2857,87 +2856,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-field-request
         }
 
-    }
-
-    public void testFreezeIndex() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
-            assertTrue(createIndexResponse.isAcknowledged());
-        }
-
-        {
-            // tag::freeze-index-request
-            FreezeIndexRequest request = new FreezeIndexRequest("index"); // <1>
-            // end::freeze-index-request
-
-            // tag::freeze-index-request-timeout
-            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
-            // end::freeze-index-request-timeout
-            // tag::freeze-index-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            // end::freeze-index-request-masterTimeout
-            // tag::freeze-index-request-waitForActiveShards
-            request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
-            // end::freeze-index-request-waitForActiveShards
-
-            // tag::freeze-index-request-indicesOptions
-            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
-            // end::freeze-index-request-indicesOptions
-
-            final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
-
-            // tag::freeze-index-execute
-            ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, freezeIndexOptions);
-            // end::freeze-index-execute
-
-            // tag::freeze-index-response
-            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
-            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
-            // end::freeze-index-response
-            assertTrue(acknowledged);
-            assertTrue(shardsAcked);
-
-            // tag::freeze-index-execute-listener
-            ActionListener<ShardsAcknowledgedResponse> listener =
-                new ActionListener<ShardsAcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(ShardsAcknowledgedResponse freezeIndexResponse) {
-                        // <1>
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
-            // end::freeze-index-execute-listener
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::freeze-index-execute-async
-            client.indices().freezeAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::freeze-index-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-
-        {
-            // tag::freeze-index-notfound
-            try {
-                FreezeIndexRequest request = new FreezeIndexRequest("does_not_exist");
-                client.indices().freeze(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
-                if (exception.status() == RestStatus.BAD_REQUEST) {
-                    // <1>
-                }
-            }
-            // end::freeze-index-notfound
-        }
     }
 
     public void testUnfreezeIndex() throws Exception {

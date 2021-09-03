@@ -32,8 +32,11 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoGridAggregatorSupplier.class
     );
 
-    public static final ObjectParser<GeoTileGridAggregationBuilder, String> PARSER =
-        createParser(NAME, GeoTileUtils::parsePrecision, GeoTileGridAggregationBuilder::new);
+    public static final ObjectParser<GeoTileGridAggregationBuilder, String> PARSER = createParser(
+        NAME,
+        GeoTileUtils::parsePrecision,
+        GeoTileGridAggregationBuilder::new
+    );
 
     public GeoTileGridAggregationBuilder(String name) {
         super(name);
@@ -58,15 +61,36 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
-            String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-            GeoBoundingBox geoBoundingBox, AggregationContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
-        return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            context, parent, subFactoriesBuilder, metadata);
+        String name,
+        ValuesSourceConfig config,
+        int precision,
+        int requiredSize,
+        int shardSize,
+        GeoBoundingBox geoBoundingBox,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return new GeoTileGridAggregatorFactory(
+            name,
+            config,
+            precision,
+            requiredSize,
+            shardSize,
+            geoBoundingBox,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
-    private GeoTileGridAggregationBuilder(GeoTileGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    private GeoTileGridAggregationBuilder(
+        GeoTileGridAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 

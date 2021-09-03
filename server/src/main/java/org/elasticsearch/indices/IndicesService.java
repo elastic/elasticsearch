@@ -308,24 +308,21 @@ public class IndicesService extends AbstractLifecycleComponent
         // avoid closing these resources while ongoing requests are still being processed, we use a
         // ref count which will only close them when both this service and all index services are
         // actually closed
-        indicesRefCount = new AbstractRefCounted("indices") {
-            @Override
-            protected void closeInternal() {
-                try {
-                    IOUtils.close(
-                            analysisRegistry,
-                            indexingMemoryController,
-                            indicesFieldDataCache,
-                            cacheCleaner,
-                            indicesRequestCache,
-                            indicesQueryCache);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } finally {
-                    closeLatch.countDown();
-                }
+        indicesRefCount = AbstractRefCounted.of(() -> {
+            try {
+                IOUtils.close(
+                    analysisRegistry,
+                    indexingMemoryController,
+                    indicesFieldDataCache,
+                    cacheCleaner,
+                    indicesRequestCache,
+                    indicesQueryCache);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                closeLatch.countDown();
             }
-        };
+        });
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);

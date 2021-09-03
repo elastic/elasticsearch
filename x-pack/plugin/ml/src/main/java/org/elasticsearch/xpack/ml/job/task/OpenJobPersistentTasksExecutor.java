@@ -396,7 +396,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                     jobTask.markAsCompleted();
                                 } else if (autodetectProcessManager.isNodeDying() == false) {
-                                    failTask(jobTask, "error finalizing job");
+                                    // In this case we prefer to mark the task as failed, which means the job
+                                    // will appear closed. The reason is that the job closed successfully and
+                                    // we just failed to update some fields like the finish time. It is preferable
+                                    // to let the job close than setting it to failed.
+                                    jobTask.markAsFailed(e);
                                 }
                             }
                         ));

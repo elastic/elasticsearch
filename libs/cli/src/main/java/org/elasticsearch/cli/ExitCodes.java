@@ -12,8 +12,9 @@ package org.elasticsearch.cli;
  * POSIX exit codes.
  */
 public class ExitCodes {
+    // please be extra careful when changing these as the values might be used in scripts,
+    // usages of which are not tracked by the IDE
     public static final int OK = 0;
-    public static final int NOOP = 63;           // nothing to do
     public static final int USAGE = 64;          // command line usage error
     public static final int DATA_ERROR = 65;     // data format error
     public static final int NO_INPUT = 66;       // cannot open input
@@ -27,6 +28,7 @@ public class ExitCodes {
     public static final int PROTOCOL = 76;       // remote error in protocol
     public static final int NOPERM = 77;         // permission denied
     public static final int CONFIG = 78;         // configuration error
+    public static final int NOOP = 80;           // nothing to do
 
     private ExitCodes() { /* no instance, just constants */ }
 }

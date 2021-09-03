@@ -16,11 +16,13 @@
 source "`dirname "$0"`"/elasticsearch-env
 
 CHECK_KEYSTORE=true
+ATTEMPT_SECURITY_AUTO_CONFIG="${ATTEMPT_SECURITY_AUTO_CONFIG:-true}"
 DAEMONIZE=false
 for option in "$@"; do
   case "$option" in
     -h|--help|-V|--version)
       CHECK_KEYSTORE=false
+      ATTEMPT_SECURITY_AUTO_CONFIG=false
       ;;
     -d|--daemonize)
       DAEMONIZE=true
@@ -42,6 +44,22 @@ then
   if ! read -s -r -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
     echo "Failed to read keystore password on console" 1>&2
     exit 1
+  fi
+fi
+
+if [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
+  # It is possible that an auto-conf failure prevents the node from starting, but this is only the exceptional case (exit code 1).
+  # Most likely an auto-conf failure will leave the configuration untouched (exit codes 73, 78 and 80), optionally printing a message
+  # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
+  # It is passed in all the command line options in order to read the node settings ones (-E), while the other parameters are ignored
+  # (a small caveat is that it also inspects the -v option in order to provide more information on how auto config went)
+  if ! bin/elasticsearch-security-config "$@" <<<"$KEYSTORE_PASSWORD"; then
+    retval=$?
+    # these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
+    # eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
+    if [[ $retval -ne 80 ]] && [[ $retval -ne 73 ]] && [[ $retval -ne 78 ]]; then
+      exit $retval
+    fi
   fi
 fi
 

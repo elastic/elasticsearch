@@ -1072,7 +1072,8 @@ public class MetadataCreateIndexService {
      * @return a list containing validation errors or an empty list if there aren't any errors
      */
     static List<String> validateNoCustomPath(Settings settings) {
-        if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(settings)) {
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_8_0_0) &&
+            IndexMetadata.INDEX_DATA_PATH_SETTING.exists(settings)) {
             return List.of("per-index custom data path using setting ["
                 + IndexMetadata.INDEX_DATA_PATH_SETTING.getKey() + "] is no longer supported on new indices");
         }

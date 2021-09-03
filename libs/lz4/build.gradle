@@ -16,9 +16,11 @@ dependencies {
   }
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.binary'
+}
 
 tasks.named('forbiddenApisMain').configure {
-  // nio does not depend on core, so only jdk signatures should be checked
-  // es-all is not checked as we connect and accept sockets
+  // lz4 does not depend on core, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -1,0 +1,7 @@
+{
+    "build": {"dockerfile": "Dockerfile"},
+    "extensions": ["vscjava.vscode-java-pack"],
+    "forwardPorts": [9200],
+    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=remote-workspace,target=/workspace,type=volume"
+}

@@ -53,7 +53,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
         Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + "-r " + "superuser"
+            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
         );
         assumeTrue(result.isSuccess());
         verifyArchiveInstallation(installation, distribution());

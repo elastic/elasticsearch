@@ -307,6 +307,7 @@ public class AuthorizationService {
                         + "] without existing authorization info"
                 )
             );
+            return;
         }
         if (isIndexAction(requestInfo.getAction())) {
             AuthorizationEngine engine = getAuthorizationEngine(requestInfo.getAuthentication());

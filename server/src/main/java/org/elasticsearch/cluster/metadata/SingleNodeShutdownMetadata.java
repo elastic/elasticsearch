@@ -35,7 +35,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         ToXContentObject,
         Diffable<SingleNodeShutdownMetadata> {
 
-    public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_8_0_0;
+    public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_7_16_0;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");

@@ -357,7 +357,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
-        yaml.add("  - id: example-plugin");
+        yaml.add("  - id: " + pluginId);
 
         Files.writeString(pluginsFile, yaml.toString());
 
@@ -365,6 +365,51 @@ public class SyncPluginsCommandTests extends ESTestCase {
         command.execute(terminal, env.v2(), true, removePluginAction, installPluginAction);
 
         assertThat(terminal.getOutput().trim(), equalTo("No plugins to install or remove."));
+    }
+
+    /**
+     * Check that the sync tool will run successfully when removing a plugin
+     */
+    public void testSync_withRemovePlugin_succeeds() throws Exception {
+        final String pluginId = "example-plugin";
+
+        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+
+        Files.writeString(pluginsFile, "plugins:");
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
+
+        verify(removePluginAction).execute(List.of(new PluginDescriptor(pluginId)));
+        verify(installPluginAction, never()).execute(any());
+    }
+
+    /**
+     * Check that the sync tool will print the correct summary in dry run mode for removing a plugin
+     */
+    public void testSync_withDryRunRemovePlugin_printsCorrectSummary() throws Exception {
+        final String pluginId = "example-plugin";
+
+        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+
+        Files.writeString(pluginsFile, "plugins:");
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), true, removePluginAction, installPluginAction);
+
+        verify(removePluginAction, never()).execute(any());
+        verify(installPluginAction, never()).execute(any());
+
+        String expected = String.join(
+            "\n",
+            "The following plugins need to be removed:",
+            "",
+            "    " + pluginId,
+            "",
+            "No plugins to install."
+        );
+
+        assertThat(terminal.getOutput().trim(), equalTo(expected));
     }
 
     /**

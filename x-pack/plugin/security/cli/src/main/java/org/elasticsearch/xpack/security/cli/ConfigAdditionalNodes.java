@@ -81,7 +81,8 @@ import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.create
 public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
 
     private final OptionSpec<String> enrollmentTokenParam = parser.accepts("enrollment-token", "The enrollment token to use")
-        .withRequiredArg().required();
+        .withRequiredArg()
+        .required();
     private final BiFunction<Environment, String, CommandLineHttpClient> clientFunction;
 
     private static final String TLS_CONFIG_DIR_NAME_PREFIX = "tls_auto_config_node_";
@@ -108,43 +109,34 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
-        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
-        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
-        if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
-            terminal.println(
-                Terminal.Verbosity.NORMAL,
-                String.format(
-                    Locale.ROOT,
-                    "Skipping security auto configuration because the configuration file [%s] is missing or is not a regular file",
-                    ymlPath
-                )
+        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
             );
-            throw new UserException(ExitCodes.CONFIG, null);
         }
 
-        if (false == Files.isReadable(ymlPath)) {
-            terminal.println(
-                Terminal.Verbosity.NORMAL,
+        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        if (false == Files.exists(ymlPath)
+            || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)
+            || false == Files.isReadable(ymlPath)) {
+            throw new UserException(
+                ExitCodes.CONFIG,
                 String.format(
                     Locale.ROOT,
-                    "Skipping security auto configuration because the configuration file [%s] is not readable",
+                    "Aborting enrolling to cluster. The configuration file [%s] is not a readable regular file",
                     ymlPath
                 )
             );
-            throw new UserException(ExitCodes.CONFIG, null);
         }
 
         if (Files.exists(keystorePath)
             && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) || false == Files.isReadable(keystorePath))) {
-            terminal.println(
-                Terminal.Verbosity.NORMAL,
-                String.format(
-                    Locale.ROOT,
-                    "Skipping security auto configuration because the node keystore file [%s] is not a readable regular file",
-                    keystorePath
-                )
+            throw new UserException(
+                ExitCodes.CONFIG,
+                String.format(Locale.ROOT, "Aborting enrolling to cluster. The keystore [%s] is not a readable regular file", ymlPath)
             );
-            throw new UserException(ExitCodes.CONFIG, null);
         }
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
@@ -165,43 +157,63 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
+            throw new UserException(
+                ExitCodes.CANT_CREATE,
+                "Aborting enrolling to cluster. Could not create auto configuration directory",
+                e
+            );
         }
 
         final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
         if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
             Files.deleteIfExists(instantAutoConfigDir);
-            throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because of config dir ownership mismatch");
+            throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. config dir ownership mismatch");
         }
 
         final EnrollmentToken enrollmentToken;
         try {
             enrollmentToken = EnrollmentToken.decodeFromString(enrollmentTokenParam.value(options));
         } catch (IOException e) {
-            throw new UserException(ExitCodes.IO_ERROR, "Invalid enrollment token");
+            try {
+                Files.deleteIfExists(instantAutoConfigDir);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            throw new UserException(ExitCodes.USAGE, "Aborting enrolling to cluster. Invalid enrollment token", e);
         }
 
         final CommandLineHttpClient client = clientFunction.apply(env, enrollmentToken.getFingerprint());
 
         // We don't wait for cluster health here. If the user has a token, it means that at least the first node has started
         // successfully so we expect the cluster to be healthy already. If not, this is a sign of a problem and we should bail.
-        final URL enrollNodeUrl = createURL(new URL("https://" + enrollmentToken.getBoundAddress().get(0)), "/_security/enroll/node", "");
-        final HttpResponse enrollResponse = client.execute(
-            "GET",
-            enrollNodeUrl,
-            new SecureString(enrollmentToken.getApiKey().toCharArray()),
-            () -> null,
-            CommandLineHttpClient::responseBuilder
-        );
-        if (enrollResponse.getHttpStatus() != 200) {
+        HttpResponse enrollResponse = null;
+        URL enrollNodeUrl = null;
+        for (String address: enrollmentToken.getBoundAddress()) {
+            enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
+            enrollResponse = client.execute("GET",
+                enrollNodeUrl,
+                new SecureString(enrollmentToken.getApiKey().toCharArray()),
+                () -> null,
+                CommandLineHttpClient::responseBuilder);
+            if (enrollResponse.getHttpStatus() == 200 ){
+                break;
+            }
+        }
+        if (null == enrollResponse) {
             throw new UserException(
                 ExitCodes.UNAVAILABLE,
-                "Unexpected HTTP status [" + enrollResponse.getHttpStatus() + "] calling the enroll node API (" + enrollNodeUrl + ")"
+                "Aborting enrolling to cluster. " +
+                    "Could not communicate with the initial node in any of the addresses from the enrollment token. All of " +
+                    enrollmentToken.getBoundAddress() +
+                    "where attempted."
             );
         }
         final Map<String, Object> responseMap = enrollResponse.getResponseBody();
         if (responseMap == null) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Empty response when calling the enroll node API (" + enrollNodeUrl + ")");
+            throw new UserException(
+                ExitCodes.DATA_ERROR,
+                "Aborting enrolling to cluster. Empty response when calling the enroll node API (" + enrollNodeUrl + ")"
+            );
         }
         final String httpCaKeyPem = (String) responseMap.get("http_ca_key");
         final String httpCaCertPem = (String) responseMap.get("http_ca_cert");
@@ -214,7 +226,11 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
             || Strings.isNullOrEmpty(transportKeyPem)
             || Strings.isNullOrEmpty(transportCertPem)
             || null == transportAddresses) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Invalid response when calling the enroll node API (" + enrollNodeUrl + ")");
+            Files.deleteIfExists(instantAutoConfigDir);
+            throw new UserException(
+                ExitCodes.DATA_ERROR,
+                "Aborting enrolling to cluster. Invalid response when calling the enroll node API (" + enrollNodeUrl + ")"
+            );
         }
 
         final Tuple<PrivateKey, X509Certificate> httpCa = parseKeyCertFromPem(httpCaKeyPem, httpCaCertPem);
@@ -228,17 +244,33 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
         // this does DNS resolve and could block
         final GeneralNames subjectAltNames = getSubjectAltNames();
 
-        final KeyPair nodeHttpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
-        final X509Certificate nodeHttpCert = CertGenUtils.generateSignedCertificate(
-            certificatePrincipal,
-            subjectAltNames,
-            nodeHttpKeyPair,
-            httpCaCert,
-            httpCaKey,
-            false,
-            HTTP_CERTIFICATE_DAYS,
-            null
-        );
+        final KeyPair nodeHttpKeyPair;
+        final X509Certificate nodeHttpCert;
+
+        try {
+            nodeHttpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
+            nodeHttpCert = CertGenUtils.generateSignedCertificate(
+                certificatePrincipal,
+                subjectAltNames,
+                nodeHttpKeyPair,
+                httpCaCert,
+                httpCaKey,
+                false,
+                HTTP_CERTIFICATE_DAYS,
+                null
+            );
+        } catch (Exception e) {
+            try {
+                Files.deleteIfExists(instantAutoConfigDir);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            throw new UserException(
+                ExitCodes.IO_ERROR,
+                "Aborting enrolling to cluster. Failed to generate necessary key and certificate material",
+                e
+            );
+        }
 
         // save original keystore before updating (replacing)
         final Path keystoreBackupPath = env.configFile()
@@ -252,7 +284,11 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
                 } catch (Exception ex) {
                     e.addSuppressed(ex);
                 }
-                throw e;
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Could not create backup of existing keystore file",
+                    e
+                );
             }
         }
 
@@ -341,7 +377,11 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            throw e;
+            throw new UserException(
+                ExitCodes.IO_ERROR,
+                "Aborting enrolling to cluster. Could not store necessary key and certificates.",
+                e
+            );
         } finally {
             if (nodeKeystorePassword.get() != null) {
                 nodeKeystorePassword.get().close();
@@ -463,7 +503,11 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            throw e;
+            throw new UserException(
+                ExitCodes.IO_ERROR,
+                "Aborting enrolling to cluster. Could not persist configuration in elasticsearch.yml",
+                e
+            );
         }
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
@@ -477,7 +521,7 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
         if (false == replace && Files.exists(filePath)) {
             throw new UserException(
                 ExitCodes.IO_ERROR,
-                String.format(Locale.ROOT, "Output file [%s] already exists and " + "will not be replaced", filePath)
+                String.format(Locale.ROOT, "Output file [%s] already exists and will not be replaced", filePath)
             );
         }
         // the default permission
@@ -557,7 +601,8 @@ public class ConfigAdditionalNodes extends KeyStoreAwareCommand {
         } catch (Exception e) {
             throw new UserException(
                 ExitCodes.DATA_ERROR,
-                "Failed to parse Private Key and Certificate from the response of the Enroll Node API"
+                "Aborting enrolling to cluster. Failed to parse Private Key and Certificate from the response of the Enroll Node API",
+                e
             );
         }
     }

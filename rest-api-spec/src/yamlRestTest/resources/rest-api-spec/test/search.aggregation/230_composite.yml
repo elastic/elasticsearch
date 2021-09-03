@@ -1303,11 +1303,11 @@ setup:
   - match: { aggregations.test.buckets.0.doc_count: 2 }
 
 ---
-"Simple Composite aggregation with missing":
+"Simple Composite aggregation with missing_order":
   - skip:
       # TODO: replace with 7.15.99 once PR is backported to 7.16
       version: " - 7.99.0"
-      reason: "`missing_bucket` has been deprecated and replaced by `missing` in 7.16"
+      reason: "`missing_order` has been introduced in 7.16"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -1320,7 +1320,8 @@ setup:
                   "kw": {
                     "terms": {
                       "field": "keyword",
-                      "missing": "_last"
+                      "missing_bucket": true,
+                      "missing_order": "last"
                     }
                   }
                 ]
@@ -1330,11 +1331,66 @@ setup:
   - match: { aggregations.test.buckets.2.doc_count: 2 }
 
 ---
-"Nested Composite aggregation with missing":
+"missing_order with missing_bucket = false":
   - skip:
       # TODO: replace with 7.15.99 once PR is backported to 7.16
       version: " - 7.99.0"
-      reason: "`missing_bucket` has been deprecated and replaced by `missing` in 7.16"
+      reason: "`missing_order` has been introduced in 7.16"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_bucket": false,
+                        "missing_order": "first"
+                      }
+                    }
+                ]
+
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+
+---
+"missing_order without missing_bucket":
+  - skip:
+      # TODO: replace with 7.15.99 once PR is backported to 7.16
+      version: " - 7.99.0"
+      reason: "`missing_order` has been introduced in 7.16"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_order": "first" # ignored because missing_bucket is not true
+                      }
+                    }
+                ]
+
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+
+---
+"Nested Composite aggregation with missing_order":
+  - skip:
+      # TODO: replace with 7.15.99 once PR is backported to 7.16
+      version: " - 7.99.0"
+      reason: "`missing_order` has been introduced in 7.16"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -1348,7 +1404,8 @@ setup:
                     "long": {
                       "terms": {
                         "field": "long",
-                        "missing": "_include"
+                        "missing_bucket": true,
+                        "missing_order": "default"
                       }
                     }
                   },
@@ -1356,7 +1413,8 @@ setup:
                     "kw": {
                       "terms": {
                         "field": "keyword",
-                        "missing": "_last"
+                        "missing_bucket": true,
+                        "missing_order": "last"
                       }
                     }
                   }
@@ -1372,30 +1430,3 @@ setup:
   - match: { aggregations.test.buckets.2.key.long: null}
   - match: { aggregations.test.buckets.2.key.kw: null }
   - match: { aggregations.test.buckets.2.doc_count: 2 }
-
----
-"Use of missing and missing_bucket in same source":
-  - skip:
-      # TODO: replace with 7.15.99 once PR is backported to 7.16
-      version: " - 7.99.0"
-      reason: "`missing_bucket` has been deprecated and replaced by `missing` in 7.16"
-  - do:
-      catch: "/.*The following fields are not allowed together: \\[missing_bucket, missing\\].*/"
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          aggregations:
-            test:
-              composite:
-                sources: [
-                  {
-                    "kw": {
-                      "terms": {
-                        "field": "keyword",
-                        "missing": "_first",
-                        "missing_bucket": true
-                      }
-                    }
-                  }
-                ]

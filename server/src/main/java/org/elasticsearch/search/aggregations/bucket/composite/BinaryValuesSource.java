@@ -43,11 +43,12 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         MappedFieldType fieldType,
         CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
         DocValueFormat format,
-        MissingBucket missingBucket,
+        boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
@@ -64,7 +65,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
             builder = new BytesRefBuilder();
             valueBuilders.set(slot, builder);
         }
-        if (missingBucket.include() && currentValue == null) {
+        if (missingBucket && currentValue == null) {
             values.set(slot, null);
         } else {
             assert currentValue != null;
@@ -76,11 +77,11 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     int compare(int from, int to) {
-        if (missingBucket.include()) {
+        if (missingBucket) {
             if (values.get(from) == null) {
-                return values.get(to) == null ? 0 : -1 * missingBucket.compareAnyValueToMissing(reverseMul);
+                return values.get(to) == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (values.get(to) == null) {
-                return missingBucket.compareAnyValueToMissing(reverseMul);
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -88,11 +89,11 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     int compareCurrent(int slot) {
-        if (missingBucket.include()) {
+        if (missingBucket) {
             if (currentValue == null) {
-                return values.get(slot) == null ? 0 : -1 * missingBucket.compareAnyValueToMissing(reverseMul);
+                return values.get(slot) == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (values.get(slot) == null) {
-                return missingBucket.compareAnyValueToMissing(reverseMul);
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -100,11 +101,11 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     int compareCurrentWithAfter() {
-        if (missingBucket.include()) {
+        if (missingBucket) {
             if (currentValue == null) {
-                return afterValue == null ? 0 : -1 * missingBucket.compareAnyValueToMissing(reverseMul);
+                return afterValue == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (afterValue == null) {
-                return missingBucket.compareAnyValueToMissing(reverseMul);
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);
@@ -112,7 +113,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     int hashCode(int slot) {
-        if (missingBucket.include() && values.get(slot) == null) {
+        if (missingBucket && values.get(slot) == null) {
             return 0;
         } else {
             return values.get(slot).hashCode();
@@ -121,7 +122,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     int hashCodeCurrent() {
-        if (missingBucket.include() && currentValue == null) {
+        if (missingBucket && currentValue == null) {
             return 0;
         } else {
             return currentValue.hashCode();
@@ -134,7 +135,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (missingBucket.include() && value == null) {
+        if (missingBucket && value == null) {
             afterValue = null;
         } else if (value.getClass() == String.class) {
             afterValue = format.parseBytesRef(value.toString());
@@ -160,7 +161,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
                         currentValue = dvs.nextValue();
                         next.collect(doc, bucket);
                     }
-                } else if (missingBucket.include()) {
+                } else if (missingBucket) {
                     currentValue = null;
                     next.collect(doc, bucket);
                 }

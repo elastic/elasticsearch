@@ -37,7 +37,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.IGNORE,
+            false,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -54,7 +55,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.INCLUDE,
+            true,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -67,7 +69,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.IGNORE,
+            false,
+            MissingOrder.DEFAULT,
             0,
             -1
         );
@@ -80,7 +83,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             ip,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.IGNORE,
+            false,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -95,7 +99,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.IGNORE,
+            false,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -112,7 +117,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.INCLUDE,
+            true,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -126,7 +132,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.IGNORE,
+            false,
+            MissingOrder.DEFAULT,
             1,
             -1
         );
@@ -140,7 +147,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             ip,
             context -> null,
             DocValueFormat.RAW,
-            MissingBucket.IGNORE,
+            false,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -163,7 +171,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    MissingBucket.IGNORE,
+                    false,
+                    MissingOrder.DEFAULT,
                     1,
                     1
                 );
@@ -196,7 +205,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    MissingBucket.INCLUDE,
+                    true,
+                    MissingOrder.DEFAULT,
                     1,
                     1
                 );
@@ -217,7 +227,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    MissingBucket.IGNORE,
+                    false,
+                    MissingOrder.DEFAULT,
                     1,
                     -1
                 );
@@ -235,7 +246,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                         number,
                         context -> null,
                         DocValueFormat.RAW,
-                        MissingBucket.IGNORE,
+                        false,
+                        MissingOrder.DEFAULT,
                         1,
                         1
                     );

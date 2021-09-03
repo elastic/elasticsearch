@@ -31,16 +31,17 @@ class GeoTileValuesSource extends LongValuesSource {
         CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
-        MissingBucket missingBucket,
+        boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, size, reverseMul);
+        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, missingOrder, size, reverseMul);
     }
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (missingBucket.include() && value == null) {
+        if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
             afterValue = ((Number) value).longValue();

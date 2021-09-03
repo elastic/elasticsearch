@@ -1221,8 +1221,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder(
                 "name",
                 Arrays.asList(
-                    new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.FIRST),
-                    new TermsValuesSourceBuilder("long").field("long").missing(MissingBucket.FIRST)
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.FIRST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ),
             verifyMissingFirst
@@ -1234,8 +1234,14 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder(
                 "name",
                 Arrays.asList(
-                    new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC).missing(MissingBucket.FIRST),
-                    new TermsValuesSourceBuilder("long").field("long").order(SortOrder.DESC).missing(MissingBucket.FIRST)
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST),
+                    new TermsValuesSourceBuilder("long").field("long")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
                 )
             ),
             verifyMissingFirst
@@ -1253,8 +1259,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder(
                 "name",
                 Arrays.asList(
-                    new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.LAST),
-                    new TermsValuesSourceBuilder("long").field("long").missing(MissingBucket.LAST)
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.LAST)
                 )
             ),
             verifyMissingLast
@@ -1266,8 +1272,14 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder(
                 "name",
                 Arrays.asList(
-                    new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC).missing(MissingBucket.LAST),
-                    new TermsValuesSourceBuilder("long").field("long").order(SortOrder.DESC).missing(MissingBucket.LAST)
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
                 )
             ),
             verifyMissingLast
@@ -1281,32 +1293,22 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             createDocument("const", 1, "long", 1)
         );
 
-        testMissingBucket(
-            dataset,
-            new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.IGNORE).order(SortOrder.ASC),
-            null
-        );
-        testMissingBucket(
-            dataset,
-            new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.INCLUDE).order(SortOrder.ASC),
-            0
-        );
-        testMissingBucket(
-            dataset,
-            new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.INCLUDE).order(SortOrder.DESC),
-            2
-        );
+        testMissingBucket(dataset, new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.ASC), null);
+        testMissingBucket(dataset, new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).order(SortOrder.ASC), 0);
+        testMissingBucket(dataset, new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).order(SortOrder.DESC), 2);
         testMissingBucket(
             dataset,
             new TermsValuesSourceBuilder("keyword").field("keyword")
-                .missing(MissingBucket.FIRST)
+                .missingBucket(true)
+                .missingOrder(MissingOrder.FIRST)
                 .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
             0
         );
         testMissingBucket(
             dataset,
             new TermsValuesSourceBuilder("keyword").field("keyword")
-                .missing(MissingBucket.LAST)
+                .missingBucket(true)
+                .missingOrder(MissingOrder.LAST)
                 .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
             2
         );
@@ -1317,7 +1319,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder(
                 "name",
                 Collections.singletonList(
-                    new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.FIRST).order(SortOrder.ASC)
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("keyword", null)),
             (result) -> {
@@ -1337,24 +1342,25 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
         testMissingBucket(
             dataset,
-            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missing(MissingBucket.IGNORE).order(SortOrder.ASC),
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missingBucket(false).order(SortOrder.ASC),
             null
         );
         testMissingBucket(
             dataset,
-            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missing(MissingBucket.INCLUDE).order(SortOrder.ASC),
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missingBucket(true).order(SortOrder.ASC),
             0
         );
         testMissingBucket(
             dataset,
-            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missing(MissingBucket.INCLUDE).order(SortOrder.DESC),
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missingBucket(true).order(SortOrder.DESC),
             2
         );
         testMissingBucket(
             dataset,
             new HistogramValuesSourceBuilder("hist").interval(1)
                 .field("long")
-                .missing(MissingBucket.FIRST)
+                .missingBucket(true)
+                .missingOrder(MissingOrder.FIRST)
                 .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
             0
         );
@@ -1362,7 +1368,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             dataset,
             new HistogramValuesSourceBuilder("hist").interval(1)
                 .field("long")
-                .missing(MissingBucket.LAST)
+                .missingBucket(true)
+                .missingOrder(MissingOrder.LAST)
                 .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
             2
         );
@@ -1373,7 +1380,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder(
                 "name",
                 Collections.singletonList(
-                    new HistogramValuesSourceBuilder("hist").interval(1).field("long").missing(MissingBucket.FIRST).order(SortOrder.ASC)
+                    new HistogramValuesSourceBuilder("hist").interval(1)
+                        .field("long")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("hist", null)),
             (result) -> {

@@ -36,7 +36,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private String field = null;
     private Script script = null;
     private ValueType userValueTypeHint = null;
-    private MissingBucket missingBucket = MissingBucket.IGNORE;
+    private boolean missingBucket = false;
+    private MissingOrder missingOrder = MissingOrder.DEFAULT;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
@@ -53,11 +54,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
+        this.missingBucket = in.readBoolean();
         // TODO: use V_7_16_0 once PR is backported to 7.x
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.missingBucket = MissingBucket.readFromStream(in);
-        } else {
-            this.missingBucket = in.readBoolean() ? MissingBucket.INCLUDE : MissingBucket.IGNORE;
+            this.missingOrder = MissingOrder.readFromStream(in);
         }
         this.order = SortOrder.readFromStream(in);
         this.format = in.readOptionalString();
@@ -77,11 +77,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             userValueTypeHint.writeTo(out);
         }
+        out.writeBoolean(missingBucket);
         // TODO: use V_7_16_0 once PR is backported to 7.x
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            missingBucket.writeTo(out);
-        } else {
-            out.writeBoolean(missingBucket.include());
+            missingOrder.writeTo(out);
         }
         order.writeTo(out);
         out.writeOptionalString(format);
@@ -101,10 +100,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (script != null) {
             builder.field("script", script);
         }
-        if (missingBucket == MissingBucket.IGNORE || missingBucket == MissingBucket.INCLUDE) {
-            builder.field("missing_bucket", missingBucket.include());
-        } else {
-            builder.field("missing", missingBucket);
+        builder.field("missing_bucket", missingBucket);
+        if (missingOrder != MissingOrder.DEFAULT) {
+            builder.field("missing_order", missingOrder.toString());
         }
         if (userValueTypeHint != null) {
             builder.field("value_type", userValueTypeHint.getPreferredName());
@@ -120,7 +118,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, missingBucket, script, userValueTypeHint, order, format);
+        return Objects.hash(field, missingBucket, missingOrder, script, userValueTypeHint, order, format);
     }
 
     @Override
@@ -133,7 +131,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         return Objects.equals(field, that.field())
             && Objects.equals(script, that.script())
             && Objects.equals(userValueTypeHint, that.userValuetypeHint())
-            && Objects.equals(missingBucket, that.missing())
+            && Objects.equals(missingBucket, that.missingBucket())
+            && Objects.equals(missingOrder, that.missingOrder())
             && Objects.equals(order, that.order())
             && Objects.equals(format, that.format());
     }
@@ -203,47 +202,47 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     /**
      * If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
-     *
-     * @deprecated use `missing(String)` instead.
      */
     @SuppressWarnings("unchecked")
-    @Deprecated
     public AB missingBucket(boolean missingBucket) {
-        this.missingBucket = missingBucket ? MissingBucket.INCLUDE : MissingBucket.IGNORE;
+        this.missingBucket = missingBucket;
         return (AB) this;
     }
 
     /**
      * False if documents with missing values are ignored, otherwise missing values are
      * represented by an explicit `null` value.
-     *
-     * @deprecated Use `missing()` instead.
      */
-    @Deprecated
     public boolean missingBucket() {
-        return missingBucket.include();
+        return missingBucket;
     }
 
     /**
-     * Sets the {@link MissingBucket} policy to use for handling documents with missing values.
+     * Sets the {@link MissingOrder} policy to use for ordering missing values.
      *
-     * @param missing One of "_ignore", "_include", "_first" or "_last".
+     * @param missingOrder One of "first", "last" or "default".
      */
-    public AB missing(String missing) {
-        return missing(MissingBucket.fromString(missing));
+    public AB missingOrder(String missingOrder) {
+        return missingOrder(MissingOrder.fromString(missingOrder));
     }
 
+    /**
+     * Sets the {@link MissingOrder} policy to use for ordering missing values.
+     */
     @SuppressWarnings("unchecked")
-    public AB missing(MissingBucket missing) {
-        this.missingBucket = missing;
+    public AB missingOrder(MissingOrder missingOrder) {
+        if (missingOrder == null) {
+            throw new IllegalArgumentException("[missingOrder] must not be null");
+        }
+        this.missingOrder = missingOrder;
         return (AB) this;
     }
 
     /**
-     * The {@link MissingBucket} policy used for handling documents with missing values.
+     * The {@link MissingOrder} policy used for ordering missing values.
      */
-    public MissingBucket missing() {
-        return missingBucket;
+    public MissingOrder missingOrder() {
+        return missingOrder;
     }
 
     /**

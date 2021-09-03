@@ -37,7 +37,8 @@ public class CompositeValuesSourceConfig {
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
-    private final MissingBucket missingBucket;
+    private final boolean missingBucket;
+    private final MissingOrder missingOrder;
     private final boolean hasScript;
     private final SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider;
 
@@ -50,6 +51,7 @@ public class CompositeValuesSourceConfig {
      * @param format The {@link DocValueFormat} of this source.
      * @param order The sort order associated with this source.
      * @param missingBucket If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
+     * @param missingOrder How to order missing buckets if missingBucket is <code>true</code>.
      * @param hasScript <code>true</code> if the source contains a script that can change the value.
      */
     CompositeValuesSourceConfig(
@@ -58,7 +60,8 @@ public class CompositeValuesSourceConfig {
         ValuesSource vs,
         DocValueFormat format,
         SortOrder order,
-        MissingBucket missingBucket,
+        boolean missingBucket,
+        MissingOrder missingOrder,
         boolean hasScript,
         SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider
     ) {
@@ -68,6 +71,7 @@ public class CompositeValuesSourceConfig {
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
         this.missingBucket = missingBucket;
+        this.missingOrder = missingOrder;
         this.hasScript = hasScript;
         this.singleDimensionValuesSourceProvider = singleDimensionValuesSourceProvider;
     }
@@ -104,8 +108,12 @@ public class CompositeValuesSourceConfig {
     /**
      * If true, an explicit `null bucket represents documents with missing values.
      */
-    MissingBucket missingBucket() {
+    boolean missingBucket() {
         return missingBucket;
+    }
+
+    MissingOrder missingOrder() {
+        return missingOrder;
     }
 
     /**

@@ -54,26 +54,27 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
-        MissingBucket missingBucket,
+        boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
-        this.bits = missingBucket.include() ? new BitArray(Math.min(size, 100), bigArrays) : null;
+        this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }
 
     @Override
     void copyCurrent(int slot) {
         values = bigArrays.grow(values, slot + 1);
-        if (missingBucket.include() && missingCurrentValue) {
+        if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
             assert missingCurrentValue == false;
-            if (missingBucket.include()) {
+            if (missingBucket) {
                 bits.set(slot);
             }
             values.set(slot, currentValue);
@@ -82,11 +83,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     int compare(int from, int to) {
-        if (missingBucket.include()) {
+        if (missingBucket) {
             if (bits.get(from) == false) {
-                return bits.get(to) ? -1 * missingBucket.compareAnyValueToMissing(reverseMul) : 0;
+                return bits.get(to) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(to) == false) {
-                return missingBucket.compareAnyValueToMissing(reverseMul);
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -94,11 +95,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     int compareCurrent(int slot) {
-        if (missingBucket.include()) {
+        if (missingBucket) {
             if (missingCurrentValue) {
-                return bits.get(slot) ? -1 * missingBucket.compareAnyValueToMissing(reverseMul) : 0;
+                return bits.get(slot) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(slot) == false) {
-                return missingBucket.compareAnyValueToMissing(reverseMul);
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -106,11 +107,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     int compareCurrentWithAfter() {
-        if (missingBucket.include()) {
+        if (missingBucket) {
             if (missingCurrentValue) {
-                return afterValue != null ? -1 * missingBucket.compareAnyValueToMissing(reverseMul) : 0;
+                return afterValue != null ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (afterValue == null) {
-                return missingBucket.compareAnyValueToMissing(reverseMul);
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);
@@ -118,7 +119,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     int hashCode(int slot) {
-        if (missingBucket.include() && bits.get(slot) == false) {
+        if (missingBucket && bits.get(slot) == false) {
             return 0;
         } else {
             return Long.hashCode(values.get(slot));
@@ -140,7 +141,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (missingBucket.include() && value == null) {
+        if (missingBucket && value == null) {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
@@ -154,7 +155,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     Long toComparable(int slot) {
-        if (missingBucket.include() && bits.get(slot) == false) {
+        if (missingBucket && bits.get(slot) == false) {
             return null;
         }
         return values.get(slot);
@@ -173,7 +174,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
                         missingCurrentValue = false;
                         next.collect(doc, bucket);
                     }
-                } else if (missingBucket.include()) {
+                } else if (missingBucket) {
                     missingCurrentValue = true;
                     next.collect(doc, bucket);
                 }

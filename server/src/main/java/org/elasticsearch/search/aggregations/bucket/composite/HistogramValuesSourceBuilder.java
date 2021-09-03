@@ -42,7 +42,8 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             String name,
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
-            MissingBucket missingBucket,
+            boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -68,7 +69,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
@@ -79,6 +80,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                     valuesSourceConfig.format(),
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -93,6 +95,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                             numericValuesSource::doubleValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -168,6 +171,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
-        return registry.getAggregator(REGISTRY_KEY, config).apply(config, interval, name, script() != null, format(), missing(), order());
+        return registry.getAggregator(REGISTRY_KEY, config)
+            .apply(config, interval, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

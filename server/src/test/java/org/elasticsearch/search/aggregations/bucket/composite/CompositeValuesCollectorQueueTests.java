@@ -141,14 +141,14 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
 
     private void testRandomCase(ClassAndName... types) throws IOException {
         for (int i = 0; i < types.length; i++) {
-            testRandomCase(true, MissingBucket.INCLUDE, i, types);
-            testRandomCase(true, MissingBucket.IGNORE, i, types);
-            testRandomCase(false, MissingBucket.INCLUDE, i, types);
-            testRandomCase(false, MissingBucket.IGNORE, i, types);
+            testRandomCase(true, true, i, types);
+            testRandomCase(true, false, i, types);
+            testRandomCase(false, true, i, types);
+            testRandomCase(false, false, i, types);
         }
     }
 
-    private void testRandomCase(boolean forceMerge, MissingBucket missingBucket, int indexSortSourcePrefix, ClassAndName... types)
+    private void testRandomCase(boolean forceMerge, boolean missingBucket, int indexSortSourcePrefix, ClassAndName... types)
         throws IOException {
         final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         int numDocs = randomIntBetween(50, 100);
@@ -202,7 +202,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         List<Comparable<?>> values = new ArrayList<>();
                         if (numValues == 0) {
                             hasAllField = false;
-                            if (missingBucket.include()) {
+                            if (missingBucket) {
                                 values.add(null);
                             }
                         } else {
@@ -230,7 +230,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         }
                         docValues.add(values);
                     }
-                    if (hasAllField || missingBucket.include()) {
+                    if (hasAllField || missingBucket) {
                         List<CompositeKey> comb = createListCombinations(docValues);
                         keys.addAll(comb);
                     }
@@ -253,6 +253,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         value -> value,
                         DocValueFormat.RAW,
                         missingBucket,
+                        MissingOrder.DEFAULT,
                         size,
                         1
                     );
@@ -263,6 +264,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         DocValueFormat.RAW,
                         missingBucket,
+                        MissingOrder.DEFAULT,
                         size,
                         1
                     );
@@ -275,6 +277,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
                             missingBucket,
+                            MissingOrder.DEFAULT,
                             size,
                             1
                         );
@@ -286,6 +289,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())),
                             DocValueFormat.RAW,
                             missingBucket,
+                            MissingOrder.DEFAULT,
                             size,
                             1
                         );

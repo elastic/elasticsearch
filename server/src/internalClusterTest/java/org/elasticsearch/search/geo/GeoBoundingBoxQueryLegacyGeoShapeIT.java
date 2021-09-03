@@ -15,19 +15,18 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryGeoShapeIT extends GeoBoundingBoxQueryIntegTestCase {
+public class GeoBoundingBoxQueryLegacyGeoShapeIT extends GeoBoundingBoxQueryIntegTestCase {
 
     @Override
     public XContentBuilder getMapping() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("location").field("type", "geo_shape");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        return xContentBuilder;
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("location").field("type", "geo_shape").field("strategy", "recursive")
+            .endObject().endObject().endObject().endObject();
     }
 
     @Override
     public Version randomSupportedVersion() throws IOException {
-        return VersionUtils.randomIndexCompatibleVersion(random());
+        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
     }
 }
 

@@ -171,12 +171,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a sequential unordered stream of the map entries.
      *
-     * @return a {@link Stream} of the map entries as {@link Entry}
+     * @return a {@link Stream} of the map entries as {@link Map.Entry}
      */
     public Stream<Map.Entry<KType, VType>> stream() {
-        Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(),
-            Spliterator.SIZED | Spliterator.DISTINCT) {
+        final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
             @Override
             public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
                 if (mapIterator.hasNext() == false) {

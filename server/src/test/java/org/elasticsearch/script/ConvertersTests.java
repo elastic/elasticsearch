@@ -241,7 +241,7 @@ public class ConvertersTests extends ESTestCase {
     static class ListFieldValues<T> implements FieldValues<T> {
         final List<T> values;
 
-        public ListFieldValues(List<T> values) {
+        ListFieldValues(List<T> values) {
             this.values = values;
         }
 

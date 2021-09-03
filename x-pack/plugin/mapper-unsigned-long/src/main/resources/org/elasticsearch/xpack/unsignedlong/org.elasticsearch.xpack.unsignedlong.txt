@@ -10,3 +10,11 @@ class org.elasticsearch.xpack.unsignedlong.UnsignedLongScriptDocValues {
   Long get(int)
   long getValue()
 }
+
+
+class org.elasticsearch.script.Field {
+    org.elasticsearch.script.Converter UnsignedLong @augmented[augmented_canonical_class_name="org.elasticsearch.xpack.unsignedlong.UnsignedLongField"]
+}
+
+class org.elasticsearch.xpack.unsignedlong.UnsignedLongField @no_import {
+}

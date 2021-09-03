@@ -26,7 +26,6 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;

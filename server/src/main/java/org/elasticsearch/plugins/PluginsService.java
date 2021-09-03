@@ -669,16 +669,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * register the services for use.
      */
     static void reloadLuceneSPI(ClassLoader loader) {
-        // do NOT change the order of these method calls!
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            // do NOT change the order of these method calls!
 
-        // Codecs:
-        PostingsFormat.reloadPostingsFormats(loader);
-        DocValuesFormat.reloadDocValuesFormats(loader);
-        Codec.reloadCodecs(loader);
-        // Analysis:
-        CharFilterFactory.reloadCharFilters(loader);
-        TokenFilterFactory.reloadTokenFilters(loader);
-        TokenizerFactory.reloadTokenizers(loader);
+            // Codecs:
+            PostingsFormat.reloadPostingsFormats(loader);
+            DocValuesFormat.reloadDocValuesFormats(loader);
+            Codec.reloadCodecs(loader);
+            // Analysis:
+            CharFilterFactory.reloadCharFilters(loader);
+            TokenFilterFactory.reloadTokenFilters(loader);
+            TokenizerFactory.reloadTokenizers(loader);
+            return null;
+        });
     }
 
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {

@@ -153,6 +153,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                                     logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     connectedNodes.remove(node, finalConnection);
                                     connectionListener.onNodeDisconnected(node, conn);
+                                    conn.onRemoved();
                                 }));
                             }
                         }

@@ -537,7 +537,15 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     }
 
                     @Override
+                    public void addRemovedListener(ActionListener<Void> listener) {
+                    }
+
+                    @Override
                     public void close() {
+                    }
+
+                    @Override
+                    public void onRemoved() {
                     }
 
                     @Override

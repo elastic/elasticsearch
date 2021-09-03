@@ -317,6 +317,10 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             @Override
+            public void addRemovedListener(ActionListener<Void> listener) {
+            }
+
+            @Override
             public boolean isClosed() {
                 return false;
             }
@@ -343,6 +347,11 @@ public class TransportSearchActionTests extends ESTestCase {
             @Override
             public boolean hasReferences() {
                 return true;
+            }
+
+            @Override
+            public void onRemoved() {
+                assert false : "shouldn't remove a mock connection";
             }
         };
 

@@ -119,12 +119,17 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+        }
+
+        @Override
         public boolean isClosed() {
             return false;
         }
 
         @Override
         public void close() {
+            assert false : "should not close the local node connection";
         }
 
         @Override
@@ -144,6 +149,11 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public boolean hasReferences() {
             return true;
+        }
+
+        @Override
+        public void onRemoved() {
+            assert false : "should not remove the local node connection";
         }
 
         @Override

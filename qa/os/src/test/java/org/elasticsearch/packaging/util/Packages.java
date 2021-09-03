@@ -255,7 +255,7 @@ public class Packages {
             sh.run("systemctl is-enabled elasticsearch.service");
             Result exitCode = sh.runIgnoreExitCode("systemctl start elasticsearch.service");
             if (exitCode.isSuccess() == false) {
-                logger.warn(sh.run("systemctl status elasticsearch.service").stdout);
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout);
                 logger.warn(journald.getLogs().stdout);
             }
             return exitCode;

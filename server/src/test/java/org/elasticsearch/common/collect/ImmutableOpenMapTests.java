@@ -8,11 +8,18 @@
 
 package org.elasticsearch.common.collect;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,6 +42,37 @@ public class ImmutableOpenMapTests extends ESTestCase {
     public void testSortedStream() {
         assertThat(regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
             equalTo(List.of("€", "¥", "₩", "£", "$")));
+    }
+
+    public void testStreamOperationsOnRandomMap() {
+        ImmutableOpenMap<Long, String> map = ThreadLocalRandom.current().longs(1000)
+            .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
+            .reduce(ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()), (a, b) -> b)
+            .build();
+
+        Map<Long, List<String>> collectedViaStreams = map.stream()
+            .filter(e -> e.getKey() > 0)
+            .sorted(Map.Entry.comparingByKey())
+            .limit(10)
+            .collect(Collectors.groupingBy(e -> e.getKey() % 2, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+
+        Map<Long, String> sortedMap = new TreeMap<>();
+        for (ObjectObjectCursor<Long, String> cursor : map) {
+            if (cursor.key <= 0) {
+                continue;
+            }
+            sortedMap.put(cursor.key, cursor.value);
+        }
+        int i = 0;
+        Map<Long, List<String>> collectedIteratively = new HashMap<>();
+        for (Map.Entry<Long, String> e : sortedMap.entrySet()) {
+            if (i++ >= 10) {
+                break;
+            }
+            collectedIteratively.computeIfAbsent(e.getKey() % 2, k -> new ArrayList<>()).add(e.getValue());
+        }
+
+        assertThat(collectedViaStreams, equalTo(collectedIteratively));
     }
 
     public void testEmptyStreamWorks() {

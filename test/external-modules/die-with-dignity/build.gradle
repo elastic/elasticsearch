@@ -20,12 +20,14 @@ tasks.named("javaRestTest").configure {
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  systemProperty "die.with.dignity.test", "whatever"
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
+  systemProperty "die.with.dignity.test", "true"
 }
 
 tasks.named("test").configure {
+  enabled = false
+}
+
+tasks.named("yamlRestTest").configure {
   enabled = false
 }
 

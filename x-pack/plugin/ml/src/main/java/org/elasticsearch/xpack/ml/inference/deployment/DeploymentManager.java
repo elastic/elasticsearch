@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -232,7 +234,10 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
+                    // The request builder expect a list of inputs which are then batched.
+                    // TODO batching was implemented for expected use-cases such as zero-shot
+                    // classification but is not used here.
+                    List<String> text = Collections.singletonList(NlpTask.extractInput(processContext.modelInput.get(), doc));
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
                     NlpTask.Request request = processor.getRequestBuilder().buildRequest(text, requestId);

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import groovy.text.SimpleTemplateEngine;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import org.elasticsearch.gradle.VersionProperties;
@@ -17,7 +15,6 @@ import org.elasticsearch.gradle.VersionProperties;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,13 +29,14 @@ import java.util.stream.Collectors;
 public class ReleaseHighlightsGenerator {
     static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
         try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries, output);
+            output.write(
+                generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries)
+            );
         }
     }
 
     @VisibleForTesting
-    static void generateFile(QualifiedVersion version, String templateFile, List<ChangelogEntry> entries, Writer outputWriter)
-        throws IOException {
+    static String generateFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
         final List<String> priorVersions = new ArrayList<>();
 
         if (version.getMinor() > 0) {
@@ -66,11 +64,6 @@ public class ReleaseHighlightsGenerator {
         bindings.put("notableHighlights", notableHighlights);
         bindings.put("nonNotableHighlights", nonNotableHighlights);
 
-        try {
-            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(templateFile).make(bindings).writeTo(outputWriter);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        return TemplateUtils.render(template, bindings);
     }
 }

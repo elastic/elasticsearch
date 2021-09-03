@@ -9,9 +9,7 @@ package org.elasticsearch.test.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.eql.DataLoader.TEST_INDEX;
 
@@ -21,12 +19,7 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
     public static List<Object[]> readTestSpecs() throws Exception {
 
         // Load EQL validation specs
-        Set<String> uniqueTestNames = new HashSet<>();
-        List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", uniqueTestNames);
-        specs.addAll(EqlSpecLoader.load("/additional_test_queries.toml", uniqueTestNames));
-        specs.addAll(EqlSpecLoader.load("/test_queries_date.toml", uniqueTestNames));
-
-        return asArray(specs);
+        return asArray(EqlSpecLoader.load("/test_queries.toml", "/additional_test_queries.toml", "/test_queries_date.toml"));
     }
 
     @Override

@@ -207,10 +207,6 @@ public class MetadataDeleteIndexService {
                 if (Objects.equals(snapshotUuid, otherSnapshotUuid) == false) {
                     continue; // other index is backed by a different snapshot, skip
                 }
-                final String otherRepositoryName = repositoryNameFromIndexSettings(currentState, otherSettings);
-                if (Objects.equals(repositoryName, otherRepositoryName) == false) {
-                    continue; // other index is backed by a snapshot from a different repository, skip
-                }
                 assert otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) : other;
                 canDeleteSnapshot = false; // another index is using the same snapshot, do not delete
                 break;

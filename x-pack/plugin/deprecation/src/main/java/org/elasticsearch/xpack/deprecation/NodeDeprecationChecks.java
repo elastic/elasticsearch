@@ -35,6 +35,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
@@ -664,6 +666,29 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(final Settings settings,
+                                                                         final PluginsAndModules pluginsAndModules,
+                                                                         final ClusterState clusterState,
+                                                                         final XPackLicenseState licenseState,
+                                                                         Supplier<String> permitsHandshakesFromIncompatibleBuildsSupplier) {
+        if (permitsHandshakesFromIncompatibleBuildsSupplier.get() != null) {
+            final String message = String.format(
+                Locale.ROOT,
+                "the [%s] system property is deprecated and will be removed in the next major release",
+                TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+            );
+            final String details = String.format(
+                Locale.ROOT,
+                "allowing handshakes from incompatibile builds is deprecated and will be removed in the next major release; the [%s] " +
+                    "system property must be removed",
+                TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+            );
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        return null;
     }
 
     static DeprecationIssue checkTransportClientProfilesFilterSetting(

@@ -70,7 +70,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
-    private static final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
+    public static final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
     private static final boolean PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS;
 
     static {

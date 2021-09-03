@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
@@ -960,6 +961,27 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 () -> randomFrom(License.OperationMode.values())));
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
+    }
+
+    @SuppressForbidden(reason = "sets and unsets es.unsafely_permit_handshake_from_incompatible_builds")
+    public void testCheckNoPermitHandshakeFromIncompatibleBuilds() {
+        final DeprecationIssue expectedNullIssue =
+            NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(Settings.EMPTY,
+                null,
+                ClusterState.EMPTY_STATE,
+                new XPackLicenseState(Settings.EMPTY, () -> 0),
+                () -> null);
+        assertEquals(null, expectedNullIssue);
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(Settings.EMPTY,
+                null,
+                ClusterState.EMPTY_STATE,
+                new XPackLicenseState(Settings.EMPTY, () -> 0),
+                () -> randomAlphaOfLengthBetween(1, 10));
+        assertNotNull(issue.getDetails());
+        assertThat(issue.getDetails(), containsString("system property must be removed"));
+        assertThat(issue.getUrl(),
+            equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes"));
     }
 
     public void testCheckTransportClientProfilesFilterSetting() {

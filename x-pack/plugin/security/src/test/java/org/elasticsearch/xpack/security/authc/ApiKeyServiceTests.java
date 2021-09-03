@@ -209,7 +209,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
                 createApiKeyRequest.getId(), randomLongBetween(1, 99), randomLongBetween(1, 99), randomIntBetween(1, 99), true);
             listener.onResponse(new BulkResponse(new BulkItemResponse[]{
-                new BulkItemResponse(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse)
+                BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse)
             }, randomLongBetween(0, 100)));
             return null;
         }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());

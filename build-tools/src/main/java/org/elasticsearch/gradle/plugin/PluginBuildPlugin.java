@@ -54,6 +54,9 @@ import java.util.stream.Collectors;
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
 public class PluginBuildPlugin implements Plugin<Project> {
+
+    public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
+
     @Override
     public void apply(final Project project) {
         project.getPluginManager().apply(JavaPlugin.class);
@@ -124,7 +127,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         project.getTasks().register("run", RunTask.class, runTask -> {
             runTask.useCluster(runCluster);
-            runTask.dependsOn(project.getTasks().named("bundlePlugin"));
+            runTask.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
         });
     }
 

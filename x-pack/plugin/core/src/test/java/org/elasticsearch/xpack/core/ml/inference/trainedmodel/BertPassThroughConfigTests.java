@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class BertPassThroughConfigTests extends AbstractBWCSerializationTestCase<BertPassThroughConfig> {
+public class BertPassThroughConfigTests extends InferenceConfigItemTestCase<BertPassThroughConfig> {
 
     private boolean lenient;
 
@@ -47,7 +47,9 @@ public class BertPassThroughConfigTests extends AbstractBWCSerializationTestCase
     public static BertPassThroughConfig createRandom() {
         return new BertPassThroughConfig(
             VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : TokenizationParamsTests.createRandom()
-        );
+            randomBoolean() ?
+                null :
+                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom())
+            );
     }
 }

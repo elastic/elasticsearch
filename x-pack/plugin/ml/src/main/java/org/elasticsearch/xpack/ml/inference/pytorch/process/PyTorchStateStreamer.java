@@ -40,7 +40,7 @@ public class PyTorchStateStreamer {
     private final ExecutorService executorService;
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean isCancelled;
-    private boolean modelSizeWritten = false;
+    private int modelSize = -1;
 
     public PyTorchStateStreamer(Client client, ExecutorService executorService, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
@@ -53,6 +53,16 @@ public class PyTorchStateStreamer {
      */
     public void cancel() {
         isCancelled = true;
+    }
+
+    /**
+     * The size of the streamed model in bytes.
+     * A return value of -1 means the model has not been streamed yet
+     * and the size is unknown.
+     * @return The model size in bytes or -1 if not known yet.
+     */
+    public int getModelSize() {
+        return modelSize;
     }
 
     /**
@@ -77,9 +87,8 @@ public class PyTorchStateStreamer {
             return false;
         }
 
-        if (modelSizeWritten == false) {
-            writeModelSize(doc.getModelId(), doc.getTotalDefinitionLength(), outputStream);
-            modelSizeWritten = true;
+        if (modelSize == -1) {
+            modelSize = writeModelSize(doc.getModelId(), doc.getTotalDefinitionLength(), outputStream);
         }
 
         // The array backing the BytesReference may be bigger than what is
@@ -88,7 +97,7 @@ public class PyTorchStateStreamer {
         return true;
     }
 
-    private void writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
+    private int writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
         if (modelSizeBytes == null) {
             String message = String.format(Locale.ROOT,
                 "The definition doc for model [%s] has a null value for field [%s]",
@@ -121,5 +130,7 @@ public class PyTorchStateStreamer {
         ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
         lengthBuffer.putInt(modelSizeBytes.intValue());
         outputStream.write(lengthBuffer.array());
+
+        return modelSizeBytes.intValue();
     }
 }

@@ -81,6 +81,7 @@ public final class TransportActionProxy {
         @Override
         public void handleResponse(T response) {
             try {
+                response.incRef();
                 channel.sendResponse(response);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

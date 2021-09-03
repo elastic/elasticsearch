@@ -93,21 +93,28 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                         "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
-            FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType(enabled.getValue().value());
-            return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated, fieldNamesFieldType);
+            return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated);
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new FieldNamesFieldMapper(Defaults.ENABLED, c.indexVersionCreated(), new FieldNamesFieldType(Defaults.ENABLED.value())),
+        c -> new FieldNamesFieldMapper(Defaults.ENABLED, c.indexVersionCreated()),
         c -> new Builder(c.indexVersionCreated())
     );
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
+        private static final FieldNamesFieldType ENABLED = new FieldNamesFieldType(true);
+
+        private static final FieldNamesFieldType DISABLED = new FieldNamesFieldType(false);
+
         private final boolean enabled;
 
-        public FieldNamesFieldType(boolean enabled) {
+        public static FieldNamesFieldType get(boolean enabled) {
+            return enabled ? ENABLED : DISABLED;
+        }
+
+        private FieldNamesFieldType(boolean enabled) {
             super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
@@ -145,8 +152,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private final Explicit<Boolean> enabled;
     private final Version indexVersionCreated;
 
-    private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated, FieldNamesFieldType mappedFieldType) {
-        super(mappedFieldType);
+    private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated) {
+        super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
         this.indexVersionCreated = indexVersionCreated;
     }

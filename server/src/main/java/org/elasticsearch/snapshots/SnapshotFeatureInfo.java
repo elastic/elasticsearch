@@ -44,12 +44,11 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
 
     public SnapshotFeatureInfo(String pluginName, List<String> indices) {
         this.pluginName = pluginName;
-        this.indices = indices;
+        this.indices = List.copyOf(indices);
     }
 
     public SnapshotFeatureInfo(final StreamInput in) throws IOException {
-        this.pluginName = in.readString();
-        this.indices = in.readStringList();
+        this(in.readString(), in.readStringList());
     }
 
     @Override

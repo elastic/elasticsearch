@@ -1005,6 +1005,14 @@ throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
+tag::transform-settings-align-checkpoints[]
+Specifies whether the transform checkpoint ranges should be optimized for performance.
+Such optimization can align checkpoint ranges with date histogram interval when date histogram
+is specified as a group source in the transform config. As an effect, less document updates in the
+destination index will be performed thus improving overall performance.
+The default value is `true`, which means the checkpoint ranges will be optimized if possible.
+end::transform-settings-align-checkpoints[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically

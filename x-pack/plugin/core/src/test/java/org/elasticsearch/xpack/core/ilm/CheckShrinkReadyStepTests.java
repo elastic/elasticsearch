@@ -244,7 +244,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
-                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "the shard is intentionally unassigned")));
+                randomUnassignedInfo("the shard is intentionally unassigned")));
 
         CheckShrinkReadyStep step = createRandomInstance();
         assertAllocateStatus(index, 1, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
@@ -361,7 +361,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .indices(indices.build())
                 .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
                     SingleNodeShutdownMetadata.builder()
-                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                        .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
                         .setStartedAtMillis(randomNonNegativeLong())
                         .setReason("test")
                         .setNodeId("node1")
@@ -412,7 +412,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .indices(indices.build())
             .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
                 SingleNodeShutdownMetadata.builder()
-                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                    .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setReason("test")
                     .setNodeId("node1")
@@ -457,5 +457,30 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertEquals(expectedResult.isComplete(), actualResult.isComplete());
         assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+    }
+
+    public static UnassignedInfo randomUnassignedInfo(String message) {
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.values());
+        String lastAllocatedNodeId = null;
+        boolean delayed = false;
+        if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            if (randomBoolean()) {
+                delayed = true;
+            }
+            lastAllocatedNodeId = randomAlphaOfLength(10);
+        }
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        return new UnassignedInfo(
+            reason,
+            message,
+            null,
+            failedAllocations,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            delayed,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastAllocatedNodeId
+        );
     }
 }

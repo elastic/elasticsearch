@@ -418,7 +418,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
                 terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
                     route.toString());
-                final String cause = getErrorCause(httpResponse);
+                final String cause = CommandLineHttpClient.getErrorCause(httpResponse);
                 if (cause != null) {
                     terminal.errorPrintln("Cause: " + cause);
                 }
@@ -477,7 +477,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.errorPrintln("");
                     terminal.errorPrintln(
                             "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
-                    String cause = getErrorCause(httpResponse);
+                    String cause = CommandLineHttpClient.getErrorCause(httpResponse);
                     if (cause != null) {
                         terminal.errorPrintln("Cause: " + cause);
                         terminal.errorPrintln("");
@@ -562,32 +562,6 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         private URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
             return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
         }
-    }
-
-    private String getErrorCause(HttpResponse httpResponse) {
-        final Object error = httpResponse.getResponseBody().get("error");
-        if (error == null) {
-            return null;
-        }
-        if (error instanceof Map) {
-            Object reason = ((Map) error).get("reason");
-            if (reason != null) {
-                return reason.toString();
-            }
-            final Object root = ((Map) error).get("root_cause");
-            if (root != null && root instanceof Map) {
-                reason = ((Map) root).get("reason");
-                if (reason != null) {
-                    return reason.toString();
-                }
-                final Object type = ((Map) root).get("type");
-                if (type != null) {
-                    return (String) type;
-                }
-            }
-            return String.valueOf(((Map) error).get("type"));
-        }
-        return error.toString();
     }
 
     private byte[] toByteArray(InputStream is) throws IOException {

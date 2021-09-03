@@ -10,7 +10,7 @@ layers of {es}, and writes the TLS configuration settings to `elasticsearch.yml`
 [discrete]
 === Prerequisites
 
-Download the `elasticsearch 8.0.0-alpha1` package distribution for your
+https://www.elastic.co/downloads/elasticsearch#preview-release[Download] the `elasticsearch 8.0.0-alpha1` package distribution for your
 environment.
 
 [discrete]

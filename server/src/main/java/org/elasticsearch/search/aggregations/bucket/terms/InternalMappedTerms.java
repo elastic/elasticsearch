@@ -35,9 +35,20 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     protected Long docCountError;
 
-    protected InternalMappedTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
-            Map<String, Object> metadata, DocValueFormat format, int shardSize,
-            boolean showTermDocCountError, long otherDocCount, List<B> buckets, Long docCountError) {
+    protected InternalMappedTerms(
+        String name,
+        BucketOrder reduceOrder,
+        BucketOrder order,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        int shardSize,
+        boolean showTermDocCountError,
+        long otherDocCount,
+        List<B> buckets,
+        Long docCountError
+    ) {
         super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
@@ -52,13 +63,14 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo fix after backport
-            docCountError = in.readOptionalLong();
-        } else {
-            docCountError = in.readZLong();
-            if (docCountError == 0) {
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            if (in.readBoolean()) {
+                docCountError = in.readZLong();
+            } else {
                 docCountError = null;
             }
+        } else {
+            docCountError = in.readZLong();
         }
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
@@ -69,8 +81,13 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo fix after backport
-            out.writeOptionalLong(docCountError);
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            if (docCountError != null) {
+                out.writeBoolean(true);
+                out.writeZLong(docCountError);
+            } else {
+                out.writeBoolean(false);
+            }
         } else {
             out.writeZLong(docCountError == null ? 0 : docCountError);
         }
@@ -120,13 +137,13 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        InternalMappedTerms<?,?> that = (InternalMappedTerms<?,?>) obj;
+        InternalMappedTerms<?, ?> that = (InternalMappedTerms<?, ?>) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(format, that.format)
-                && Objects.equals(otherDocCount, that.otherDocCount)
-                && Objects.equals(showTermDocCountError, that.showTermDocCountError)
-                && Objects.equals(shardSize, that.shardSize)
-                && Objects.equals(docCountError, that.docCountError);
+            && Objects.equals(format, that.format)
+            && Objects.equals(otherDocCount, that.otherDocCount)
+            && Objects.equals(showTermDocCountError, that.showTermDocCountError)
+            && Objects.equals(shardSize, that.shardSize)
+            && Objects.equals(docCountError, that.docCountError);
     }
 
     @Override

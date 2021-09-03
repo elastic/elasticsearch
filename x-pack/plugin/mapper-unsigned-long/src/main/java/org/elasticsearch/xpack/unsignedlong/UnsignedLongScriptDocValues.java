@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.script.Field;
 
 import java.io.IOException;
 
-public class UnsignedLongScriptDocValues extends ScriptDocValues<Number> {
+import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
+
+public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
     private final SortedNumericDocValues in;
     private long[] values = new long[0];
     private int count;
@@ -47,22 +49,50 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Number> {
         values = ArrayUtil.grow(values, count);
     }
 
-    public Number getValue() {
-        return get(0);
+    public long getValue() {
+        throwIfEmpty();
+        return format(0);
     }
 
     @Override
-    public Number get(int index) {
-        if (count == 0) {
-            throw new IllegalStateException(
-                "A document doesn't have a value for a field! Use doc[<field>].size()==0 to check if a document is missing a field!"
-            );
-        }
-        return (Number) DocValueFormat.UNSIGNED_LONG_SHIFTED.format(values[index]);
+    public Long get(int index) {
+        throwIfEmpty();
+        return format(index);
+    }
+
+    /**
+     * Applies the formatting from {@link org.elasticsearch.search.DocValueFormat.UnsignedLongShiftedDocValueFormat#format(long)} so
+     * that the underlying value can be treated as a primitive long as that method returns either a {@code long} or a {@code BigInteger}.
+     */
+    protected long format(int index) {
+        return shiftedLong(values[index]);
+    }
+
+    // Package private for use in UnsignedLongField
+    static long shiftedLong(long unshifted) {
+        return unshifted ^ MASK_2_63;
     }
 
     @Override
     public int size() {
         return count;
     }
+
+    @Override
+    public long getLongValue() {
+        throwIfEmpty();
+        return format(0);
+    }
+
+    @Override
+    public double getDoubleValue() {
+        throwIfEmpty();
+        return format(0);
+    }
+
+    @Override
+    public Field<Long> toField(String fieldName) {
+        return new UnsignedLongField(fieldName, this);
+    }
+
 }

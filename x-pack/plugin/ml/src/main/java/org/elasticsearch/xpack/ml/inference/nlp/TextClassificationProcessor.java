@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
@@ -21,8 +18,6 @@ import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -31,12 +26,12 @@ import java.util.stream.IntStream;
 
 public class TextClassificationProcessor implements NlpTask.Processor {
 
-    private final NlpTokenizer tokenizer;
+    private final NlpTask.RequestBuilder requestBuilder;
     private final String[] classLabels;
     private final int numTopClasses;
 
     TextClassificationProcessor(NlpTokenizer tokenizer, TextClassificationConfig config) {
-        this.tokenizer = tokenizer;
+        this.requestBuilder = tokenizer.requestBuilder();
         List<String> classLabels = config.getClassificationLabels();
         if (classLabels == null || classLabels.isEmpty()) {
             this.classLabels = new String[] {"negative", "positive"};
@@ -73,18 +68,13 @@ public class TextClassificationProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // nothing to validate
     }
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return this::buildRequest;
-    }
-
-    NlpTask.Request buildRequest(String input, String requestId) throws IOException {
-        TokenizationResult tokenization = tokenizer.tokenize(input);
-        return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
+        return requestBuilder;
     }
 
     @Override
@@ -105,7 +95,7 @@ public class TextClassificationProcessor implements NlpTask.Processor {
             );
         }
 
-        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0]);
+        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][0]);
         return new TextClassificationResults(
             IntStream.range(0, normalizedScores.length)
                 .mapToObj(i -> new TopClassEntry(classLabels[i], normalizedScores[i]))
@@ -114,20 +104,5 @@ public class TextClassificationProcessor implements NlpTask.Processor {
                 .limit(numTopClasses)
                 .collect(Collectors.toList())
         );
-    }
-
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field(BertRequestBuilder.REQUEST_ID, requestId);
-        builder.array(BertRequestBuilder.TOKENS, tokens);
-
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-        builder.array(BertRequestBuilder.ARG1, inputMask);
-        builder.endObject();
-
-        // BytesReference.bytes closes the builder
-        return BytesReference.bytes(builder);
     }
 }

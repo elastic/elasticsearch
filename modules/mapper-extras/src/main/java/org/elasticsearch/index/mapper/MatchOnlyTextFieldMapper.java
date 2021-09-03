@@ -41,7 +41,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -72,10 +71,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((MatchOnlyTextFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Version indexCreatedVersion;
@@ -91,37 +86,30 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
-        }
-
-        public Builder addMultiField(FieldMapper.Builder builder) {
-            this.multiFieldsBuilder.add(builder);
-            return this;
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> ((MatchOnlyTextFieldMapper) m).analyzers);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta);
+            return List.of(meta);
         }
 
-        private MatchOnlyTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
+        private MatchOnlyTextFieldType buildFieldType(ContentPath contentPath) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
-            TextSearchInfo tsi = new TextSearchInfo(fieldType, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(buildFullName(contentPath), tsi, indexAnalyzer, meta.getValue());
-            return ft;
+            TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
+            return new MatchOnlyTextFieldType(buildFullName(contentPath), tsi, indexAnalyzer, meta.getValue());
         }
 
         @Override
         public MatchOnlyTextFieldMapper build(ContentPath contentPath) {
-            MatchOnlyTextFieldType tft = buildFieldType(Defaults.FIELD_TYPE, contentPath);
+            MatchOnlyTextFieldType tft = buildFieldType(contentPath);
             MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             return new MatchOnlyTextFieldMapper(
                 name,
                 Defaults.FIELD_TYPE,
                 tft,
-                analyzers.getIndexAnalyzer(),
                 multiFields,
                 copyTo.build(),
                 this
@@ -139,19 +127,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-            this.textFieldType = new TextFieldType(name);
-        }
-
-        public MatchOnlyTextFieldType(String name, boolean stored, Map<String, String> meta) {
-            super(
-                name,
-                true,
-                stored,
-                false,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                meta
-            );
-            this.indexAnalyzer = Lucene.STANDARD_ANALYZER;
             this.textFieldType = new TextFieldType(name);
         }
 
@@ -292,28 +267,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    private final Builder builder;
+    private final Version indexCreatedVersion;
+    private final TextParams.Analyzers analyzers;
     private final FieldType fieldType;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
         FieldType fieldType,
         MatchOnlyTextFieldType mappedFieldType,
-        NamedAnalyzer indexAnalyzer,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builder.analyzers.getIndexAnalyzer(), multiFields, copyTo);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.builder = builder;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.analyzers = builder.analyzers;
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, analyzers.indexAnalyzers).init(this);
     }
 
     @Override

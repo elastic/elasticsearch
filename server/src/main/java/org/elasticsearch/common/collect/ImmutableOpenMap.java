@@ -23,7 +23,11 @@ import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -170,11 +174,18 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      * @return a {@link Stream} of the map entries as {@link Entry}
      */
     public Stream<Entry<KType, VType>> stream() {
-        Stream.Builder<Entry<KType, VType>> streamBuilder = Stream.builder();
-        for (ObjectObjectCursor<KType, VType> cursor : map) {
-            streamBuilder.add(new Entry<>(cursor.key, cursor.value));
-        }
-        return streamBuilder.build();
+        Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED) {
+            @Override
+            public boolean tryAdvance(Consumer<? super Entry<KType, VType>> action) {
+                if (mapIterator.hasNext() == false) {
+                    return false;
+                }
+                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
+                action.accept(new Entry<>(cursor.key, cursor.value));
+                return true;
+            }
+        }, false);
     }
 
     @Override

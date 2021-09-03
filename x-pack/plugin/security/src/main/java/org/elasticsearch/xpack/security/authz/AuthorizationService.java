@@ -246,6 +246,10 @@ public class AuthorizationService {
             // These need special handling, so don't short circuit
             return false;
         }
+        if (AuthorizationEngine.Util.isScrollRelatedAction(action) || AuthorizationEngine.Util.isAsyncRelatedAction(action)) {
+            // These need special handling, so don't short circuit
+            return false;
+        }
         if (SystemUser.is(authentication.getUser())) {
             // For now, don't short circuit system user
             return false;
@@ -257,7 +261,7 @@ public class AuthorizationService {
         }
         if (action.startsWith(originalAction) == false) {
             // Parent action is not a true parent
-            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]') 
+            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
             // or similar (e.g. search phases) as children, but not every action that is triggered
             // within another action should be authorized this way
             return false;

@@ -21,11 +21,9 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -35,10 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
-import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
@@ -73,7 +68,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivile
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -251,7 +245,7 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(e);
             }
         } else if (request instanceof IndicesRequest == false) {
-            if (isScrollRelatedAction(action)) {
+            if (Util.isScrollRelatedAction(action)) {
                 // scroll is special
                 // some APIs are indices requests that are not actually associated with indices. For example,
                 // search scroll request, is categorized under the indices context, but doesn't hold indices names
@@ -288,7 +282,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the originating search request are attached to the thread context upon validating the scroll.
                     listener.onResponse(new IndexAuthorizationResult(true, null));
                 }
-            } else if (isAsyncRelatedAction(action)) {
+            } else if (Util.isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
@@ -621,22 +615,4 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private static boolean isScrollRelatedAction(String action) {
-        return action.equals(SearchScrollAction.NAME) ||
-            action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
-            action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-            action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
-            action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
-            action.equals(ClearScrollAction.NAME) ||
-            action.equals("indices:data/read/sql/close_cursor") ||
-            action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-    }
-
-    private static boolean isAsyncRelatedAction(String action) {
-        return action.equals(SubmitAsyncSearchAction.NAME) ||
-            action.equals(GetAsyncSearchAction.NAME) ||
-            action.equals(DeleteAsyncResultAction.NAME) ||
-            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
-            action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
-    }
 }

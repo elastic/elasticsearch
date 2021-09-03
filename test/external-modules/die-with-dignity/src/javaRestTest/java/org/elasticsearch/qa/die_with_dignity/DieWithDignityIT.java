@@ -28,7 +28,7 @@ public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
         // there should be an Elasticsearch process running with the die.with.dignity.test system property
-        assertBusy(() -> {
+        {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
             final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
 
@@ -43,7 +43,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                 }
             }
             assertTrue(found);
-        });
+        }
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 

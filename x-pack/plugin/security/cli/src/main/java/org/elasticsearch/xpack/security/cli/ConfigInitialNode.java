@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
+import org.apache.commons.io.FileUtils;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
@@ -172,7 +173,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             }
         } catch (Exception e) {
             try {
-                Files.deleteIfExists(instantAutoConfigDir);
+                FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
@@ -189,7 +190,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         // provided that they both have the same owner and permissions.
         final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
         if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
-            Files.deleteIfExists(instantAutoConfigDir);
+            FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
             // the following is only printed once, if the node starts successfully
             throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because of config dir ownership mismatch");
         }
@@ -222,7 +223,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 }
             });
         } catch (Exception e) {
-            Files.deleteIfExists(instantAutoConfigDir);
+            FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
             // this is an error which mustn't be ignored during node startup
             // the exit code for unhandled Exceptions is "1"
             throw e;
@@ -236,7 +237,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
             } catch (Exception e) {
                 try {
-                    Files.deleteIfExists(instantAutoConfigDir);
+                    FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
                 } catch (Exception ex) {
                     e.addSuppressed(ex);
                 }
@@ -303,7 +304,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 e.addSuppressed(ex);
             }
             try {
-                Files.deleteIfExists(instantAutoConfigDir);
+                FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
@@ -420,7 +421,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 e.addSuppressed(ex);
             }
             try {
-                Files.deleteIfExists(instantAutoConfigDir);
+                FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }

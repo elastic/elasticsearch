@@ -54,10 +54,10 @@ public class JsonXContentParser extends AbstractXContentParser {
         super(xContentRegistry, deprecationHandler, restApiVersion);
         JsonParser filtered = parser;
         if (exclude != null) {
-            filtered = new FilteringParserDelegate(parser, new FilterPathBasedFilter(exclude, false), true, true);
+            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(exclude, false), true, true);
         }
         if (include != null) {
-            filtered = new FilteringParserDelegate(parser, new FilterPathBasedFilter(include, true), true, true);
+            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(include, true), true, true);
         }
         this.parser = filtered;
     }

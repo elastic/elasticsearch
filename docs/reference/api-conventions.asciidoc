@@ -220,7 +220,7 @@ of the source, such as `application/json`.
 
 Major version upgrades often include a number of breaking changes 
 that impact how you interact with {es}. 
-While we recommend that you monitor the deprecation log and 
+While we recommend that you monitor the deprecation logs and 
 update applications before upgrading {es},
 having to coordinate the necessary changes can be an impediment to upgrading. 
 

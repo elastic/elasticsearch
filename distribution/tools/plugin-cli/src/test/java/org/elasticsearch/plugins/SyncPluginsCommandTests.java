@@ -300,6 +300,33 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
+     * Check that the sync tool will print the corrects summary of changes with a plugin pending installation.
+     */
+    public void testSync_withDryRunAndPluginPending_printsCorrectSummary() throws Exception {
+        StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: analysis-icu");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), true, removePluginAction, installPluginAction);
+
+        verify(removePluginAction, never()).execute(any());
+        verify(installPluginAction, never()).execute(any());
+
+        String expected = String.join(
+            "\n",
+            "No plugins to remove.",
+            "The following plugins need to be installed:",
+            "",
+            "    analysis-icu"
+        );
+
+        assertThat(terminal.getOutput().trim(), equalTo(expected));
+    }
+
+    /**
      * Check that the sync tool will do nothing when a plugin is already installed.
      */
     public void testSync_withPluginAlreadyInstalled_succeeds() throws Exception {
@@ -320,6 +347,40 @@ public class SyncPluginsCommandTests extends ESTestCase {
         verify(installPluginAction, never()).execute(any());
     }
 
+    /**
+     * Check that the sync tool will print the correct summary when a required plugin is already installed.
+     */
+    public void testSync_withDryRunAndPluginAlreadyInstalled_printsCorrectSummary() throws Exception {
+        final String pluginId = "example-plugin";
+
+        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        final SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), true, removePluginAction, installPluginAction);
+
+        assertThat(terminal.getOutput().trim(), equalTo("No plugins to install or remove."));
+    }
+
+    /**
+     * Check that the sync tool will fail gracefully when the config file is missing.
+     */
+    public void testSync_withMissingConfig_fails() {
+        final SyncPluginsCommand command = new SyncPluginsCommand();
+        final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
+
+        assertThat(exception.getMessage(), startsWith("Plugin manifest file missing:"));
+        assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
+    }
+
+    /**
+     * Check that the sync tool will fail gracefully when an invalid proxy is specified
+     */
     public void testSync_withInvalidProxy_fails() throws Exception {
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
@@ -334,7 +395,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
         assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
     }
 
-    static void writePluginDescriptor(String name, Path pluginPath) throws IOException {
+    private static void writePluginDescriptor(String name, Path pluginPath) throws IOException {
         final Properties props = new Properties();
         props.put("description", "fake desc");
         props.put("name", name);

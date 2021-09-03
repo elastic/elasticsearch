@@ -13,6 +13,7 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
@@ -77,7 +78,7 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
         InstallPluginAction installPluginAction
     ) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
-            throw new UserException(1, "Plugins directory missing: " + env.pluginsFile());
+            throw new UserException(ExitCodes.CONFIG, "Plugins directory missing: " + env.pluginsFile());
         }
 
         // 1. Parse descriptor file

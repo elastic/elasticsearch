@@ -11,6 +11,7 @@ package org.elasticsearch.plugins;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
@@ -70,7 +71,7 @@ public class PluginsManifest {
     public static PluginsManifest parseManifest(Environment env) throws UserException {
         final Path manifestPath = env.configFile().resolve("elasticsearch-plugins.yml");
         if (Files.exists(manifestPath) == false) {
-            throw new UserException(1, "Plugin manifest file missing: " + manifestPath);
+            throw new UserException(ExitCodes.CONFIG, "Plugin manifest file missing: " + manifestPath);
         }
 
         final YAMLFactory yamlFactory = new YAMLFactory();
@@ -81,7 +82,7 @@ public class PluginsManifest {
             byte[] manifestBytes = Files.readAllBytes(manifestPath);
             pluginsManifest = mapper.readValue(manifestBytes, PluginsManifest.class);
         } catch (IOException e) {
-            throw new UserException(2, "Cannot parse plugin manifest file [" + manifestPath + "]: " + e.getMessage());
+            throw new UserException(ExitCodes.CONFIG, "Cannot parse plugin manifest file [" + manifestPath + "]: " + e.getMessage());
         }
 
         pluginsManifest.validate(manifestPath);

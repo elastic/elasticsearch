@@ -173,7 +173,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(runResult.stderr, containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
         stopElasticsearch();
 
         // if the JDK started with the bundled JDK then we know that JAVA_HOME was ignored
@@ -197,7 +197,7 @@ public class ArchiveTests extends PackagingTestCase {
             });
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
             stopElasticsearch();
 
             String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
@@ -217,7 +217,7 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("ES_JAVA_HOME", "C:\\Program Files (x86)\\java");
 
                 // verify ES can start, stop and run plugin list
-                startElasticsearch();
+                ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
 
                 stopElasticsearch();
 
@@ -242,7 +242,7 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("ES_JAVA_HOME", testJavaHome);
 
                 // verify ES can start, stop and run plugin list
-                startElasticsearch();
+                ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
 
                 stopElasticsearch();
 
@@ -262,7 +262,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.getEnv().put("ES_JAVA_HOME", "");
 
-        startElasticsearch();
+        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -276,6 +276,7 @@ public class ArchiveTests extends PackagingTestCase {
         assumeTrue("Only run this test on Unix-like systems", Platforms.WINDOWS == false);
         sh.getEnv().put("POSIXLY_CORRECT", "1");
         startElasticsearch();
+        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 
@@ -290,7 +291,12 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest(
+                Request.Get("https://localhost:9200/_nodes"),
+                superuser,
+                superuserPassword,
+                ServerUtils.getCaCert(installation)
+            );
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
@@ -306,7 +312,12 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest(
+                Request.Get("https://localhost:9200/_nodes"),
+                superuser,
+                superuserPassword,
+                ServerUtils.getCaCert(installation)
+            );
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
             stopElasticsearch();
@@ -329,7 +340,12 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest(
+                Request.Get("https://localhost:9200/_nodes"),
+                superuser,
+                superuserPassword,
+                ServerUtils.getCaCert(installation)
+            );
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
@@ -346,7 +362,7 @@ public class ArchiveTests extends PackagingTestCase {
             append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);
@@ -360,7 +376,12 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest(
+                Request.Get("https://localhost:9200/_nodes"),
+                superuser,
+                superuserPassword,
+                ServerUtils.getCaCert(installation)
+            );
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
             stopElasticsearch();

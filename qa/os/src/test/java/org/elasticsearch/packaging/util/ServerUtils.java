@@ -259,7 +259,7 @@ public class ServerUtils {
     public static void runElasticsearchTests(String username, String password, Path caCert) throws Exception {
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
+            Request.Post("http" + (caCert != null ? "s" : "") + "://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
             username,
             password,
@@ -267,17 +267,22 @@ public class ServerUtils {
         );
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
+            Request.Post("http" + (caCert != null ? "s" : "") + "://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
             username,
             password,
             caCert
         );
 
-        String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"), username, password, caCert);
+        String count = makeRequest(
+            Request.Get("http" + (caCert != null ? "s" : "") + "://localhost:9200/_count?pretty"),
+            username,
+            password,
+            caCert
+        );
         assertThat(count, containsString("\"count\" : 2"));
 
-        makeRequest(Request.Delete("http://localhost:9200/library"), username, password, caCert);
+        makeRequest(Request.Delete("http" + (caCert != null ? "s" : "") + "://localhost:9200/library"), username, password, caCert);
     }
 
     public static String makeRequest(Request request) throws Exception {

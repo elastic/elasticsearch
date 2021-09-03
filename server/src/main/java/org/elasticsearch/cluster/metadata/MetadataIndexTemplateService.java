@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -1112,25 +1113,31 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into an ordered list of aliases
+     * Resolve the given v2 template name into an ordered list of aliases
      */
     public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
+        return resolveAliases(metadata, template);
+    }
+
+    /**
+     * Resolve the given v2 template into an ordered list of aliases
+     */
+    static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final ComposableIndexTemplate template) {
         if (template == null) {
             return List.of();
         }
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
-        return resolveAliases(template, componentTemplates, templateName);
+        return resolveAliases(template, componentTemplates);
     }
 
     /**
      * Resolve the given v2 template and component templates into an ordered list of aliases
      */
     static List<Map<String, AliasMetadata>> resolveAliases(final ComposableIndexTemplate template,
-                                                          final Map<String, ComponentTemplate> componentTemplates,
-                                                          @Nullable String templateName) {
+                                                           final Map<String, ComponentTemplate> componentTemplates) {
         Objects.requireNonNull(template, "attempted to resolve aliases for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve aliases with null component templates");
         List<Map<String, AliasMetadata>> aliases = template.composedOf().stream()
@@ -1212,7 +1219,7 @@ public class MetadataIndexTemplateService {
                 if (template.getDataStreamTemplate() != null) {
                     // If there is no _data_stream meta field mapper and a data stream should be created then
                     // fail as if the  data_stream field can't be parsed:
-                    if (tempIndexService.mapperService().isMetadataField("_data_stream_timestamp") == false) {
+                    if (tempIndexService.mapperService().isMetadataField(DataStreamTimestampFieldMapper.NAME) == false) {
                         // Fail like a parsing expection, since we will be moving data_stream template out of server module and
                         // then we would fail with the same error message, like we do here.
                         throw new XContentParseException("[index_template] unknown field [data_stream]");

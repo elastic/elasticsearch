@@ -32,6 +32,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -130,7 +131,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
         "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
+    public LicenseService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -143,6 +144,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             () -> updateLicenseState(getLicensesMetadata()));
         this.scheduler.register(this);
         populateExpirationCallbacks();
+
+        threadPool.scheduleWithFixedDelay(licenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
@@ -321,7 +324,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         if (licensesMetadata != null) {
             final License license = licensesMetadata.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
-                updateLicenseState(license, licensesMetadata.getMostRecentTrialVersion());
+                updateLicenseState(license);
             } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
                     .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
@@ -462,14 +465,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private void updateLicenseState(LicensesMetadata licensesMetadata) {
         if (licensesMetadata != null) {
-            updateLicenseState(getLicense(licensesMetadata), licensesMetadata.getMostRecentTrialVersion());
+            updateLicenseState(getLicense(licensesMetadata));
         }
     }
 
-    protected void updateLicenseState(final License license, Version mostRecentTrialVersion) {
+    protected void updateLicenseState(final License license) {
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, license.expiryDate(), mostRecentTrialVersion);
+            licenseState.update(License.OperationMode.MISSING, false, license.expiryDate());
             return;
         }
         if (license != null) {
@@ -480,7 +483,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             } else {
                 active = time >= license.issueDate() && time < license.expiryDate();
             }
-            licenseState.update(license.operationMode(), active, license.expiryDate(), mostRecentTrialVersion);
+            licenseState.update(license.operationMode(), active, license.expiryDate());
 
             if (active) {
                 logger.debug("license [{}] - valid", license.uid());
@@ -518,7 +521,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 logger.info("license [{}] mode [{}] - valid", license.uid(),
                     license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateLicenseState(license, currentLicensesMetadata.getMostRecentTrialVersion());
+            updateLicenseState(license);
         }
     }
 

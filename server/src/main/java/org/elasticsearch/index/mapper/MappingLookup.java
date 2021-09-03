@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,6 +53,8 @@ public final class MappingLookup {
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
+    private final Set<String> shadowedFields;
+    private final Set<String> completionFields = new HashSet<>();
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -146,6 +150,9 @@ public final class MappingLookup {
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
+            if (mapper instanceof CompletionFieldMapper) {
+                completionFields.add(mapper.name());
+            }
         }
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
@@ -155,6 +162,11 @@ public final class MappingLookup {
             if (fieldMappers.put(aliasMapper.name(), aliasMapper) != null) {
                 throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
             }
+        }
+
+        this.shadowedFields = new HashSet<>();
+        for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
+            runtimeField.asMappedFieldTypes().forEach(mft -> shadowedFields.add(mft.name()));
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
@@ -197,6 +209,22 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * @return {@code true} if the given field is shadowed by a runtime field
+     */
+    public boolean isShadowed(String field) {
+        return shadowedFields.contains(field);
+    }
+
+    /**
+     * Gets the postings format for a particular field
+     * @param field the field to retrieve a postings format for
+     * @return the postings format for the field, or {@code null} if the default format should be used
+     */
+    public PostingsFormat getPostingsFormat(String field) {
+        return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
     }
 
     void checkLimits(IndexSettings settings) {
@@ -349,6 +377,16 @@ public final class MappingLookup {
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
+    }
+
+    /**
+     * Returns if this mapping contains a data-stream's timestamp meta-field and this field is enabled.
+     * Only indices that are a part of a data-stream have this meta-field enabled.
+     * @return {@code true} if contains an enabled data-stream's timestamp meta-field, {@code false} otherwise.
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
+        return dtfm != null && dtfm.isEnabled();
     }
 
     /**

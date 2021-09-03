@@ -39,6 +39,10 @@ exception of the <<search-explain,explain API>>.
 * <<multi-search-template>>
 * <<render-search-template-api>>
 
+[discrete]
+[[geo-search-apis]]
+=== Geospatial search
+* <<search-vector-tile-api>>
 
 include::search/search.asciidoc[]
 
@@ -75,3 +79,5 @@ include::search/profile.asciidoc[]
 include::search/field-caps.asciidoc[]
 
 include::search/rank-eval.asciidoc[]
+
+include::search/search-vector-tile-api.asciidoc[]

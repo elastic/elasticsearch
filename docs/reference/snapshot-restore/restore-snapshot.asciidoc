@@ -101,7 +101,7 @@ persistent settings, non-legacy index templates, ingest pipelines and
 the corresponding items from the snapshot.
 
 The restore operation must be performed on a functioning cluster. However, an
-existing index can be only restored if it's <<indices-close,closed>> and
+existing index can only be restored if it's <<indices-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster.

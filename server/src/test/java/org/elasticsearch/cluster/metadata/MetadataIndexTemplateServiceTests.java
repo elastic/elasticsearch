@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -31,14 +30,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -67,7 +62,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -623,8 +617,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertWarnings("legacy template [v1-template] has index patterns [*, baz] matching patterns from existing " +
-            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of a composable template at index creation time");
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template " +
+            "[v1-template] may be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
@@ -687,8 +681,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertWarnings("legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
-            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of a composable template at index creation time");
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template " +
+            "[v1-template] may be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
@@ -730,8 +724,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template")));
 
         assertThat(e.getMessage(), equalTo("legacy template [v1-template] has index patterns [egg*, baz] matching patterns " +
-            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use composable " +
-            "templates (/_index_template) instead"));
+            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), " +
+            "use composable templates (/_index_template) instead"));
     }
 
     public void testPuttingOverlappingV2Template() throws Exception {
@@ -745,8 +739,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple index templates may not " +
-                "match during index creation, please use a different priority"));
+                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple " +
+                "index templates may not match during index creation, please use a different priority"));
         }
 
         {
@@ -759,8 +753,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple index templates may not " +
-                "match during index creation, please use a different priority"));
+                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple " +
+                "index templates may not match during index creation, please use a different priority"));
         }
     }
 
@@ -1651,72 +1645,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Map.of("_data_stream_timestamp", new MetadataFieldMapper.ConfigurableTypeParser(
-                c -> new MetadataTimestampFieldMapper(false),
-                c -> new MetadataTimestampFieldBuilder())
-            );
-        }
-    }
-
-    private static MetadataTimestampFieldMapper toType(FieldMapper in) {
-        return (MetadataTimestampFieldMapper) in;
-    }
-
-    public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
-
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false);
-
-        protected MetadataTimestampFieldBuilder() {
-            super("_data_stream_timestamp");
-        }
-
-        @Override
-        protected List<FieldMapper.Parameter<?>> getParameters() {
-            return List.of(enabled);
-        }
-
-        @Override
-        public MetadataFieldMapper build() {
-            return new MetadataTimestampFieldMapper(enabled.getValue());
-        }
-    }
-
-    public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
-        final boolean enabled;
-
-        public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
-                @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public String typeName() {
-                    return "_data_stream_timestamp";
-                }
-
-                @Override
-                public Query termQuery(Object value, SearchExecutionContext context) {
-                    return null;
-                }
-
-                @Override
-                public Query existsQuery(SearchExecutionContext context) {
-                    return null;
-                }
-            });
-            this.enabled = enabled;
-        }
-
-        @Override
-        public FieldMapper.Builder getMergeBuilder() {
-            return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        protected String contentType() {
-            return "_data_stream_timestamp";
+            return Map.of(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
         }
     }
 }

@@ -180,6 +180,9 @@
       },
       "analysis_config" : {
         "properties" : {
+          "model_prune_window" : {
+            "type" : "keyword"
+          },
           "bucket_span" : {
             "type" : "keyword"
           },
@@ -287,9 +290,6 @@
       "analyzed_fields" : {
         "type" : "object",
         "enabled" : false
-      },
-      "system_annotations_retention_days" : {
-        "type" : "long"
       },
       "background_persist_interval" : {
         "type" : "keyword"

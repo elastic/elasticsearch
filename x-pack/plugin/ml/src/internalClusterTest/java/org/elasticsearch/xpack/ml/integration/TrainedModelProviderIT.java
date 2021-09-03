@@ -339,7 +339,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<InferenceDefinition> definitionHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModelForInference(modelId, listener),
+            listener -> trainedModelProvider.getTrainedModelForInference(modelId, false, listener),
             definitionHolder,
             exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));

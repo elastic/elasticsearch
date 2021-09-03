@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
 
@@ -34,7 +35,7 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, randomShardSnapshotResult());
         } else {
             final String reason = shardState.failed() ? randomAlphaOfLength(10) : null;
-            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, reason, randomAlphaOfLength(5));
+            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, reason, ShardGeneration.newGeneration());
         }
     }
 
@@ -88,7 +89,7 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
                     instance.nodeId(),
                     newState,
                     reason,
-                    randomAlphaOfLength(11 - instance.generation().length())
+                    randomValueOtherThan(instance.generation(), ShardGeneration::newGeneration)
                 );
             }
         }
@@ -114,7 +115,7 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
             assertThat(testInstance.toString(), containsString(testInstance.nodeId()));
         }
         if (testInstance.generation() != null) {
-            assertThat(testInstance.toString(), containsString(testInstance.generation()));
+            assertThat(testInstance.toString(), containsString(testInstance.generation().toString()));
         }
         if (testInstance.state() == SnapshotsInProgress.ShardState.SUCCESS) {
             assertThat(testInstance.toString(), containsString(testInstance.shardSnapshotResult().toString()));

@@ -182,7 +182,7 @@ public class TokenServiceTests extends ESTestCase {
                 final UpdateResponse response = new UpdateResponse(shardId, result.getId(), result.getSeqNo(), result.getPrimaryTerm(),
                     result.getVersion() + 1, DocWriteResponse.Result.UPDATED);
                 response.setGetResult(result);
-                responses[i] = new BulkItemResponse(i, DocWriteRequest.OpType.UPDATE, response);
+                responses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, response);
             }
             responseActionListener.onResponse(new BulkResponse(responses, randomLongBetween(1, 500)));
             return null;
@@ -196,7 +196,6 @@ public class TokenServiceTests extends ESTestCase {
 
         // License state (enabled by default)
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,

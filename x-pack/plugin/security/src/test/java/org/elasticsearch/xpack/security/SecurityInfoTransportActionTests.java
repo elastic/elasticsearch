@@ -71,28 +71,26 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), settings);
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+            mock(TransportService.class), mock(ActionFilters.class), settings);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(),false).build();
         featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), disabled);
         assertThat(featureSet.enabled(), is(false));
     }
 
     @SuppressWarnings("rawtypes")
     public void testUsage() throws Exception {
         final boolean explicitlyDisabled = randomBoolean();
-        final boolean enabled = explicitlyDisabled == false && randomBoolean();
+        final boolean enabled = explicitlyDisabled == false;
         final boolean operatorPrivilegesAvailable = randomBoolean();
-        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
         when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
@@ -247,58 +245,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 assertThat(source.getValue("roles"), is(nullValue()));
                 assertThat(source.getValue("operator_privileges"), is(nullValue()));
             }
-        }
-    }
-
-    public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-
-        Settings.Builder settings = Settings.builder().put(this.settings);
-
-        final boolean httpSSLEnabled = randomBoolean();
-        settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
-        final boolean transportSSLEnabled = randomBoolean();
-        settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
-
-        final boolean auditingEnabled = randomBoolean();
-        settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
-
-        final boolean rolesStoreEnabled = randomBoolean();
-        configureRoleStoreUsage(rolesStoreEnabled);
-
-        final boolean roleMappingStoreEnabled = randomBoolean();
-        configureRoleMappingStoreUsage(roleMappingStoreEnabled);
-
-        configureRealmsUsage(Collections.emptyMap());
-
-        var usageAction = newUsageAction(settings.build());
-        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
-        SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
-        BytesStreamOutput out = new BytesStreamOutput();
-        securityUsage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSetUsage(out.bytes().streamInput());
-        for (XPackFeatureSet.Usage usage : Arrays.asList(securityUsage, serializedUsage)) {
-            assertThat(usage, is(notNullValue()));
-            assertThat(usage.name(), is(XPackField.SECURITY));
-            assertThat(usage.enabled(), is(false));
-            assertThat(usage.available(), is(true));
-            XContentSource source = getXContentSource(usage);
-
-            // check SSL : This is permitted even though security has been dynamically disabled by the trial license.
-            assertThat(source.getValue("ssl"), is(notNullValue()));
-            assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
-            assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
-
-            // everything else is missing because security is disabled
-            assertThat(source.getValue("realms"), is(nullValue()));
-            assertThat(source.getValue("token_service"), is(nullValue()));
-            assertThat(source.getValue("api_key_service"), is(nullValue()));
-            assertThat(source.getValue("audit"), is(nullValue()));
-            assertThat(source.getValue("anonymous"), is(nullValue()));
-            assertThat(source.getValue("ipfilter"), is(nullValue()));
-            assertThat(source.getValue("roles"), is(nullValue()));
-            assertThat(source.getValue("operator_privileges"), is(nullValue()));
         }
     }
 

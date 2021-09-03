@@ -46,6 +46,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -258,7 +259,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
                     @Override
                     public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                        final String newGeneration = shardSnapshotResult.getGeneration();
+                        final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
                         assert newGeneration != null;
                         assert newGeneration.equals(snapshotStatus.generation());
                         if (logger.isDebugEnabled()) {
@@ -465,7 +466,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     /** Notify the master node that the given shard failed to be snapshotted **/
-    private void notifyFailedSnapshotShard(final Snapshot snapshot, final ShardId shardId, final String failure, final String generation) {
+    private void notifyFailedSnapshotShard(
+        final Snapshot snapshot,
+        final ShardId shardId,
+        final String failure,
+        final ShardGeneration generation
+    ) {
         sendSnapshotShardUpdate(
             snapshot,
             shardId,

@@ -11,30 +11,30 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
-import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -64,7 +64,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterApplierService#updateTask";
 
     private final ClusterSettings clusterSettings;
-    protected final ThreadPool threadPool;
+    private final ThreadPool threadPool;
 
     private volatile TimeValue slowTaskLoggingThreshold;
 
@@ -131,25 +131,24 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
     }
 
-    class UpdateTask extends SourcePrioritizedRunnable implements Function<ClusterState, ClusterState> {
-        final ClusterApplyListener listener;
-        final Function<ClusterState, ClusterState> updateFunction;
+    class UpdateTask extends SourcePrioritizedRunnable {
+        private final ActionListener<Void> listener;
+        private final Function<ClusterState, ClusterState> updateFunction;
 
-        UpdateTask(Priority priority, String source, ClusterApplyListener listener,
-                   Function<ClusterState, ClusterState> updateFunction) {
+        UpdateTask(
+            Priority priority,
+            String source,
+            ActionListener<Void> listener,
+            Function<ClusterState, ClusterState> updateFunction
+        ) {
             super(priority, source);
             this.listener = listener;
             this.updateFunction = updateFunction;
         }
 
         @Override
-        public ClusterState apply(ClusterState clusterState) {
-            return updateFunction.apply(clusterState);
-        }
-
-        @Override
         public void run() {
-            runTask(this);
+            runTask(source(), updateFunction, listener);
         }
     }
 
@@ -175,7 +174,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      * Should be renamed to appliedClusterState
      */
     public ClusterState state() {
-        assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
+        assert assertNotCalledFromClusterStateApplier();
         ClusterState clusterState = this.state.get();
         assert clusterState != null : "initial cluster state not set yet";
         return clusterState;
@@ -280,9 +279,22 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
-    public void runOnApplierThread(final String source, Consumer<ClusterState> clusterStateConsumer,
-                                   final ClusterApplyListener listener, Priority priority) {
-        submitStateUpdateTask(source, ClusterStateTaskConfig.build(priority),
+    /**
+     * Run the given clusterStateConsumer on the applier thread. Should only be used in tests and by {@link IndicesStore} when it's deleting
+     * the data behind a shard that moved away from a node.
+     *
+     * @param priority              {@link Priority#HIGH} unless in tests.
+     */
+    // TODO get rid of this, make it so that shard data can be deleted without blocking the applier thread.
+    public void runOnApplierThread(
+        String source,
+        Priority priority,
+        Consumer<ClusterState> clusterStateConsumer,
+        ClusterApplyListener listener
+    ) {
+        submitStateUpdateTask(
+            source,
+            priority,
             (clusterState) -> {
                 clusterStateConsumer.accept(clusterState);
                 return clusterState;
@@ -290,51 +302,52 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             listener);
     }
 
-    public void runOnApplierThread(final String source, Consumer<ClusterState> clusterStateConsumer,
-                                   final ClusterApplyListener listener) {
-        runOnApplierThread(source, clusterStateConsumer, listener, Priority.HIGH);
-    }
-
     public ThreadPool threadPool() {
         return threadPool;
     }
 
     @Override
-    public void onNewClusterState(final String source, final Supplier<ClusterState> clusterStateSupplier,
-                                  final ClusterApplyListener listener) {
-        Function<ClusterState, ClusterState> applyFunction = currentState -> {
-            ClusterState nextState = clusterStateSupplier.get();
-            if (nextState != null) {
-                return nextState;
-            } else {
-                return currentState;
-            }
-        };
-        submitStateUpdateTask(source, ClusterStateTaskConfig.build(Priority.HIGH), applyFunction, listener);
+    public void onNewClusterState(
+        final String source,
+        final Supplier<ClusterState> clusterStateSupplier,
+        final ClusterApplyListener listener
+    ) {
+        submitStateUpdateTask(
+            source,
+            Priority.HIGH,
+            currentState -> {
+                ClusterState nextState = clusterStateSupplier.get();
+                if (nextState != null) {
+                    return nextState;
+                } else {
+                    return currentState;
+                }
+            }, listener);
     }
 
-    private void submitStateUpdateTask(final String source, final ClusterStateTaskConfig config,
-                                       final Function<ClusterState, ClusterState> executor,
-                                       final ClusterApplyListener listener) {
+    private void submitStateUpdateTask(
+        final String source,
+        final Priority priority,
+        final Function<ClusterState, ClusterState> clusterStateUpdate,
+        final ClusterApplyListener listener
+    ) {
         if (lifecycle.started() == false) {
             return;
         }
+
         final ThreadContext threadContext = threadPool.getThreadContext();
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
+        final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(true);
+
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
-            final UpdateTask updateTask = new UpdateTask(config.priority(), source,
-                new SafeClusterApplyListener(listener, supplier, logger), executor);
-            if (config.timeout() != null) {
-                threadPoolExecutor.execute(updateTask, config.timeout(),
-                    () -> threadPool.generic().execute(
-                        () -> listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source))));
-            } else {
-                threadPoolExecutor.execute(updateTask);
-            }
+            threadPoolExecutor.execute(new UpdateTask(
+                priority,
+                source,
+                new ClusterApplyActionListener(source, listener, storedContextSupplier),
+                clusterStateUpdate));
         } catch (EsRejectedExecutionException e) {
-            // ignore cases where we are shutting down..., there is really nothing interesting
-            // to be done here...
+            assert lifecycle.stoppedOrClosed() : e;
+            // ignore cases where we are shutting down..., there is really nothing interesting to be done here...
             if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
@@ -349,7 +362,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /** asserts that the current stack trace does <b>NOT</b> involve a cluster state applier */
-    private static boolean assertNotCalledFromClusterStateApplier(String reason) {
+    private static boolean assertNotCalledFromClusterStateApplier() {
         if (Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME)) {
             for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
                 final String className = element.getClassName();
@@ -359,87 +372,95 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     return true;
                 } else if (className.equals(ClusterApplierService.class.getName())
                     && methodName.equals("callClusterStateAppliers")) {
-                    throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
+                    throw new AssertionError("should not be called by a cluster state applier: the applied state is not yet available");
                 }
             }
         }
         return true;
     }
 
-    private void runTask(UpdateTask task) {
+    private void runTask(String source, Function<ClusterState, ClusterState> updateFunction, ActionListener<Void> clusterApplyListener) {
         if (lifecycle.started() == false) {
-            logger.debug("processing [{}]: ignoring, cluster applier service not started", task.source);
+            logger.debug("processing [{}]: ignoring, cluster applier service not started", source);
             return;
         }
 
-        logger.debug("processing [{}]: execute", task.source);
+        logger.debug("processing [{}]: execute", source);
         final ClusterState previousClusterState = state.get();
 
-        long startTimeMS = currentTimeInMillis();
+        final long startTimeMillis = threadPool.relativeTimeInMillis();
         final StopWatch stopWatch = new StopWatch();
         final ClusterState newClusterState;
         try {
-            try (Releasable ignored = stopWatch.timing("running task [" + task.source + ']')) {
-                newClusterState = task.apply(previousClusterState);
+            try (Releasable ignored = stopWatch.timing("running task [" + source + ']')) {
+                newClusterState = updateFunction.apply(previousClusterState);
             }
         } catch (Exception e) {
-            TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
+            TimeValue executionTime = getTimeSince(startTimeMillis);
             logger.trace(() -> new ParameterizedMessage(
                 "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
-                executionTime, previousClusterState.version(), task.source, previousClusterState), e);
-            warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
-            task.listener.onFailure(task.source, e);
+                executionTime, previousClusterState.version(), source, previousClusterState), e);
+            warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
+            clusterApplyListener.onFailure(e);
             return;
         }
 
         if (previousClusterState == newClusterState) {
-            TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
-            logger.debug("processing [{}]: took [{}] no change in cluster state", task.source, executionTime);
-            warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
-            task.listener.onSuccess(task.source);
+            TimeValue executionTime = getTimeSince(startTimeMillis);
+            logger.debug("processing [{}]: took [{}] no change in cluster state", source, executionTime);
+            warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
+            clusterApplyListener.onResponse(null);
         } else {
             if (logger.isTraceEnabled()) {
-                logger.debug("cluster state updated, version [{}], source [{}]\n{}", newClusterState.version(), task.source,
+                logger.debug("cluster state updated, version [{}], source [{}]\n{}", newClusterState.version(), source,
                     newClusterState);
             } else {
-                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), task.source);
+                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), source);
             }
             try {
-                applyChanges(task, previousClusterState, newClusterState, stopWatch);
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
-                logger.debug("processing [{}]: took [{}] done applying updated cluster state (version: {}, uuid: {})", task.source,
+                applyChanges(previousClusterState, newClusterState, source, stopWatch);
+                TimeValue executionTime = getTimeSince(startTimeMillis);
+                logger.debug("processing [{}]: took [{}] done applying updated cluster state (version: {}, uuid: {})", source,
                     executionTime, newClusterState.version(),
                     newClusterState.stateUUID());
-                warnAboutSlowTaskIfNeeded(executionTime, task.source, stopWatch);
-                task.listener.onSuccess(task.source);
+                warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
+                clusterApplyListener.onResponse(null);
             } catch (Exception e) {
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
+                TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
                     logger.warn(new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
-                            executionTime, newClusterState.version(), newClusterState.stateUUID(), task.source, newClusterState), e);
+                        "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
+                        executionTime, newClusterState.version(), newClusterState.stateUUID(), source, newClusterState), e);
                 } else {
                     logger.warn(new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
-                            executionTime, newClusterState.version(), newClusterState.stateUUID(), task.source), e);
+                        "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
+                        executionTime, newClusterState.version(), newClusterState.stateUUID(), source), e);
                 }
                 // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
                 // continue we will retry with the same cluster state but that might not help.
                 assert applicationMayFail();
-                task.listener.onFailure(task.source, e);
+                clusterApplyListener.onFailure(e);
             }
         }
     }
 
-    private void applyChanges(UpdateTask task, ClusterState previousClusterState, ClusterState newClusterState, StopWatch stopWatch) {
-        ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(task.source, newClusterState, previousClusterState);
+    private TimeValue getTimeSince(long startTimeMillis) {
+        return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
+    }
+
+    private void applyChanges(ClusterState previousClusterState, ClusterState newClusterState, String source, StopWatch stopWatch) {
+        ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, newClusterState, previousClusterState);
         // new cluster state, notify all listeners
         final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
         if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
             String summary = nodesDelta.shortSummary();
             if (summary.length() > 0) {
-                logger.info("{}, term: {}, version: {}, reason: {}",
-                    summary, newClusterState.term(), newClusterState.version(), task.source);
+                logger.info(
+                    "{}, term: {}, version: {}, reason: {}",
+                    summary,
+                    newClusterState.term(),
+                    newClusterState.version(),
+                    source);
             }
         }
 
@@ -515,33 +536,39 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
-    private static class SafeClusterApplyListener implements ClusterApplyListener {
+    private static class ClusterApplyActionListener implements ActionListener<Void> {
+        private final String source;
         private final ClusterApplyListener listener;
-        protected final Supplier<ThreadContext.StoredContext> context;
-        private final Logger logger;
+        private final Supplier<ThreadContext.StoredContext> storedContextSupplier;
 
-        SafeClusterApplyListener(ClusterApplyListener listener, Supplier<ThreadContext.StoredContext> context, Logger logger) {
+        ClusterApplyActionListener(
+            String source,
+            ClusterApplyListener listener,
+            Supplier<ThreadContext.StoredContext> storedContextSupplier
+        ) {
+            this.source = source;
             this.listener = listener;
-            this.context = context;
-            this.logger = logger;
+            this.storedContextSupplier = storedContextSupplier;
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-            try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onFailure(source, e);
+        public void onFailure(Exception e) {
+            try (ThreadContext.StoredContext ignored = storedContextSupplier.get()) {
+                listener.onFailure(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
+                assert false : inner;
                 logger.error(new ParameterizedMessage(
                         "exception thrown by listener notifying of failure from [{}]", source), inner);
             }
         }
 
         @Override
-        public void onSuccess(String source) {
-            try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onSuccess(source);
+        public void onResponse(Void unused) {
+            try (ThreadContext.StoredContext ignored = storedContextSupplier.get()) {
+                listener.onSuccess();
             } catch (Exception e) {
+                assert false : e;
                 logger.error(new ParameterizedMessage(
                     "exception thrown by listener while notifying of cluster state processed from [{}]", source), e);
             }
@@ -588,12 +615,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
-    // this one is overridden in tests so we can control time
-    protected long currentTimeInMillis() {
-        return threadPool.relativeTimeInMillis();
-    }
-
-    // overridden by tests that need to check behaviour in the event of an application failure
+    // overridden by tests that need to check behaviour in the event of an application failure without tripping assertions
     protected boolean applicationMayFail() {
         return false;
     }

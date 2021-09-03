@@ -123,34 +123,17 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   do
     # Elasticsearch settings need to have at least two dot separated lowercase
     # words, e.g. `cluster.name`, or uppercased with underscore separators and
-    # prefixed with `ES_`, e.g. `ES_CLUSTER_NAME`. Underscores in setting names
+    # prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`. Underscores in setting names
     # are escaped by writing them as a double-underscore e.g. "__"
     if [[ ! -z "$envvar_value" ]]; then
       if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
         es_opt="-E${envvar_key}=${envvar_value}"
         es_arg_array+=("${es_opt}")
-      elif [[ "$envvar_key" =~ ^ES(_{1,2}[A-Z]+)+$ ]]; then
-        case "$envvar_key" in
-          # Do nothing for these. Not all of these are actually exported into the environment by our scripts,
-          # and so don't appear in the output of the `env` command, but it's better to be safe than sorry
-          # in case a user exported them in their own shell for some reason.
-          ES_DISTRIBUTION_FLAVOR) ;;
-          ES_DISTRIBUTION_TYPE) ;;
-          ES_HOME) ;;
-          ES_JAVA_HOME) ;;
-          ES_JAVA_OPTS) ;;
-          ES_KEYSTORE_PASSPHRASE_FILE) ;;
-          ES_LOG_STYLE) ;;
-          ES_PATH_CONF) ;;
-          ES_SD_NOTIFY) ;;
-          ES_TMPDIR) ;;
-          *)
-            # The long-hand sed `y` command works in any sed variant.
-            envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
-            es_opt="-E${envvar_key}=${envvar_value}"
-            es_arg_array+=("${es_opt}")
-            ;;
-        esac
+      elif [[ "$envvar_key" =~ ^ES_SETTING(_{1,2}[A-Z]+)+$ ]]; then
+          # The long-hand sed `y` command works in any sed variant.
+          envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_SETTING_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
+          es_opt="-E${envvar_key}=${envvar_value}"
+          es_arg_array+=("${es_opt}")
       fi
     fi
   done <<< "$(env)"

@@ -39,7 +39,7 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
     }
 
     static MultiPointBuilder mutate(MultiPointBuilder original) throws IOException {
-        MultiPointBuilder mutation = (MultiPointBuilder) copyShape(original);
+        MultiPointBuilder mutation = copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
         if (coordinates.length > 0) {
             Coordinate coordinate = randomFrom(coordinates);

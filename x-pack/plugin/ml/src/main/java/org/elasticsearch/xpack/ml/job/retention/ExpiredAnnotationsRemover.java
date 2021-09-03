@@ -61,9 +61,12 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
+    /**
+     * Annotations are retained for the same length of time as results.
+     */
     @Override
     Long getRetentionDays(Job job) {
-        return job.getSystemAnnotationsRetentionDays();
+        return job.getResultsRetentionDays();
     }
 
     @Override

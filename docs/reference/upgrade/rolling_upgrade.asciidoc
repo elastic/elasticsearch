@@ -35,7 +35,7 @@ Rolling upgrades are supported:
 * {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
 * {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
-ifeval::[ "{version}" != "{minor-version}.0" ]
+ifeval::[ "{bare_version}" != "{minor-version}.0" ]
 * From any version since {minor-version}.0 to {version}
 endif::[]
 

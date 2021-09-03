@@ -145,7 +145,7 @@ GET /_search
 // TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
-==== geo_point Type
+==== `geo_point` type
 
 The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.

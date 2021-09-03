@@ -60,7 +60,7 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
         return new OpenIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -84,7 +84,7 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
             return null;
         }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, null, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -116,7 +116,7 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
             return null;
         }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, null, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();

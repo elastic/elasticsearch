@@ -29,17 +29,18 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CAInfo;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateAuthorityCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateCommand;
@@ -87,10 +88,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ssl.KeyStoreUtil.createKeyManager;
+import static org.elasticsearch.common.ssl.KeyStoreUtil.createTrustManager;
 import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -434,7 +438,7 @@ public class CertificateToolTests extends ESTestCase {
 
         assertThat(pemZipFile, pathExists());
 
-        final KeyStore caKeyStore = CertParsingUtils.readKeyStore(caFile, "PKCS12", longPassword.toCharArray());
+        final KeyStore caKeyStore = KeyStoreUtil.readKeyStore(caFile, "PKCS12", longPassword.toCharArray());
         Certificate caCert = caKeyStore.getCertificate("ca");
         assertThat(caCert, notNullValue());
 
@@ -446,10 +450,10 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(key, notNullValue());
 
         final Path certPath = zipRoot.resolve("cert/cert.crt");
-        final Certificate[] certificates = CertParsingUtils.readCertificates(List.of(certPath));
-        assertThat(certificates, arrayWithSize(1));
+        final List<Certificate> certificates = PemUtils.readCertificates(List.of(certPath));
+        assertThat(certificates, hasSize(1));
         assertThat(
-            ((X509Certificate) certificates[0]).getIssuerX500Principal(),
+            ((X509Certificate) certificates.get(0)).getIssuerX500Principal(),
             equalTo(((X509Certificate) caCert).getSubjectX500Principal())
         );
     }
@@ -663,9 +667,9 @@ public class CertificateToolTests extends ESTestCase {
 
         assertThat(node3File, pathExists());
 
-        final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
-        final KeyStore node2KeyStore = CertParsingUtils.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
-        final KeyStore node3KeyStore = CertParsingUtils.readKeyStore(node3File, "PKCS12", node3Password.toCharArray());
+        final KeyStore node1KeyStore = KeyStoreUtil.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
+        final KeyStore node2KeyStore = KeyStoreUtil.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
+        final KeyStore node3KeyStore = KeyStoreUtil.readKeyStore(node3File, "PKCS12", node3Password.toCharArray());
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node1KeyStore, true);
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2KeyStore, true);
@@ -768,11 +772,11 @@ public class CertificateToolTests extends ESTestCase {
         final Path node2Key = zip2Root.resolve("node02/node02.key");
         assertThat(node2Key, pathExists());
 
-        final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1Pkcs12, "PKCS12", node1Password.toCharArray());
+        final KeyStore node1KeyStore = KeyStoreUtil.readKeyStore(node1Pkcs12, "PKCS12", node1Password.toCharArray());
         final KeyStore node1TrustStore = node1KeyStore;
 
         final KeyStore node2KeyStore = CertParsingUtils.getKeyStoreFromPEM(node2Cert, node2Key, new char[0]);
-        final KeyStore node2TrustStore = CertParsingUtils.readKeyStore(caFile, "PKCS12", caPassword.toCharArray());
+        final KeyStore node2TrustStore = KeyStoreUtil.readKeyStore(caFile, "PKCS12", caPassword.toCharArray());
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2TrustStore, true);
         checkTrust(node2KeyStore, new char[0], node1TrustStore, true);
@@ -836,9 +840,8 @@ public class CertificateToolTests extends ESTestCase {
      * Checks whether there are keys in {@code keyStore} that are trusted by {@code trustStore}.
      */
     private void checkTrust(KeyStore keyStore, char[] keyPassword, KeyStore trustStore, boolean trust) throws Exception {
-        final X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(keyStore, keyPassword,
-                KeyManagerFactory.getDefaultAlgorithm());
-        final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedKeyManager keyManager = createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedTrustManager trustManager = createTrustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
 
         final X509Certificate[] node1CertificateIssuers = trustManager.getAcceptedIssuers();
         final Principal[] trustedPrincipals = new Principal[node1CertificateIssuers.length];

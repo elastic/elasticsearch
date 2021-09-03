@@ -43,6 +43,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -74,9 +75,9 @@ public class CcrLicenseChecker {
     /**
      * Constructs a CCR license checker with the default rule based on the license state for checking if CCR is allowed.
      */
-    CcrLicenseChecker() {
+    CcrLicenseChecker(Settings settings) {
         this(() -> XPackPlugin.getSharedLicenseState().checkFeature(XPackLicenseState.Feature.CCR),
-             XPackPlugin.getSharedLicenseState()::isSecurityEnabled);
+            () -> XPackSettings.SECURITY_ENABLED.get(settings));
     }
 
     /**

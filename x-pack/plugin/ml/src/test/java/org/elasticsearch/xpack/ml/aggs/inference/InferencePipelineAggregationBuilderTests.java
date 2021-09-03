@@ -65,7 +65,7 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
         InferencePipelineAggregationBuilder builder =
             new InferencePipelineAggregationBuilder(NAME, new SetOnce<>(mock(ModelLoadingService.class)),
-                mock(XPackLicenseState.class), bucketPaths);
+                mock(XPackLicenseState.class), Settings.EMPTY, bucketPaths);
         builder.setModelId(randomAlphaOfLength(6));
 
         if (randomBoolean()) {

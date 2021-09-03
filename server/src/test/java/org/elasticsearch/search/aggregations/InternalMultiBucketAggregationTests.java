@@ -62,8 +62,10 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 
-        InvalidAggregationPathException e = expectThrows(InvalidAggregationPathException.class,
-            () -> resolvePropertyFromPath(path.getPathElementsAsStringList(), buckets, "the_long_terms"));
+        InvalidAggregationPathException e = expectThrows(
+            InvalidAggregationPathException.class,
+            () -> resolvePropertyFromPath(path.getPathElementsAsStringList(), buckets, "the_long_terms")
+        );
         assertThat(e.getMessage(), equalTo("Cannot find an aggregation named [foo] in [the_long_terms]"));
     }
 
@@ -76,8 +78,10 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> resolvePropertyFromPath(path.getPathElementsAsStringList(), buckets, "the_long_terms"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolvePropertyFromPath(path.getPathElementsAsStringList(), buckets, "the_long_terms")
+        );
         assertThat(e.getMessage(), equalTo("path not supported for [the_avg]: [unknown]"));
     }
 
@@ -126,12 +130,31 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
         List<LongTerms.Bucket> buckets = new ArrayList<>();
         InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
         InternalAggregations internalStringAggs = InternalAggregations.from(Collections.singletonList(agg));
-        List<StringTerms.Bucket> stringBuckets = Collections.singletonList(new StringTerms.Bucket(
-            new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
-            internalStringAggs, false, 0, DocValueFormat.RAW));
+        List<StringTerms.Bucket> stringBuckets = Collections.singletonList(
+            new StringTerms.Bucket(
+                new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length),
+                1,
+                internalStringAggs,
+                false,
+                0,
+                DocValueFormat.RAW
+            )
+        );
 
-        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), BucketOrder.count(false), 1, 0,
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
+        InternalTerms<?, ?> termsAgg = new StringTerms(
+            "string_terms",
+            BucketOrder.count(false),
+            BucketOrder.count(false),
+            1,
+            0,
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            1,
+            false,
+            0,
+            stringBuckets,
+            0L
+        );
         InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -146,18 +169,39 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
         List<LongTerms.Bucket> buckets = new ArrayList<>();
         InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
         InternalAggregations internalStringAggs = InternalAggregations.from(Collections.singletonList(agg));
-        List<StringTerms.Bucket> stringBuckets = Collections.singletonList(new StringTerms.Bucket(
-            new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
-            internalStringAggs, false, 0, DocValueFormat.RAW));
+        List<StringTerms.Bucket> stringBuckets = Collections.singletonList(
+            new StringTerms.Bucket(
+                new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length),
+                1,
+                internalStringAggs,
+                false,
+                0,
+                DocValueFormat.RAW
+            )
+        );
 
-        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), BucketOrder.count(false), 1, 0,
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
+        InternalTerms<?, ?> termsAgg = new StringTerms(
+            "string_terms",
+            BucketOrder.count(false),
+            BucketOrder.count(false),
+            1,
+            0,
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            1,
+            false,
+            0,
+            stringBuckets,
+            0L
+        );
         InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 
-        InvalidAggregationPathException e = expectThrows(InvalidAggregationPathException.class,
-            () -> resolvePropertyFromPath(path.getPathElementsAsStringList(), buckets, "the_long_terms"));
+        InvalidAggregationPathException e = expectThrows(
+            InvalidAggregationPathException.class,
+            () -> resolvePropertyFromPath(path.getPathElementsAsStringList(), buckets, "the_long_terms")
+        );
         assertThat(e.getMessage(), equalTo("Cannot find an key ['bar'] in [string_terms]"));
     }
 }

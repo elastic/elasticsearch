@@ -53,7 +53,6 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
-    static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -67,6 +66,7 @@ class DatafeedJob {
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
+    private final long delayedDataCheckFreq;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -82,7 +82,7 @@ class DatafeedJob {
                 DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
                 AnomalyDetectionAuditor auditor, AnnotationPersister annotationPersister, Supplier<Long> currentTimeSupplier,
                 DelayedDataDetector delayedDataDetector, Integer maxEmptySearches, long latestFinalBucketEndTimeMs, long latestRecordTimeMs,
-                boolean haveSeenDataPreviously) {
+                boolean haveSeenDataPreviously, long delayedDataCheckFreq) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -101,6 +101,7 @@ class DatafeedJob {
             lastEndTimeMs = lastEndTime;
         }
         this.haveEverSeenData = haveSeenDataPreviously;
+        this.delayedDataCheckFreq = delayedDataCheckFreq;
     }
 
     void isolate() {
@@ -294,7 +295,7 @@ class DatafeedJob {
     }
 
     /**
-     * We wait a static interval of 15 minutes till the next missing data check.
+     * We wait for `delayedDataCheckFreq` interval till the next missing data check.
      *
      * However, if our delayed data window is smaller than that, we will probably want to check at every available window (if freq. allows).
      * This is to help to miss as few buckets in the delayed data check as possible.
@@ -304,8 +305,7 @@ class DatafeedJob {
      * probably not even be noticeable at such a large timescale.
      */
     private boolean checkForMissingDataTriggered() {
-        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs
-            + Math.min(MISSING_DATA_CHECK_INTERVAL_MS, delayedDataDetector.getWindow());
+        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs + Math.min(delayedDataCheckFreq, delayedDataDetector.getWindow());
     }
 
     /**

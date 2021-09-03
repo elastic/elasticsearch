@@ -25,19 +25,22 @@ public class ShardSnapshotInfo implements Writeable {
     private final String indexMetadataIdentifier;
     @Nullable
     private final String shardStateIdentifier;
+    private final long startedAt;
 
     public ShardSnapshotInfo(
         IndexId indexId,
         ShardId shardId,
         Snapshot snapshot,
         String indexMetadataIdentifier,
-        @Nullable String shardStateIdentifier
+        @Nullable String shardStateIdentifier,
+        long startedAt
     ) {
         this.indexId = indexId;
         this.shardId = shardId;
         this.snapshot = snapshot;
         this.indexMetadataIdentifier = indexMetadataIdentifier;
         this.shardStateIdentifier = shardStateIdentifier;
+        this.startedAt = startedAt;
     }
 
     public ShardSnapshotInfo(StreamInput in) throws IOException {
@@ -46,6 +49,7 @@ public class ShardSnapshotInfo implements Writeable {
         this.shardId = new ShardId(in);
         this.indexMetadataIdentifier = in.readString();
         this.shardStateIdentifier = in.readOptionalString();
+        this.startedAt = in.readLong();
     }
 
     @Override
@@ -55,6 +59,7 @@ public class ShardSnapshotInfo implements Writeable {
         shardId.writeTo(out);
         out.writeString(indexMetadataIdentifier);
         out.writeOptionalString(shardStateIdentifier);
+        out.writeLong(startedAt);
     }
 
     @Nullable
@@ -76,12 +81,25 @@ public class ShardSnapshotInfo implements Writeable {
         return snapshot.getRepository();
     }
 
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public long getStartedAt() {
+        return startedAt;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardSnapshotInfo that = (ShardSnapshotInfo) o;
-        return Objects.equals(indexId, that.indexId)
+        return startedAt == that.startedAt
+            && Objects.equals(indexId, that.indexId)
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(indexMetadataIdentifier, that.indexMetadataIdentifier)
@@ -90,6 +108,26 @@ public class ShardSnapshotInfo implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexId, snapshot, shardId, indexMetadataIdentifier, shardStateIdentifier);
+        return Objects.hash(indexId, snapshot, shardId, indexMetadataIdentifier, shardStateIdentifier, startedAt);
+    }
+
+    @Override
+    public String toString() {
+        return "ShardSnapshotInfo{"
+            + "indexId="
+            + indexId
+            + ", snapshot="
+            + snapshot
+            + ", shardId="
+            + shardId
+            + ", indexMetadataIdentifier='"
+            + indexMetadataIdentifier
+            + '\''
+            + ", shardStateIdentifier='"
+            + shardStateIdentifier
+            + '\''
+            + ", startedAt="
+            + startedAt
+            + '}';
     }
 }

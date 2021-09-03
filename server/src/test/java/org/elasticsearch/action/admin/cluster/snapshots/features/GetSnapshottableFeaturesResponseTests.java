@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializingTestCase<GetSnapshottableFeaturesResponse> {
 
     @Override
-    protected Writeable.Reader instanceReader() {
+    protected Writeable.Reader<GetSnapshottableFeaturesResponse> instanceReader() {
         return GetSnapshottableFeaturesResponse::new;
     }
 

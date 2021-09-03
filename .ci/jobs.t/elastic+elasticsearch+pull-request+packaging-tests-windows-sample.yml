@@ -21,8 +21,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true
-          black-list-target-branches:
-            - 6.8
+          white-list-target-branches:
+            - master
           excluded-regions:
             - ^docs/.*
           black-list-labels:
@@ -39,7 +39,6 @@
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
-            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

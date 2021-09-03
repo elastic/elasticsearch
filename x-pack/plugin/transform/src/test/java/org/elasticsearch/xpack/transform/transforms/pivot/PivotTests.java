@@ -373,7 +373,7 @@ public class PivotTests extends ESTestCase {
 
         @Override
         protected XPackLicenseState getLicenseState() {
-            return new XPackLicenseState(Settings.EMPTY, System::currentTimeMillis);
+            return new XPackLicenseState(System::currentTimeMillis);
         }
 
     }

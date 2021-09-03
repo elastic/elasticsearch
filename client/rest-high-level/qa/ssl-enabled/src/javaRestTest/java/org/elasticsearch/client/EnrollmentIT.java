@@ -25,6 +25,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
     private static Path httpTrustStore;
@@ -58,13 +59,24 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
             .build();
     }
 
+    /**
+     * Cleanup for these tests requires the admin client to have access to the
+     * truststore, so we use the same settings that we're using for the rest
+     * client in this test class.
+     * @return Settings for the admin client.
+     */
+    @Override
+    protected Settings restAdminSettings() {
+        return restClientSettings();
+    }
+
     public void testEnrollNode() throws Exception {
         final NodeEnrollmentResponse nodeEnrollmentResponse =
             execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
         assertThat(nodeEnrollmentResponse, notNullValue());
         assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("K2S3vidA="));
         assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("LfkRjirc="));
-        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I-r8vOQ=="));
+        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I+r8vOQ=="));
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("OpTdtgJo="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
         assertThat(nodesAddresses.size(), equalTo(2));
@@ -75,8 +87,8 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
             execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
         assertThat(kibanaResponse, notNullValue());
         assertThat(kibanaResponse.getHttpCa()
-            , endsWith("brcNC5xq6YE7C4_06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF-8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa-XhgNYglLfkRjirc="));
-        assertNotNull(kibanaResponse.getPassword());
-        assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
+            , endsWith("brcNC5xq6YE7C4/06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF+8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa+XhgNYglLfkRjirc="));
+        assertNotNull(kibanaResponse.getTokenValue());
+        assertNotNull(kibanaResponse.getTokenName(), startsWith("enroll-process-token-"));
     }
 }

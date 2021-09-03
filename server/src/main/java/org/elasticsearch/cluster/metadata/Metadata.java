@@ -17,6 +17,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,6 +77,10 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
+/**
+ * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
+ * round-trip through XContent must be faithful in {@link XContentContext#GATEWAY} context.
+ */
 public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
@@ -117,6 +123,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
+    /**
+     * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
+     * with the {@link NamedXContentRegistry}.
+     */
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         EnumSet<XContentContext> context();
@@ -706,6 +716,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public Map<String, DataStreamAlias> dataStreamAliases() {
         return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
             .map(DataStreamMetadata::getDataStreamAliases)
+            .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
+        return Optional.ofNullable((NodesShutdownMetadata) this.custom(NodesShutdownMetadata.TYPE))
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
             .orElse(Collections.emptyMap());
     }
 
@@ -1536,7 +1552,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
                     }
                     IndexAbstraction existing = indicesLookup.put(alias.getName(),
-                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
+                        new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
                     assert existing == null : "duplicate data stream alias for " + alias.getName();
                 }
             }
@@ -1587,7 +1603,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
                 List<String> conflictingAliases = indicesLookup.values().stream()
                     .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
-                    .filter(ia -> ia instanceof IndexAbstraction.Alias) // TODO: a nicer to only select index aliases?
+                    .filter(ia -> ia.isDataStreamRelated() == false)
                     .filter(ia -> {
                         for (IndexMetadata index : ia.getIndices()) {
                             if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {

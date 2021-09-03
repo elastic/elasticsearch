@@ -60,7 +60,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
         String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
@@ -84,7 +84,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         if (currentClusterState.metadata().index(mountedIndexName) != null) {
             logger.debug("mounted index [{}] for policy [{}] and index [{}] already exists. will not attempt to mount the index again",
                 mountedIndexName, policyName, indexName);
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
@@ -128,7 +128,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     logger.debug("mount snapshot response failed to complete");
                     throw new ElasticsearchException("mount snapshot response failed to complete, got response " + response.status());
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             }, listener::onFailure));
     }
 

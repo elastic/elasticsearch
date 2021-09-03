@@ -98,6 +98,8 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkSslServerEnabled,
+                    NodeDeprecationChecks::checkSslCertConfiguration,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
                     (settings, pluginsAndModules, clusterState, licenseState) ->
                         NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(settings, pluginsAndModules, clusterState,

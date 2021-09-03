@@ -963,6 +963,136 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issues, empty());
     }
 
+    public void testCheckSslServerEnabled() {
+        String httpSslEnabledKey = "xpack.security.http.ssl.enabled";
+        String transportSslEnabledKey = "xpack.security.transport.ssl.enabled";
+        String problemSettingKey1 = "xpack.security.http.ssl.keystore.path";
+        String problemSettingValue1 = "some/fake/path";
+        String problemSettingKey2 = "xpack.security.http.ssl.truststore.path";
+        String problemSettingValue2 = "some/other/fake/path";
+        final Settings nodeSettings = Settings.builder()
+            .put(transportSslEnabledKey, "true")
+            .put(problemSettingKey1, problemSettingValue1)
+            .put(problemSettingKey2, problemSettingValue2)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "cannot set ssl properties without explicitly enabling or disabling ssl",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            String.format(Locale.ROOT,
+                "setting [%s] is unset but the following settings exist: [%s,%s]",
+                httpSslEnabledKey,
+                problemSettingKey1,
+                problemSettingKey2),
+            false,null
+        );
+
+        assertThat(
+            NodeDeprecationChecks.checkSslServerEnabled(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+    }
+
+    public void testCheckSslCertConfiguration() {
+        // SSL enabled, but no keystore/key/cert properties
+        Settings nodeSettings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", "true")
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            "none of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], or [xpack.security.transport" +
+                ".ssl.certificate] are set. If [xpack.security.transport.ssl.enabled] is true either [xpack.security.transport.ssl" +
+                ".keystore.path] must be set, or [xpack.security.transport.ssl.key] and [xpack.security.transport.ssl.certificate] " +
+                "must be set",
+            false,null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        // SSL enabled, and keystore path give, expect no issue
+        nodeSettings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", "true")
+            .put("xpack.security.transport.ssl.keystore.path", randomAlphaOfLength(10))
+            .build();
+        assertThat(
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        // SSL enabled, and key and certificate path give, expect no issue
+        nodeSettings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", "true")
+            .put("xpack.security.transport.ssl.key", randomAlphaOfLength(10))
+            .put("xpack.security.transport.ssl.certificate", randomAlphaOfLength(10))
+            .build();
+        assertThat(
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        // SSL enabled, specify both keystore and key and certificate path
+        nodeSettings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", "true")
+            .put("xpack.security.transport.ssl.keystore.path", randomAlphaOfLength(10))
+            .put("xpack.security.transport.ssl.key", randomAlphaOfLength(10))
+            .put("xpack.security.transport.ssl.certificate", randomAlphaOfLength(10))
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            "all of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], and [xpack.security.transport.ssl" +
+                ".certificate] are set. Either [xpack.security.transport.ssl.keystore.path] must be set, or [xpack.security.transport.ssl" +
+                ".key] and [xpack.security.transport.ssl.certificate] must be set",
+            false,null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        // SSL enabled, specify keystore and key
+        nodeSettings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", "true")
+            .put("xpack.security.transport.ssl.keystore.path", randomAlphaOfLength(10))
+            .put("xpack.security.transport.ssl.key", randomAlphaOfLength(10))
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            "[xpack.security.transport.ssl.keystore.path] and [xpack.security.transport.ssl.key] are set. Either [xpack.security" +
+                ".transport.ssl.keystore.path] must be set, or [xpack.security.transport.ssl.key] and [xpack.security.transport.ssl" +
+                ".certificate] must be set",
+            false,null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        // Sanity check that it also works for http:
+        nodeSettings = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", "true")
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            "none of [xpack.security.http.ssl.keystore.path], [xpack.security.http.ssl.key], or [xpack.security.http.ssl.certificate] are" +
+                " set. If [xpack.security.http.ssl.enabled] is true either [xpack.security.http.ssl.keystore.path] must be set, or [xpack" +
+                ".security.http.ssl.key] and [xpack.security.http.ssl.certificate] must be set",
+            false,null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+    }
+
     @SuppressForbidden(reason = "sets and unsets es.unsafely_permit_handshake_from_incompatible_builds")
     public void testCheckNoPermitHandshakeFromIncompatibleBuilds() {
         final DeprecationIssue expectedNullIssue =

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
@@ -71,7 +70,7 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
                     .setInferenceConfig(
                         new BertPassThroughConfig(
                             new VocabularyConfig(
-                                InferenceIndexConstants.customDefinitionStore(modelId),
+                                InferenceIndexConstants.nativeDefinitionStore(),
                                 modelId + "_vocab"
                             ),
                             new BertTokenization(null, false, null)
@@ -83,7 +82,7 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
         ).actionGet().getResponse();
 
         assertThat(config.getLocation(), isA(IndexLocation.class));
-        assertThat(((IndexLocation) config.getLocation()).getIndexName(), equalTo(InferenceIndexConstants.customDefinitionStore(modelId)));
+        assertThat(((IndexLocation) config.getLocation()).getIndexName(), equalTo(InferenceIndexConstants.nativeDefinitionStore()));
         client().execute(
             PutTrainedModelDefinitionPartAction.INSTANCE,
             new PutTrainedModelDefinitionPartAction.Request(modelId, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
@@ -93,7 +92,7 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareGetIndex()
-                .addIndices(InferenceIndexConstants.customDefinitionStore(modelId))
+                .addIndices(InferenceIndexConstants.nativeDefinitionStore())
                 .get()
                 .indices().length,
             equalTo(1)
@@ -103,11 +102,6 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
             DeleteTrainedModelAction.INSTANCE,
             new DeleteTrainedModelAction.Request(modelId)
         ).actionGet();
-
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(InferenceIndexConstants.customDefinitionStore(modelId)).get()
-        );
     }
 
 }

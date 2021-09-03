@@ -199,7 +199,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                     .setInferenceConfig(
                         new BertPassThroughConfig(
                             new VocabularyConfig(
-                                InferenceIndexConstants.customDefinitionStore(TRAINED_MODEL_ID),
+                                InferenceIndexConstants.nativeDefinitionStore(),
                                 TRAINED_MODEL_ID + "_vocab"
                             ),
                             new BertTokenization(null, false, null)
@@ -213,7 +213,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelDefinitionPartAction.INSTANCE,
             new PutTrainedModelDefinitionPartAction.Request(TRAINED_MODEL_ID, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
         ).actionGet();
-        client().prepareIndex(InferenceIndexConstants.customDefinitionStore(TRAINED_MODEL_ID))
+        client().prepareIndex(InferenceIndexConstants.nativeDefinitionStore())
             .setId(TRAINED_MODEL_ID + "_vocab")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource(

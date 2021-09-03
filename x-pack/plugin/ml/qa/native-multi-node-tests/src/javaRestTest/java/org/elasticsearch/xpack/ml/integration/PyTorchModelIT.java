@@ -338,21 +338,21 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         Request request = new Request(
             "PUT",
-            "/" + InferenceIndexConstants.customDefinitionStore(modelId) + "/_doc/test_vocab?refresh=true"
+            "/" + InferenceIndexConstants.nativeDefinitionStore() + "/_doc/test_vocab?refresh=true"
         );
         request.setJsonEntity("{  " +
                 "\"vocab\": [" + quotedWords + "]\n" +
             "}");
-        request.setOptions(expectInferenceIndexWarning(modelId));
+        request.setOptions(expectInferenceIndexWarning());
         client().performRequest(request);
     }
 
-    static RequestOptions expectInferenceIndexWarning(String modelId) {
+    static RequestOptions expectInferenceIndexWarning() {
         return RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(
                 w -> w.contains(
-                    "this request accesses system indices: [.ml-inference-"
-                        + modelId
+                    "this request accesses system indices: ["
+                        + InferenceIndexConstants.nativeDefinitionStore()
                         + "], but in a future major version, direct access to system indices will be prevented by default"
                 ) == false || w.size() != 1
             )
@@ -367,7 +367,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    \"inference_config\": {\n" +
             "        \"bert_pass_through\": {\n" +
             "            \"vocabulary\": {\n" +
-            "              \"index\": \"" + InferenceIndexConstants.customDefinitionStore(modelId) + "\",\n" +
+            "              \"index\": \"" + InferenceIndexConstants.nativeDefinitionStore() + "\",\n" +
             "              \"id\": \"test_vocab\"\n" +
             "            },\n" +
             "            \"tokenization\": {" +

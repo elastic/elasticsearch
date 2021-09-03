@@ -67,7 +67,7 @@ public enum TrainedModelType {
             case LANG_IDENT:
                 return new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME);
             case PYTORCH:
-                return new IndexLocation(InferenceIndexConstants.customDefinitionStore(modelId));
+                return new IndexLocation(InferenceIndexConstants.nativeDefinitionStore());
             default:
                 throw new IllegalArgumentException(
                     "can not determine appropriate location for type ["

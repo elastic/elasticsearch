@@ -639,17 +639,18 @@ class NodeDeprecationChecks {
                 boolean keyPathSettingExists = settings.get(keyPathSettingKey) != null;
                 boolean certificatePathSettingExists = settings.get(certificatePathSettingKey) != null;
                 if (keystorePathSettingExists == false && keyPathSettingExists == false && certificatePathSettingExists == false) {
-                    String detail = String.format(Locale.ROOT, "none of [%s], [%s], or [%s] are set. Either [%s] or [%s] and [%s] must be" +
-                            " set if [%s] is true", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
-                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey, enabledSettingKey);
+                    String detail = String.format(Locale.ROOT, "none of [%s], [%s], or [%s] are set. If [%s] is true either [%s] must be " +
+                            "set, or [%s] and [%s] must be set", keystorePathSettingKey, keyPathSettingKey,
+                        certificatePathSettingKey, enabledSettingKey, keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
                     details.add(detail);
                 } else if (keystorePathSettingExists && keyPathSettingExists && certificatePathSettingExists) {
-                    String detail = String.format(Locale.ROOT, "all of [%s], [%s], and [%s] are set. Only [%s] or [%s] and [%s] can be " +
-                            "set", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey, keystorePathSettingKey,
-                        keyPathSettingKey, certificatePathSettingKey);
+                    String detail = String.format(Locale.ROOT, "all of [%s], [%s], and [%s] are set. Either [%s] must be set, or [%s] and" +
+                            " [%s] must be set", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
+                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
                     details.add(detail);
                 } else if (keystorePathSettingExists && (keyPathSettingExists || certificatePathSettingExists)) {
-                    String detail = String.format(Locale.ROOT, "[%s] and [%s] are set. Only [%s] or [%s] and [%s] can be set",
+                    String detail = String.format(Locale.ROOT, "[%s] and [%s] are set. Either [%s] must be set, or [%s] and [%s] must" +
+                            " be set",
                         keystorePathSettingKey,
                         keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
                         keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
@@ -667,7 +668,7 @@ class NodeDeprecationChecks {
             return null;
         } else {
             String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
-            String message = "must set either keystore or key path and certificate path if ssl is enabled";
+            String message = "if ssl is enabled either keystore must be set, or key path and certificate path must be set";
             String detailsString = details.stream().collect(Collectors.joining("; "));
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
         }

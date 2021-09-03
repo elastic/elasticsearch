@@ -903,12 +903,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "must set either keystore or key path and certificate path if ssl is enabled",
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
-                "none of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], or " +
-                    "[xpack.security.transport.ssl.certificate] are set. Either [xpack.security.transport.ssl.keystore.path] or " +
-                    "[xpack.security.transport.ssl.key] and [xpack.security.transport.ssl.certificate] must be set if " +
-                    "[xpack.security.transport.ssl.enabled] is true",
+                "none of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], or [xpack.security.transport" +
+                    ".ssl.certificate] are set. If [xpack.security.transport.ssl.enabled] is true either [xpack.security.transport.ssl" +
+                    ".keystore.path] must be set, or [xpack.security.transport.ssl.key] and [xpack.security.transport.ssl.certificate] " +
+                    "must be set",
             false,null
         );
         assertThat(
@@ -945,11 +945,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.transport.ssl.certificate", randomAlphaOfLength(10))
             .build();
         expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "must set either keystore or key path and certificate path if ssl is enabled",
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
-            "all of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], and " +
-                "[xpack.security.transport.ssl.certificate] are set. Only [xpack.security.transport.ssl.keystore.path] or " +
-                "[xpack.security.transport.ssl.key] and [xpack.security.transport.ssl.certificate] can be set",
+            "all of [xpack.security.transport.ssl.keystore.path], [xpack.security.transport.ssl.key], and [xpack.security.transport.ssl" +
+                ".certificate] are set. Either [xpack.security.transport.ssl.keystore.path] must be set, or [xpack.security.transport.ssl" +
+                ".key] and [xpack.security.transport.ssl.certificate] must be set",
             false,null
         );
         assertThat(
@@ -964,11 +964,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.transport.ssl.key", randomAlphaOfLength(10))
             .build();
         expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "must set either keystore or key path and certificate path if ssl is enabled",
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
-            "[xpack.security.transport.ssl.keystore.path] and [xpack.security.transport.ssl.key] are set. Only " +
-                "[xpack.security.transport.ssl.keystore.path] or [xpack.security.transport.ssl.key] and " +
-                "[xpack.security.transport.ssl.certificate] can be set",
+            "[xpack.security.transport.ssl.keystore.path] and [xpack.security.transport.ssl.key] are set. Either [xpack.security" +
+                ".transport.ssl.keystore.path] must be set, or [xpack.security.transport.ssl.key] and [xpack.security.transport.ssl" +
+                ".certificate] must be set",
             false,null
         );
         assertThat(
@@ -981,12 +981,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.http.ssl.enabled", "true")
             .build();
         expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "must set either keystore or key path and certificate path if ssl is enabled",
+            "if ssl is enabled either keystore must be set, or key path and certificate path must be set",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
-            "none of [xpack.security.http.ssl.keystore.path], [xpack.security.http.ssl.key], or " +
-                "[xpack.security.http.ssl.certificate] are set. Either [xpack.security.http.ssl.keystore.path] or " +
-                "[xpack.security.http.ssl.key] and [xpack.security.http.ssl.certificate] must be set if " +
-                "[xpack.security.http.ssl.enabled] is true",
+            "none of [xpack.security.http.ssl.keystore.path], [xpack.security.http.ssl.key], or [xpack.security.http.ssl.certificate] are" +
+                " set. If [xpack.security.http.ssl.enabled] is true either [xpack.security.http.ssl.keystore.path] must be set, or [xpack" +
+                ".security.http.ssl.key] and [xpack.security.http.ssl.certificate] must be set",
             false,null
         );
         assertThat(

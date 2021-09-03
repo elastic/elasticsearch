@@ -31,14 +31,18 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
+public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
+
+    /**
+     * Get the mapping for this test. It should contain a field called `location' that
+     * supports GeoBoundingBox queries.
+     */
+    public abstract XContentBuilder getMapping() throws IOException;
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
     }
-
-    public abstract XContentBuilder getMapping() throws IOException;
 
     public void testSimpleBoundingBoxTest() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());

@@ -13,14 +13,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestCase {
+public class GeoBoundingBoxQueryLegacyGeoShapeIT extends GeoBoundingBoxQueryIntegTestCase {
 
     @Override
     public XContentBuilder getMapping() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        return xContentBuilder;
+        return XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location").field("type", "geo_shape").field("strategy", "recursive")
+            .endObject().endObject().endObject().endObject();
     }
 }
 

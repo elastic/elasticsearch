@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -52,7 +51,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
             return new EngineConfig(config.getShardId(), config.getThreadPool(),
                 indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
+                config.getSimilarity(), new CodecService(null),
                 config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),

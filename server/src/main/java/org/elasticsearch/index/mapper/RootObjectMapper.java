@@ -269,19 +269,19 @@ public class RootObjectMapper extends ObjectMapper {
         return copy;
     }
 
-    boolean dateDetection() {
+    public boolean dateDetection() {
         return this.dateDetection.value();
     }
 
-    boolean numericDetection() {
+    public boolean numericDetection() {
         return this.numericDetection.value();
     }
 
-    DateFormatter[] dynamicDateTimeFormatters() {
+    public DateFormatter[] dynamicDateTimeFormatters() {
         return dynamicDateTimeFormatters.value();
     }
 
-    DynamicTemplate[] dynamicTemplates() {
+    public DynamicTemplate[] dynamicTemplates() {
         return dynamicTemplates.value();
     }
 

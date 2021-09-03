@@ -5,6 +5,10 @@ setup:
           index:  eql_test
           body:
             mappings:
+              properties:
+                some_keyword:
+                  type: keyword
+                  ignore_above: 5 # see https://github.com/elastic/elasticsearch/issues/77152
               runtime:
                 day_of_week:
                   type: keyword
@@ -23,6 +27,7 @@ setup:
             user: SYSTEM
             id: 123
             valid: false
+            some_keyword: longer than normal
           - index:
               _index: eql_test
               _id:    2

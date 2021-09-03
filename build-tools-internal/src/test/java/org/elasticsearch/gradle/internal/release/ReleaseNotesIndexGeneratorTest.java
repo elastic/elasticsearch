@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -24,7 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
 public class ReleaseNotesIndexGeneratorTest {
 
     /**

@@ -146,7 +146,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
         stopElasticsearch();
 
         String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");

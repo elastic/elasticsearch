@@ -703,57 +703,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return null;
     }
 
-    public void testFrozenIndexAfterRestarted() throws Exception {
-        final String index = "test_frozen_index";
-        if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-            }
-            String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
-            createIndex(index, settings.build(), mappings);
-            ensureGreen(index);
-            int numDocs = randomIntBetween(10, 500);
-            for (int i = 0; i < numDocs; i++) {
-                int id = randomIntBetween(0, 100);
-                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
-                indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
-                assertOK(client().performRequest(indexRequest));
-                if (rarely()) {
-                    flush(index, randomBoolean());
-                }
-            }
-        } else {
-            ensureGreen(index);
-            final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
-                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            Request freezeRequest = new Request("POST", index + "/_freeze");
-            freezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given "
-                        + "improvements in heap memory utilization. They will be removed in a future release."
-                )
-            );
-            assertOK(client().performRequest(freezeRequest));
-            ensureGreen(index);
-            assertNoFileBasedRecovery(index, n -> true);
-            final Request request = new Request("GET", "/" + index + "/_search");
-            request.addParameter("ignore_throttled", "false");
-            assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
-                equalTo(totalHits));
-            final Request unfreezeRequest = new Request("POST", index + "/_unfreeze");
-            unfreezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given "
-                        + "improvements in heap memory utilization. They will be removed in a future release."
-                )
-            );
-            assertOK(client().performRequest(unfreezeRequest));
-            ensureGreen(index);
-            assertNoFileBasedRecovery(index, n -> true);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));

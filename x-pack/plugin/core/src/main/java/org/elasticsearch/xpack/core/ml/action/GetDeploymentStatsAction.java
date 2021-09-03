@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
@@ -226,6 +227,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
             private final String modelId;
             private AllocationState state;
+            private AllocationHealth health;
             private String reason;
             private final ByteSizeValue modelSize;
             private final List<NodeStats> nodeStats;
@@ -248,6 +250,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 nodeStats = in.readList(NodeStats::new);
                 state = in.readOptionalEnum(AllocationState.class);
                 reason = in.readOptionalString();
+                health = in.readOptionalEnum(AllocationHealth.class);
             }
 
             public String getModelId() {
@@ -268,6 +271,11 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
             public AllocationStats setState(AllocationState state) {
                 this.state = state;
+                return this;
+            }
+
+            public AllocationStats setHealth(AllocationHealth health) {
+                this.health = health;
                 return this;
             }
 
@@ -293,6 +301,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 if (reason != null) {
                     builder.field("reason", reason);
                 }
+                if (health != null) {
+                    builder.field("health", health);
+                }
                 builder.startArray("nodes");
                 for (NodeStats nodeStat : nodeStats){
                     nodeStat.toXContent(builder, params);
@@ -309,6 +320,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 out.writeList(nodeStats);
                 out.writeOptionalEnum(state);
                 out.writeOptionalString(reason);
+                out.writeOptionalEnum(health);
             }
 
             @Override
@@ -320,12 +332,13 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     Objects.equals(modelSize, that.modelSize) &&
                     Objects.equals(state, that.state) &&
                     Objects.equals(reason, that.reason) &&
+                    Objects.equals(health, that.health) &&
                     Objects.equals(nodeStats, that.nodeStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, modelSize, nodeStats, state, reason);
+                return Objects.hash(modelId, modelSize, nodeStats, state, reason, health);
             }
         }
 

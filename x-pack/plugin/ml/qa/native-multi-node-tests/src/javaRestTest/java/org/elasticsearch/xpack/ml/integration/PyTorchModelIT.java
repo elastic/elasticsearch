@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -189,18 +189,18 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(modelPartial);
         createTrainedModel(modelStarted);
 
-        CheckedBiConsumer<String, AllocationState, IOException> assertAtLeast = (modelId, state) -> {
+        CheckedBiConsumer<String, AllocationHealth, IOException> assertAtLeast = (modelId, state) -> {
             startDeployment(modelId, state.toString());
             Response response = getDeploymentStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
             assertThat(stats, hasSize(1));
-            assertThat(AllocationState.fromString(stats.get(0).get("state").toString()), greaterThanOrEqualTo(state));
+            assertThat(AllocationHealth.fromString(stats.get(0).get("health").toString()), greaterThanOrEqualTo(state));
             stopDeployment(model);
         };
 
-        assertAtLeast.accept(model, AllocationState.STARTING);
-        assertAtLeast.accept(modelPartial, AllocationState.PARTIALLY_STARTED);
-        assertAtLeast.accept(modelStarted, AllocationState.STARTED);
+        assertAtLeast.accept(model, AllocationHealth.STARTING);
+        assertAtLeast.accept(modelPartial, AllocationHealth.STARTED);
+        assertAtLeast.accept(modelStarted, AllocationHealth.FULLY_ALLOCATED);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
@@ -444,7 +444,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, AllocationState.STARTED.toString());
+        return startDeployment(modelId, AllocationHealth.STARTED.toString());
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {

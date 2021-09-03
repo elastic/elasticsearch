@@ -13,7 +13,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -46,8 +46,8 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                 StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
             request.setTimeout(openTimeout);
         }
-        request.setWaitForState(AllocationState.fromString(
-            restRequest.param(StartTrainedModelDeploymentAction.Request.WAIT_FOR.getPreferredName(),AllocationState.STARTED.toString())
+        request.setWaitForState(AllocationHealth.fromString(
+            restRequest.param(StartTrainedModelDeploymentAction.Request.WAIT_FOR.getPreferredName(), AllocationHealth.STARTED.toString())
         ));
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

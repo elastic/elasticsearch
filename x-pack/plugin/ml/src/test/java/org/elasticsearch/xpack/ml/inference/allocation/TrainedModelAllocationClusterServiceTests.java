@@ -127,7 +127,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
         assertThat(
             TrainedModelAllocationMetadata.fromState(newState).getModelAllocation(modelId).getAllocationState(),
-            equalTo(AllocationState.PARTIALLY_STARTED)
+            equalTo(AllocationState.STARTED)
         );
 
         expectThrows(
@@ -175,7 +175,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
         assertThat(
             TrainedModelAllocationMetadata.fromState(updateState).getModelAllocation(modelId).getAllocationState(),
-            equalTo(AllocationState.PARTIALLY_STARTED)
+            equalTo(AllocationState.STARTED)
         );
     }
 
@@ -352,7 +352,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         assertNodeState(trainedModelAllocationMetadata, "model-1", "new-ml-node-with-room", RoutingState.STARTING);
         assertThat(
             trainedModelAllocationMetadata.modelAllocations().get("model-1").getAllocationState(),
-            equalTo(AllocationState.PARTIALLY_STARTED)
+            equalTo(AllocationState.STARTED)
         );
 
         assertThat(trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable().keySet(), hasSize(2));

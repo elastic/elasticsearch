@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -38,22 +40,26 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class TransportStartTrainedModelDeploymentAction
     extends TransportMasterNodeAction<StartTrainedModelDeploymentAction.Request, CreateTrainedModelAllocationAction.Response> {
@@ -186,7 +192,7 @@ public class TransportStartTrainedModelDeploymentAction
     private void waitForDeploymentState(
         String modelId,
         TimeValue timeout,
-        AllocationState state,
+        AllocationHealth state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
         DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
@@ -238,21 +244,23 @@ public class TransportStartTrainedModelDeploymentAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static class DeploymentStartedPredicate implements Predicate<TrainedModelAllocation> {
+    private static class DeploymentStartedPredicate implements Predicate<ClusterState> {
 
         private volatile Exception exception;
 
         // for logging
         private final String modelId;
-        private final AllocationState waitForState;
+        private final AllocationHealth waitForState;
 
-        DeploymentStartedPredicate(String modelId, AllocationState waitForState) {
+        DeploymentStartedPredicate(String modelId, AllocationHealth waitForState) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.waitForState = waitForState;
         }
 
         @Override
-        public boolean test(TrainedModelAllocation trainedModelAllocation) {
+        public boolean test(ClusterState clusterState) {
+            TrainedModelAllocation trainedModelAllocation = TrainedModelAllocationMetadata.allocationForModelId(clusterState, modelId)
+                .orElse(null);
             if (trainedModelAllocation == null) {
                 // Something weird happened, it should NEVER be null...
                 return true;
@@ -297,7 +305,15 @@ public class TransportStartTrainedModelDeploymentAction
                 );
                 return true;
             }
-            if (trainedModelAllocation.getAllocationState().compareTo(waitForState) >= 0) {
+
+            Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
+            List<DiscoveryNode> nodes = clusterState.nodes()
+                .getAllNodes()
+                .stream()
+                .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
+                .filter(TaskParams::mayAllocateToNode)
+                .collect(Collectors.toList());
+            if (trainedModelAllocation.calculateAllocationHealth(nodes).compareTo(waitForState) >= 0) {
                 return true;
             }
 
@@ -314,6 +330,13 @@ public class TransportStartTrainedModelDeploymentAction
             );
             return false;
         }
+    }
+
+    static Set<String> nodesShuttingDown(final ClusterState state) {
+        return NodesShutdownMetadata.getShutdowns(state)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(Map::keySet)
+            .orElse(Collections.emptySet());
     }
 
 }

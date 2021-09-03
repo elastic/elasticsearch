@@ -37,8 +37,8 @@
       "wait_for":{
         "type":"string",
         "required":false,
-        "description":"The allocation state for which to wait",
-        "options": ["starting", "partially_started", "started"],
+        "description":"The allocation health state for which to wait",
+        "options": ["starting", "started", "fully_allocated"],
         "default": "started"
       }
     }

@@ -164,6 +164,37 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         out.writeOptionalString(reason);
     }
 
+    public AllocationHealth calculateAllocationHealth(List<DiscoveryNode> allocatableNodes) {
+        if (allocationState.equals(AllocationState.STOPPING)) {
+            return AllocationHealth.STARTING;
+        }
+        if (nodeRoutingTable.isEmpty()) {
+            return AllocationHealth.STARTING;
+        }
+        int numAllocatableNodes = 0;
+        int numStarted = 0;
+        for (DiscoveryNode node : allocatableNodes) {
+            if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)) {
+                RoutingState nodeState = Optional.ofNullable(nodeRoutingTable.get(node.getId()))
+                    .map(RoutingStateAndReason::getState)
+                    .orElse(RoutingState.STOPPED);
+                numAllocatableNodes++;
+                if (nodeState.equals(RoutingState.STARTED)) {
+                    numStarted++;
+                }
+            }
+        }
+        if (numStarted == 0) {
+            return AllocationHealth.STARTING;
+        }
+        // TODO: Update once we don't allocate to all possible nodes
+        if (numStarted < numAllocatableNodes) {
+            return AllocationHealth.STARTED;
+        }
+        return AllocationHealth.FULLY_ALLOCATED;
+    }
+
+
     public static class Builder {
         private final Map<String, RoutingStateAndReason> nodeRoutingTable;
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
@@ -266,38 +297,18 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
-        public AllocationState calculateAllocationState(List<DiscoveryNode> allocatableNodes) {
+        public AllocationState calculateAllocationState() {
             if (allocationState.equals(AllocationState.STOPPING)) {
                 return allocationState;
             }
-            if (nodeRoutingTable.isEmpty()) {
-                return AllocationState.STARTING;
+            if (nodeRoutingTable.values().stream().anyMatch(r -> r.getState().equals(RoutingState.STARTED))) {
+                return AllocationState.STARTED;
             }
-            int numAllocatableNodes = 0;
-            int numStarted = 0;
-            for (DiscoveryNode node : allocatableNodes) {
-                if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)) {
-                    RoutingState nodeState = Optional.ofNullable(nodeRoutingTable.get(node.getId()))
-                        .map(RoutingStateAndReason::getState)
-                        .orElse(RoutingState.STOPPED);
-                    numAllocatableNodes++;
-                    if (nodeState.equals(RoutingState.STARTED)) {
-                        numStarted++;
-                    }
-                }
-            }
-            if (numStarted == 0) {
-                return AllocationState.STARTING;
-            }
-            // TODO: Update once we don't allocate to all possible nodes
-            if (numStarted < numAllocatableNodes) {
-                return AllocationState.PARTIALLY_STARTED;
-            }
-            return AllocationState.STARTED;
+            return AllocationState.STARTING;
         }
 
-        public Builder calculateAndSetAllocationState(List<DiscoveryNode> allocatableNodes) {
-            return setAllocationState(calculateAllocationState(allocatableNodes));
+        public Builder calculateAndSetAllocationState() {
+            return setAllocationState(calculateAllocationState());
         }
 
         public Builder setAllocationState(AllocationState state) {

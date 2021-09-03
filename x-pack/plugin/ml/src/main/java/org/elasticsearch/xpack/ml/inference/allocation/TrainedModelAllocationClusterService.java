@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -305,7 +304,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             if (existingAllocation == null || existingAllocation.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
-            builder.getAllocation(modelId).removeRoutingEntry(nodeId).calculateAndSetAllocationState(allocatableNodes);
+            builder.getAllocation(modelId).removeRoutingEntry(nodeId).calculateAndSetAllocationState();
             return update(currentState, builder);
         }
 
@@ -327,7 +326,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         builder.getAllocation(modelId)
             .updateExistingRoutingEntry(nodeId, request.getRoutingState())
-            .calculateAndSetAllocationState(allocatableNodes);
+            .calculateAndSetAllocationState();
 
         return update(currentState, builder);
     }
@@ -374,21 +373,17 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
             final String modelId = modelAllocationEntry.getKey();
             Map<String, String> nodeToReason = new TreeMap<>();
-            List<DiscoveryNode> allocatableNodes = new ArrayList<>();
             for (DiscoveryNode node : currentState.getNodes()) {
                 // Only add the route if the node is NOT shutting down, this would be a weird case of the node
                 // just being added to the cluster and immediately shutting down...
                 if (shuttingDownNodes.contains(node.getId()) == false
-                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)) {
-                    // We want to keep track of how many nodes that we are allocated to vs how many are possible
-                    allocatableNodes.add(node);
-                    if (modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
-                        Optional<String> failure = nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
-                        if (failure.isPresent()) {
-                            nodeToReason.put(node.getName(), failure.get());
-                        } else {
-                            builder.getAllocation(modelId).addNewRoutingEntry(node.getId());
-                        }
+                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
+                    && modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
+                    Optional<String> failure = nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
+                    if (failure.isPresent()) {
+                        nodeToReason.put(node.getName(), failure.get());
+                    } else {
+                        builder.getAllocation(modelId).addNewRoutingEntry(node.getId());
                     }
                 }
             }
@@ -417,7 +412,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
             // It may be we moved from STARTED to PARTIALLY_STARTED with the addition of new nodes
             // Or moved from PARTIALLY_STARTED to STARTED if a node was removed
-            builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes);
+            builder.getAllocation(modelId).calculateAndSetAllocationState();
         }
         return update(currentState, builder);
     }

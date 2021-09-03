@@ -141,14 +141,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     minCompatibilityVersion.toString()));
                 return;
             }
-        } else if (state.nodes().getMinNodeVersion().before(state.nodes().getMaxNodeVersion())
-            && request.isDeferDefinitionDecompression() == false) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "deferring model definition parsing is not possible in a cluster with mixed node versions;"
-                    + " max version [{}] min version [{}]",
-                state.nodes().getMinNodeVersion(),
-                state.nodes().getMaxNodeVersion()));
-            return;
         }
 
         TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config)

@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES;
+
 
 public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Response> {
 
@@ -83,7 +85,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
                 validationException.addValidationError(
                     "when ["
                         + DEFER_DEFINITION_DECOMPRESSION
-                        + "] is true and a compressed definition is provided, estimated_heap_memory_usage_bytes must be set"
+                        + "] is true and a compressed definition is provided, " + ESTIMATED_HEAP_MEMORY_USAGE_BYTES + " must be set"
                 );
                 return validationException;
             }

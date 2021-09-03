@@ -30,7 +30,7 @@
       "defer_definition_decompression": {
         "required": false,
         "type": "boolean",
-        "description": "Should the action skip decompressing the definition to validate it and set default values",
+        "description": "If set to `true` and a `compressed_definition` is provided, the request defers definition decompression and skips relevant validations.",
         "default": false
       }
     },

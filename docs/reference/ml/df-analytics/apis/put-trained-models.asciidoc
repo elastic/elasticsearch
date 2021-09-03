@@ -24,7 +24,7 @@ WARNING: Models created in version 7.8.0 are not backwards compatible
 [[ml-put-trained-models-prereq]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 
@@ -41,6 +41,17 @@ created by {dfanalytics}.
 `<model_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+[[ml-put-trained-models-query-params]]
+== {api-query-parms-title}
+
+`defer_definition_decompression`::
+(Optional, boolean)
+If set to `true` and a `compressed_definition` is provided, the request defers
+definition decompression and skips relevant validations.
+This deferral is useful for systems or users that know a good JVM heap size estimate for their
+model and know that their model is valid and likely won't fail during inference.
+
 
 [role="child_attributes"]
 [[ml-put-trained-models-request-body]]

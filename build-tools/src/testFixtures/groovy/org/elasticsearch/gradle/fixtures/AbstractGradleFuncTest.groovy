@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
+import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -17,6 +18,8 @@ import spock.lang.Specification
 import java.lang.management.ManagementFactory
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
+
+import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
 
@@ -46,11 +49,14 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
-        new InternalAwareGradleRunner(GradleRunner.create()
-                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                .withProjectDir(projectDir)
-                .withPluginClasspath()
-                .forwardOutput()
+        return new NormalizeOutputGradleRunner(
+                new InternalAwareGradleRunner(GradleRunner.create()
+                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+                    .withProjectDir(projectDir)
+                    .withPluginClasspath()
+                    .forwardOutput()
+                ),
+                projectDir
         ).withArguments(arguments)
     }
 
@@ -63,13 +69,9 @@ abstract class AbstractGradleFuncTest extends Specification {
         assert normalized(givenOutput).contains(normalized(expected)) == false
         true
     }
+
     String normalized(String input) {
-        String normalizedPathPrefix = testProjectDir.root.canonicalPath.replace('\\', '/')
-        return input.readLines()
-                .collect { it.replace('\\', '/') }
-                .collect {it.replace(normalizedPathPrefix , '.') }
-                .collect {it.replaceAll(/Gradle Test Executor \d/ , 'Gradle Test Executor 1') }
-                .join("\n")
+        return normalizeString(input, testProjectDir.root)
     }
 
     File file(String path) {

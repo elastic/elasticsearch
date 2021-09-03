@@ -1,0 +1,24 @@
+{
+  "properties" : {
+    "language" : {
+      "en" : {
+        "distributors" : [
+          {
+            "name" : "The Book Shop",
+            "addresses" : [
+              {
+                "name" : "address #1"
+              },
+              {
+                "name" : "address #2"
+              }
+            ]
+          },
+          {
+            "name" : "Sussex Books House"
+          }
+        ]
+      }
+    }
+  }
+}

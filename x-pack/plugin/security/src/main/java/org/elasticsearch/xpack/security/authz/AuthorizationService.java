@@ -243,7 +243,7 @@ public class AuthorizationService {
             return false;
         }
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action) || action.equals(TransportShardBulkAction.ACTION_NAME)) {
-            // These needs special handling, so don't short circuit
+            // These need special handling, so don't short circuit
             return false;
         }
         if (SystemUser.is(authentication.getUser())) {
@@ -257,7 +257,9 @@ public class AuthorizationService {
         }
         if (action.startsWith(originalAction) == false) {
             // Parent action is not a true parent
-            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]') as children
+            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]') 
+            // or similar (e.g. search phases) as children, but not every action that is triggered
+            // within another action should be authorized this way
             return false;
         }
         final IndicesRequest indicesRequest;
@@ -286,6 +288,7 @@ public class AuthorizationService {
                 return false;
             }
             IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
+            // The parent context has already successfully authorized access to this index (by name)
             return iac != null && iac.isGranted();
         })) {
             logger.trace("Short circuit authorization child action [{}] (child of [{}]) on indices [{}]", action, originalAction, indices);
@@ -347,7 +350,9 @@ public class AuthorizationService {
     }
 
     private ElasticsearchSecurityException internalError(String message) {
+        // When running with assertions enabled (testing) kill the node so that there is a hard failure in CI
         assert false : message;
+        // Otherwise (production) just throw an exception so that we don't authorize something incorrectly
         return new ElasticsearchSecurityException(message);
     }
 

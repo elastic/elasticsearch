@@ -300,8 +300,7 @@ public class CompletionFieldMapper extends FieldMapper {
         return (CompletionFieldType) super.fieldType();
     }
 
-    @Override
-    public PostingsFormat postingsFormat() {
+    static PostingsFormat postingsFormat() {
         return PostingsFormat.forName("Completion84");
     }
 

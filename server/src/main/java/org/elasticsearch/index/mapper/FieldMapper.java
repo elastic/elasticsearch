@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -382,13 +381,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public final Map<String, NamedAnalyzer> indexAnalyzers() {
         return indexAnalyzers;
-    }
-
-    /**
-     * @return a PostingsFormat for this field, or {@code null} if the default postings should be used
-     */
-    public PostingsFormat postingsFormat() {
-        return null;
     }
 
     public static class MultiFields implements Iterable<FieldMapper>, ToXContent {

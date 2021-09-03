@@ -54,7 +54,7 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
     private final Set<String> shadowedFields;
-    private final Map<String, PostingsFormat> postingsFormats = new HashMap<>();
+    private final Set<String> completionFields = new HashSet<>();
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -150,9 +150,8 @@ public final class MappingLookup {
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
-            PostingsFormat format = mapper.postingsFormat();
-            if (format != null) {
-                postingsFormats.put(mapper.name(), format);
+            if (mapper instanceof CompletionFieldMapper) {
+                completionFields.add(mapper.name());
             }
         }
 
@@ -225,7 +224,7 @@ public final class MappingLookup {
      * @return the postings format for the field, or {@code null} if the default format should be used
      */
     public PostingsFormat getPostingsFormat(String field) {
-        return postingsFormats.get(field);
+        return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
     }
 
     void checkLimits(IndexSettings settings) {

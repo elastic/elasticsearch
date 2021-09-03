@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * configured for a specific field the default postings format is used.
  */
 public class PerFieldMappingPostingFormatCodec extends Lucene87Codec {
+
     private final MapperService mapperService;
     // Always enable compression on binary doc values
     private final DocValuesFormat docValuesFormat = new Lucene80DocValuesFormat(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION);

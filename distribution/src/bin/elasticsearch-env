@@ -133,7 +133,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
     # prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`. Underscores in setting names
     # are escaped by writing them as a double-underscore e.g. "__"
     if [[ ! -z "$envvar_value" ]]; then
-      ex_opt=""
+      es_opt=""
       if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
         es_opt="-E${envvar_key}=${envvar_value}"
       elif [[ "$envvar_key" =~ ^ES_SETTING(_{1,2}[A-Z]+)+$ ]]; then

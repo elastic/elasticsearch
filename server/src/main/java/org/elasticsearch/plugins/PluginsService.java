@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -491,13 +492,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
-        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
-        List<T> extensions = new ArrayList<>();
-        while (classIterator.hasNext()) {
-            Class<? extends T> extensionClass = classIterator.next();
-            extensions.add(createExtension(extensionClass, extensionPointType, plugin));
-        }
-        return extensions;
+        ServiceLoader<T> loader = ServiceLoader.load(extensionPointType, plugin.getClass().getClassLoader());
+        return loader.stream().map(p -> createExtension(p.type(), extensionPointType, plugin)).collect(Collectors.toList());
     }
 
     // package-private for test visibility

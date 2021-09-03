@@ -15,13 +15,13 @@
 ////
 [[stop-trained-model-deployment-prereq]]
 == {api-prereq-title}
-
 ////
+
 ////
 [[stop-trained-model-deployment-desc]]
 == {api-description-title}
-
 ////
+
 [[stop-trained-model-deployment-path-params]]
 == {api-path-parms-title}
 
@@ -33,11 +33,13 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 [[stop-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 ////
+
 ////
 [role="child_attributes"]
 [[stop-trained-model-deployment-results]]
 == {api-response-body-title}
 ////
+
 ////
 [[stop-trained-models-response-codes]]
 == {api-response-codes-title}

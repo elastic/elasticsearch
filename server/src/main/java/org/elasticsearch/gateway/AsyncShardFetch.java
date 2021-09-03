@@ -370,11 +370,15 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             this.fetchingRound = fetchingRound;
         }
 
+        @SuppressWarnings("unchecked")
         void doneFetching(T value) {
             assert fetching : "setting value but not in fetching mode";
             assert failure == null : "setting value when failure already set";
+            assert value instanceof BaseNodeResponse : "incorrect value type";
+            BaseNodeResponse response = (BaseNodeResponse)value;
+            response.purgeNodeInfo();
+            this.value = (T) response;
             this.valueSet = true;
-            this.value = value;
             this.fetching = false;
         }
 

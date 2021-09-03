@@ -47,8 +47,13 @@ public class ArchiveTests extends PackagingTestCase {
         assumeTrue("only archives", distribution.isArchive());
     }
 
+    private static String superuser = "test_superuser";
+    private static String superuserPassword = "test_superuser";
+
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
+        Result result = sh.run(installation.executables().usersTool + " useradd " + superuser + "-p " + superuserPassword + "-r superuser");
+        assumeTrue(result.isSuccess());
         verifyArchiveInstallation(installation, distribution());
     }
 
@@ -123,7 +128,7 @@ public class ArchiveTests extends PackagingTestCase {
         }
 
         assertThat(installation.logs.resolve("gc.log"), fileExists());
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
 
         stopElasticsearch();
     }

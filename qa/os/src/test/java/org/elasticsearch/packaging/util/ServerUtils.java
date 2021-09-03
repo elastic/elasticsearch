@@ -66,7 +66,7 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
-        boolean securityEnabled;
+        final boolean securityEnabled;
 
         if (installation.distribution.isDocker() == false) {
             Path configFilePath = installation.config("elasticsearch.yml");
@@ -161,6 +161,23 @@ public class ServerUtils {
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }
 
+    public static Path getCaCert(Installation installation) throws IOException {
+        Path caCert = installation.config("certs/ca/ca.crt");
+        Path configFilePath = installation.config("elasticsearch.yml");
+        String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
+        boolean enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
+        if (enrollmentEnabled) {
+            assert Files.exists(caCert) == false;
+            Path autoConfigTlsDir = Files.list(installation.config).filter(p -> p.getFileName().toString().startsWith(
+                    "tls_auto_config_initial_node_")).findFirst().get();
+            caCert = autoConfigTlsDir.resolve("http_ca.crt");
+            assert Files.exists(caCert);
+        } else if (Files.exists(caCert) == false) {
+            caCert = null; // no cert, so don't use ssl
+        }
+        return caCert;
+    }
+
     public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
 
@@ -173,10 +190,7 @@ public class ServerUtils {
         boolean started = false;
         Throwable thrownException = null;
 
-        Path caCert = installation.config("certs/ca/ca.crt");
-        if (Files.exists(caCert) == false) {
-            caCert = null; // no cert, so don't use ssl
-        }
+        Path caCert = getCaCert(installation);
 
         while (started == false && timeElapsed < waitTime) {
             if (System.currentTimeMillis() - lastRequest > requestInterval) {
@@ -233,43 +247,35 @@ public class ServerUtils {
     }
 
     public static void runElasticsearchTests() throws Exception {
-        makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON)
-        );
-
-        makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON)
-        );
-
-        String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));
-        assertThat(count, containsString("\"count\" : 2"));
-
-        makeRequest(Request.Delete("http://localhost:9200/library"));
+        runElasticsearchTests(null, null, null);
     }
 
     public static void runElasticsearchTests(String username, String password) throws Exception {
+        runElasticsearchTests(username, password, null);
+    }
+
+    public static void runElasticsearchTests(String username, String password, Path caCert) throws Exception {
+
         makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
-            username,
-            password,
-            null
+                Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
+                        .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
+                username,
+                password,
+                caCert
         );
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
-            username,
-            password,
-            null
+                Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
+                        .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
+                username,
+                password,
+                caCert
         );
 
-        String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"), username, password, null);
+        String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"), username, password, caCert);
         assertThat(count, containsString("\"count\" : 2"));
 
-        makeRequest(Request.Delete("http://localhost:9200/library"), username, password, null);
+        makeRequest(Request.Delete("http://localhost:9200/library"), username, password, caCert);
     }
 
     public static String makeRequest(Request request) throws Exception {

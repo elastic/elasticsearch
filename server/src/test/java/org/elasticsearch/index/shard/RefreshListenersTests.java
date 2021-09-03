@@ -126,7 +126,7 @@ public class RefreshListenersTests extends ESTestCase {
                 newMergePolicy(),
                 iwc.getAnalyzer(),
                 iwc.getSimilarity(),
-                new CodecService(null, logger),
+                new CodecService(null),
                 eventListener,
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),

@@ -317,8 +317,13 @@ public class AuthorizationService {
             return;
         }
         if (isIndexAction(requestInfo.getAction())) {
-            AuthorizationEngine engine = getAuthorizationEngine(requestInfo.getAuthentication());
-            runRequestInterceptors(requestInfo, authorizationInfo, engine, listener);
+            final AuthorizationEngine engine = getAuthorizationEngine(requestInfo.getAuthentication());
+            new AuthorizationResultListener<>(
+                ignore -> runRequestInterceptors(requestInfo, authorizationInfo, engine, listener),
+                listener::onFailure,
+                requestInfo,
+                auditId,
+                authorizationInfo).onResponse(new AuthorizationResult(true));
         } else {
             listener.onFailure(internalError("Only index actions can be authorized as child action"));
         }

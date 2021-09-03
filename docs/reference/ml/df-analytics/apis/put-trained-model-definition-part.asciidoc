@@ -4,7 +4,7 @@
 = Put trained model definition part API
 [subs="attributes"]
 ++++
-<titleabbrev>Create trained models</titleabbrev>
+<titleabbrev>Create part of a trained model</titleabbrev>
 ++++
 
 Puts part of a trained model definition.
@@ -30,10 +30,11 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-`<part_num>`::
+`<part>`::
 (Required, number)
 The definition part number. When the definition is loaded for inference
 the definition parts will be streamed in order of their `part_num`.
+The first part must be `0` and the final part must be `total_parts - 1`.
 
 [[ml-put-trained-model-definition-part-request-body]]
 == {api-request-body-title}
@@ -44,7 +45,7 @@ The definition part for the model. Must be a base64 encoded string.
 
 `total_definition_length`::
 (Required, number)
-The total, uncompressed, definition length.
+The total uncompressed definition length.
 
 `total_parts`::
 (Required, number)

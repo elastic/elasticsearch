@@ -67,7 +67,6 @@ public enum TrainedModelType {
             case LANG_IDENT:
                 return new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME);
             case PYTORCH:
-            default:
                 return new IndexLocation(InferenceIndexConstants.customDefinitionStore(modelId));
         }
     }

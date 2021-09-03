@@ -153,7 +153,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             trainedModelConfig.setEstimatedHeapMemory(config.getModelDefinition().ramBytesUsed())
                 .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations());
         } else {
-            // If the user didn't provide a definition, set the default location for the given model type
             // Set default location for the given model type.
             trainedModelConfig.setLocation(
                 Optional.ofNullable(config.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE).getDefaultLocation(config.getModelId())

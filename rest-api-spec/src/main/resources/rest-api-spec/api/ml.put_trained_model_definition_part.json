@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_ml/trained_models/{model_id}/definition/{part_num}",
+          "path":"/_ml/trained_models/{model_id}/definition/{part}",
           "methods":[
             "PUT"
           ],

@@ -1260,7 +1260,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         OsStats.Cgroup cgroup = stats.getCgroup();
         if (cgroup != null) {
             String containerLimitStr = cgroup.getMemoryLimitInBytes();
-            if (containerLimitStr != null) {
+            if (containerLimitStr != null && containerLimitStr.equals("max") == false) {
                 BigInteger containerLimit = new BigInteger(containerLimitStr);
                 if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
                         // mem <= 0 means the value couldn't be obtained for some reason

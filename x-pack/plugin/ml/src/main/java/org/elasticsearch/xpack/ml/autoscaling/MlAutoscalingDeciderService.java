@@ -55,7 +55,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.PriorityQueue;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -82,7 +82,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
     private final NodeLoadDetector nodeLoadDetector;
     private final MlMemoryTracker mlMemoryTracker;
-    private final Supplier<Long> timeSupplier;
+    private final LongSupplier timeSupplier;
 
     private volatile boolean isMaster;
     private volatile boolean running;
@@ -99,7 +99,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     MlAutoscalingDeciderService(NodeLoadDetector nodeLoadDetector,
                                 Settings settings,
                                 ClusterService clusterService,
-                                Supplier<Long> timeSupplier) {
+                                LongSupplier timeSupplier) {
         this.nodeLoadDetector = nodeLoadDetector;
         this.mlMemoryTracker = nodeLoadDetector.getMlMemoryTracker();
         this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
@@ -336,7 +336,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         }
         final Duration memoryTrackingStale;
         long previousTimeStamp = this.lastTimeToScale;
-        this.lastTimeToScale = this.timeSupplier.get();
+        this.lastTimeToScale = this.timeSupplier.getAsLong();
         if (previousTimeStamp == 0L) {
             memoryTrackingStale = DEFAULT_MEMORY_REFRESH_RATE;
         } else {
@@ -907,7 +907,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     }
 
     private long msLeftToDownScale(Settings configuration) {
-        final long now = timeSupplier.get();
+        final long now = timeSupplier.getAsLong();
         if (newScaleDownCheck()) {
             scaleDownDetected = now;
         }

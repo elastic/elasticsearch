@@ -92,4 +92,9 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
                                         ActionListener<Void> listener) {
         executor.execute(() -> target.restoreFileFromSnapshot(repository, indexId, snapshotFile, listener));
     }
+
+    @Override
+    public void deleteRecoveredFiles(ActionListener<Void> listener) {
+        executor.execute(() -> target.deleteRecoveredFiles(listener));
+    }
 }

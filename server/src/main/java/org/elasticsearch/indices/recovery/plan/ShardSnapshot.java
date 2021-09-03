@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -20,7 +21,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-class ShardSnapshot {
+public class ShardSnapshot {
     private final ShardSnapshotInfo shardSnapshotInfo;
     // Segment file name -> file info
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles;
@@ -33,31 +34,35 @@ class ShardSnapshot {
         this.metadataSnapshot = convertToMetadataSnapshot(snapshotFiles);
     }
 
-    String getShardStateIdentifier() {
+    public String getShardStateIdentifier() {
         return shardSnapshotInfo.getShardStateIdentifier();
     }
 
-    String getRepository() {
+    public boolean isLogicallyEquivalent(@Nullable String shardStateIdentifier) {
+        return shardStateIdentifier != null && shardStateIdentifier.equals(shardSnapshotInfo.getShardStateIdentifier());
+    }
+
+    public String getRepository() {
         return shardSnapshotInfo.getRepository();
     }
 
-    Store.MetadataSnapshot getMetadataSnapshot() {
+    public Store.MetadataSnapshot getMetadataSnapshot() {
         return metadataSnapshot;
     }
 
-    IndexId getIndexId() {
+    public IndexId getIndexId() {
         return shardSnapshotInfo.getIndexId();
     }
 
-    long getStartedAt() {
+    public long getStartedAt() {
         return shardSnapshotInfo.getStartedAt();
     }
 
-    ShardSnapshotInfo getShardSnapshotInfo() {
+    public ShardSnapshotInfo getShardSnapshotInfo() {
         return shardSnapshotInfo;
     }
 
-    List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles(List<StoreFileMetadata> segmentFiles) {
+    public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles(List<StoreFileMetadata> segmentFiles) {
         return segmentFiles.stream()
             .map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name()))
             .collect(Collectors.toList());

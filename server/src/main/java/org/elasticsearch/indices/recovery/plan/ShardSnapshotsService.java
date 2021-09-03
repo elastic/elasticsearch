@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -44,6 +45,7 @@ public class ShardSnapshotsService {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
+    @Inject
     public ShardSnapshotsService(Client client,
                                  RepositoriesService repositoriesService,
                                  ThreadPool threadPool,

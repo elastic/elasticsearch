@@ -62,6 +62,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
+import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transports;
@@ -468,8 +469,10 @@ public class RecoverySourceHandler {
         try {
             StopWatch stopWatch = new StopWatch().start();
             final Store.MetadataSnapshot recoverySourceMetadata;
+            final String shardStateIdentifier;
             try {
                 recoverySourceMetadata = store.getMetadata(snapshot);
+                shardStateIdentifier = SnapshotShardsService.getShardStateId(shard, snapshot);
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 shard.failShard("recovery", ex);
                 throw ex;
@@ -485,6 +488,7 @@ public class RecoverySourceHandler {
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
                 recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
+                    shardStateIdentifier,
                     recoverySourceMetadata,
                     request.metadataSnapshot(),
                     startingSeqNo,
@@ -571,7 +575,26 @@ public class RecoverySourceHandler {
             sendFileInfoStep
         );
 
-        sendFileInfoStep.whenComplete(r -> recoverSnapshotFiles(shardRecoveryPlan, recoverSnapshotFilesStep), listener::onFailure);
+        sendFileInfoStep.whenComplete(r -> {
+            recoverSnapshotFiles(shardRecoveryPlan, recoverSnapshotFilesStep.delegateResponse((delegate, e) -> {
+                if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false &&
+                    e instanceof CancellableThreads.ExecutionCancelledException == false) {
+                    recoveryTarget.deleteRecoveredFiles(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            recoverFilesFromSourceAndSnapshot(shardRecoveryPlan.getFallbackPlan(), store, stopWatch, listener);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                } else {
+                    delegate.onFailure(e);
+                }
+            }));
+        }, listener::onFailure);
 
         recoverSnapshotFilesStep.whenComplete(filesFailedToRecoverFromSnapshot -> {
             final List<StoreFileMetadata> filesToRecoverFromSource;
@@ -629,6 +652,7 @@ public class RecoverySourceHandler {
     }
 
     private class SnapshotRecoverFileRequestsSender {
+        private final ShardRecoveryPlan shardRecoveryPlan;
         private final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover;
         private final ActionListener<List<StoreFileMetadata>> listener;
         private final CountDown countDown;
@@ -638,6 +662,7 @@ public class RecoverySourceHandler {
         private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
+            this.shardRecoveryPlan = shardRecoveryPlan;
             this.snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
             this.listener = listener;
             this.countDown = new CountDown(shardRecoveryPlan.getSnapshotFilesToRecover().size());
@@ -671,7 +696,11 @@ public class RecoverySourceHandler {
                     public void onFailure(Exception e) {
                         logger.warn(new ParameterizedMessage("failed to recover file [{}] from snapshot, " +
                             "will recover from primary instead", snapshotFileToRecover.metadata()), e);
-                        onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                        if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode()) {
+                            onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                        } else {
+                            cancel(e);
+                        }
                     }
                 };
                 requestFuture.addListener(sendRequestListener);
@@ -684,14 +713,14 @@ public class RecoverySourceHandler {
                     ActionListener.runBefore(requestFuture, () -> unTrackOutstandingRequest(requestFuture))
                 );
             } catch (CancellableThreads.ExecutionCancelledException e) {
-                onCancellation(e);
+                cancel(e);
             } catch (Exception e) {
                 unTrackOutstandingRequest(requestFuture);
                 onRequestCompletion(snapshotFileToRecover.metadata(), e);
             }
         }
 
-        void onCancellation(Exception e) {
+        void cancel(Exception e) {
             if (cancelled.compareAndSet(false, true)) {
                 pendingSnapshotFilesToRecover.clear();
                 notifyFailureOnceAllOutstandingRequestAreDone(e);
@@ -729,13 +758,20 @@ public class RecoverySourceHandler {
         private void trackOutstandingRequest(ListenableFuture<Void> future) {
             boolean cancelled;
             synchronized (outstandingRequests) {
-                cancelled = cancellableThreads.isCancelled();
+                cancelled = cancellableThreads.isCancelled() || this.cancelled.get();
                 if (cancelled == false) {
                     outstandingRequests.add(future);
                 }
             }
             if (cancelled) {
                 cancellableThreads.checkForCancel();
+                // If the recover snapshot files operation is cancelled but the recovery is still
+                // valid, it means that some of the snapshot files download failed and the snapshot files
+                // differ from the source index files. In that case we have to cancel all pending operations
+                // and wait until all the in-flight operations are done to reset the recovery and start from
+                // scratch using the source node index files.
+                assert this.cancelled.get();
+                throw new CancellableThreads.ExecutionCancelledException("Recover snapshot files cancelled");
             }
         }
 

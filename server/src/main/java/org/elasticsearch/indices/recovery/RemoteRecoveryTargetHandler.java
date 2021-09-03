@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
@@ -181,6 +181,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoverySnapshotFileRequest request =
             new RecoverySnapshotFileRequest(recoveryId, requestSeqNo, shardId, repository, indexId, snapshotFile);
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = listener.map(r -> null);
+        executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);
+    }
+
+    @Override
+    public void deleteRecoveredFiles(ActionListener<Void> listener) {
+        final String action = PeerRecoveryTargetService.Actions.DELETE_RECOVERED_FILES;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
+        final RecoveryDeleteRecoveredFilesRequest request =
+            new RecoveryDeleteRecoveredFilesRequest(recoveryId, requestSeqNo, shardId);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = listener.map(r -> null);
         executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);

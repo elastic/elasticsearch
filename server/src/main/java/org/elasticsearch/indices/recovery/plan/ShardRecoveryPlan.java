@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -29,12 +30,31 @@ public class ShardRecoveryPlan {
     private final long startingSeqNo;
     private final int translogOps;
 
+    @Nullable
+    private final ShardRecoveryPlan fallbackPlan;
+
     public ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
                              List<StoreFileMetadata> sourceFilesToRecover,
                              List<StoreFileMetadata> filesPresentInTarget,
                              long startingSeqNo,
                              int translogOps,
                              Store.MetadataSnapshot sourceMetadataSnapshot) {
+        this(snapshotFilesToRecover,
+            sourceFilesToRecover,
+            filesPresentInTarget,
+            startingSeqNo,
+            translogOps,
+            sourceMetadataSnapshot,
+            null);
+    }
+
+    public ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
+                             List<StoreFileMetadata> sourceFilesToRecover,
+                             List<StoreFileMetadata> filesPresentInTarget,
+                             long startingSeqNo,
+                             int translogOps,
+                             Store.MetadataSnapshot sourceMetadataSnapshot,
+                             @Nullable ShardRecoveryPlan fallbackPlan) {
         this.snapshotFilesToRecover = snapshotFilesToRecover;
         this.sourceFilesToRecover = sourceFilesToRecover;
         this.filesPresentInTarget = filesPresentInTarget;
@@ -42,6 +62,7 @@ public class ShardRecoveryPlan {
 
         this.startingSeqNo = startingSeqNo;
         this.translogOps = translogOps;
+        this.fallbackPlan = fallbackPlan;
     }
 
     public List<StoreFileMetadata> getFilesPresentInTarget() {
@@ -92,6 +113,15 @@ public class ShardRecoveryPlan {
 
     public int getTranslogOps() {
         return translogOps;
+    }
+
+    public boolean canRecoverSnapshotFilesFromSourceNode() {
+        return fallbackPlan == null;
+    }
+
+    @Nullable
+    public ShardRecoveryPlan getFallbackPlan() {
+        return fallbackPlan;
     }
 
     private Stream<StoreFileMetadata> getFilesToRecoverStream() {

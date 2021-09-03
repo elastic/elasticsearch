@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -19,8 +20,11 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -32,8 +36,15 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshot;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
@@ -46,6 +57,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -60,6 +72,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -722,6 +735,127 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocumentsAreEqual(indexName, numDocs.get());
     }
 
+    public void testSeqNoBasedRecoveryIsUsedAfterPrimaryFailOver() throws Exception {
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                .build()
+        );
+
+        int numDocs = randomIntBetween(300, 1000);
+        indexDocs(indexName, 0, numDocs);
+        // Flush to ensure that index_commit_seq_nos(replica) == index_commit_seq_nos(primary),
+        // since the primary flushes the index before taking the snapshot.
+        flush(indexName);
+
+        String repoType = randomFrom(TestRepositoryPlugin.FAULTY_TYPE, TestRepositoryPlugin.INSTRUMENTED_TYPE, "fs");
+        String repoName = "repo";
+        createRepo(repoName, repoType);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
+
+        assertThat(internalCluster().stopNode(primaryNodeName), is(equalTo(true)));
+
+        ensureGreen(indexName);
+
+        ClusterState clusterStateAfterPrimaryFailOver = client().admin().cluster().prepareState().get().getState();
+        IndexShardRoutingTable shardRoutingTableAfterFailOver =
+            clusterStateAfterPrimaryFailOver.routingTable().index(indexName).shard(0);
+
+        String primaryNodeIdAfterFailOver = shardRoutingTableAfterFailOver.primaryShard().currentNodeId();
+        String primaryNodeNameAfterFailOver = clusterStateAfterPrimaryFailOver.nodes().resolveNode(primaryNodeIdAfterFailOver).getName();
+
+        String replicaNodeIdAfterFailOver = shardRoutingTableAfterFailOver.replicaShards().get(0).currentNodeId();
+        String replicaNodeNameAfterFailOver = clusterStateAfterPrimaryFailOver.nodes().resolveNode(replicaNodeIdAfterFailOver).getName();
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        assertPeerRecoveryWasSuccessful(recoveryState, primaryNodeNameAfterFailOver, replicaNodeNameAfterFailOver);
+        assertDocumentsAreEqual(indexName, numDocs);
+
+        if (repoType.equals(TestRepositoryPlugin.FAULTY_TYPE) == false) {
+            for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
+                assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(fileDetail.length())));
+            }
+
+            ShardId shardId = shardRoutingTableAfterFailOver.shardId();
+            assertRecoveryWasBasedOnSeqNo(shardId, primaryNodeNameAfterFailOver);
+        }
+    }
+
+    public void testSeqNoBasedRecoveryCancellation() throws Exception {
+        updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
+
+        try {
+            List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createIndex(indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                    .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                    .build()
+            );
+
+            int numDocs = randomIntBetween(300, 1000);
+            indexDocs(indexName, numDocs, numDocs);
+            // Flush to ensure that index_commit_seq_nos(replica) == index_commit_seq_nos(primary),
+            // since the primary flushes the index before taking the snapshot.
+            flush(indexName);
+
+            String repoName = "repo";
+            createRepo(repoName, "fs");
+            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
+            String primaryNodeName = clusterState.nodes().resolveNode(shardRoutingTable.primaryShard().currentNodeId()).getName();
+            String replicaNodeName = clusterState.nodes().resolveNode(shardRoutingTable.replicaShards().get(0).currentNodeId()).getName();
+
+            String targetNode = dataNodes.stream()
+                .filter(nodeName -> nodeName.equals(primaryNodeName) == false && nodeName.equals(replicaNodeName) == false)
+                .findFirst()
+                .get();
+
+            MockTransportService targetMockTransportService =
+                (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
+
+            CountDownLatch recoverSnapshotFileRequestReceived = new CountDownLatch(1);
+            CountDownLatch respondToRecoverSnapshotFile = new CountDownLatch(1);
+            AtomicInteger numberOfRecoverSnapshotFileRequestsReceived = new AtomicInteger();
+            targetMockTransportService.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
+                (handler, request, channel, task) -> {
+                    assertThat(numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet(), is(equalTo(1)));
+                    recoverSnapshotFileRequestReceived.countDown();
+                    respondToRecoverSnapshotFile.await();
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+            assertThat(internalCluster().stopNode(primaryNodeName), is(equalTo(true)));
+
+            recoverSnapshotFileRequestReceived.await();
+
+            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+
+            respondToRecoverSnapshotFile.countDown();
+
+            assertThat(indexExists(indexName), is(equalTo(false)));
+        } finally {
+            updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
+        }
+    }
+
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
         GetSnapshotsResponse getSnapshotsResponse =
             client().admin().cluster().prepareGetSnapshots(repository).addSnapshots(snapshot).get();
@@ -819,6 +953,31 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         RecoveryState.Index indexState = recoveryState.getIndex();
         assertThat(indexState.recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
         assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
+    }
+
+    private void assertRecoveryWasBasedOnSeqNo(ShardId shardId, String primaryNodeName) throws Exception {
+        ShardSnapshotsService shardSnapshotsService = internalCluster().getInstance(ShardSnapshotsService.class, primaryNodeName);
+
+        PlainActionFuture<Optional<ShardSnapshot>> fetchLatestSnapshotFuture = PlainActionFuture.newFuture();
+        shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, fetchLatestSnapshotFuture);
+        Optional<ShardSnapshot> shardSnapshotOpt = fetchLatestSnapshotFuture.get();
+        assertThat(shardSnapshotOpt.isPresent(), is(equalTo(true)));
+
+        ShardSnapshot shardSnapshot = shardSnapshotOpt.get();
+
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName);
+        IndexShard indexShard = indicesService.getShardOrNull(shardId);
+        try (Engine.IndexCommitRef indexCommitRef = indexShard.acquireSafeIndexCommit()) {
+            IndexCommit indexCommit = indexCommitRef.getIndexCommit();
+            String primaryShardStateId = SnapshotShardsService.getShardStateId(indexShard, indexCommit);
+
+            assertThat(shardSnapshot.isLogicallyEquivalent(primaryShardStateId), is(equalTo(true)));
+
+            Store.MetadataSnapshot primaryMetadataSnapshot = indexShard.store().getMetadata(indexCommit);
+            Store.RecoveryDiff recoveryDiff = shardSnapshot.getMetadataSnapshot().recoveryDiff(primaryMetadataSnapshot);
+            assertThat(recoveryDiff.identical, is(empty()));
+            assertThat(recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false, is(true));
+        }
     }
 
     private RecoveryState getLatestPeerRecoveryStateForShard(String indexName, int shardId) {

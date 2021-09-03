@@ -105,6 +105,15 @@ public interface RecoveryTargetHandler {
                                  BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
                                  ActionListener<Void> listener);
 
+    /**
+     * Deletes all the recovered files so far (partially or completely recovered).
+     * This is necessary if we're recovering from a snapshot that doesn't share
+     * the same index files as the source node (i.e. the snapshot was taken before
+     * a primary fail-over) and the recovery fails half-way. In this case we should
+     * delete all the recovered files and start from scratch using the source node.
+     */
+    void deleteRecoveredFiles(ActionListener<Void> listener);
+
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
                         boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);

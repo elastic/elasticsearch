@@ -522,6 +522,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
+    @Override
+    public void deleteRecoveredFiles(ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            multiFileWriter.deleteTempFiles();
+            return null;
+        });
+    }
+
     private void registerThrottleTime(long throttleTimeInNanos) {
         state().getIndex().addTargetThrottling(throttleTimeInNanos);
         indexShard.recoveryStats().addThrottleTime(throttleTimeInNanos);

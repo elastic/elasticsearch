@@ -1473,7 +1473,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             try {
                 logger.debug("[{}] triggering deletion of snapshot [{}]", repository, snapshotId);
                 final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                deleteSnapshots(new DeleteSnapshotRequest(repository, snapshotId.getName()), future);
+                deleteSnapshotsByUuid(new DeleteSnapshotRequest(repository, snapshotId.getUUID()), future);
                 future.actionGet();
             } finally {
                 removeSnapshotsToDelete(repository, snapshotId);
@@ -2354,18 +2354,47 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
+     * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them. Snapshots
+     * to delete are identified by their names.
      *
      * @param request         delete snapshot request
      * @param listener        listener
      */
-    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
+    public void deleteSnapshotsByName(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
+        deleteSnapshots(SnapshotId::getName, request, listener);
+    }
+
+    /**
+     * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them. Snapshots
+     * to delete are identified by their UUIDs.
+     *
+     * @param request         delete snapshot request
+     * @param listener        listener
+     */
+    private void deleteSnapshotsByUuid(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
+        deleteSnapshots(SnapshotId::getUUID, request, listener);
+    }
+
+    /**
+     * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
+     * Snapshots to delete are identified by converting their {@link SnapshotId} to a {@link String} using the mapping function
+     * {@code mapping}; the resulting string is then compared to the snapshots names/uuids/patterns to match against.
+     *
+     * @param mapping   the mapping function used to match the {@link SnapshotId} against the given snapshotNamesOrUuids
+     * @param request   the {@link DeleteSnapshotRequest}
+     * @param listener  listener
+     */
+    private void deleteSnapshots(
+        final Function<SnapshotId, String> mapping,
+        final DeleteSnapshotRequest request,
+        final ActionListener<Void> listener
+    ) {
         final String repositoryName = request.repository();
-        final String[] snapshotNames = request.snapshots();
+        final String[] snapshotNamesOrUuids = request.snapshots();
         logger.info(
             () -> new ParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
-                Strings.arrayToCommaDelimitedString(snapshotNames),
+                Strings.arrayToCommaDelimitedString(snapshotNamesOrUuids),
                 repositoryName
             )
         );
@@ -2394,7 +2423,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                     final SnapshotId snapshotId = entry.snapshot().getSnapshotId();
-                    if (entry.repository().equals(repositoryName) && Regex.simpleMatch(snapshotNames, snapshotId.getName())) {
+                    if (entry.repository().equals(repositoryName) && Regex.simpleMatch(snapshotNamesOrUuids, mapping.apply(snapshotId))) {
                         snapshotIds.add(snapshotId);
                     }
                 }
@@ -2402,8 +2431,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // find snapshots to delete in repository data
                 final Map<String, SnapshotId> snapshotsIdsInRepository = repositoryData.getSnapshotIds()
                     .stream()
-                    .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
-                for (String snapshotOrPattern : snapshotNames) {
+                    .collect(Collectors.toMap(mapping, Function.identity()));
+                for (String snapshotOrPattern : snapshotNamesOrUuids) {
                     if (Regex.isSimpleMatchPattern(snapshotOrPattern)) {
                         for (Map.Entry<String, SnapshotId> entry : snapshotsIdsInRepository.entrySet()) {
                             if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
@@ -2413,7 +2442,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else {
                         final SnapshotId foundId = snapshotsIdsInRepository.get(snapshotOrPattern);
                         if (foundId == null) {
-                            if (snapshotIds.stream().noneMatch(snapshotId -> snapshotId.getName().equals(snapshotOrPattern))) {
+                            if (snapshotIds.stream().map(mapping).noneMatch(snapshot -> snapshot.equals(snapshotOrPattern))) {
                                 throw new SnapshotMissingException(repositoryName, snapshotOrPattern);
                             }
                         } else {
@@ -2570,7 +2599,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-        }, "delete snapshot [" + repository + "]" + Arrays.toString(snapshotNames), listener::onFailure);
+        }, "delete snapshot [" + repository + "]" + Arrays.toString(snapshotNamesOrUuids), listener::onFailure);
     }
 
     /**

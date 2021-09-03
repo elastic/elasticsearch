@@ -18,9 +18,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -56,7 +53,6 @@ import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +60,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -129,7 +126,7 @@ public class EnrichPolicyRunner implements Runnable {
                 l.onFailure(e);
                 return;
             }
-            prepareAndCreateEnrichIndex();
+            prepareAndCreateEnrichIndex(getIndexResponse);
         }));
     }
 
@@ -238,11 +235,11 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void resolveEnrichMapping(final EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
+    private void resolveEnrichMapping(final EnrichPolicy policy, GetIndexResponse getIndexResponse, ActionListener<XContentBuilder> resultListener) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             createEnrichMappingBuilder((builder) -> builder.field("type", "keyword").field("doc_values", false), resultListener);
         } else if (EnrichPolicy.RANGE_TYPE.equals(policy.getType())) {
-            resolveRangeTypeEnrichMapping(policy, resultListener);
+            resolveRangeTypeEnrichMapping(policy, getIndexResponse, resultListener);
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
             createEnrichMappingBuilder((builder) -> builder.field("type", "geo_shape"), resultListener);
         } else {
@@ -250,102 +247,104 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void resolveRangeTypeEnrichMapping(EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
-        GetFieldMappingsRequest fieldMappingsRequest = new GetFieldMappingsRequest().indices(
-            policy.getIndices().stream().toArray(String[]::new)
-        ).fields(policy.getMatchField());
-
-        client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingsRequest, listener.delegateFailure((l, response) -> {
-            String matchField = policy.getMatchField();
-            List<String> types = collapseFieldMappingsValue(response, toFieldMappingType(matchField));
-            if (types.isEmpty()) {
+    private void resolveRangeTypeEnrichMapping(EnrichPolicy policy, GetIndexResponse response, ActionListener<XContentBuilder> resultListener) {
+        String matchField = policy.getMatchField();
+        List<String> types = collapseFieldMappingsValue(response, toFieldMappingProperty(matchField, "type"));
+        if (types.isEmpty()) {
+            resultListener.onFailure(
+                new ElasticsearchException(
+                    "No mapping type found for match field '{}' - indices({})",
+                    policy.getMatchField(),
+                    Strings.collectionToCommaDelimitedString(policy.getIndices())
+                )
+            );
+        } else if (types.size() > 1) {
+            resultListener.onFailure(
+                new ElasticsearchException(
+                    "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
+                    policy.getMatchField(),
+                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                    Strings.collectionToCommaDelimitedString(types)
+                )
+            );
+        } else {
+            String matchType = resolveMatchType(types.get(0));
+            if (matchType == null) {
                 resultListener.onFailure(
                     new ElasticsearchException(
-                        "No mapping type found for match field '{}' - indices({})",
+                        "Field '{}' has type [{}] which doesn't appear to be a range type",
                         policy.getMatchField(),
-                        Strings.collectionToCommaDelimitedString(policy.getIndices())
-                    )
-                );
-            } else if (types.size() > 1) {
-                resultListener.onFailure(
-                    new ElasticsearchException(
-                        "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
-                        policy.getMatchField(),
-                        Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                        Strings.collectionToCommaDelimitedString(types)
+                        types.get(0)
                     )
                 );
             } else {
-                String matchType = resolveMatchType(types.get(0));
-                if (matchType == null) {
-                    resultListener.onFailure(
-                        new ElasticsearchException(
-                            "Field '{}' has type [{}] which doesn't appear to be a range type",
-                            policy.getMatchField(),
-                            types.get(0)
-                        )
-                    );
-                } else {
-                    // date_range types mappings allow for the format to be specified, should be preserved in the created index
-                    if (matchType.equals("date_range")) {
-                        List<String> formatEntries = collapseFieldMappingsValue(response, toFielMappingFormat(matchField));
-                        if (types.isEmpty()) {
-                            createEnrichMappingBuilder(
-                                (builder) -> builder.field("type", matchType).field("doc_values", false),
-                                resultListener
-                            );
-                        } else if (types.size() > 1) {
-                            resultListener.onFailure(
-                                new ElasticsearchException(
-                                    "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
-                                    policy.getMatchField(),
-                                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                                    Strings.collectionToCommaDelimitedString(formatEntries)
-                                )
-                            );
-                        } else {
-                            createEnrichMappingBuilder(
-                                (builder) -> builder.field("type", matchType)
-                                    .field("doc_values", false)
-                                    .field("format", formatEntries.get(0)),
-                                resultListener
-                            );
-                        }
-                    } else {
+                // date_range types mappings allow for the format to be specified, should be preserved in the created index
+                if (matchType.equals("date_range")) {
+                    List<String> formatEntries = collapseFieldMappingsValue(response, toFieldMappingProperty(matchField, "format"));
+                    if (formatEntries.isEmpty()) {
                         createEnrichMappingBuilder(
                             (builder) -> builder.field("type", matchType).field("doc_values", false),
                             resultListener
                         );
+                    } else if (formatEntries.size() > 1) {
+                        resultListener.onFailure(
+                            new ElasticsearchException(
+                                "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
+                                policy.getMatchField(),
+                                Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                                Strings.collectionToCommaDelimitedString(formatEntries)
+                            )
+                        );
+                    } else {
+                        createEnrichMappingBuilder(
+                            (builder) -> builder.field("type", matchType)
+                                .field("doc_values", false)
+                                .field("format", formatEntries.get(0)),
+                            resultListener
+                        );
                     }
+                } else {
+                    createEnrichMappingBuilder(
+                        (builder) -> builder.field("type", matchType).field("doc_values", false),
+                        resultListener
+                    );
                 }
             }
-        }));
+        }
     }
 
     private List<String> collapseFieldMappingsValue(
-        GetFieldMappingsResponse response,
-        Function<GetFieldMappingsResponse.FieldMappingMetadata, String> getPropertyFunction
+        GetIndexResponse response,
+        Function<Map<String, Object>, String> getPropertyFunction
     ) {
-        return response.mappings()
-            .values()
-            .stream()
-            .map(Map::values)
-            .flatMap(Collection::stream)
+
+       return StreamSupport.stream(response.mappings().values().spliterator(), false)
+            .map(cursor -> cursor.value)
+            .map(MappingMetadata::sourceAsMap)
+            .map(map -> property(map, "properties"))
             .map(getPropertyFunction)
             .distinct()
             .collect(Collectors.toList());
     }
 
     @SuppressWarnings("unchecked")
-    private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String matchField) {
-        return data -> ((Map<String, String>) data.sourceAsMap()
-            .getOrDefault(matchField.substring(matchField.lastIndexOf('.') + 1), Map.of("type", "unknown"))).get("type");
+    private Map<String, Object> property(Map<String, Object> map, String property) {
+        return (Map<String, Object>) map.getOrDefault(property, Map.of());
     }
 
-    @SuppressWarnings("unchecked")
-    private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFielMappingFormat(String matchField) {
-        return data -> ((Map<String, String>) data.sourceAsMap()
-            .getOrDefault(matchField.substring(matchField.lastIndexOf('.') + 1), Map.of("format", "unknown"))).get("format");
+    private Function<Map<String,Object>, String> toFieldMappingProperty(String matchField, String property) {
+        return map -> {
+            String[] parts = matchField.split("\\.");
+            Map<String, Object> result = map;
+            if(parts.length > 1) {
+                for (int i = 0; i < parts.length - 1; i++) {
+                    result = property(result, parts[i]);
+                    result = property(result, "properties");
+                }
+            }
+            result = property(result, parts[parts.length-1]);
+            return String.valueOf(result.getOrDefault(property, "unknown"));
+        };
     }
 
     private String resolveMatchType(String type) {
@@ -404,7 +403,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void prepareAndCreateEnrichIndex() {
+    private void prepareAndCreateEnrichIndex(GetIndexResponse getIndexResponse) {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
@@ -415,7 +414,7 @@ public class EnrichPolicyRunner implements Runnable {
             // This disables eager global ordinals loading for all fields:
             .put("index.warmer.enabled", false)
             .build();
-        resolveEnrichMapping(policy, listener.delegateFailure((listener, result) -> {
+        resolveEnrichMapping(policy, getIndexResponse, listener.delegateFailure((listener, result) -> {
             CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
             createEnrichIndexRequest.mapping(result);
             logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);

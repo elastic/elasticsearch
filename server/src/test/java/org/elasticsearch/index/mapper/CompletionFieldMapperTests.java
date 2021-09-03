@@ -10,9 +10,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -34,6 +36,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -111,6 +115,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
         analyzers.put("simple", new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer()));
         return new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
+    }
+
+    public void testPostingsFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        CodecService codecService = new CodecService(mapperService);
+        Codec codec = codecService.codec("default");
+        assertThat(codec, instanceOf(PerFieldMappingPostingFormatCodec.class));
+        PerFieldMappingPostingFormatCodec perFieldCodec = (PerFieldMappingPostingFormatCodec) codec;
+        assertThat(perFieldCodec.getPostingsFormatForField("field"), instanceOf(Completion84PostingsFormat.class));
     }
 
     public void testDefaultConfiguration() throws IOException {

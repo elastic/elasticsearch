@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -36,6 +37,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -53,6 +56,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
@@ -693,6 +697,130 @@ class NodeDeprecationChecks {
             fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey() + "->" +
                 fractionalByteSetting.getValue()).collect(Collectors.joining(", ")) + "]";
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkFrozenCacheLeniency(final Settings settings,
+                                                     final PluginsAndModules pluginsAndModules,
+                                                     final ClusterState clusterState,
+                                                     final XPackLicenseState licenseState) {
+        final String cacheSizeSettingKey = "xpack.searchable.snapshot.shared_cache.size";
+        Setting<ByteSizeValue> cacheSizeSetting =  Setting.byteSizeSetting(cacheSizeSettingKey,  ByteSizeValue.ZERO);
+        if (cacheSizeSetting.exists(settings)) {
+            ByteSizeValue cacheSize = cacheSizeSetting.get(settings);
+            if (cacheSize.getBytes() > 0) {
+                final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
+                if (DataTier.isFrozenNode(new HashSet<>(roles)) == false) {
+                    String message = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes",
+                        cacheSizeSettingKey);
+                    String url =
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
+                    String details = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes, and is " +
+                        "currently set to [%s]", cacheSizeSettingKey, settings.get(cacheSizeSettingKey));
+                    return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+                }
+            }
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkSslServerEnabled(final Settings settings,
+                                                   final PluginsAndModules pluginsAndModules,
+                                                   final ClusterState clusterState,
+                                                   final XPackLicenseState licenseState) {
+        List<String> details = new ArrayList<>();
+        for (String prefix : new String[] {"xpack.security.transport.ssl", "xpack.security.http.ssl"}) {
+            final String enabledSettingKey = prefix + ".enabled";
+            String enabledSettingValue = settings.get(enabledSettingKey);
+            Settings sslSettings = settings.filter(setting -> setting.startsWith(prefix));
+            if (enabledSettingValue == null && sslSettings.size() > 0) {
+                String keys = sslSettings.keySet().stream().collect(Collectors.joining(","));
+                String detail = String.format(Locale.ROOT, "setting [%s] is unset but the following settings exist: [%s]",
+                    enabledSettingKey, keys);
+                details.add(detail);
+            }
+        }
+        if (details.isEmpty()) {
+            return null;
+        } else {
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+            String message = "cannot set ssl properties without explicitly enabling or disabling ssl";
+            String detailsString = details.stream().collect(Collectors.joining("; "));
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
+        }
+    }
+
+    static DeprecationIssue checkSslCertConfiguration(final Settings settings,
+                                                      final PluginsAndModules pluginsAndModules,
+                                                      final ClusterState clusterState,
+                                                      final XPackLicenseState licenseState) {
+        List<String> details = new ArrayList<>();
+        for (String prefix : new String[]{"xpack.security.transport.ssl", "xpack.security.http.ssl"}) {
+            final String enabledSettingKey = prefix + ".enabled";
+            boolean sslEnabled = settings.getAsBoolean(enabledSettingKey, false);
+            if (sslEnabled) {
+                String keystorePathSettingKey = prefix + "." + SslConfigurationKeys.KEYSTORE_PATH;
+                String keyPathSettingKey = prefix + "." + SslConfigurationKeys.KEY;
+                String certificatePathSettingKey = prefix + "." + SslConfigurationKeys.CERTIFICATE;
+                boolean keystorePathSettingExists = settings.get(keystorePathSettingKey) != null;
+                boolean keyPathSettingExists = settings.get(keyPathSettingKey) != null;
+                boolean certificatePathSettingExists = settings.get(certificatePathSettingKey) != null;
+                if (keystorePathSettingExists == false && keyPathSettingExists == false && certificatePathSettingExists == false) {
+                    String detail = String.format(Locale.ROOT, "none of [%s], [%s], or [%s] are set. If [%s] is true either [%s] must be " +
+                            "set, or [%s] and [%s] must be set", keystorePathSettingKey, keyPathSettingKey,
+                        certificatePathSettingKey, enabledSettingKey, keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    details.add(detail);
+                } else if (keystorePathSettingExists && keyPathSettingExists && certificatePathSettingExists) {
+                    String detail = String.format(Locale.ROOT, "all of [%s], [%s], and [%s] are set. Either [%s] must be set, or [%s] and" +
+                            " [%s] must be set", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
+                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    details.add(detail);
+                } else if (keystorePathSettingExists && (keyPathSettingExists || certificatePathSettingExists)) {
+                    String detail = String.format(Locale.ROOT, "[%s] and [%s] are set. Either [%s] must be set, or [%s] and [%s] must" +
+                            " be set",
+                        keystorePathSettingKey,
+                        keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
+                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    details.add(detail);
+                } else if ((keyPathSettingExists && certificatePathSettingExists == false) ||
+                    (keyPathSettingExists == false && certificatePathSettingExists)) {
+                    String detail = String.format(Locale.ROOT, "[%s] is set but [%s] is not",
+                        keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
+                        keyPathSettingExists ? certificatePathSettingKey : keyPathSettingKey);
+                    details.add(detail);
+                }
+            }
+        }
+        if (details.isEmpty()) {
+            return null;
+        } else {
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes";
+            String message = "if ssl is enabled either keystore must be set, or key path and certificate path must be set";
+            String detailsString = details.stream().collect(Collectors.joining("; "));
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
+        }
+    }
+
+    static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(final Settings settings,
+                                                                         final PluginsAndModules pluginsAndModules,
+                                                                         final ClusterState clusterState,
+                                                                         final XPackLicenseState licenseState,
+                                                                         Supplier<String> permitsHandshakesFromIncompatibleBuildsSupplier) {
+        if (permitsHandshakesFromIncompatibleBuildsSupplier.get() != null) {
+            final String message = String.format(
+                Locale.ROOT,
+                "the [%s] system property is deprecated and will be removed in the next major release",
+                TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+            );
+            final String details = String.format(
+                Locale.ROOT,
+                "allowing handshakes from incompatibile builds is deprecated and will be removed in the next major release; the [%s] " +
+                    "system property must be removed",
+                TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+            );
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        return null;
     }
 
     static DeprecationIssue checkTransportClientProfilesFilterSetting(

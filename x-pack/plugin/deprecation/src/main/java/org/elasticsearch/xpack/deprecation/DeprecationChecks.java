@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
@@ -98,6 +99,13 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
                     NodeDeprecationChecks::checkFractionalByteValueSettings,
+                    NodeDeprecationChecks::checkFrozenCacheLeniency,
+                    NodeDeprecationChecks::checkSslServerEnabled,
+                    NodeDeprecationChecks::checkSslCertConfiguration,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(settings, pluginsAndModules, clusterState,
+                            licenseState, () -> System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY)),
                     NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
                     NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
                     NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,

@@ -32,9 +32,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
 
+    /**
+     * Get the mapping for this test. It should contain a field called `location' that
+     * supports GeoBoundingBox queries.
+     */
     public abstract XContentBuilder getMapping() throws IOException;
 
-    public abstract Version getVersion() throws IOException;
+    /**
+     * Provides a supported version when the mapping was created.
+     */
+    public abstract Version randomSupportedVersion() throws IOException;
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -42,7 +49,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
     }
 
     public void testSimpleBoundingBoxTest() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, getVersion()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomSupportedVersion()).build();
         XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
@@ -119,7 +126,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
     }
 
     public void testLimit2BoundingBox() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, getVersion()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomSupportedVersion()).build();
         XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
@@ -183,7 +190,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
     }
 
     public void testCompleteLonRange() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, getVersion()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomSupportedVersion()).build();
         XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();

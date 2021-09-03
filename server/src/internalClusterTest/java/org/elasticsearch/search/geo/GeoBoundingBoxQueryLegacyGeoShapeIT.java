@@ -25,7 +25,7 @@ public class GeoBoundingBoxQueryLegacyGeoShapeIT extends GeoBoundingBoxQueryInte
     }
 
     @Override
-    public Version getVersion() throws IOException {
+    public Version randomSupportedVersion() throws IOException {
         return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
     }
 }

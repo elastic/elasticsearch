@@ -247,11 +247,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-
-    ignoreViolations(
-      // from java-lz4
-      'net.jpountz.util.UnsafeUtils'
-    )
 }
 
 tasks.named("dependencyLicenses").configure {

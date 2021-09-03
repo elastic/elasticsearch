@@ -367,7 +367,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         internalRefreshListener.add(listener);
         return new EngineConfig(config.getShardId(), config.getThreadPool(),
             config.getIndexSettings(), config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-            config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+            config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), internalRefreshListener, config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),

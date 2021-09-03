@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
@@ -84,7 +83,7 @@ public class CodecTests extends ESTestCase {
             MapperPlugin.NOOP_FIELD_FILTER);
         MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
                 () -> null, () -> false, ScriptCompiler.NONE);
-        return new CodecService(service, LogManager.getLogger("test"));
+        return new CodecService(service);
     }
 
 }

@@ -8,15 +8,12 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
@@ -28,7 +25,6 @@ import org.elasticsearch.index.mapper.MapperService;
  * configured for a specific field the default postings format is used.
  */
 public class PerFieldMappingPostingFormatCodec extends Lucene90Codec {
-    private final Logger logger;
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -38,21 +34,18 @@ public class PerFieldMappingPostingFormatCodec extends Lucene90Codec {
             "PerFieldMappingPostingFormatCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(Mode compressionMode, MapperService mapperService, Logger logger) {
+    public PerFieldMappingPostingFormatCodec(Mode compressionMode, MapperService mapperService) {
         super(compressionMode);
         this.mapperService = mapperService;
-        this.logger = logger;
     }
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        final MappedFieldType fieldType = mapperService.fieldType(field);
-        if (fieldType == null) {
-            logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-        } else if (fieldType instanceof CompletionFieldMapper.CompletionFieldType) {
-            return CompletionFieldMapper.CompletionFieldType.postingsFormat();
+        PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
+        if (format == null) {
+            return super.getPostingsFormatForField(field);
         }
-        return super.getPostingsFormatForField(field);
+        return format;
     }
 
     @Override

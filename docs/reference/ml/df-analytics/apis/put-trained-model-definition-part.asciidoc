@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-trained-model-definition-part]]
-= Put trained model definition part API
+= Create trained model definition part API
 [subs="attributes"]
 ++++
 <titleabbrev>Create part of a trained model</titleabbrev>
 ++++
 
-Puts part of a trained model definition.
+Creates part of a trained model definition.
 experimental::[]
 
 [[ml-put-trained-model-definition-part-request]]

@@ -2,7 +2,7 @@
   "ml.put_trained_model_definition_part":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-model-definition-part.html",
-      "description":"Adds part of a trained model definition"
+      "description":"Creates part of a trained model definition"
     },
     "stability":"experimental",
     "visibility":"public",

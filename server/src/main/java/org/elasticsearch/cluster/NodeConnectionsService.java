@@ -294,27 +294,30 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             @Override
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                if (transportService.nodeConnected(discoveryNode)) {
+                final boolean wasConnected = transportService.nodeConnected(discoveryNode);
+                if (wasConnected) {
                     // transportService.connectToNode is a no-op if already connected, but we don't want any DEBUG logging in this case
                     // since we run this for every node on every cluster state update.
                     logger.trace("still connected to {}", discoveryNode);
-                    onConnected();
                 } else {
                     logger.debug("connecting to {}", discoveryNode);
-                    transportService.connectToNode(discoveryNode, new ActionListener<Releasable>() {
-                        @Override
-                        public void onResponse(Releasable TODO) {
-                            assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                            logger.debug("connected to {}", discoveryNode);
-                            onConnected();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            abstractRunnable.onFailure(e);
-                        }
-                    });
                 }
+
+                transportService.connectToNode(discoveryNode, new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable TODO) {
+                        assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                        if (wasConnected == false) {
+                            logger.debug("connected to {}", discoveryNode);
+                        }
+                        onConnected();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        abstractRunnable.onFailure(e);
+                    }
+                });
             }
 
             private void onConnected() {

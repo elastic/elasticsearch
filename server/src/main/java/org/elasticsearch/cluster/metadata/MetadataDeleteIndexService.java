@@ -138,17 +138,10 @@ public class MetadataDeleteIndexService {
         final Map<String, Set<SnapshotId>> snapshotsToDelete = listOfSnapshotsToDelete(currentState, indicesToDelete);
         if (snapshotsToDelete.isEmpty() == false) {
             RepositoriesMetadata repositories = currentState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-            boolean changed = false;
             for (Map.Entry<String, Set<SnapshotId>> snapshotToDelete : snapshotsToDelete.entrySet()) {
-                RepositoryMetadata repository = repositories.repository(snapshotToDelete.getKey());
-                if (repository != null) {
-                    repositories = repositories.addSnapshotsToDelete(repository.name(), snapshotToDelete.getValue());
-                    changed = true;
-                }
+                repositories = repositories.addSnapshotsToDelete(snapshotToDelete.getKey(), snapshotToDelete.getValue());
             }
-            if (changed) {
-                metadataBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
-            }
+            metadataBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
         }
 
         Metadata newMetadata = metadataBuilder.build();

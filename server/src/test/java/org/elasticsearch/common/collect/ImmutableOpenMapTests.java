@@ -35,8 +35,8 @@ public class ImmutableOpenMapTests extends ESTestCase {
         .build();
 
     public void testStreamOperationsAreSupported() {
-        assertThat(regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue).collect(Collectors.toSet()),
-            equalTo(Set.of("£", "$")));
+        assertThat(regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue)
+                .collect(Collectors.toSet()), equalTo(Set.of("£", "$")));
     }
 
     public void testSortedStream() {

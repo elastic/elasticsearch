@@ -431,7 +431,8 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = state.metadata().indices().stream()
             // Filter out to only consider managed indices
-            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.getValue().getSettings())))
+            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(
+                indexToMetadata.getValue().getSettings())))
             // Only look at indices in the shrink action
             .filter(indexToMetadata ->
                 ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getAction()))

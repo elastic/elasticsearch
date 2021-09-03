@@ -10,6 +10,7 @@ package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +45,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testStreamOperationsOnRandomMap() {
-        ImmutableOpenMap<Long, String> map = ThreadLocalRandom.current().longs(1000)
+        ImmutableOpenMap<Long, String> map = Randomness.get().longs(1000)
             .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
             .reduce(ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()), (a, b) -> b)
             .build();

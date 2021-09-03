@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -22,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -43,6 +33,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.Collections;
 import java.util.Map;
@@ -80,6 +71,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_DATA_PATH_SETTING,
             IndexMetadata.INDEX_HIDDEN_SETTING,
             IndexMetadata.INDEX_FORMAT_SETTING,
+            IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+            IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -102,7 +95,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
             IndexSortConfig.INDEX_SORT_FIELD_SETTING,
             IndexSortConfig.INDEX_SORT_ORDER_SETTING,
             IndexSortConfig.INDEX_SORT_MISSING_SETTING,
@@ -152,6 +144,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
+            MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
             BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
             IndexModule.INDEX_STORE_TYPE_SETTING,
@@ -165,6 +158,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.FINAL_PIPELINE,
             MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
             ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
+            DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
+            ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
 
             // validate that built-in similarities don't get redefined
             Setting.groupSetting(

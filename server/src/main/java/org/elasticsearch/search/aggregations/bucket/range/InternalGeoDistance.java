@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -60,8 +49,13 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, DocValueFormat format, boolean keyed,
-                Map<String, Object> metadata) {
+        public InternalGeoDistance create(
+            String name,
+            List<Bucket> ranges,
+            DocValueFormat format,
+            boolean keyed,
+            Map<String, Object> metadata
+        ) {
             return new InternalGeoDistance(name, ranges, keyed, metadata);
         }
 
@@ -71,15 +65,28 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat format) {
+        public Bucket createBucket(
+            String key,
+            double from,
+            double to,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean keyed,
+            DocValueFormat format
+        ) {
             return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
 
         @Override
         public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
-                    prototype.getDocCount(), aggregations, prototype.getKeyed());
+            return new Bucket(
+                prototype.getKey(),
+                ((Number) prototype.getFrom()).doubleValue(),
+                ((Number) prototype.getTo()).doubleValue(),
+                prototype.getDocCount(),
+                aggregations,
+                prototype.getKeyed()
+            );
         }
     }
 

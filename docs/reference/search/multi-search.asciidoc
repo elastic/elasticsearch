@@ -21,6 +21,12 @@ GET my-index-000001/_msearch
 
 `GET /<target>/_msearch`
 
+[[search-multi-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[search-multi-search-api-desc]]
 ==== {api-description-title}
@@ -55,7 +61,7 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
+Comma-separated list of data streams, indices, and aliases to search.
 +
 This list acts as a fallback if a search in the request body does not specify an
 `index` target.
@@ -95,14 +101,14 @@ to +max(1, (# of <<data-node,data nodes>> * min(<<search-threadpool,search threa
 --
 (Optional, integer)
 Maximum number of concurrent shard requests that each sub-search request
-executes per node.  Defaults to `5`.
+executes per node. Defaults to `5`.
 
 You can use this parameter to prevent a request from overloading a cluster. For
 example, a default request hits all data streams and indices in a cluster. This
 could cause shard request rejections if the number of shards per node is high.
 
 In certain scenarios, parallelism isn't achieved through concurrent requests. In
-those cases, a low value in this  parameter could result in poor performance.
+those cases, a low value in this parameter could result in poor performance.
 For example, in an environment where a very low number of concurrent search
 requests are expected, a higher value in this parameter may improve performance.
 --
@@ -155,61 +161,63 @@ shards. This is usually slower but more accurate.
 Specifies whether aggregation and suggester names should be prefixed by their
 respective types in the response.
 
+[role="child_attributes"]
 [[search-multi-search-api-request-body]]
 ==== {api-request-body-title}
 
 The request body contains a newline-delimited list of search `<header>` and
 search `<body>` objects.
 
+// tag::header-params[]
 `<header>`::
-+
---
 (Required, object)
-Contains parameters used to limit or change the subsequent search body request.
-
+Parameters used to limit or change the search.
++
 This object is required for each search body but can be empty (`{}`) or a blank
 line.
---
-
-`allow_no_indices`:::
++
+.Properties of `<header>` objects
+[%collapsible%open]
+====
+`allow_no_indices`::
 (Optional, Boolean)
 If `true`, the request does *not* return an error if a wildcard expression or
 `_all` value retrieves only missing or closed indices.
 +
-This parameter also applies to <<indices-aliases,index aliases>> that point to a
-missing or closed index.
+This parameter also applies to <<alias,aliases>> that point to a missing
+or index.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-`ignore_unavailable`:::
+`ignore_unavailable`::
 (Optional, Boolean) If `true`, documents from missing or closed indices are not
 included in the response. Defaults to `false`.
 
-`index`:::
+`index`::
 (Optional, string or array of strings)
-Data streams, indices, and index aliases to search. Wildcard (`*`) expressions
-are supported. You can specify multiple targets as an array.
+Data streams, indices, and aliases to search. Supports wildcards (`*`). Specify
+multiple targets as an array.
 +
 If this parameter is not specified, the `<target>` request path parameter
 is used as a fallback.
 
-`preference`:::
+`preference`::
 (Optional, string)
 Node or shard used to perform the search. Random by default.
 
-`request_cache`:::
+`request_cache`::
 (Optional, Boolean)
 If `true`, the request cache can be used for this search. Defaults to
 index-level settings. See <<shard-request-cache>>.
 
-`routing`:::
+`routing`::
 (Optional, string)
 Custom <<mapping-routing-field,routing value>> used to route search operations
 to a specific shard.
 
-`search_type`:::
+`search_type`::
 +
 --
 (Optional, string)
@@ -218,35 +226,41 @@ scoring returned documents.
 
 Options are:
 
-`query_then_fetch`::
+`query_then_fetch`:::
 (default)
 Documents are scored using local term and document frequencies for the shard.
 This is usually faster but less accurate.
 
-`dfs_query_then_fetch`::
+`dfs_query_then_fetch`:::
 Documents are scored using global term and document frequencies across all
 shards. This is usually slower but more accurate.
 --
+====
+// end::header-params[]
 
 `<body>`::
 (Optional, object)
 Contains parameters for a search request:
-
-`aggregations`:::
++
+.Properties of `<body>` objects
+[%collapsible%open]
+====
+`aggregations`::
 (Optional, <<search-aggregations,aggregation object>>)
 Aggregations you wish to run during the search. See <<search-aggregations>>.
 
-`query`:::
-(Optional, <<query-dsl,query DSL object>>) Query you wish to run during the
+`query`::
+(Optional, <<query-dsl,Query DSL object>>) Query you wish to run during the
 search. Hits matching this query are returned in the response.
 
-`from`:::
+`from`::
 (Optional, integer)
 Starting offset for returned hits. Defaults to `0`.
 
-`size`:::
+`size`::
 (Optional, integer)
 Number of hits to return. Defaults to `10`.
+====
 
 [[search-multi-search-api-response-body]]
 ==== {api-response-body-title}
@@ -262,10 +276,10 @@ Number of hits to return. Defaults to `10`.
 [[search-multi-search-api-example]]
 ==== {api-examples-title}
 
-The header part includes which data streams, indices, and index aliases to
-search. The header also indicates the `search_type`,
-`preference`, and `routing`. The body includes the typical search body request
-(including the `query`, `aggregations`, `from`, `size`, and so on).
+The header includes the data streams, indices, and aliases to search. The header
+also indicates the `search_type`, `preference`, and `routing`. The body includes
+the typical search body request (including the `query`, `aggregations`, `from`,
+`size`, and so on).
 
 [source,js]
 --------------------------------------------------
@@ -293,7 +307,7 @@ Note, the above includes an example of an empty header (can also be just
 without any content) which is supported as well.
 
 
-The endpoint also allows you to search against data streams, indices, and index
+The endpoint also allows you to search against data streams, indices, and
 aliases in the request path. In this case, it will be used as the default target
 unless explicitly specified in the header's `index` parameter. For example:
 
@@ -321,76 +335,6 @@ all search requests.
 ==== Security
 
 See <<url-access-control>>
-
-
-[[template-msearch]]
-==== Template support
-
-Much like described in <<search-template>> for the _search resource, _msearch
-also provides support for templates. Submit them like follows for inline
-templates:
-
-[source,console]
------------------------------------------------
-GET _msearch/template
-{"index" : "my-index-000001"}
-{ "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
-{"index" : "my-index-000001"}
-{ "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
------------------------------------------------
-// TEST[setup:my_index]
-
-
-You can also create search templates:
-
-[source,console]
-------------------------------------------
-POST /_scripts/my_template_1
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "query": {
-        "match": {
-          "message": "{{query_string}}"
-        }
-      }
-    }
-  }
-}
-------------------------------------------
-// TEST[setup:my_index]
-
-
-[source,console]
-------------------------------------------
-POST /_scripts/my_template_2
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "query": {
-        "term": {
-          "{{field}}": "{{value}}"
-        }
-      }
-    }
-  }
-}
-------------------------------------------
-// TEST[continued]
-
-You can use search templates in a _msearch:
-
-[source,console]
------------------------------------------------
-GET _msearch/template
-{"index" : "main"}
-{ "id": "my_template_1", "params": { "query_string": "some message" } }
-{"index" : "main"}
-{ "id": "my_template_2", "params": { "field": "user", "value": "test" } }
------------------------------------------------
-// TEST[continued]
 
 
 [[multi-search-partial-responses]]

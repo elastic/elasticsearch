@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -80,6 +81,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return parser;
     }
 
+    public static String EMPTY_SNAPSHOT_ID = "empty";
 
     private final String jobId;
 
@@ -285,6 +287,14 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return stateDocumentIds;
     }
 
+    public boolean isTheEmptySnapshot() {
+        return isTheEmptySnapshot(snapshotId);
+    }
+
+    public static boolean isTheEmptySnapshot(String snapshotId) {
+        return EMPTY_SNAPSHOT_ID.equals(snapshotId);
+    }
+
     public static String documentIdPrefix(String jobId) {
         return jobId + "_" + TYPE + "_";
     }
@@ -434,5 +444,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             return new ModelSnapshot(jobId, minVersion, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats,
                     latestRecordTimeStamp, latestResultTimeStamp, quantiles, retain);
         }
+    }
+
+    public static ModelSnapshot emptySnapshot(String jobId) {
+        return new ModelSnapshot(jobId, Version.CURRENT, new Date(), "empty snapshot", EMPTY_SNAPSHOT_ID, 0,
+            new ModelSizeStats.Builder(jobId).build(), null, null, null, false);
     }
 }

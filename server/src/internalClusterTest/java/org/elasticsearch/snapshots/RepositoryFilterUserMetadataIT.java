@@ -1,50 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -59,12 +38,22 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
     public void testFilteredRepoMetadataIsUsed() {
         final String masterName = internalCluster().getMasterName();
         final String repoName = "test-repo";
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType(MetadataFilteringPlugin.TYPE).setSettings(
-            Settings.builder().put("location", randomRepoPath())
-                .put(MetadataFilteringPlugin.MASTER_SETTING_VALUE, masterName)));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(repoName)
+                .setType(MetadataFilteringPlugin.TYPE)
+                .setSettings(
+                    Settings.builder().put("location", randomRepoPath()).put(MetadataFilteringPlugin.MASTER_SETTING_VALUE, masterName)
+                )
+        );
         createIndex("test-idx");
-        final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
-            .setWaitForCompletion(true).get().getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "test-snap")
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
         assertThat(snapshotInfo.userMetadata(), is(Collections.singletonMap(MetadataFilteringPlugin.MOCK_FILTERED_META, masterName)));
     }
 
@@ -78,40 +67,38 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
         private static final String TYPE = "mock_meta_filtering";
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, BigArrays bigArrays,
-                                                               RecoverySettings recoverySettings) {
-            return Collections.singletonMap("mock_meta_filtering", metadata ->
-                new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                "mock_meta_filtering",
+                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
 
                     // Storing the initially expected metadata value here to verify that #filterUserMetadata is only called once on the
                     // initial master node starting the snapshot
                     private final String initialMetaValue = metadata.settings().get(MASTER_SETTING_VALUE);
 
                     @Override
-                    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId,
-                                                 Metadata clusterMetadata, SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                                 Function<ClusterState, ClusterState> stateTransformer,
-                                                 ActionListener<RepositoryData> listener) {
-                        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo,
-                            repositoryMetaVersion, stateTransformer, listener);
+                    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+                        super.finalizeSnapshot(finalizeSnapshotContext);
                     }
 
                     @Override
-                    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                              IndexCommit snapshotIndexCommit, String shardStateIdentifier,
-                                              IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                                              Map<String, Object> userMetadata, ActionListener<String> listener) {
-                        assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
-                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier,
-                            snapshotStatus, repositoryMetaVersion, userMetadata, listener);
+                    public void snapshotShard(SnapshotShardContext context) {
+                        assertThat(context.userMetadata(), is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
+                        super.snapshotShard(context);
                     }
 
                     @Override
                     public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
                         return Collections.singletonMap(MOCK_FILTERED_META, clusterService.getNodeName());
                     }
-                });
+                }
+            );
         }
     }
 }

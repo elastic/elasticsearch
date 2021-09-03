@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put datafeeds API
+=== Create datafeeds API
 
 Creates a new {ml} datafeed in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put datafeeds request
+==== Request
 
 A +{request}+ requires the following argument:
 
@@ -88,6 +88,12 @@ include-tagged::{doc-tests-file}[{api}-config-set-script-fields]
 include-tagged::{doc-tests-file}[{api}-config-set-scroll-size]
 --------------------------------------------------
 <1> The `size` parameter used in the searches.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-runtime-mappings]
+--------------------------------------------------
+<1> The runtime fields used in the datafeed.
 
 include::../execution.asciidoc[]
 

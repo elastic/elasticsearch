@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.MachineLearningClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -36,7 +38,7 @@ import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -53,6 +55,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -72,7 +75,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.ML_POST_V660_TEMPLATES.stream(),
+        List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
+            ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        return Stream.concat(templatesToWaitFor.stream(),
             super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 
@@ -86,7 +92,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
-        //assumeTrue("Snapshot upgrader should only upgrade from the last major", UPGRADE_FROM_VERSION.major < 7);
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
@@ -98,9 +103,16 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 createJobAndSnapshots();
                 break;
             case MIXED:
-                // Add mixed cluster test after backported
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+                testSnapshotUpgradeFailsOnMixedCluster();
                 break;
             case UPGRADED:
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -112,6 +124,24 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
+    }
+
+    private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
+        Job job = getJob(JOB_ID).jobs().get(0);
+        String currentSnapshot = job.getModelSnapshotId();
+        GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
+        assertThat(modelSnapshots.snapshots(), hasSize(2));
+
+        ModelSnapshot snapshot = modelSnapshots.snapshots()
+            .stream()
+            .filter(s -> s.getSnapshotId().equals(currentSnapshot) == false)
+            .findFirst()
+            .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
+
+       Exception ex = expectThrows(Exception.class, () -> hlrc.upgradeJobSnapshot(
+            new UpgradeJobModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId(), null, true),
+            RequestOptions.DEFAULT));
+       assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
     }
 
     private void testSnapshotUpgrade() throws Exception {
@@ -135,6 +165,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshot.getSnapshotId()).snapshots();
         assertThat(snapshots, hasSize(1));
+        snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
 
         // Does the snapshot still work?
@@ -202,8 +233,17 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setPartitionFieldName("series");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        List<Detector> detectors = new ArrayList<>();
+        detectors.add(detector.build());
+        boolean isCategorization = randomBoolean();
+        if (isCategorization) {
+            detectors.add(new Detector.Builder("count", null).setByFieldName("mlcategory").build());
+        }
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(bucketSpan);
+        if (isCategorization) {
+            analysisConfig.setCategorizationFieldName("text");
+        }
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -220,6 +260,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", now);
                 record.put("value", timeAndSeriesToValueFunction.apply(i, field));
+                record.put("text", randomFrom("foo has landed 3", "bar has landed 5", "bar has finished 2", "foo has finished 10"));
                 record.put("series", field);
                 data.add(createJsonRecord(record));
 
@@ -247,7 +288,19 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     protected PostDataResponse postData(String jobId, String data) throws IOException {
-        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), RequestOptions.DEFAULT);
+        // Post data is deprecated, so a deprecation warning is possible (depending on the old version)
+        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    // No warning is OK - it means we hit an old node where post data is not deprecated
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                }
+                return warnings.get(0).equals("Posting data directly to anomaly detection jobs is deprecated, " +
+                    "in a future major version it will be compulsory to use a datafeed") == false;
+            }).build();
+        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), postDataOptions);
     }
 
     protected FlushJobResponse flushJob(String jobId) throws IOException {

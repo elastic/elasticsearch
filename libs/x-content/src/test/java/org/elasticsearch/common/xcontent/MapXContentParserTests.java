@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.test.ESTestCase;
 
@@ -68,19 +58,51 @@ public class MapXContentParserTests extends ESTestCase {
         });
     }
 
-
     public void testRandomObject() throws IOException {
         compareTokens(builder -> generateRandomObject(builder, randomIntBetween(0, 10)));
     }
 
-    public void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer) throws IOException {
+    /**
+     * Assert that {@link XContentParser#hasTextCharacters()} returns false because
+     * we don't support {@link XContentParser#textCharacters()}.
+     */
+    public void testHasTextCharacters() throws IOException {
+        assertFalse(
+            new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("a", "b"),
+                randomFrom(XContentType.values())
+            ).hasTextCharacters()
+        );
+    }
+
+    public void testCopyCurrentStructure() throws IOException {
+        try (
+            XContentParser parser = new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("a", "b"),
+                randomFrom(XContentType.values())
+            )
+        ) {
+            try (
+                XContentBuilder builder = JsonXContent.contentBuilder().copyCurrentStructure(parser);
+                XContentParser copied = createParser(builder)
+            ) {
+                assertEquals(copied.map(), Map.of("a", "b"));
+            }
+        }
+    }
+
+    private void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer) throws IOException {
         for (XContentType xContentType : EnumSet.allOf(XContentType.class)) {
             logger.info("--> testing with xcontent type: {}", xContentType);
             compareTokens(consumer, xContentType);
         }
     }
 
-    public void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer, XContentType xContentType) throws IOException {
+    private void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             consumer.accept(builder);
             final Map<String, Object> map;
@@ -91,7 +113,7 @@ public class MapXContentParserTests extends ESTestCase {
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 try (XContentParser mapParser = new MapXContentParser(
                     xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
-                    assertEquals(parser.contentType(), mapParser.contentType());
+                    assertEquals(parser.contentType(), mapParser.contentType().canonical());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
                     assertEquals(parser.currentName(), mapParser.currentName());
@@ -101,7 +123,8 @@ public class MapXContentParserTests extends ESTestCase {
                         assertEquals(token, mapToken);
                         assertEquals(parser.currentName(), mapParser.currentName());
                         if (token != null && (token.isValue() || token == XContentParser.Token.VALUE_NULL)) {
-                            if (xContentType != XContentType.YAML || token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            if ((xContentType.canonical() != XContentType.YAML) ||
+                                token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 // YAML struggles with converting byte arrays into text, because it
                                 // does weird base64 decoding to the values. We don't do this
                                 // weirdness in the MapXContentParser, so don't try to stringify it.

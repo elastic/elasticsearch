@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -68,7 +69,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         Map<String, Object> mapping = new HashMap<>();
         mapping.put("dynamic", false);
-        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("type", NestedObjectMapper.CONTENT_TYPE);
         mapping.put("properties", properties);
 
         FEATURE_INFLUENCE_MAPPING = Collections.unmodifiableMap(mapping);
@@ -246,7 +247,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    public Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".outlier_score",
             Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));

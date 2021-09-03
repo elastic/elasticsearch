@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.junit.Assume;
 import org.junit.ClassRule;
 
@@ -30,7 +32,10 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule
-    public static LocalH2 H2 = new LocalH2((c) -> { c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'"); });
+    public static LocalH2 H2 = new LocalH2((c) -> {
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_empty_mapping.sql'");
+    });
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -80,8 +85,8 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         // we skip the tests in case of these locales because ES-SQL is Locale-insensitive for now
         // while H2 does take the Locale into consideration
         String[] h2IncompatibleLocales = new String[] { "tr", "az", "tr-TR", "tr-CY", "az-Latn", "az-Cyrl", "az-Latn-AZ", "az-Cyrl-AZ" };
-        boolean goodLocale = !Arrays.stream(h2IncompatibleLocales)
-            .anyMatch((l) -> Locale.getDefault().equals(new Locale.Builder().setLanguageTag(l).build()));
+        boolean goodLocale = Arrays.stream(h2IncompatibleLocales)
+            .anyMatch((l) -> Locale.getDefault().equals(new Locale.Builder().setLanguageTag(l).build())) == false;
         if (fileName.startsWith("case-functions")) {
             Assume.assumeTrue(goodLocale);
         }

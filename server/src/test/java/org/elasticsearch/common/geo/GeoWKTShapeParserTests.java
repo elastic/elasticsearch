@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo;
 
@@ -46,6 +35,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
@@ -336,8 +326,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(new ContentPath());
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
+                .build(new ContentPath());
 
         // test store z disabled
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -359,8 +351,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(new ContentPath());
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
+                .build(new ContentPath());
 
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
         assertEquals(shapeBuilder.numDimensions(), 3);
@@ -373,14 +367,17 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).coerce(false).build(new ContentPath());
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
+                .coerce(false).build(new ContentPath());
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder));
         assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).coerce(true).build(new ContentPath());
+            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true)
+                .coerce(true).build(new ContentPath());
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
         assertNotNull(shapeBuilder);
         assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());

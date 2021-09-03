@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -33,10 +22,11 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -58,7 +48,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -89,8 +82,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
-    private static final String TESTS_PATH = "/rest-api-spec/test";
-    private static final String SPEC_PATH = "/rest-api-spec/api";
+    private static final String TESTS_PATH = "rest-api-spec/test";
+    private static final String SPEC_PATH = "rest-api-spec/api";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -132,10 +125,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version esVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
+            final String os = readOsFromNodesInfo(adminClient());
+
+            logger.info(
+                "initializing client, minimum es version [{}], master version, [{}], hosts {}, os [{}]",
+                esVersion,
+                masterVersion,
+                hosts,
+                os
+            );
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
@@ -161,8 +162,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+            final Version masterVersion,
+            final String os) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -238,21 +240,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
-        for (String strPath : paths) {
-            Path path = root.resolve(strPath);
-            if (Files.isDirectory(path)) {
-                Files.walk(path).forEach(file -> {
-                    if (file.toString().endsWith(".yml")) {
-                        addSuite(root, file, files);
-                    } else if (file.toString().endsWith(".yaml")) {
-                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
-                    }
-                });
-            } else {
-                path = root.resolve(strPath + ".yml");
-                assert Files.exists(path);
-                addSuite(root, path, files);
+        Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
+        for (Path root : roots) {
+            for (String strPath : paths) {
+                Path path = root.resolve(strPath);
+                if (Files.isDirectory(path)) {
+                    Files.walk(path).forEach(file -> {
+                        if (file.toString().endsWith(".yml")) {
+                            addSuite(root, file, files);
+                        } else if (file.toString().endsWith(".yaml")) {
+                            throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                        }
+                    });
+                } else {
+                    path = root.resolve(strPath + ".yml");
+                    assert Files.exists(path);
+                    addSuite(root, path, files);
+                }
             }
         }
         return files;
@@ -271,7 +275,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
+        if (Strings.hasLength(property) == false) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
@@ -291,7 +295,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
                         List<String> methodsList = Arrays.asList(path.getMethods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
-                            if (!methodsList.contains("POST")) {
+                            if (methodsList.contains("POST") == false) {
                                 errorMessage.append("\n- ").append(restApi.getName())
                                     .append(" supports GET with a body but doesn't support POST");
                             }
@@ -334,6 +338,34 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
+    private String readOsFromNodesInfo(RestClient restClient) throws IOException {
+        final Request request = new Request("GET", "/_nodes/os");
+        Response response = restClient.performRequest(request);
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+        SortedSet<String> osPrettyNames = new TreeSet<>();
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+
+        for (Entry<String, Object> node : nodes.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+
+            osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
+        }
+
+        assert osPrettyNames.isEmpty() == false : "no os found";
+
+        // Although in theory there should only be one element as all nodes are running on the same machine,
+        // in reality there can be two in mixed version clusters if different Java versions report the OS
+        // name differently. This has been observed to happen on Windows, where Java needs to be updated to
+        // recognize new Windows versions, and until this update has been done the newest version of Windows
+        // is reported as the previous one. In this case taking the last alphabetically is likely to be most
+        // accurate, for example if "Windows Server 2016" and "Windows Server 2019" are reported by different
+        // Java versions then Windows Server 2019 is likely to be correct.
+        return osPrettyNames.last();
+    }
+
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {
         return RequestOptions.DEFAULT;
     }
@@ -355,6 +387,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //skip test if test section is disabled
         assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
             testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if os is excluded
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os()));
 
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
@@ -375,8 +410,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
+        assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
 
-        if (!testCandidate.getSetupSection().isEmpty()) {
+        if (testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
                 executeSection(executableSection);

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -116,7 +105,13 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(sh, distribution, fullInstallPath);
+        Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
+        ServerUtils.disableGeoIpDownloader(installation);
+        // TODO: Adjust all tests so that they can run with security on, which is the default behavior
+        // https://github.com/elastic/elasticsearch/issues/75940
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
+
+        return installation;
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
@@ -158,9 +153,7 @@ public class Archives {
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
-        }
+        verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
@@ -207,10 +200,12 @@ public class Archives {
             "elasticsearch-certutil",
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
+            "elasticsearch-security-config",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
@@ -391,7 +386,7 @@ public class Archives {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
-        assertThat(pid, is(not(emptyOrNullString())));
+        assertThat("No PID found in " + pidFile, pid, is(not(emptyOrNullString())));
 
         final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + " && tail --pid=" + pid + " -f /dev/null"));

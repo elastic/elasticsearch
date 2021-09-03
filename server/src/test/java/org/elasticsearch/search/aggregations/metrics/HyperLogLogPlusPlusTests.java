@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -69,7 +58,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     public void testAccuracy() {
         final long bucket = randomInt(20);
         final int numValues = randomIntBetween(1, 100000);
-        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 100000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 100000);
         final int p = randomIntBetween(14, MAX_PRECISION);
         IntHashSet set = new IntHashSet();
         HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
@@ -79,7 +68,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             final long hash = BitMixer.mix64(n);
             e.collect(bucket, hash);
             if (randomInt(100) == 0) {
-                //System.out.println(e.cardinality(bucket) + " <> " + set.size());
+                // System.out.println(e.cardinality(bucket) + " <> " + set.size());
                 assertThat((double) e.cardinality(bucket), closeTo(set.size(), 0.1 * set.size()));
             }
         }
@@ -96,7 +85,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 5);
         }
         final int numValues = randomIntBetween(1, 100000);
-        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 1000000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 1000000);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
             final long hash = BitMixer.mix64(n);
@@ -146,19 +135,18 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
             private int countDown = whenToBreak;
+
             @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 if (countDown-- == 0) {
                     throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
                 }
                 total.addAndGet(bytes);
-                return total.get();
             }
 
             @Override
-            public long addWithoutBreaking(long bytes) {
+            public void addWithoutBreaking(long bytes) {
                 total.addAndGet(bytes);
-                return total.get();
             }
         });
         BigArrays bigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.similarity;
@@ -31,8 +20,9 @@ import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -123,16 +113,18 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecate("base_similarity_ignored",
+            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
         return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) :
                 defaultSimilarity;
     }
-
 
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
@@ -142,8 +134,10 @@ public final class SimilarityService extends AbstractIndexComponent {
         return new SimilarityProvider(name, sim.get());
     }
 
-    // for testing
-    Similarity getDefaultSimilarity() {
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
         return defaultSimilarity;
     }
 

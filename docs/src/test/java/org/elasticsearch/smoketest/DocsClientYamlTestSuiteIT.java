@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.smoketest;
@@ -22,6 +11,7 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.BytesRef;
@@ -29,7 +19,8 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -69,11 +60,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS.size() + 1);
-        entries.addAll(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS);
-        entries.add(new NamedXContentRegistry.Entry(ExecutableSection.class,
-                new ParseField("compare_analyzers"), CompareAnalyzers::parse));
-        NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(entries);
+        NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(CollectionUtils.appendToCopy(
+                ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS, new NamedXContentRegistry.Entry(ExecutableSection.class,
+                        new ParseField("compare_analyzers"), CompareAnalyzers::parse)));
         return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
     }
 
@@ -94,12 +83,22 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected ClientYamlTestClient initClientYamlTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion,
+        final String os
+    ) {
+        return new ClientYamlDocsTestClient(
+            restSpec,
+            restClient,
+            hosts,
+            esVersion,
+            masterVersion,
+            os,
+            this::getClientBuilderWithSniffedHosts
+        );
     }
 
     @Before
@@ -107,6 +106,37 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (isCcrTest() || isGetLicenseTest() || isXpackInfoTest()) {
             ESRestTestCase.waitForActiveLicense(adminClient());
         }
+    }
+
+    private static boolean snapshotRepositoryPopulated;
+
+    @Before
+    public void populateSnapshotRepository() throws IOException {
+
+        if (snapshotRepositoryPopulated) {
+            return;
+        }
+
+        // The repository UUID is only created on the first write to the repo, so it may or may not exist when running the tests. However to
+        // include the output from the put-repository and get-repositories APIs in the docs we must be sure whether the UUID is returned or
+        // not, so we prepare by taking a snapshot first to ensure that the UUID really has been created.
+        super.initClient();
+
+        final Request putRepoRequest = new Request("PUT", "/_snapshot/test_setup_repo");
+        putRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"my_backup_location\"}}");
+        assertOK(adminClient().performRequest(putRepoRequest));
+
+        final Request putSnapshotRequest = new Request("PUT", "/_snapshot/test_setup_repo/test_setup_snap");
+        putSnapshotRequest.addParameter("wait_for_completion", "true");
+        assertOK(adminClient().performRequest(putSnapshotRequest));
+
+        final Request deleteSnapshotRequest = new Request("DELETE", "/_snapshot/test_setup_repo/test_setup_snap");
+        assertOK(adminClient().performRequest(deleteSnapshotRequest));
+
+        final Request deleteRepoRequest = new Request("DELETE", "/_snapshot/test_setup_repo");
+        assertOK(adminClient().performRequest(deleteRepoRequest));
+
+        snapshotRepositoryPopulated = true;
     }
 
     @After

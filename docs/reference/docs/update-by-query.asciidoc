@@ -46,6 +46,16 @@ POST my-index-000001/_update_by_query?conflicts=proceed
 
 `POST /<target>/_update_by_query`
 
+[[docs-update-by-query-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or alias:
+
+** `read`
+** `index` or `write`
+
 [[docs-update-by-query-api-desc]]
 ==== {api-description-title}
 
@@ -59,7 +69,10 @@ When the versions match, the document is updated and the version number is incre
 If a document changes between the time that the snapshot is taken and
 the update operation is processed, it results in a version conflict and the operation fails.
 You can opt to count version conflicts instead of halting and returning by
-setting `conflicts` to `proceed`.
+setting `conflicts` to `proceed`. Note that if you opt to count
+version conflicts the operation could attempt to update more documents from the source than
+`max_docs` until it has successfully updated `max_docs` documents, or it has gone through every document
+in the source query.
 
 NOTE: Documents with a version equal to 0 cannot be updated using update by
 query because `internal` versioning does not support 0 as a valid
@@ -109,7 +122,7 @@ to disable throttling.
 Throttling uses a wait time between batches so that the internal scroll requests
 can be given a timeout that takes the request padding into account. The padding
 time is the difference between the batch size divided by the
-`requests_per_second` and the time spent writing.  By default the batch size is
+`requests_per_second` and the time spent writing. By default the batch size is
 `1000`, so if `requests_per_second` is set to `500`:
 
 [source,txt]
@@ -149,12 +162,9 @@ documents being reindexed and cluster resources.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
-Wildcard (`*`) expressions are supported.
-+
-To search all data streams or indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams or indices, omit
+this parameter or use `*` or `_all`.
 
 [[docs-update-by-query-api-query-params]]
 ==== {api-query-parms-title}
@@ -213,7 +223,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_timeout]
+`search_timeout`::
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
@@ -229,7 +242,19 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period each update request waits for the following operations:
+
+* Dynamic mapping updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 

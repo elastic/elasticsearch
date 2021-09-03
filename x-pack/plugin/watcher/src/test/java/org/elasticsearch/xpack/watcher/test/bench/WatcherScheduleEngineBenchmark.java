@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -154,8 +155,8 @@ public class WatcherScheduleEngineBenchmark {
                     client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
-                    while (!new WatcherStatsRequestBuilder(client).get().getNodes().stream()
-                            .allMatch(r -> r.getWatcherState() == WatcherState.STARTED)) {
+                    while (new WatcherStatsRequestBuilder(client).get().getNodes().stream()
+                            .allMatch(r -> r.getWatcherState() == WatcherState.STARTED) == false) {
                         Thread.sleep(100);
                     }
                     long actualLoadedWatches = new WatcherStatsRequestBuilder(client).get().getWatchesCount();

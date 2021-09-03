@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -28,22 +17,22 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -70,12 +59,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private int stringHashingCollectorsUsed;
 
     public CardinalityAggregator(
-            String name,
-            ValuesSourceConfig valuesSourceConfig,
-            int precision,
-            SearchContext context,
-            Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        int precision,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
@@ -96,8 +86,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            MurmurHash3Values hashValues = source.isFloatingPoint() ?
-                MurmurHash3Values.hash(source.doubleValues(ctx)) : MurmurHash3Values.hash(source.longValues(ctx));
+            MurmurHash3Values hashValues = source.isFloatingPoint()
+                ? MurmurHash3Values.hash(source.doubleValues(ctx))
+                : MurmurHash3Values.hash(source.longValues(ctx));
             numericCollectorsUsed++;
             return new DirectCollector(counts, hashValues);
         }
@@ -126,8 +117,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         postCollectLastCollector();
 
         collector = pickCollector(ctx);
@@ -146,7 +136,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    protected void beforeBuildingResults(long[] ordsToCollect) throws IOException {
+    protected void doPostCollection() throws IOException {
         postCollectLastCollector();
     }
 
@@ -259,8 +249,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<BitArray> visitedOrds;
 
-        OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values,
-                BigArrays bigArrays) {
+        OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -298,8 +287,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
                 try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                     final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
-                         ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
+                        ? allVisitedOrds.nextSetBit(ord + 1)
+                        : Long.MAX_VALUE) {
                         final BytesRef value = values.lookupOrd(ord);
                         MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                         hashes.set(ord, hash.h1);
@@ -308,8 +298,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
-                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
-                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
+                                ? bits.nextSetBit(ord + 1)
+                                : Long.MAX_VALUE) {
                                 counts.collect(bucket, hashes.get(ord));
                             }
                         }

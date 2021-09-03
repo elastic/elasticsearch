@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -54,23 +43,27 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     private static final ParseField FROM = new ParseField("from");
     private static final ParseField SIZE = new ParseField("size");
 
-    public static final ConstructingObjectParser<BucketSortPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
-            false, (a, context) -> new BucketSortPipelineAggregationBuilder(context, (List<FieldSortBuilder>) a[0]));
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<BucketSortPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        (a, context) -> new BucketSortPipelineAggregationBuilder(context, (List<FieldSortBuilder>) a[0])
+    );
 
     static {
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-                    List<SortBuilder<?>> sorts = SortBuilder.fromXContent(p);
-                        List<FieldSortBuilder> fieldSorts = new ArrayList<>(sorts.size());
-                        for (SortBuilder<?> sort : sorts) {
-                            if (sort instanceof FieldSortBuilder == false) {
-                                throw new IllegalArgumentException("[" + NAME + "] only supports field based sorting; incompatible sort: ["
-                                        + sort + "]");
-                            }
-                            fieldSorts.add((FieldSortBuilder) sort);
-                        }
-                    return fieldSorts;
-                }, SearchSourceBuilder.SORT_FIELD,
-                ObjectParser.ValueType.OBJECT_ARRAY);
+            List<SortBuilder<?>> sorts = SortBuilder.fromXContent(p);
+            List<FieldSortBuilder> fieldSorts = new ArrayList<>(sorts.size());
+            for (SortBuilder<?> sort : sorts) {
+                if (sort instanceof FieldSortBuilder == false) {
+                    throw new IllegalArgumentException(
+                        "[" + NAME + "] only supports field based sorting; incompatible sort: [" + sort + "]"
+                    );
+                }
+                fieldSorts.add((FieldSortBuilder) sort);
+            }
+            return fieldSorts;
+        }, SearchSourceBuilder.SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::from, FROM);
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::size, SIZE);
         PARSER.declareField(BucketSortPipelineAggregationBuilder::gapPolicy, p -> {
@@ -143,9 +136,14 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     protected void validate(ValidationContext context) {
         context.validateHasParent(NAME, name);
         if (sorts.isEmpty() && size == null && from == 0) {
-            context.addValidationError("[" + name + "] is configured to perform nothing. Please set either of "
+            context.addValidationError(
+                "["
+                    + name
+                    + "] is configured to perform nothing. Please set either of "
                     + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())
-                    + " to use " + NAME);
+                    + " to use "
+                    + NAME
+            );
         }
     }
 
@@ -181,9 +179,9 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         if (super.equals(obj) == false) return false;
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
-                && Objects.equals(from, other.from)
-                && Objects.equals(size, other.size)
-                && Objects.equals(gapPolicy, other.gapPolicy);
+            && Objects.equals(from, other.from)
+            && Objects.equals(size, other.size)
+            && Objects.equals(gapPolicy, other.gapPolicy);
     }
 
     @Override

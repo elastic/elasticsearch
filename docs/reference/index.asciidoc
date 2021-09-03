@@ -1,9 +1,10 @@
 [[elasticsearch-reference]]
-= Elasticsearch Reference
+= Elasticsearch Guide
 
 :include-xpack:         true
 :es-test-dir:           {elasticsearch-root}/docs/src/test
 :plugins-examples-dir:  {elasticsearch-root}/plugins/examples
+:dependencies-dir:      {elasticsearch-root}/build-tools-internal
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
@@ -32,6 +33,8 @@ include::data-streams/data-streams.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::alias.asciidoc[]
+
 include::search/search-your-data/search-your-data.asciidoc[]
 
 include::query-dsl.asciidoc[]
@@ -48,15 +51,9 @@ include::data-management.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
-ifdef::permanently-unreleased-branch[]
-
 include::autoscaling/index.asciidoc[]
 
-endif::[]
-
 include::monitoring/index.asciidoc[]
-
-include::frozen-indices.asciidoc[]
 
 include::data-rollup-transform.asciidoc[]
 
@@ -72,12 +69,12 @@ include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
 
-include::glossary.asciidoc[]
-
 include::rest-api/index.asciidoc[]
 
 include::migration/index.asciidoc[]
 
 include::release-notes.asciidoc[]
+
+include::dependencies-versions.asciidoc[]
 
 include::redirects.asciidoc[]

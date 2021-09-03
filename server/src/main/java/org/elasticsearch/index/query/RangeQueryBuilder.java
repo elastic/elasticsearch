@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -22,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -32,6 +21,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -97,7 +87,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         String relationString = in.readOptionalString();
         if (relationString != null) {
             relation = ShapeRelation.getRelationByName(relationString);
-            if (relation != null && !isRelationAllowed(relation)) {
+            if (relation != null && isRelationAllowed(relation) == false) {
                 throw new IllegalArgumentException(
                     "[range] query does not support relation [" + relationString + "]");
             }
@@ -309,7 +299,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
         }
-        if (!isRelationAllowed(this.relation)) {
+        if (isRelationAllowed(this.relation) == false) {
             throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
         }
         return this;
@@ -428,19 +418,35 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        if (shardContext != null) {
-            final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
+        if (coordinatorRewriteContext != null) {
+            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+                if (coordinatorRewriteContext.hasTimestampData() == false) {
+                    return MappedFieldType.Relation.DISJOINT;
+                }
+                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+                DateMathParser dateMathParser = getForceDateParser();
+                return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            }
+        }
+
+        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+        if (searchExecutionContext != null) {
+            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
             if (fieldType == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }
-            if (shardContext.getIndexReader() == null) {
+            if (searchExecutionContext.getIndexReader() == null) {
                 // No reader, this may happen e.g. for percolator queries.
                 return MappedFieldType.Relation.INTERSECTS;
             }
 
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
+            return fieldType.isFieldWithinQuery(searchExecutionContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
 
@@ -473,7 +479,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (from == null && to == null) {
             /*
              * Open bounds on both side, we can rewrite to an exists query

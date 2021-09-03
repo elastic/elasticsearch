@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;
@@ -55,13 +56,15 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
+    static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
 
-    private static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
+    static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
             "unique_count");
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
@@ -123,7 +126,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 } else {
                     previous = new Tail(defaultLimitSource, defaultSize, previous);
                 }
-                plan = plan.replaceChildren(singletonList(previous));
+                plan = plan.replaceChildrenSameSize(singletonList(previous));
             }
             previous = plan;
         }
@@ -347,7 +350,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 return new Tail(source(ctx), tailLimit, plan);
 
             default:
-                throw new ParsingException(source(ctx), "Pipe [{}] is not supported yet", name);
+                throw new ParsingException(source(ctx), "Pipe [{}] is not supported", name);
         }
     }
 

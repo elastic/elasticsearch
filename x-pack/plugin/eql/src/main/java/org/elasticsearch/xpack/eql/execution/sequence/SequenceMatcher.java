@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
@@ -25,21 +28,23 @@ import java.util.TreeSet;
  */
 public class SequenceMatcher {
 
+    private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
+    private static final String CB_COMPLETED_LABEL = "sequence_completed";
+
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
     static class Stats {
+
         long seen = 0;
         long ignored = 0;
-        long until = 0;
         long rejectionMaxspan = 0;
         long rejectionUntil = 0;
 
         @Override
         public String toString() {
-            return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Until [{}]/Rejected {Maxspan [{}]/Until [{}]}",
+            return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Rejected {Maxspan [{}]/Until [{}]}",
                     seen,
                     ignored,
-                    until,
                     rejectionMaxspan,
                     rejectionUntil);
         }
@@ -47,7 +52,6 @@ public class SequenceMatcher {
         public void clear() {
             seen = 0;
             ignored = 0;
-            until = 0;
             rejectionMaxspan = 0;
             rejectionUntil = 0;
         }
@@ -65,17 +69,20 @@ public class SequenceMatcher {
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
-    private final long maxSpanInMillis;
+    private final long maxSpanInNanos;
 
     private final boolean descending;
 
     private final Limit limit;
-    private boolean headLimit = false;
+    private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
 
+    private boolean headLimit = false;
+    private long totalRamBytesUsed = 0;
+
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -84,10 +91,10 @@ public class SequenceMatcher {
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new TreeSet<>();
 
-        this.maxSpanInMillis = maxSpan.millis();
+        this.maxSpanInNanos = maxSpan.nanos();
 
-        // limit
         this.limit = limit;
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void trackSequence(Sequence sequence) {
@@ -104,6 +111,9 @@ public class SequenceMatcher {
      * Returns false if the process needs to be stopped.
      */
     boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+        long ramBytesUsedInFlight = ramBytesUsedInFlight();
+        long ramBytesUsedCompleted = ramBytesUsedCompleted();
+
         for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
@@ -123,13 +133,17 @@ public class SequenceMatcher {
             }
         }
 
+        boolean matched;
         // check tail limit
         if (tailLimitReached()) {
             log.trace("(Tail) Limit reached {}", stats);
-            return false;
+            matched = false;
+        } else {
+            log.trace("{}", stats);
+            matched = true;
         }
-        log.trace("{}", stats);
-        return true;
+        trackMemory(ramBytesUsedInFlight, ramBytesUsedCompleted);
+        return matched;
     }
 
     private boolean tailLimitReached() {
@@ -160,7 +174,7 @@ public class SequenceMatcher {
 
         // remove the group early (as the key space is large)
         if (group.isEmpty()) {
-            keyToSequences.remove(previousStage, group);
+            keyToSequences.remove(previousStage, key);
             stageToKeys.remove(previousStage, key);
         }
 
@@ -169,7 +183,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startOrdinal().timestamp() > maxSpanInMillis)) {
+        if (maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
             stats.rejectionMaxspan++;
             return;
         }
@@ -177,10 +191,10 @@ public class SequenceMatcher {
         // until
         UntilGroup until = keyToSequences.untilIfPresent(key);
         if (until != null) {
-            KeyAndOrdinal nearestUntil = until.before(ordinal);
+            Ordinal nearestUntil = until.before(ordinal);
             if (nearestUntil != null) {
                 // check if until matches
-                if (nearestUntil.ordinal().between(sequence.ordinal(), ordinal)) {
+                if (nearestUntil.between(sequence.ordinal(), ordinal)) {
                     stats.rejectionUntil++;
                     return;
                 }
@@ -242,13 +256,17 @@ public class SequenceMatcher {
         return false;
     }
 
+    Set<SequenceKey> keys(int stage) {
+        return stageToKeys.keys(stage);
+    }
+
+    Set<SequenceKey> keys() {
+        return stageToKeys.keys();
+    }
+
     List<Sequence> completed() {
         List<Sequence> asList = new ArrayList<>(completed);
         return limit != null ? limit.view(asList) : asList;
-    }
-
-    void dropUntil() {
-        keyToSequences.dropUntil();
     }
 
     void until(Iterable<KeyAndOrdinal> markers) {
@@ -260,19 +278,15 @@ public class SequenceMatcher {
      * This allows the matcher to keep only the last match per stage
      * and adjust insertion positions.
      */
-    void trim(boolean everything) {
+    void trim(Ordinal ordinal) {
         // for descending sequences, remove all in-flight sequences
         // since the windows moves head and thus there is no chance
         // of new results coming in
-
-        // however this needs to be indicated from outside since
-        // the same window can be only ASC trimmed during a loop
-        // and fully once the DESC query moves
-        if (everything) {
+        if (ordinal == null) {
             keyToSequences.clear();
         } else {
             // keep only the tail
-            keyToSequences.trimToTail();
+            keyToSequences.trimToTail(ordinal);
         }
     }
 
@@ -285,6 +299,37 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
+        clearCircuitBreaker();
+    }
+
+    private long ramBytesUsedInFlight() {
+        return RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
+    }
+
+    private long ramBytesUsedCompleted() {
+        return RamUsageEstimator.sizeOfCollection(completed);
+    }
+
+    private void addMemory(long bytes, String label) {
+        totalRamBytesUsed += bytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+    }
+
+    private void clearCircuitBreaker() {
+        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
+        totalRamBytesUsed = 0;
+    }
+
+    // The method is called at the end of match() which is called for every sub query in the sequence query
+    // and for each subquery every "fetch_size" docs. Doing RAM accounting on object creation is
+    // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
+    // structure occupy for the in-flight tracking of sequences, as well as for the list of completed
+    // sequences.
+    private void trackMemory(long prevRamBytesUsedInflight, long prevRamBytesUsedCompleted) {
+        long bytesDiff = ramBytesUsedInFlight() - prevRamBytesUsedInflight;
+        addMemory(bytesDiff, CB_INFLIGHT_LABEL);
+        bytesDiff = ramBytesUsedCompleted() - prevRamBytesUsedCompleted;
+        addMemory(bytesDiff, CB_COMPLETED_LABEL);
     }
 
     @Override

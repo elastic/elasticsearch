@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -60,7 +49,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -69,6 +58,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -110,7 +100,7 @@ public class MetadataIndexStateService {
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
-    private final MetadataIndexUpgradeService metadataIndexUpgradeService;
+    private final IndexMetadataVerifier indexMetadataVerifier;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
@@ -119,7 +109,7 @@ public class MetadataIndexStateService {
 
     @Inject
     public MetadataIndexStateService(ClusterService clusterService, AllocationService allocationService,
-                                     MetadataIndexUpgradeService metadataIndexUpgradeService,
+                                     IndexMetadataVerifier indexMetadataVerifier,
                                      IndicesService indicesService, ShardLimitValidator shardLimitValidator,
                                      NodeClient client, ThreadPool threadPool) {
         this.indicesService = indicesService;
@@ -127,7 +117,7 @@ public class MetadataIndexStateService {
         this.allocationService = allocationService;
         this.threadPool = threadPool;
         this.client = client;
-        this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.indexMetadataVerifier = indexMetadataVerifier;
         this.shardLimitValidator = shardLimitValidator;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
@@ -142,18 +132,6 @@ public class MetadataIndexStateService {
         final Index[] concreteIndices = request.indices();
         if (concreteIndices == null || concreteIndices.length == 0) {
             throw new IllegalArgumentException("Index name is required");
-        }
-        List<String> writeIndices = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> lookup = clusterService.state().metadata().getIndicesLookup();
-        for (Index index : concreteIndices) {
-            IndexAbstraction ia = lookup.get(index.getName());
-            if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
-                writeIndices.add(index.getName());
-            }
-        }
-        if (writeIndices.size() > 0) {
-            throw new IllegalArgumentException("cannot close the following data stream write indices [" +
-                Strings.collectionToCommaDelimitedString(writeIndices) + "]");
         }
 
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
@@ -575,22 +553,15 @@ public class MetadataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(ReplicationResponse replicationResponse) {
-                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                        new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
-                    if (request.ackTimeout() != null) {
-                        shardRequest.timeout(request.ackTimeout());
-                    }
-                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest,
+                    listener.delegateFailure((delegate, replicationResponse) -> {
+                        final TransportVerifyShardBeforeCloseAction.ShardRequest req =
+                                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
+                        if (request.ackTimeout() != null) {
+                            req.timeout(request.ackTimeout());
+                        }
+                        client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, req, delegate);
+                    }));
         }
     }
 
@@ -672,7 +643,9 @@ public class MetadataIndexStateService {
 
                     private void processIfFinished() {
                         if (countDown.countDown()) {
-                            onResponse.accept(new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()])));
+                            AddBlockResult result = new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()]));
+                            logger.debug("result of applying block to index {}: {}", index, result);
+                            onResponse.accept(result);
                         }
                     }
                 });
@@ -759,6 +732,7 @@ public class MetadataIndexStateService {
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                 metadata.put(updatedMetadata
+                        .timestampRange(IndexLongFieldRange.NO_SHARDS)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder()
                                 .put(indexMetadata.getSettings())
@@ -843,21 +817,22 @@ public class MetadataIndexStateService {
                 final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
                 updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
-                IndexMetadata updatedIndexMetadata = IndexMetadata.builder(indexMetadata)
+                IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
                     .state(IndexMetadata.State.OPEN)
                     .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                     .settings(updatedSettings)
+                    .timestampRange(IndexLongFieldRange.NO_SHARDS)
                     .build();
 
-                // The index might be closed because we couldn't import it due to old incompatible version
-                // We need to check that this index can be upgraded to the current version
-                updatedIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(updatedIndexMetadata, minIndexCompatibilityVersion);
+                // The index might be closed because we couldn't import it due to an old incompatible
+                // version, so we need to verify its compatibility.
+                newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
                 try {
-                    indicesService.verifyIndexMetadata(updatedIndexMetadata, updatedIndexMetadata);
+                    indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
                     throw new ElasticsearchException("Failed to verify index " + index, e);
                 }
-                metadata.put(updatedIndexMetadata, true);
+                metadata.put(newIndexMetadata, true);
             }
 
             // Always removes index closed blocks (note: this can fail on-going close index actions)
@@ -902,7 +877,6 @@ public class MetadataIndexStateService {
                     logger.debug("verification of shards before blocking {} failed [{}]", index, result);
                     continue;
                 }
-                final IndexMetadata indexMetadata = metadata.getSafe(index);
                 final ClusterBlock tempBlock = blockedIndices.get(index);
                 assert tempBlock != null;
                 assert tempBlock.uuid() != null;

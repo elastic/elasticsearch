@@ -1,16 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.action.SqlQueryAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -23,6 +29,7 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -37,35 +44,48 @@ public final class SqlTestUtils {
     private SqlTestUtils() {}
 
     public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
-            null, null, null, false, false);
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN,
+            null, null, null, null, false, false);
+
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
+        Mode mode = randomFrom(Mode.values());
+        long taskId = randomNonNegativeLong();
+        return new SqlConfiguration(providedZoneId != null ? providedZoneId : randomZone(),
+            randomIntBetween(0, 1000),
+            new TimeValue(randomNonNegativeLong()),
+            new TimeValue(randomNonNegativeLong()),
+            null,
+            null,
+            mode,
+            randomAlphaOfLength(10),
+            sqlVersion,
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            false,
+            randomBoolean(),
+            new TaskId(randomAlphaOfLength(10), taskId),
+            randomTask(taskId, mode, sqlVersion),
+            new TimeValue(randomNonNegativeLong()),
+            randomBoolean(),
+            new TimeValue(randomNonNegativeLong()));
+    }
 
     public static SqlConfiguration randomConfiguration() {
-        return new SqlConfiguration(randomZone(),
-                randomIntBetween(0,  1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                false,
-                randomBoolean());
+        return randomConfiguration(null, null);
     }
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
-        return new SqlConfiguration(providedZoneId,
-                randomIntBetween(0,  1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                false,
-                randomBoolean());
+        return randomConfiguration(providedZoneId, null);
+    }
+
+    public static SqlConfiguration randomConfiguration(SqlVersion version) {
+        return randomConfiguration(null, version);
+    }
+
+    public static SqlQueryTask randomTask(long taskId, Mode mode, SqlVersion sqlVersion) {
+        return new SqlQueryTask(taskId, "transport", SqlQueryAction.NAME, "", null, emptyMap(), emptyMap(),
+            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)), TimeValue.timeValueDays(5), mode, sqlVersion,
+            randomBoolean());
     }
 
     public static String randomWhitespaces() {

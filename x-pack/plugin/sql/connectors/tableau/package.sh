@@ -2,8 +2,9 @@
 
 #
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License;
-# you may not use this file except in compliance with the Elastic License.
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
 #
 
 set -e
@@ -16,8 +17,12 @@ TAB_SDK_TAG="tdvt-2.1.9"
 MY_NAME="Packager for Elastic's Tableau connector to Elasticsearch"
 MY_FILE=$(basename $0)
 MY_WORKSPACE=$(realpath ${PACKAGE_WORKSPACE:-build})
+MY_OUT_DIR=$MY_WORKSPACE/distributions
 MY_TOP_DIR=$(dirname $(realpath $0))
 SRC_DIR=connector
+
+ES_VER_FILE="server/src/main/java/org/elasticsearch/Version.java"
+ES_VER_REL_PATH="$MY_TOP_DIR/../../../../../$ES_VER_FILE"
 
 TACO_CLASS=$(xmllint \
     --xpath '//connector-plugin/@class' $MY_TOP_DIR/$SRC_DIR/manifest.xml \
@@ -54,8 +59,9 @@ function package() {
     rm -rfv $MY_WORKSPACE/$SRC_DIR
     cp -rv $MY_TOP_DIR/$SRC_DIR $MY_WORKSPACE
 
-    # patch version tag in manifest file, filtering out any -SNAPSHOT
-    echo -e "cd //connector-plugin/@version\nset ${TACO_VERSION%-*}\nsave" |\
+    # patch plugin-version tag in manifest file, filtering out any -SNAPSHOT
+    echo \
+    -e "cd //connector-plugin/@plugin-version\nset ${TACO_VERSION%-*}\nsave" |\
         xmllint --shell $MY_WORKSPACE/$SRC_DIR/manifest.xml
 
     # check out TDVT SDK
@@ -65,7 +71,8 @@ function package() {
         git checkout $TAB_SDK_TAG
         cd ..
     else
-        git clone --depth 1 --branch $TAB_SDK_TAG $TAB_SDK_REPO
+        git -c advice.detachedHead=false clone --depth 1 \
+            --branch $TAB_SDK_TAG $TAB_SDK_REPO
     fi
 
     # install environment
@@ -76,14 +83,27 @@ function package() {
 
     # finally, create the connector
     python -m connector_packager.package $MY_WORKSPACE/$SRC_DIR
-    cp -f packaged-connector/$OUT_TACO $MY_WORKSPACE/$ES_TACO
+    mkdir -p $MY_OUT_DIR
+    cp -f packaged-connector/$OUT_TACO $MY_OUT_DIR/$ES_TACO
 
-    log "TACO packaged under: $MY_WORKSPACE/$ES_TACO"
+    log "TACO packaged under: $MY_OUT_DIR/$ES_TACO"
 }
 
 function sha() {
-    cd $MY_WORKSPACE
+    cd $MY_OUT_DIR
     sha512sum $ES_TACO > $ES_TACO.sha512
+    echo $(cat $ES_TACO.sha512)
+}
+
+# Vars:
+#   set: TACO_VERSION
+function read_es_version() {
+    VER_REGEX="CURRENT = V_[1-9]\{1,2\}_[0-9]\{1,2\}_[0-9]\{1,2\}"
+    TACO_VERSION=$(grep -o "$VER_REGEX" $ES_VER_REL_PATH | \
+        sed -e 's/V_//' -e 's/CURRENT = //' -e 's/_/./g')
+    if [ -z $TACO_VERSION ]; then
+        die "failed to read version in source file $ES_VER_REL_PATH"
+    fi
 }
 
 # Vars:
@@ -99,6 +119,12 @@ function read_cmd_params() {
                     die "parameter 'version' already set to: $TACO_VERSION"
                 fi
                 TACO_VERSION=$val
+                ;;
+            qualifier)
+                if [ ! -z $VER_QUALIFIER ]; then
+                    die "parameter 'qualifier' already set to: $VER_QUALIFIER"
+                fi
+                VER_QUALIFIER=$val
                 ;;
             keystore)
                 if [ ! -z $SIGN_KEYSTORE ]; then
@@ -139,17 +165,21 @@ function read_cmd_params() {
 
     if [ $CMD_ASM -gt 0 ]; then
         if [ -z $TACO_VERSION ]; then
-            die "parameter 'version' is mandatory for assambling."
+            if [ ! -f $ES_VER_REL_PATH ]; then
+                die "parameter 'version' is required for assembling."
+            else
+                read_es_version
+            fi
         fi
-        ES_TACO=$TACO_CLASS-$TACO_VERSION.taco
+        ES_TACO=$TACO_CLASS-$TACO_VERSION$VER_QUALIFIER.taco
     fi
 
     if [ $CMD_SIGN -gt 0 ]; then
-        if [ -z $SIGN_KEYSTORE ] || [ -z $SIGN_ALIAS ]; then
-            die "parameters 'keystore' and 'alias' are mandatory for signing."
+        if [ -z $SIGN_KEYSTORE ]; then
+            die "parameter 'keystore' is mandatory for signing."
         fi
 
-        SIGN_PARAMS="$SIGN_ALIAS"
+        SIGN_PARAMS="$SIGN_ALIAS" # note: could be empty
         SIGN_PARAMS="$SIGN_PARAMS -keystore $SIGN_KEYSTORE"
         SIGN_PARAMS="$SIGN_PARAMS -tsa $TSA_URL"
 
@@ -174,7 +204,7 @@ function read_cmd_params() {
 }
 
 function sign() {
-    for taco in $(ls -t $MY_WORKSPACE/*.taco 2>/dev/null); do
+    for taco in $(ls -t $MY_OUT_DIR/*.taco 2>/dev/null); do
         jarsigner $taco $SIGN_PARAMS
         jarsigner -verify -verbose -certs $taco
 
@@ -183,7 +213,7 @@ function sign() {
     done
 
     if [ -z $taco ]; then
-        die "No connector to sign found under: $MY_WORKSPACE/" \
+        die "No connector to sign found under: $MY_OUT_DIR/" \
             "\nCall 'assemble' first."
     fi
 
@@ -203,29 +233,30 @@ function usage() {
     log "Usage: $MY_FILE <command>"
     log
     log "Commands:"
-    log "  asm <version parameter>    : assemble the TACO file"
+    log "  asm [version parameters]   : assemble the TACO file"
     log "  sign <signing parameters>  : sign the TACO file"
     log "  pack <ver and sign params> : assemble and sign"
     log "  clean                      : remove the workspace"
     log
     log "Params take the form key=value with following keys:"
-    log "  version       : version of the TACO to produce; mandatory;"
+    log "  version       : version of the TACO to produce;"
+    log "  qualifier     : qualifier to attach to the version;"
     log "  keystore      : path to keystore to use; mandatory;"
     log "  storepassfile : keystore password file; optional;"
     log "  keypassfile   : private key password file; optional;"
     log "  onepass       : password for both the keystore and the "
     log "                  private key; optional;"
-    log "  alias         : alias for the keystore entry; mandatory."
+    log "  alias         : alias for the keystore entry; optional."
     log
     log "All building is done under workspace: $MY_WORKSPACE"
     log "Can be changed with PACKAGE_WORKSPACE environment variable."
     log
     log "Example:"
-    log "  ./$MY_FILE asm version=7.10.1"
+    log "  ./$MY_FILE asm version=7.10.1 qualifier=-SNAPSHOT"
     log "  ./$MY_FILE sign keystore=keystore_file alias=alias_name"\
             "storepassfile=password_file"
     log "  ./$MY_FILE pack version=7.10.2 keystore=keystore_file"\
-            "alias=alias_name onepass=password"
+            "onepass=password"
     log
 }
 

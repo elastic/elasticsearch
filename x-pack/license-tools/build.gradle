@@ -6,7 +6,7 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-project.forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
 }
 
@@ -14,7 +14,7 @@ tasks.named("dependencyLicenses").configure { enabled = false }
 
 tasks.register("buildZip", Zip) {
   dependsOn "jar"
-  String parentDir = "license-tools-${archiveVersion}"
+  String parentDir = "license-tools-${project.version}"
   into(parentDir + '/lib') {
     from jar
     from configurations.runtimeClasspath

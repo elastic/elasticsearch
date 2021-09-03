@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.repositories;
@@ -12,27 +13,23 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
-import java.io.IOException;
-
-public class ClearCcrRestoreSessionAction extends ActionType<ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse> {
+public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empty> {
 
     public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction();
     public static final String NAME = "internal:admin/ccr/restore/session/clear";
 
     private ClearCcrRestoreSessionAction() {
-        super(NAME, ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class TransportDeleteCcrRestoreSessionAction
-        extends HandledTransportAction<ClearCcrRestoreSessionRequest, ClearCcrRestoreSessionResponse> {
+        extends HandledTransportAction<ClearCcrRestoreSessionRequest, ActionResponse.Empty> {
 
         private final CcrRestoreSourceService ccrRestoreService;
 
@@ -40,27 +37,15 @@ public class ClearCcrRestoreSessionAction extends ActionType<ClearCcrRestoreSess
         public TransportDeleteCcrRestoreSessionAction(ActionFilters actionFilters, TransportService transportService,
                                                       CcrRestoreSourceService ccrRestoreService) {
             super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
-            TransportActionProxy.registerProxyAction(transportService, NAME, ClearCcrRestoreSessionResponse::new);
+            TransportActionProxy.registerProxyAction(transportService, NAME, false, in -> ActionResponse.Empty.INSTANCE);
             this.ccrRestoreService = ccrRestoreService;
         }
 
         @Override
         protected void doExecute(Task task, ClearCcrRestoreSessionRequest request,
-                                 ActionListener<ClearCcrRestoreSessionResponse> listener) {
+                                 ActionListener<ActionResponse.Empty> listener) {
             ccrRestoreService.closeSession(request.getSessionUUID());
-            listener.onResponse(new ClearCcrRestoreSessionResponse());
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
-    }
-
-    public static class ClearCcrRestoreSessionResponse extends ActionResponse {
-
-        ClearCcrRestoreSessionResponse() {
-        }
-
-        ClearCcrRestoreSessionResponse(StreamInput in) {
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

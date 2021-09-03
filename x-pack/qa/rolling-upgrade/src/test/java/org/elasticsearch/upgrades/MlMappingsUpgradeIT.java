@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -33,7 +35,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.ML_POST_V660_TEMPLATES.stream(),
+        List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
+            ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        return Stream.concat(templatesToWaitFor.stream(),
             super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 

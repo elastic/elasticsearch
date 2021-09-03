@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -11,46 +12,57 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.percolator.PercolateQueryBuilder;
+import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -62,6 +74,8 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,12 +85,18 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateSecurity.class, CommonAnalysisPlugin.class, ParentJoinPlugin.class,
-                InternalSettingsPlugin.class);
+                InternalSettingsPlugin.class, PercolatorPlugin.class, SpatialPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockGeoShapeFieldMapper() {
+        // a test requires the real SpatialPlugin because it utilizes the shape query
+        return false;
     }
 
     @Override
@@ -90,7 +110,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             "user5:" + usersPasswHashed + "\n" +
             "user6:" + usersPasswHashed + "\n" +
             "user7:" + usersPasswHashed + "\n" +
-            "user8:" + usersPasswHashed + "\n";
+            "user8:" + usersPasswHashed + "\n" +
+            "user9:" + usersPasswHashed + "\n";
     }
 
     @Override
@@ -102,7 +123,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 "role4:user3,user7\n" +
                 "role5:user4,user7\n" +
                 "role6:user5,user7\n" +
-                "role7:user6";
+                "role7:user6\n" +
+                "role8:user9";
     }
     @Override
     protected String configRoles() {
@@ -151,13 +173,24 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
                 "        field_security:\n" +
-                "           grant: [ 'field*' ]\n";
+                "           grant: [ 'field*' ]\n" +
+                "role8:\n" +
+                "  indices:\n" +
+                "      - names: 'doc_index'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        field_security:\n" +
+                "           grant: [ 'field*' ]\n" +
+                "           except: [ 'field2' ]\n" +
+                "      - names: 'query_index'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        field_security:\n" +
+                "           grant: [ 'field*', 'query' ]\n";
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build();
     }
@@ -318,6 +351,195 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertHitCount(response, 0);
     }
 
+    public void testPercolateQueryWithIndexedDocWithFLS() {
+        assertAcked(client().admin().indices().prepareCreate("query_index")
+                .setMapping("query", "type=percolator", "field2", "type=text")
+        );
+        assertAcked(client().admin().indices().prepareCreate("doc_index")
+                .setMapping("field2", "type=text", "field1", "type=text")
+        );
+        client().prepareIndex("query_index").setId("1")
+                .setSource("{\"query\": {\"match\": {\"field2\": \"bonsai tree\"}}}",
+                        XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("doc_index").setId("1")
+                .setSource("{\"field1\": \"value1\", \"field2\": \"A new bonsai tree in the office\"}",
+                        XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE).get();
+        QueryBuilder percolateQuery = new PercolateQueryBuilder("query", "doc_index", "1", null, null, null);
+        // user7 sees everything
+        SearchResponse result = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery)
+                .get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+        result = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+        // user 3 can see the fields of the percolated document, but not the "query" field of the indexed query
+        result = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery)
+                .get();
+        assertSearchResponse(result);
+        assertHitCount(result, 0);
+        result = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+        // user 9 can see the fields of the index query, but not the field of the indexed document to be percolated
+        result = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery)
+                .get();
+        assertSearchResponse(result);
+        assertHitCount(result, 0);
+    }
+
+    public void testGeoQueryWithIndexedShapeWithFLS() {
+        assertAcked(client().admin().indices().prepareCreate("search_index")
+                .setMapping("field", "type=shape", "other", "type=shape")
+        );
+        assertAcked(client().admin().indices().prepareCreate("shape_index")
+                .setMapping("field", "type=shape", "other", "type=shape")
+        );
+        client().prepareIndex("search_index").setId("1")
+                .setSource("{\"field\": {\"type\": \"point\", \"coordinates\":[1, 1]}}",
+                        XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("search_index").setId("2")
+                .setSource("{\"other\": {\"type\": \"point\", \"coordinates\":[1, 1]}}",
+                        XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("shape_index").setId("1")
+                .setSource("{\"field\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}, " +
+                                "\"field2\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
+                        XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("shape_index").setId("2")
+                .setSource("{\"other\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
+                        XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE).get();
+        SearchResponse result;
+        // user sees both the querying shape and the queried point
+        SearchRequestBuilder requestBuilder = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index");
+        final ShapeQueryBuilder shapeQuery1 = new ShapeQueryBuilder("field", "1")
+            .relation(ShapeRelation.WITHIN).indexedShapeIndex("shape_index").indexedShapePath("field");
+        if (randomBoolean()) {
+            requestBuilder.setQuery(QueryBuilders.matchAllQuery())
+                    .setPostFilter(shapeQuery1);
+        } else {
+            requestBuilder.setQuery(shapeQuery1);
+        }
+        result = requestBuilder.get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+        // user sees the queried point but not the querying shape
+        final ShapeQueryBuilder shapeQuery2 = new ShapeQueryBuilder("field", "2")
+            .relation(ShapeRelation.WITHIN).indexedShapeIndex("shape_index").indexedShapePath("other");
+        IllegalStateException e;
+        if (randomBoolean()) {
+            e = expectThrows(IllegalStateException.class, () -> client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                    .prepareSearch("search_index")
+                    .setQuery(QueryBuilders.matchAllQuery())
+                    .setPostFilter(shapeQuery2)
+                    .get());
+        } else {
+            e = expectThrows(IllegalStateException.class, () -> client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                    .prepareSearch("search_index")
+                    .setQuery(shapeQuery2)
+                    .get());
+        }
+        assertThat(e.getMessage(), is("Shape with name [2] found but missing other field"));
+        // user sees the querying shape but not the queried point
+        requestBuilder = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index");
+        final ShapeQueryBuilder shapeQuery3 = new ShapeQueryBuilder("other", "1")
+            .relation(ShapeRelation.WITHIN).indexedShapeIndex("shape_index").indexedShapePath("field");
+        if (randomBoolean()) {
+            requestBuilder.setQuery(QueryBuilders.matchAllQuery())
+                    .setPostFilter(shapeQuery3);
+        } else {
+            requestBuilder.setQuery(shapeQuery3);
+        }
+        result = requestBuilder.get();
+        assertSearchResponse(result);
+        assertHitCount(result, 0);
+    }
+
+    public void testTermsLookupOnIndexWithFLS() {
+        assertAcked(client().admin().indices().prepareCreate("search_index")
+                .setMapping("field", "type=keyword", "other", "type=text")
+        );
+        assertAcked(client().admin().indices().prepareCreate("lookup_index")
+                .setMapping("field", "type=keyword", "other", "type=text")
+        );
+        client().prepareIndex("search_index").setId("1").setSource("field",
+                List.of("value1", "value2"))
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        client().prepareIndex("search_index").setId("2").setSource("field",
+                "value1", "other", List.of("value1", "value2"))
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        client().prepareIndex("search_index").setId("3").setSource("field",
+                "value3", "other", List.of("value1", "value2"))
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        client().prepareIndex("lookup_index").setId("1").setSource("field", List.of("value1", "value2"))
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        client().prepareIndex("lookup_index").setId("2").setSource("other", "value2", "field", "value2")
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+
+        // user sees the terms doc field
+        SearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "1", "field")))
+                .get();
+        assertHitCount(response, 2);
+        assertSearchHits(response, "1", "2");
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "2", "field")))
+                .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+        // user does not see the terms doc field
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "2", "other")))
+                .get();
+        assertHitCount(response, 0);
+        // user does not see the queried field
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(QueryBuilders.termsLookupQuery("other", new TermsLookup("lookup_index", "1", "field")))
+                .get();
+        assertHitCount(response, 0);
+    }
+
     public void testGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
@@ -414,6 +636,82 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getSource().size(), equalTo(2));
         assertThat(response.getSource().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSource().get("field2").toString(), equalTo("value2"));
+    }
+
+    public void testRealtimeGetApi() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setSettings(Settings.builder().put("refresh_interval", "-1").build())
+        );
+        final boolean realtime = true;
+        final boolean refresh = false;
+
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
+        // do a realtime get beforehand to flip an internal translog flag so that subsequent realtime gets are
+        // served from the translog (this first one is NOT, it internally forces a refresh of the index)
+        client().prepareGet("test", "1")
+                .setRealtime(realtime)
+                .setRefresh(refresh)
+                .get();
+        refresh("test");
+        // updates don't change the doc visibility for users
+        // but updates populate the translog and the FLS filter must apply to the translog operations too
+        if (randomBoolean()) {
+            client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+        } else {
+            client().prepareUpdate("test", "1").setDoc(Map.of("field3", "value3"))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+        }
+
+        GetResponse getResponse;
+        MultiGetResponse mgetResponse;
+        // user1 is granted access to field1 only:
+        if (randomBoolean()) {
+            getResponse = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareGet("test", "1")
+                    .setRealtime(realtime)
+                    .setRefresh(refresh)
+                    .get();
+            assertThat(getResponse.isExists(), is(true));
+            assertThat(getResponse.getSource().size(), equalTo(1));
+            assertThat(getResponse.getSource().get("field1").toString(), equalTo("value1"));
+        } else {
+            mgetResponse = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareMultiGet()
+                    .add("test", "1")
+                    .setRealtime(realtime)
+                    .setRefresh(refresh)
+                    .get();
+            assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
+            assertThat(mgetResponse.getResponses()[0].getResponse().getSource().size(), equalTo(1));
+            assertThat(mgetResponse.getResponses()[0].getResponse().getSource().get("field1").toString(), equalTo("value1"));
+        }
+        // user2 is granted access to field2 only:
+        if (randomBoolean()) {
+            getResponse = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                    .prepareGet("test", "1")
+                    .setRealtime(realtime)
+                    .setRefresh(refresh)
+                    .get();
+            assertThat(getResponse.isExists(), is(true));
+            assertThat(getResponse.getSource().size(), equalTo(1));
+            assertThat(getResponse.getSource().get("field2").toString(), equalTo("value2"));
+        } else {
+            mgetResponse = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                    .prepareMultiGet()
+                    .add("test", "1")
+                    .setRealtime(realtime)
+                    .setRefresh(refresh)
+                    .get();
+            assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
+            assertThat(mgetResponse.getResponses()[0].getResponse().getSource().size(), equalTo(1));
+            assertThat(mgetResponse.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
+        }
     }
 
     public void testMGetApi() throws Exception {
@@ -731,12 +1029,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     static String openPointInTime(String userName, TimeValue keepAlive, String... indices) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client()
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
             .execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
-        return response.getSearchContextId();
+        return response.getPointInTimeId();
     }
 
     public void testPointInTimeId() throws Exception {

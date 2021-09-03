@@ -29,7 +29,7 @@ type: `boolean`.
                         express amounts.
 Dates::                 Date types, including <<date,`date`>> and
                         <<date_nanos,`date_nanos`>>.
-<<alias,`alias`>>::     Defines an alias for an existing field.
+<<field-alias,`alias`>>::     Defines an alias for an existing field.
 
 
 [discrete]
@@ -61,14 +61,16 @@ values.
 [[aggregated-data-types]]
 ==== Aggregate data types
 
-<<histogram,`histogram`>>:: Pre-aggregated numerical values.
+<<aggregate-metric-double,`aggregate_metric_double`>>:: Pre-aggregated metric values.
+<<histogram,`histogram`>>:: Pre-aggregated numerical values in the form of a histogram.
 
 
 [discrete]
 [[text-search-types]]
 ==== Text search types
 
-<<text,`text`>>:: Analyzed, unstructured text.
+<<text,`text` fields>>:: The text family, including `text` and `match_only_text`.
+                         Analyzed, unstructured text.
 {plugins}/mapper-annotated-text.html[`annotated-text`]:: Text containing special
 markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
@@ -113,18 +115,20 @@ zero or more values by default, however, all values in the array must be of the
 same field type. See <<array>>.
 
 [discrete]
+[[types-multi-fields]]
 === Multi-fields
-
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for
-sorting or aggregations.  Alternatively, you could index a text field with
+sorting or aggregations. Alternatively, you could index a text field with
 the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.
 
 This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
+
+include::types/aggregate-metric-double.asciidoc[]
 
 include::types/alias.asciidoc[]
 

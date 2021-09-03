@@ -271,7 +271,7 @@ following mapping matches any user where *all* of these conditions are met:
 
 - the _Distinguished Name_ matches the pattern `*,ou=admin,dc=example,dc=com`,
   or the username is `es-admin`, or the username is `es-system`
-- the user in in the `cn=people,dc=example,dc=com` group
+- the user in the `cn=people,dc=example,dc=com` group
 - the user does not have a `terminated_date`
 
 

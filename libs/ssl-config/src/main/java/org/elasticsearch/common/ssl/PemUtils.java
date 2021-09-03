@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
@@ -29,14 +18,13 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
@@ -62,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-final class PemUtils {
+public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
@@ -85,6 +73,29 @@ final class PemUtils {
     }
 
     /**
+     * Creates a {@link PrivateKey} from the contents of a file and handles any exceptions
+     *
+     * @param path           the path for the key file
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @return a private key from the contents of the file
+     */
+    public static PrivateKey readPrivateKey(Path path, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+        try {
+            final PrivateKey privateKey = PemUtils.parsePrivateKey(path, passwordSupplier);
+            if (privateKey == null) {
+                throw new SslConfigException("could not load ssl private key file [" + path + "]");
+            }
+            return privateKey;
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
+        } catch (IOException e) {
+            throw SslFileUtil.ioException("PEM private key", List.of(path), e);
+        } catch (GeneralSecurityException e) {
+            throw SslFileUtil.securityException("PEM private key", List.of(path), e);
+        }
+    }
+
+    /**
      * Creates a {@link PrivateKey} from the contents of a file. Supports PKCS#1, PKCS#8
      * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys
      *
@@ -92,7 +103,7 @@ final class PemUtils {
      * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
      * @return a private key from the contents of the file
      */
-    public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+    static PrivateKey parsePrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
             while (null != line && line.startsWith(HEADER) == false) {
@@ -120,13 +131,9 @@ final class PemUtils {
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
-                throw new SslConfigException("error parsing Private Key [" + keyPath.toAbsolutePath()
-                    + "], file does not contain a supported key format");
+                throw new SslConfigException("cannot read PEM private key [" + keyPath.toAbsolutePath()
+                    + "] because the file does not contain a supported key format");
             }
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("private key file [" + keyPath.toAbsolutePath() + "] does not exist", e);
-        } catch (IOException | GeneralSecurityException e) {
-            throw new SslConfigException("private key file [" + keyPath.toAbsolutePath() + "] cannot be parsed", e);
         }
     }
 
@@ -589,7 +596,7 @@ final class PemUtils {
             "] is not żsupported");
     }
 
-    static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
+    public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         for (Path path : certPaths) {

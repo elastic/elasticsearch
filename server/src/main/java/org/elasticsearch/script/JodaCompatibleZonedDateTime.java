@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -63,19 +53,20 @@ public class JodaCompatibleZonedDateTime
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
 
-    private static void logDeprecated(String key, String message, Object... params) {
+    private static void logDeprecated(DeprecationCategory category, String key, String message, Object... params) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override
             public Void run() {
-                deprecationLogger.deprecate(key, message, params);
+                deprecationLogger.deprecate(category, key, message, params);
                 return null;
             }
         });
     }
 
     private static void logDeprecatedMethod(String oldMethod, String newMethod) {
-        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.", oldMethod, newMethod);
+        logDeprecated(DeprecationCategory.PARSING, oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
+            oldMethod, newMethod);
     }
 
     private ZonedDateTime dt;
@@ -518,7 +509,7 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getDayOfWeek() {
-        logDeprecated("getDayOfWeek()",
+        logDeprecated(DeprecationCategory.PARSING, "getDayOfWeek()",
             "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().");
         return dt.getDayOfWeek().getValue();
     }

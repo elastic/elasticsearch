@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -48,10 +37,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() {
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 1, exc  -> {});
         boolean hasHits = randomBoolean();
@@ -94,9 +82,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        SearchPhaseController controller = new SearchPhaseController(s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
@@ -156,9 +143,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        SearchPhaseController controller = new SearchPhaseController(s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
@@ -220,10 +206,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), numHits, exc  -> {});
         for (int i = 0; i < numHits; i++) {
@@ -279,10 +264,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         QueryPhaseResultConsumer results =
-            controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
@@ -339,9 +323,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        SearchPhaseController controller = new SearchPhaseController(s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = 1;

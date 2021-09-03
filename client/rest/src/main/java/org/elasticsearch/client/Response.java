@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -121,6 +121,7 @@ public class Response {
      * Length of RFC 1123 format (with quotes and leading space), used in
      * matchWarningHeaderPatternByPrefix(String).
      */
+    // @formatter:off
     private static final int WARNING_HEADER_DATE_LENGTH = 0
             + 1
             + 1
@@ -131,6 +132,7 @@ public class Response {
             + 2 + 1 + 2 + 1 + 2 + 1
             + 3
             + 1;
+    // @formatter:on
 
     /**
      * Tests if a string matches the RFC 7234 specification for warning headers.

@@ -26,6 +26,32 @@ POST _bulk
 
 `POST /<target>/_bulk`
 
+[[docs-bulk-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
+
+** To use the `create` action, you must have the `create_doc`, `create`,
+`index`, or `write` index privilege. Data streams support only the `create`
+action.
+
+** To use the `index` action, you must have the `create`, `index`, or `write`
+index privilege.
+
+** To use the `delete` action, you must have the `delete` or `write` index
+privilege.
+
+** To use the `update` action, you must have the `index` or `write` index
+privilege.
+
+** To automatically create a data stream or index with a bulk API request, you
+must have the `auto_configure`, `create_index`, or `manage` index privilege.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
 [[docs-bulk-api-desc]]
 ==== {api-description-title}
 
@@ -63,9 +89,9 @@ has the same semantics as the standard delete API.
 [NOTE]
 ====
 The final line of data must end with a newline character `\n`. 
-Each newline character may be preceded by a carriage return `\r`. 
-When sending requests to the `_bulk` endpoint,
-the `Content-Type` header should be set to `application/x-ndjson`.
+Each newline character may be preceded by a carriage return `\r`.
+When sending NDJSON data to the `_bulk` endpoint, use a `Content-Type` header of
+`application/json` or `application/x-ndjson`.
 ====
 
 Because this format uses literal `\n`'s as delimiters, 
@@ -211,6 +237,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
+`require_alias`::
+(Optional, Boolean) If `true`, the request's actions must target an index alias.
+Defaults to `false`.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
@@ -219,7 +249,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period each action waits for the following operations:
+
+* <<index-creation,Automatic index creation>>
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
@@ -237,6 +280,10 @@ The following line must contain the source data to be indexed.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
 --
 
 `delete`::
@@ -249,6 +296,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 `_id`::
 (Required, string) 
 The document ID.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `index`::
@@ -261,6 +310,10 @@ The following line must contain the source data to be indexed.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
 --
 
 `update`::
@@ -272,6 +325,8 @@ The following line must contain the partial document and update options.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `doc`::
@@ -686,3 +741,39 @@ The API returns the following result.
 }
 ----
 // TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]
+
+
+[discrete]
+[[bulk-dynamic-templates]]
+===== Example with dynamic templates parameter
+
+The below example creates a dynamic template, then performs a bulk request
+consisting of index/create requests with the `dynamic_templates` parameter.
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "geo_point": {
+             "mapping": {
+                "type" : "geo_point"
+             }
+        }
+      }
+    ]
+  }
+}
+
+POST /_bulk
+{ "index" : { "_index" : "my_index", "_id" : "1", "dynamic_templates": {"work_location": "geo_point"}} }
+{ "field" : "value1", "work_location": "41.12,-71.34", "raw_location": "41.12,-71.34"}
+{ "create" : { "_index" : "my_index", "_id" : "2", "dynamic_templates": {"home_location": "geo_point"}} }
+{ "field" : "value2", "home_location": "41.12,-71.34"}
+----
+
+The bulk request creates two new fields `work_location` and `home_location` with type `geo_point` according
+to the `dynamic_templates` parameter; however, the `raw_location` field is created using default dynamic mapping
+rules, as a `text` field in that case since it is supplied as a string in the JSON document.

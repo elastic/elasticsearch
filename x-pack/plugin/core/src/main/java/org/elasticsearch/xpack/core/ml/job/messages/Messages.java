@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.messages;
 
@@ -49,15 +50,23 @@ public final class Messages {
     public static final String DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD = "Missing max aggregation for time_field [{0}]";
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE =
+        "Composite aggregation [{0}] must have exactly one date_histogram source";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET =
+        "Datafeed composite aggregation [{0}] date_histogram [{1}] source does not support missing_buckets";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT =
+        "Datafeed composite aggregation [{0}] date_histogram [{1}] must be sorted in ascending order";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_BE_TOP_LEVEL_AND_ALONE =
+        "Composite aggregation [{0}] must be the only composite agg and should be the only top level aggregation";
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
     public static final String DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH = "Datafeed [{0}] is configured with a remote index pattern(s) {1}" +
         " but the current node [{2}] is not allowed to connect to remote clusters." +
-        " Please enable node.remote_cluster_client for all machine learning nodes.";
+        " Please enable node.remote_cluster_client for all machine learning nodes and master-eligible nodes.";
 
     public static final String DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT = "Data Frame Analytics config query is not parsable";
     public static final String DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER = "No field [{0}] could be detected";
 
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATED = "Created analytics with analysis type [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATED = "Created analytics with type [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED = "Updated analytics settings: {0}";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED = "Started analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STOPPED = "Stopped analytics";
@@ -65,7 +74,7 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_DELETED = "Deleted analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON =
             "Updated analytics task state to [{0}] with reason [{1}]";
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage for this analytics to be [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED =
         "Configured model memory limit [{0}] is lower than the expected memory usage [{1}]. " +
             "The analytics job may fail due to configured memory constraints.";
@@ -104,8 +113,9 @@ public final class Messages {
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
-    public static final String INFERENCE_CANNOT_DELETE_MODEL =
-        "Unable to delete model [{0}]";
+    public static final String VOCABULARY_NOT_FOUND = "[{0}] Could not find vocabulary document [{1}] for model ";
+    public static final String INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL =
+        "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
@@ -117,10 +127,16 @@ public final class Messages {
     public static final String INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE = "The provided tags {0} must not match existing model_ids.";
     public static final String INFERENCE_MODEL_ID_AND_TAGS_UNIQUE = "The provided model_id {0} must not match existing tags.";
 
+    public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), " +
+        "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
+    public static final String TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY =
+        "The input fields for new model [{0}] and for old model [{1}] differ significantly, model results may change drastically.";
+
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";
     public static final String JOB_AUDIT_UPDATED = "Job updated: {0}";
     public static final String JOB_AUDIT_CLOSING = "Job is closing";
+    public static final String JOB_AUDIT_RESET = "Job has been reset";
     public static final String JOB_AUDIT_FORCE_CLOSING = "Job is closing (forced)";
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
@@ -141,11 +157,11 @@ public final class Messages {
     public static final String JOB_AUDIT_DELETED = "Job deleted";
     public static final String JOB_AUDIT_KILLING = "Killing job";
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {0}";
+    public static final String JOB_AUDIT_OLD_ANNOTATIONS_DELETED = "Deleted annotations prior to {0}";
     public static final String JOB_AUDIT_SNAPSHOT_STORED = "Job model snapshot with id [{0}] stored";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
     public static final String JOB_AUDIT_SNAPSHOTS_DELETED = "[{0}] expired model snapshots deleted";
-    public static final String JOB_AUDIT_FILTER_UPDATED_ON_PROCESS = "Updated filter [{0}] in running process";
     public static final String JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS = "Updated calendars in running process";
     public static final String JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT = "Job memory status changed to soft_limit; memory pruning will now be " +
             "more aggressive";
@@ -154,6 +170,10 @@ public final class Messages {
             "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
     public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
         "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+
+    public static final String JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN = "Job requires at least [{0}] free memory "
+        + "on a machine learning capable node to run; [{1}] are available. "
+        + "The current total capacity for ML [total: {2}, largest node: {3}].";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =
@@ -222,9 +242,13 @@ public final class Messages {
             "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
+    public static final String JOB_CONFIG_TIME_FIELD_CANNOT_BE_RUNTIME =
+        "data_description.time_field [{0}] cannot be a runtime field";
     public static final String JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT =
             "The value of '" + Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS + "' [{0}] cannot be greater than '" +
                 Job.MODEL_SNAPSHOT_RETENTION_DAYS + "' [{1}]";
+    public static final String JOB_CONFIG_DATAFEED_CONFIG_JOB_ID_MISMATCH =
+        "datafeed job_id [{0}] does not equal job id [{1}}";
 
     public static final String JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE =
             "job and group names must be unique but job [{0}] and group [{0}] have the same name";
@@ -240,6 +264,7 @@ public final class Messages {
     public static final String REST_INVALID_FLUSH_PARAMS_MISSING = "Invalid flush parameters: ''{0}'' has not been specified.";
     public static final String REST_INVALID_FLUSH_PARAMS_UNEXPECTED = "Invalid flush parameters: unexpected ''{0}''.";
     public static final String REST_JOB_NOT_CLOSED_REVERT = "Can only revert to a model snapshot when the job is closed.";
+    public static final String REST_JOB_NOT_CLOSED_RESET = "Can only reset a job when it is closed.";
     public static final String REST_NO_SUCH_MODEL_SNAPSHOT = "No model snapshot with id [{0}] exists for job [{1}]";
     public static final String REST_START_AFTER_END = "Invalid time range: end time ''{0}'' is earlier than start time ''{1}''.";
     public static final String REST_NO_SUCH_FORECAST = "No forecast(s) [{0}] exists for job [{1}]";

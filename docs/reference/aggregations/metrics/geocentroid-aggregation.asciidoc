@@ -150,9 +150,10 @@ The response for the above aggregation:
 
 [discrete]
 [role="xpack"]
+[[geocentroid-aggregation-geo-shape]]
 ==== Geo Centroid Aggregation on `geo_shape` fields
 
-The centroid metric for geo-shapes is more nuanced than for points. The centroid of a specific aggregation bucket
+The centroid metric for geoshapes is more nuanced than for points. The centroid of a specific aggregation bucket
 containing shapes is the centroid of the highest-dimensionality shape type in the bucket. For example, if a bucket contains
 shapes comprising of polygons and lines, then the lines do not contribute to the centroid metric. Each type of shape's
 centroid is calculated differently. Envelopes and circles ingested via the <<ingest-circle-processor>> are treated
@@ -232,12 +233,12 @@ POST /places/_search?size=0
 .Using `geo_centroid` as a sub-aggregation of `geohash_grid`
 ====
 The <<search-aggregations-bucket-geohashgrid-aggregation,`geohash_grid`>>
-aggregation places documents, not individual geo-points, into buckets. If a
+aggregation places documents, not individual geopoints, into buckets. If a
 document's `geo_point` field contains <<array,multiple values>>, the document
-could be assigned to multiple buckets, even if one or more of its geo-points are
+could be assigned to multiple buckets, even if one or more of its geopoints are
 outside the bucket boundaries.
 
 If a `geocentroid` sub-aggregation is also used, each centroid is calculated
-using all geo-points in a bucket, including those outside the bucket boundaries.
+using all geopoints in a bucket, including those outside the bucket boundaries.
 This can result in centroids outside of bucket boundaries.
 ====

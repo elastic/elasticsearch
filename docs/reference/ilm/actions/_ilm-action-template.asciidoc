@@ -12,7 +12,7 @@ docs/reference/ilm/actions.asciidoc
 [[ilm-sample]]
 === Sample
 
-Phases allowed: hot, warm, cold, delete.
+Phases allowed: hot, warm, cold, frozen, delete.
 
 ////
 INTRO

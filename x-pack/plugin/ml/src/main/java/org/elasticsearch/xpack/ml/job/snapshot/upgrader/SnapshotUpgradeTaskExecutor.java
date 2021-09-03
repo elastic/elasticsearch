@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
@@ -15,8 +16,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -24,7 +27,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -39,6 +44,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -50,6 +56,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     private final AutodetectProcessManager autodetectProcessManager;
     private final AnomalyDetectionAuditor auditor;
     private final JobResultsProvider jobResultsProvider;
+    private final XPackLicenseState licenseState;
     private volatile ClusterState clusterState;
     private final Client client;
 
@@ -58,7 +65,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                                        AutodetectProcessManager autodetectProcessManager,
                                        MlMemoryTracker memoryTracker,
                                        IndexNameExpressionResolver expressionResolver,
-                                       Client client) {
+                                       Client client,
+                                       XPackLicenseState licenseState) {
         super(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             MachineLearning.UTILITY_THREAD_POOL_NAME,
             settings,
@@ -69,20 +77,27 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         this.auditor = new AnomalyDetectionAuditor(client, clusterService);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.client = client;
+        this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(SnapshotUpgradeTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(SnapshotUpgradeTaskParams params,
+                                                                  Collection<DiscoveryNode> candidateNodes,
+                                                                  ClusterState clusterState) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+            getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+        // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             clusterState,
+            candidateNodes,
             params.getJobId(),
-            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            // Use the job_task_name for the appropriate job size
+            MlTasks.JOB_TASK_NAME,
             memoryTracker,
             0,
             node -> null);
@@ -91,7 +106,6 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             Integer.MAX_VALUE,
             maxMachineMemoryPercent,
             Long.MAX_VALUE,
-            isMemoryTrackerRecentlyRefreshed,
             useAutoMemoryPercentage);
     }
 
@@ -123,59 +137,94 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 jobTaskState.getReason() == null ? "__unknown__" : jobTaskState.getReason()));
             return;
         }
+        final String jobId = params.getJobId();
+        final String snapshotId = params.getSnapshotId();
 
         ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
-           r -> autodetectProcessManager.upgradeSnapshot((SnapshotUpgradeTask)task, e -> {
-               if (e == null) {
-                   auditor.info(params.getJobId(), "Finished upgrading snapshot [" + params.getSnapshotId() + "]");
-                   logger.info("[{}] [{}] finished upgrading snapshot", params.getJobId(), params.getSnapshotId());
-                   task.markAsCompleted();
-               } else {
-                   logger.warn(
-                       () -> new ParameterizedMessage(
-                           "[{}] failed upgrading snapshot [{}]",
-                           params.getJobId(),
-                           params.getSnapshotId()),
-                       e);
-                   auditor.warning(params.getJobId(),
-                       "failed upgrading snapshot ["
-                           + params.getSnapshotId()
-                           + "] with exception "
-                           + ExceptionsHelper.unwrapCause(e).getMessage());
-                   task.markAsFailed(e);
-               }
-           }),
-           e -> {
-               logger.warn(
-                   () -> new ParameterizedMessage(
-                       "[{}] failed upgrading snapshot [{}] as ml state alias creation failed",
-                       params.getJobId(),
-                       params.getSnapshotId()),
-                   e);
-               auditor.warning(params.getJobId(),
-                   "failed upgrading snapshot ["
-                       + params.getSnapshotId()
-                       + "] with exception "
-                       + ExceptionsHelper.unwrapCause(e).getMessage());
-               // We need to update cluster state so the API caller can be notified and exit
-               // As we have not set the task state to STARTED, it might still be waiting.
-               task.updatePersistentTaskState(
-                   new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, -1, e.getMessage()),
-                   ActionListener.wrap(
-                       r -> task.markAsFailed(e),
-                       failure -> {
-                           logger.warn(
-                               new ParameterizedMessage(
-                                   "[{}] [{}] failed to set task to failed",
-                                   params.getJobId(),
-                                   params.getSnapshotId()),
-                               failure);
-                           task.markAsFailed(e);
-                       }
-                   ));
-           }
+            r -> autodetectProcessManager.upgradeSnapshot((SnapshotUpgradeTask)task, e -> {
+                if (e == null) {
+                    auditor.info(jobId, "Finished upgrading snapshot [" + snapshotId + "]");
+                    logger.info("[{}] [{}] finished upgrading snapshot", jobId, snapshotId);
+                    task.markAsCompleted();
+                } else {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "[{}] failed upgrading snapshot [{}]",
+                            jobId,
+                            snapshotId),
+                        e);
+                    auditor.warning(jobId,
+                        "failed upgrading snapshot ["
+                            + snapshotId
+                            + "] with exception "
+                            + ExceptionsHelper.unwrapCause(e).getMessage());
+                    task.markAsFailed(e);
+                }
+            }),
+            e -> {
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "[{}] failed upgrading snapshot [{}] as ml state alias creation failed",
+                        jobId,
+                        snapshotId),
+                    e);
+                auditor.warning(jobId,
+                    "failed upgrading snapshot ["
+                        + snapshotId
+                        + "] with exception "
+                        + ExceptionsHelper.unwrapCause(e).getMessage());
+                // We need to update cluster state so the API caller can be notified and exit
+                // As we have not set the task state to STARTED, it might still be waiting.
+                task.updatePersistentTaskState(
+                    new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, -1, e.getMessage()),
+                    ActionListener.wrap(
+                        r -> task.markAsFailed(e),
+                        failure -> {
+                            logger.warn(
+                                new ParameterizedMessage(
+                                    "[{}] [{}] failed to set task to failed",
+                                    jobId,
+                                    snapshotId),
+                                failure);
+                            task.markAsFailed(e);
+                        }
+                    ));
+            }
         );
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasHandler);
+
+        // Make sure the state index and alias exist
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver,
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT, stateAliasHandler),
+            task::markAsFailed
+        );
+
+        // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
+        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+            ack -> ElasticsearchMappings.addDocMappingIfMissing(
+                AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                AnomalyDetectorsIndex::wrappedResultsMapping,
+                client,
+                clusterState,
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
+                resultsMappingUpdateHandler),
+            e -> {
+                // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
+                // and it would cause more harm than good to block jobs from opening in subsequent releases
+                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                ElasticsearchMappings.addDocMappingIfMissing(
+                    AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                    AnomalyDetectorsIndex::wrappedResultsMapping,
+                    client,
+                    clusterState,
+                    MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
+                    resultsMappingUpdateHandler);
+            }
+        );
+
+        // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
+        AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
+            annotationsIndexUpdateHandler);
     }
 
     @Override
@@ -188,7 +237,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             type,
             action,
             parentTaskId,
-            headers);
+            headers,
+            licenseState);
     }
 
     @Override

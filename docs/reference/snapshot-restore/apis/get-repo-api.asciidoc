@@ -33,11 +33,18 @@ GET /_snapshot/my_repository
 
 `GET /_snapshot`
 
+[[get-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[get-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
 
 `<repository>`::
-(Required, string)
+(Optional, string)
 Comma-separated list of snapshot repository names used to limit the request.
 Wildcard (`*`) expressions are supported.
 +
@@ -105,8 +112,9 @@ Contains settings for the repository. Valid properties for the `settings` object
 depend on the repository type, set using the
 <<put-snapshot-repo-api-request-type,`type`>> parameter.
 +
-For properties, see the <<put-snapshot-repo-api,put snapshot repository API>>'s
-<<put-snapshot-repo-api-settings-param,`settings` parameter>>.
+For properties, see the <<put-snapshot-repo-api,create or update snapshot
+repository API>>'s <<put-snapshot-repo-api-settings-param,`settings`
+parameter>>.
 ====
 
 [[get-snapshot-repo-api-example]]
@@ -124,9 +132,11 @@ The API returns the following response:
 {
   "my_repository" : {
     "type" : "fs",
+    "uuid" : "0JLknrXbSUiVPuLakHjBrQ",
     "settings" : {
       "location" : "my_backup_location"
     }
   }
 }
 ----
+// TESTRESPONSE[s/"uuid" : "0JLknrXbSUiVPuLakHjBrQ"/"uuid" : $body.my_repository.uuid/]

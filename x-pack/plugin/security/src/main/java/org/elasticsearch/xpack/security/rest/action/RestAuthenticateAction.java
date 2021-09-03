@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -22,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,14 +39,10 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(new ReplacedRoute(GET, "/_security/_authenticate", GET,
-            "/_xpack/security/_authenticate"));
+        return List.of(
+            Route.builder(GET, "/_security/_authenticate")
+                .replaces(GET, "/_xpack/security/_authenticate", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

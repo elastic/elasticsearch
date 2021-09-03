@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.integration;
@@ -20,8 +21,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
@@ -69,7 +68,10 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
         setupUser("ml_admin", Collections.singletonList("machine_learning_admin"));
         setupUser("ml_admin_plus_data", Arrays.asList("machine_learning_admin", "test_data_access"));
         String mlAdmin = UsernamePasswordToken.basicAuthHeaderValue("ml_admin", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        String mlAdminPlusData = UsernamePasswordToken.basicAuthHeaderValue("ml_admin_plus_data", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        String mlAdminPlusData = UsernamePasswordToken.basicAuthHeaderValue(
+            "ml_admin_plus_data",
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+        );
         Request evaluateRequest = buildRegressionEval(index, mlAdmin, mlAdminPlusData);
         client().performRequest(evaluateRequest);
 

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLException;
@@ -41,7 +42,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     private Path updateableCertPath;
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Nodes start trusting testnode.crt and testclient.crt
         Path origKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         Path origCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -69,7 +70,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("failed to copy key or certificate", e);
         }
 
-        Settings settings = super.nodeSettings(nodeOrdinal);
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
                 .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
         builder.put("path.home", createTempDir())
@@ -108,7 +109,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster()
             .getInstance(Transport.class, node).boundAddress().publishAddress();

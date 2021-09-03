@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent;
 
@@ -30,8 +19,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
@@ -68,7 +57,7 @@ public class PersistentTasksService {
                                                                        final Params taskParams,
                                                                        final ActionListener<PersistentTask<Params>> listener) {
         @SuppressWarnings("unchecked")
-        final ActionListener<PersistentTask<?>> wrappedListener = ActionListener.map(listener, t -> (PersistentTask<Params>) t);
+        final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
         execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);
     }
@@ -76,13 +65,17 @@ public class PersistentTasksService {
     /**
      * Notifies the master node about the completion of a persistent task.
      * <p>
-     * When {@code failure} is {@code null}, the persistent task is considered as successfully completed.
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
      */
     public void sendCompletionRequest(final String taskId,
                                       final long taskAllocationId,
                                       final @Nullable Exception taskFailure,
+                                      final @Nullable String localAbortReason,
                                       final ActionListener<PersistentTask<?>> listener) {
-        CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure);
+        CompletionPersistentTaskAction.Request request =
+            new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure, localAbortReason);
         execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
     }
 
@@ -131,7 +124,7 @@ public class PersistentTasksService {
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
         void execute(final Req request, final ActionType<Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
-                client.execute(action, request, ActionListener.map(listener, PersistentTaskResponse::getTask));
+                client.execute(action, request, listener.map(PersistentTaskResponse::getTask));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

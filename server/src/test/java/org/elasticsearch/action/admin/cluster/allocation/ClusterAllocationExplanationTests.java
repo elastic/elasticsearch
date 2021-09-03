@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -42,6 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the cluster allocation explanation
@@ -61,11 +53,12 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
     }
 
     public void testExplanationSerialization() throws Exception {
-        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(randomBoolean());
+        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(randomBoolean(), randomBoolean());
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         ClusterAllocationExplanation cae2 = new ClusterAllocationExplanation(in);
+        assertEquals(cae.isSpecificShard(), cae2.isSpecificShard());
         assertEquals(cae.getShard(), cae2.getShard());
         assertEquals(cae.isPrimary(), cae2.isPrimary());
         assertTrue(cae2.isPrimary());
@@ -84,7 +77,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
     }
 
     public void testExplanationToXContent() throws Exception {
-        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true);
+        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"started\",\"current_node\":" +
@@ -94,7 +87,25 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                          "that can both allocate this shard and improve the cluster balance\"}", Strings.toString(builder));
     }
 
-    private static ClusterAllocationExplanation randomClusterAllocationExplanation(boolean assignedShard) {
+    public void testRandomShardExplanationToXContent() throws Exception {
+        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, false);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final String actual = Strings.toString(builder);
+        assertThat(actual, allOf(
+            equalTo("{\"note\":\"" + ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE +
+                "\",\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"started\",\"current_node\":" +
+                "{\"id\":\"node-0\",\"name\":\"\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
+                "\",\"weight_ranking\":3},\"can_remain_on_current_node\":\"yes\",\"can_rebalance_cluster\":\"yes\"," +
+                "\"can_rebalance_to_other_node\":\"no\",\"rebalance_explanation\":\"cannot rebalance as no target node exists " +
+                "that can both allocate this shard and improve the cluster balance\"}"),
+            // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
+            containsString("No shard was specified in the explain API request"),
+            containsString("specify the target shard in the request")
+        ));
+    }
+
+    private static ClusterAllocationExplanation randomClusterAllocationExplanation(boolean assignedShard, boolean specificShard) {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(new Index("idx", "123"), 0),
             assignedShard ? "node-0" : null, true, assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED);
         DiscoveryNode node = assignedShard ? new DiscoveryNode("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
@@ -108,6 +119,6 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);
             shardAllocationDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         }
-        return new ClusterAllocationExplanation(shardRouting, node, null, null, shardAllocationDecision);
+        return new ClusterAllocationExplanation(specificShard, shardRouting, node, null, null, shardAllocationDecision);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.searchafter;
@@ -24,7 +13,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,7 +94,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         return Arrays.copyOf(sortValues, sortValues.length);
     }
 
-    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values) {
+    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values, @Nullable String collapseField) {
         if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
             throw new IllegalArgumentException("Sort must contain at least one field.");
         }
@@ -115,6 +105,12 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has "
                             + sort.sort.getSort().length + ".");
         }
+
+        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+            throw new IllegalArgumentException("Cannot use [collapse] in conjunction with [" + SEARCH_AFTER.getPreferredName()
+                + "] unless the search is sorted on the same field. Multiple sort fields are not allowed.");
+        }
+
         Object[] fieldValues = new Object[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             SortField sortField = sortFields[i];
@@ -276,7 +272,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object other) {
-        if (! (other instanceof SearchAfterBuilder)) {
+        if ((other instanceof SearchAfterBuilder) == false) {
             return false;
         }
         return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);

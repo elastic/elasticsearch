@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -29,13 +18,15 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.function.BiFunction;
 
 /**
  * This class represents a trust configuration that corresponds to the default trusted CAs of the JDK
  */
-final class DefaultJdkTrustConfig implements SslTrustConfig {
+public final class DefaultJdkTrustConfig implements SslTrustConfig {
+
+    public static final DefaultJdkTrustConfig DEFAULT_INSTANCE = new DefaultJdkTrustConfig();
 
     private final BiFunction<String, String, String> systemProperties;
     private final char[] trustStorePassword;
@@ -60,6 +51,11 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
     DefaultJdkTrustConfig(BiFunction<String, String, String> systemProperties, @Nullable char[] trustStorePassword) {
         this.systemProperties = systemProperties;
         this.trustStorePassword = trustStorePassword;
+    }
+
+    @Override
+    public boolean isSystemDefault() {
+        return true;
     }
 
     @Override
@@ -101,7 +97,12 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return List.of();
     }
 
     @Override

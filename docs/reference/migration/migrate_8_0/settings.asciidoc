@@ -1,13 +1,11 @@
 [discrete]
 [[breaking_80_settings_changes]]
-=== Settings changes
+==== Settings changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
-
 [[search-remote-settings-removed]]
 .The `search.remote.*` settings have been removed.
 [%collapsible]
@@ -134,7 +132,7 @@ in {es} 8.0.0:
 * `xpack.transform.enabled`
 * `xpack.vectors.enabled`
 
-These basic license features are now always enabled for the {default-dist}.
+These basic license features are now always enabled.
 
 If you have disabled ILM so that you can use another tool to manage Watcher
 indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
@@ -144,3 +142,161 @@ may be set to false.
 Discontinue use of the removed settings. Specifying these settings in
 `elasticsearch.yml` will result in an error on startup.
 ====
+
+.Settings used to defer cluster recovery pending a certain number of master nodes have been removed.
+[%collapsible]
+====
+*Details* +
+The following settings were deprecated in {es} 7.8.0 and have been removed in
+{es} 8.0.0:
+
+* `gateway.expected_nodes`
+* `gateway.expected_master_nodes`
+* `gateway.recover_after_nodes`
+* `gateway.recover_after_master_nodes`
+
+It is safe to recover the cluster as soon as a majority of master-eligible
+nodes have joined so there is no benefit in waiting for any additional
+master-eligible nodes to start.
+
+*Impact* +
+Discontinue use of the removed settings. If needed, use
+`gateway.expected_data_nodes` or `gateway.recover_after_data_nodes` to defer
+cluster recovery pending a certain number of data nodes.
+====
+
+.You can no longer set `xpack.searchable.snapshot.shared_cache.size` on non-frozen nodes.
+[%collapsible]
+====
+*Details* +
+Setting `xpack.searchable.snapshot.shared_cache.size` to be positive on a node
+that does not have the `data_frozen` role was deprecated in {es} 7.12.0 and has
+been removed in {es} 8.0.0.
+
+*Impact* +
+{es} only allocates partially mounted indices to nodes with the `data_frozen`
+role. Do not set `xpack.searchable.snapshot.shared_cache.size` on nodes without
+the `data_frozen` role. Removing the setting on nodes without the `data_frozen`
+role will not impact functionality.
+====
+
+.By default, destructive index actions do not allow wildcards.
+[%collapsible]
+====
+*Details* +
+The default value of the setting `action.destructive_requires_name` changes from `false`
+to `true` in {es} 8.0.0.
+
+In previous versions, the default setting allowed users to use wildcard
+patterns to delete, close, or change index blocks on indices. In order
+to prevent the accidental deletion of indices that happen to match a
+wildcard pattern, we now require, by default, that any such destructive
+operation explicitly name the indices it intends to modify.
+
+*Impact* +
+If you would like to use wildcard patterns for destructive actions, set
+`action.destructive_requires_name` to `false` using the
+{ref}/cluster-update-settings.html[] cluster settings API].
+====
+
+.Legacy role settings have been removed.
+[%collapsible]
+====
+*Details* +
+The legacy role settings:
+
+* `node.data`
+* `node.ingest`
+* `node.master`
+* `node.ml`
+* `node.remote_cluster_client`
+* `node.transform`
+* `node.voting_only`
+
+have been removed. Instead, use the `node.roles` setting. If you were previously
+using the legacy role settings on a 7.13 or later cluster, you will have a
+deprecation log message on each of your nodes indicating the exact replacement
+value for `node.roles`.
+
+*Impact* +
+Discontinue use of the removed settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
+====
+
+[[system-call-filter-setting]]
+.The system call filter setting has been removed.
+[%collapsible]
+====
+*Details* +
+Elasticsearch uses system call filters to remove its ability to fork another
+process. This is useful to mitigate remote code exploits. These system call
+filters are enabled by default, and were previously controlled via the setting
+`bootstrap.system_call_filter`. Starting in Elasticsearch 8.0, system call
+filters will be required. As such, the setting `bootstrap.system_call_filter`
+was deprecated in Elasticsearch 7.13.0, and is removed as of Elasticsearch
+8.0.0.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying this setting in Elasticsearch
+configuration will result in an error on startup.
+====
+
+[[tier-filter-setting]]
+.Tier filtering settings have been removed.
+[%collapsible]
+====
+*Details* +
+The cluster and index level settings ending in `._tier` used for filtering the allocation of a shard
+to a particular set of nodes have been removed. Instead, the
+{ref}/data-tier-shard-filtering.html#tier-preference-allocation-filter[tier
+preference setting], `index.routing.allocation.include._tier_preference` should
+be used. The removed settings are:
+
+Cluster level settings:
+- `cluster.routing.allocation.include._tier`
+- `cluster.routing.allocation.exclude._tier`
+- `cluster.routing.allocation.require._tier`
+Index settings:
+- `index.routing.allocation.include._tier`
+- `index.routing.allocation.exclude._tier`
+- `index.routing.allocation.require._tier`
+
+*Impact* +
+Discontinue use of the removed settings. Specifying any of these cluster settings in Elasticsearch
+configuration will result in an error on startup. Any indices using these settings will have the
+settings archived (and they will have no effect) when the index metadata is loaded.
+====
+
+[[shared-data-path-setting]]
+.Shared data path and per index data path settings are deprecated.
+[%collapsible]
+====
+*Details* +
+Elasticsearch uses the shared data path as the base path of per index data
+paths. This feature was previously used with shared replicas. Starting in
+7.13.0, these settings are deprecated. Starting in 8.0 only existing
+indices created in 7.x will be capable of using the shared data path and
+per index data path settings.
+
+*Impact* +
+Discontinue use of the deprecated settings.
+====
+
+[[single-data-node-watermark-setting]]
+.The single data node watermark setting is deprecated and now only accepts `true`.
+[%collapsible]
+====
+*Details* +
+In 7.14, setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+to false was deprecated. Starting in 8.0, the only legal value will be
+true. In a future release, the setting will be removed completely, with same
+behavior as if the setting was `true`.
+
+If the old behavior is desired for a single data node cluster, disk based
+allocation can be disabled by setting
+`cluster.routing.allocation.disk.threshold_enabled: false`
+
+*Impact* +
+Discontinue use of the deprecated setting.
+====
+//end::notable-breaking-changes[]

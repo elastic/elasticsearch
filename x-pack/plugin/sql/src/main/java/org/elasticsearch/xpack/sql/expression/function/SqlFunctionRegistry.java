@@ -1,14 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.ql.ParsingException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -34,8 +43,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDa
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateParse;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
@@ -54,6 +63,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYe
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParse;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToChar;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
@@ -109,6 +119,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
@@ -121,16 +132,26 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.List;
+
+import static java.util.Collections.unmodifiableList;
+
 public class SqlFunctionRegistry extends FunctionRegistry {
 
     public SqlFunctionRegistry() {
-        super(functions());
+        register(functions());
     }
 
-    private static FunctionDefinition[][] functions() {
-        return new FunctionDefinition[][] {
-        // Aggregate functions
-            new FunctionDefinition[] {
+    SqlFunctionRegistry(FunctionDefinition... functions) {
+        register(functions);
+    }
+
+    private FunctionDefinition[][] functions() {
+        return new FunctionDefinition[][]{
+            // Aggregate functions
+            new FunctionDefinition[]{
                 def(Avg.class, Avg::new, "AVG"),
                 def(Count.class, Count::new, "COUNT"),
                 def(First.class, First::new, "FIRST", "FIRST_VALUE"),
@@ -138,9 +159,9 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Max.class, Max::new, "MAX"),
                 def(Min.class, Min::new, "MIN"),
                 def(Sum.class, Sum::new, "SUM")
-                },
-        // Statistics
-            new FunctionDefinition[] {
+            },
+            // Statistics
+            new FunctionDefinition[]{
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"),
                 def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "MAD"),
                 def(Percentile.class, Percentile::new, "PERCENTILE"),
@@ -151,24 +172,24 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
                 def(VarPop.class, VarPop::new, "VAR_POP"),
                 def(VarSamp.class, VarSamp::new, "VAR_SAMP")
-                },
-        // histogram
-            new FunctionDefinition[] {
+            },
+            // histogram
+            new FunctionDefinition[]{
                 def(Histogram.class, Histogram::new, "HISTOGRAM")
-                },
-        // Scalar functions
-        // Conditional
-            new FunctionDefinition[] {
+            },
+            // Scalar functions
+            // Conditional
+            new FunctionDefinition[]{
                 def(Case.class, Case::new, "CASE"),
                 def(Coalesce.class, Coalesce::new, "COALESCE"),
                 def(Iif.class, Iif::new, "IIF"),
-                def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
+                def(IfNull.class, (BinaryBuilder<IfNull>) IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
                 def(Least.class, Least::new, "LEAST")
-                },
-        // Date
-            new FunctionDefinition[] {
+            },
+            // Date
+            new FunctionDefinition[]{
                 def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
                 def(CurrentTime.class, CurrentTime::new, "CURRENT_TIME", "CURTIME"),
                 def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
@@ -179,11 +200,12 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
                 def(DateParse.class, DateParse::new, "DATE_PARSE"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
                 def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(Format.class, Format::new, "FORMAT"),
+                def(ToChar.class, ToChar::new, "TO_CHAR"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
                 def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),
@@ -197,8 +219,8 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Year.class, Year::new, "YEAR"),
                 def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK")
             },
-        // Math
-            new FunctionDefinition[] {
+            // Math
+            new FunctionDefinition[]{
                 def(Abs.class, Abs::new, "ABS"),
                 def(ACos.class, ACos::new, "ACOS"),
                 def(ASin.class, ASin::new, "ASIN"),
@@ -230,8 +252,8 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Tan.class, Tan::new, "TAN"),
                 def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC")
             },
-        // String
-            new FunctionDefinition[] {
+            // String
+            new FunctionDefinition[]{
                 def(Ascii.class, Ascii::new, "ASCII"),
                 def(BitLength.class, BitLength::new, "BIT_LENGTH"),
                 def(Char.class, Char::new, "CHAR"),
@@ -255,17 +277,17 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Trim.class, Trim::new, "TRIM"),
                 def(UCase.class, UCase::new, "UCASE")
             },
-        // DataType conversion
-            new FunctionDefinition[] {
+            // DataType conversion
+            new FunctionDefinition[]{
                 def(Cast.class, Cast::new, "CAST", "CONVERT")
             },
-        // Scalar "meta" functions
-            new FunctionDefinition[] {
+            // Scalar "meta" functions
+            new FunctionDefinition[]{
                 def(Database.class, Database::new, "DATABASE"),
                 def(User.class, User::new, "USER")
             },
-        // Geo Functions
-            new FunctionDefinition[] {
+            // Geo Functions
+            new FunctionDefinition[]{
                 def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
                 def(StDistance.class, StDistance::new, "ST_DISTANCE"),
                 def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
@@ -274,11 +296,139 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(StY.class, StY::new, "ST_Y"),
                 def(StZ.class, StZ::new, "ST_Z")
             },
-        // Special
-            new FunctionDefinition[] {
+            // Special
+            new FunctionDefinition[]{
                 def(Score.class, Score::new, "SCORE")
             }
         };
     }
 
+    /**
+     * Builder for creating SQL-specific functions.
+     * All other methods defined here end up being translated to this form.
+     */
+    protected interface SqlFunctionBuilder {
+        Function build(Source source, List<Expression> children, Configuration cfg, Boolean distinct);
+    }
+
+    /**
+     * Main method to register a function.
+     */
+    @SuppressWarnings("overloads")
+    protected static FunctionDefinition def(Class<? extends Function> function,
+                                            SqlFunctionBuilder builder,
+                                            boolean datetime,
+                                            String... names) {
+        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
+        String primaryName = names[0];
+        List<String> aliases = Arrays.asList(names).subList(1, names.length);
+        FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {
+            try {
+                return builder.build(uf.source(), uf.children(), cfg, asBool(extras));
+            } catch (QlIllegalArgumentException e) {
+                throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
+            }
+        };
+        return new SqlFunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a unary function that is not aware of time zone but does support {@code DISTINCT}.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, UnaryDistinctAwareBuilder<T> ctorRef, String... names) {
+        SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
+            if (children.size() != 1) {
+                throw new QlIllegalArgumentException("expects exactly one argument");
+            }
+            return ctorRef.build(source, children.get(0), distinct == null ? Boolean.FALSE : distinct);
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface UnaryDistinctAwareBuilder<T> {
+        T build(Source source, Expression target, Boolean distinct);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a unary function that requires a timezone.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, UnaryZoneIdAwareBuilder<T> ctorRef, String... names) {
+        SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
+            if (children.size() != 1) {
+                throw new QlIllegalArgumentException("expects exactly one argument");
+            }
+            forbidDistinct(source, distinct);
+            return ctorRef.build(source, children.get(0), cfg.zoneId());
+        };
+        return def(function, builder, true, names);
+    }
+
+    protected interface UnaryZoneIdAwareBuilder<T> {
+        T build(Source source, Expression exp, ZoneId zi);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, BinaryZoneIdAwareBuilder<T> ctorRef, String... names) {
+        SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
+            if (children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            forbidDistinct(source, distinct);
+            return ctorRef.build(source, children.get(0), children.get(1), cfg.zoneId());
+        };
+        return def(function, builder, true, names);
+    }
+
+    protected interface BinaryZoneIdAwareBuilder<T> {
+        T build(Source source, Expression left, Expression right, ZoneId zi);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a three-args function that requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                                 TernaryZoneIdAwareBuilder<T> ctorRef,
+                                                                 String... names) {
+        SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
+            if (children.size() != 3) {
+                throw new QlIllegalArgumentException("expects three arguments");
+            }
+            forbidDistinct(source, distinct);
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2), cfg.zoneId());
+        };
+        return def(function, builder, true, names);
+    }
+
+    protected interface TernaryZoneIdAwareBuilder<T> {
+        T build(Source source, Expression first, Expression second, Expression third, ZoneId zi);
+    }
+
+
+    /**
+     * Special method to create function definition for Cast as its signature is not compatible with {@link UnresolvedFunction}.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, CastBuilder<T> ctorRef, String... names) {
+        SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
+            forbidDistinct(source, distinct);
+            return ctorRef.build(source, children.get(0), children.get(0).dataType());
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface CastBuilder<T> {
+        T build(Source source, Expression expression, DataType dataType);
+    }
+
+    private static void forbidDistinct(Source source, Boolean distinct) {
+        if (distinct != null) {
+            throw new ParsingException(source, "does not support DISTINCT yet it was specified");
+        }
+    }
 }

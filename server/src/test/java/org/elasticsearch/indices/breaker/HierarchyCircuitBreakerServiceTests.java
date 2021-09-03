@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.breaker;
@@ -27,7 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
@@ -212,21 +201,18 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getLimit());
             assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getLimit());
 
-            double fieldDataUsedBytes = fieldDataCircuitBreaker
-                .addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
-            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), fieldDataUsedBytes, 0.0);
-            double requestUsedBytes = requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(),
-                "should not break");
-            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), requestUsedBytes, 0.0);
-            requestUsedBytes = requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(),
-                "should not break");
-            assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).getBytes(), requestUsedBytes, 0.0);
+            fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
+            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getUsed(), 0.0);
+            requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
+            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getUsed(), 0.0);
+            requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
+            assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getUsed(), 0.0);
             CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> requestCircuitBreaker
                 .addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should break"));
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat(exception.getMessage(),
-                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, accounting=0/0b, inflight_requests=0/0b]"));
+                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, inflight_requests=0/0b]"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
     }
@@ -275,7 +261,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final long requestCircuitBreakerUsed = (requestBreaker.getUsed() + reservationInBytes) * 2;
         assertThat(exception.getMessage(),
             containsString("usages [request=" + requestCircuitBreakerUsed + "/" + new ByteSizeValue(requestCircuitBreakerUsed) +
-                ", fielddata=0/0b, accounting=0/0b, inflight_requests=0/0b]"));
+                ", fielddata=0/0b, inflight_requests=0/0b]"));
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());
@@ -542,7 +528,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
                     assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
                     countDown.get().countDown();
-                } while (!Thread.interrupted());
+                } while (Thread.interrupted() == false);
             })).collect(Collectors.toList());
 
         threads.forEach(Thread::start);

@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,7 +37,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/rsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/rsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -56,7 +46,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode_with_bagattrs.pem"), EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/testnode_with_bagattrs.pem"), EMPTY_PASSWORD);
         assertThat(privateKey, equalTo(key));
     }
 
@@ -64,14 +54,14 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
 
     public void testReadEcKeyCurves() throws Exception {
         String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), ""::toCharArray);
         assertThat(privateKey, instanceOf(ECPrivateKey.class));
         ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
         ECGenParameterSpec algorithmParameterSpec = new ECGenParameterSpec(curve);
@@ -84,7 +74,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -94,7 +84,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath
             ("/certs/pem-utils/key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -104,7 +94,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode.pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/testnode.pem"), TESTNODE_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -114,7 +104,7 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         String bits = randomFrom("128", "192", "256");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode-aes" + bits + ".pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/testnode-aes" + bits + ".pem"), TESTNODE_PASSWORD);
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -124,7 +114,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode-unprotected.pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/testnode-unprotected.pem"), TESTNODE_PASSWORD);
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -134,7 +124,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain.pem"), EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain.pem"), EMPTY_PASSWORD);
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -144,7 +134,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
             EMPTY_PASSWORD);
 
         assertThat(privateKey, notNullValue());
@@ -155,7 +145,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -165,7 +155,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain.pem"), EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain.pem"), EMPTY_PASSWORD);
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -175,7 +165,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
             EMPTY_PASSWORD);
 
         assertThat(privateKey, notNullValue());
@@ -186,7 +176,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -194,30 +184,27 @@ public class PemUtilsTests extends ESTestCase {
 
     public void testReadUnsupportedKey() {
         final Path path = getDataPath("/certs/pem-utils/key_unsupported.pem");
-        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
+        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.parsePrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file does not contain a supported key format"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
     }
 
-    public void testReadPemCertificateAsKey() {
+    public void testErrorWhenReadingPemCertificateAsKey() {
         final Path path = getDataPath("/certs/pem-utils/testnode.crt");
-        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
+        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.parsePrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file does not contain a supported key format"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
     }
 
     public void testReadCorruptedKey() {
         final Path path = getDataPath("/certs/pem-utils/corrupted_key_pkcs8_plain.pem");
-        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
-        assertThat(e.getMessage(), containsString("private key"));
-        assertThat(e.getMessage(), containsString("cannot be parsed"));
-        assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
-        assertThat(e.getCause().getMessage(), containsString("PEM footer is invalid or missing"));
+        IOException e = expectThrows(IOException.class, () -> PemUtils.parsePrivateKey(path, TESTNODE_PASSWORD));
+        assertThat(e.getMessage(), containsString("PEM footer is invalid or missing"));
     }
 
     public void testReadEmptyFile() {
         final Path path = getDataPath("/certs/pem-utils/empty.pem");
-        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
+        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.parsePrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file is empty"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
     }

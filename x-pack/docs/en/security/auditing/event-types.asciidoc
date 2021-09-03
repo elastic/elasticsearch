@@ -2,63 +2,466 @@
 [[audit-event-types]]
 === Audit event types
 
-When you are <<enable-audit-logging,auditing security events>>, each request can generate
-multiple audit events.
+When you are <<enable-audit-logging,auditing security events>>, a single client
+request might generate multiple audit events, across multiple cluster nodes.
+The common `request.id` attribute can be used to correlate the associated events.
 
-The following is a list of the events that can be generated:
+To specify the type of events you want to include in the auditing output, add
+one or more of the following values for
+<<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>> in
+`elasticsearch.yml`.
 
-|======
-| `anonymous_access_denied`         | | | Logged when a request is denied due to a missing
-                                          authentication token.
-| `authentication_success`          | | | Logged when a user successfully authenticates.
-| `authentication_failed`           | | | Logged when the authentication token cannot be
-                                          matched to a known user.
-| `realm_authentication_failed`     | | | Logged for every realm that fails to present a valid
-                                          authentication token. `<realm>` represents the
-                                          realm type.
-| `access_denied`                   | | | Logged when an authenticated user attempts to execute
-                                          an action they do not have the necessary
-                                          <<security-privileges,privilege>> to perform.
-| `access_granted`                  | | | Logged when an authenticated user attempts to execute
-                                          an action they have the necessary privilege to perform.
-                                          When the `system_access_granted` event is included, all system
-                                          (internal) actions are also logged. The default setting does
-                                          not log system actions to avoid cluttering the logs.
-| `run_as_granted`                  | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
-                                          another user that they have the necessary privileges to do.
-| `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
-                                          another user action they do not have the necessary
-                                          <<security-privileges,privilege>> to do so.
-| `tampered_request`                | | | Logged when the {security-features} detect that the request has
-                                          been tampered with. Typically relates to `search/scroll`
-                                          requests when the scroll ID is believed to have been
-                                          tampered with.
-| `connection_granted`              | | | Logged when an incoming TCP connection passes the
-                                          <<ip-filtering, IP Filter>> for a specific
-                                          profile.
-| `connection_denied`               | | | Logged when an incoming TCP connection does not pass the
-                                          <<ip-filtering, IP Filter>> for a specific
-                                          profile.
-|======
+[[event-access-denied]]
+`access_denied`::
+Logged when an authenticated user attempts to execute an action they do not
+have the necessary <<security-privileges,privilege>> to perform.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:30:06,949+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"access_denied", "authentication.type":"REALM", "user.name":"user1",
+"user.realm":"default_native", "user.roles":["test_role"], "origin.type":
+"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw",
+"action":"indices:admin/auto_create", "request.name":"CreateIndexRequest",
+"indices":["<index-{now/d+1d}>"]}
+====
+
+[[event-access-granted]]
+`access_granted`::
+Logged when an authenticated user attempts to execute an action they have the
+necessary privilege to perform. These events will be logged only for non-system
+users.
++
+If you want to include `access_granted` events for all users (including
+internal users such as `_xpack`), add
+<<event-system-granted,`system_access_granted`>> to the list of
+event types in addition to `access_granted`. The `system_access_granted`
+privilege is not included by default to avoid cluttering the logs.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"access_granted", "authentication.type":"REALM", "user.name":"user1", "user
+realm":"default_native", "user.roles":["test_role"], "origin.type":"rest",
+"origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw",
+"action":"indices:data/write/bulk", "request.name":"BulkRequest"}
+====
+
+[[event-anonymous-access-denied]]
+`anonymous_access_denied`::
+Logged when a request is denied due to missing authentication credentials.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"anonymous_access_denied", "origin.type":"rest", "origin.address":
+"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty",
+"request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
+====
+
+[[event-authentication-failed]]
+`authentication_failed`::
+Logged when the authentication credentials cannot be matched to a known user.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"authentication_failed", "user.name":"elastic", "origin.type":"rest",
+"origin.address":"[::1]:51504", "url.path":"/_security/user/user1",
+"url.query":"pretty", "request.method":"POST",
+"request.id":"POv8p_qeTl2tb5xoFl0HIg"}
+====
+
+[[event-authentication-success]]
+`authentication_success`::
+Logged when a user successfully authenticates.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:03:35,018+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"authentication_success", "authentication.type":"REALM", "user.name":
+"elastic", "user.realm":"reserved", "origin.type":"rest", "origin.address":
+"[::1]:51014", "realm":"reserved", "url.path":"/twitter/_search",
+"url.query":"pretty", "request.method":"POST",
+"request.id":"nHV3UMOoSiu-TaSPWCfxGg"}
+====
+
+[[event-change-disable-user]]
+`change_disable_user`::
+Logged when the <<security-api-enable-user,enable user API>> is invoked to
+disable a native or a built-in user.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T23:17:28,308+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg",
+"change":{"disable":{"user":{"name":"user1"}}}}
+====
+
+[[event-change-enable-user]]
+`change_enable_user`::
+Logged when the <<security-api-enable-user,enable user API>> is invoked to
+enable a native or a built-in user.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ",
+"change":{"enable":{"user":{"name":"user1"}}}}
+====
+
+[[event-change-password]]
+`change_password`::
+Logged when the <<security-api-change-password,change password API>> is
+invoked to change the password of a native or built-in user.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw",
+"change":{"password":{"user":{"name":"user1"}}}}
+====
+
+
+[[event-create-service-token]]
+`create_service_token`::
+Logged when the <<security-api-create-service-token,create service account token API>> is
+invoked to create a new index-based token for a service account.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"create_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+"create":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}`
+====
+
+[[event-connection-denied]]
+`connection_denied`::
+Logged when an incoming TCP connection does not pass the
+<<ip-filtering,IP filter>> for a specific profile.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
+"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20",
+"transport.profile":".http", "rule":"deny 10.10.0.0/16"}
+====
+
+[[event-connection-granted]]
+`connection_granted`::
+Logged when an incoming TCP connection passes the <<ip-filtering,IP filter>>
+for a specific profile.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
+"connection_granted", "origin.type":"rest", "origin.address":"::1",
+"transport.profile":".http", "rule":"allow ::1,127.0.0.1"}
+====
+
+[[event-create-apikey]]
+`create_apikey`::
+Logged when the <<security-api-create-api-key,create API key>> or the
+<<security-api-grant-api-key, grant API key>> APIs are invoked to create a new
+API key.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":
+"create_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "create":{"apikey":
+{"name":"test-api-key-1","expiration":"10d","role_descriptors":[{"cluster":
+["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
+["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
+"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
+"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}
+====
+
+[[event-delete-privileges]]
+`delete_privileges`::
+Logged when the
+<<security-api-delete-privilege,delete application privileges API>> is invoked
+to remove one or more application privileges.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:39:30,246+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.
+action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g",
+"delete":{"privileges":{"application":"myapp","privileges":["read"]}}}
+====
+
+[[event-delete-role]]
+`delete_role`::
+Logged when the <<security-api-delete-role,delete role API>> is invoked to
+delete a role.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:08:11,678+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":
+"delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw",
+"delete":{"role":{"name":"my_admin_role"}}}
+====
+
+[[event-delete-role-mapping]]
+`delete_role_mapping`::
+Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
+is invoked to delete a role mapping.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g",
+"delete":{"role_mapping":{"name":"mapping1"}}}
+====
+
+[[event-delete-service-token]]
+`delete_service_token`::
+Logged when the <<security-api-delete-service-token,delete service account token API>> is
+invoked to delete an index-based token for a service account.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"delete_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+"delete":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}
+====
+
+[[event-delete-user]]
+`delete_user`::
+Logged when the <<security-api-delete-user,delete user API>> is invoked to
+delete a specific native user.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
+"event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw",
+"delete":{"user":{"name":"jacknich"}}}
+====
+
+[[event-invalidate-apikeys]]
+`invalidate_apikeys`::
+Logged when the <<security-api-invalidate-api-key,invalidate API key API>> is
+invoked to invalidate one or more API keys.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:36:30,247+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.
+action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ",
+"invalidate":{"apikeys":{"owned_by_authenticated_user":false,
+"user":{"name":"myuser","realm":"native1"}}}}
+====
+
+[[event-put-privileges]]
+`put_privileges`::
+Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
+to add or update one or more application privileges.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:39:07,779+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change",
+"event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA",
+"put":{"privileges":[{"application":"myapp","name":"read","actions":
+["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}
+====
+
+[[event-put-role]]
+`put_role`::
+Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
+update a role.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
+"event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ",
+"put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],
+"indices":[{"names":["apm*"],"privileges":["all"],"field_security":
+{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},
+{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\":
+{\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}
+====
+
+[[event-put-role-mapping]]
+`put_role_mapping`::
+Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
+invoked to create or update a role mapping.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA",
+"put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":
+{"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}
+====
+
+[[event-put-user]]
+`put_user`::
+Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
+update a native user. Note that user updates can also change the
+user's password.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
+"event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA",
+"put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],
+"full_name":"Jack Sparrow","email":"jack@blackpearl.com",
+"has_password":true,"metadata":{"cunning":10}}}}
+====
+
+[[event-realm-auth-failed]]
+`realm_authentication_failed`::
+Logged for every realm that fails to present a valid authentication token.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"realm_authentication_failed", "user.name":"elastic", "origin.type":"rest",
+"origin.address":"[::1]:51504", "realm":"myTestRealm1", "url.path":
+"/_security/user/user1", "url.query":"pretty", "request.method":"POST",
+"request.id":"POv8p_qeTl2tb5xoFl0HIg"}
+====
+
+[[event-runas-denied]]
+`run_as_denied`::
+Logged when an authenticated user attempts to <<run-as-privilege,run as>>
+another user that they do not have the necessary
+<<security-privileges,privileges>> to do so.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:49:34,859+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"run_as_denied", "user.name":"user1", "user.run_as.name":"user1",
+"user.realm":"default_native", "user.run_as.realm":"default_native",
+"user.roles":["test_role"], "origin.type":"rest", "origin.address":
+"[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA",
+"action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
+====
+
+[[event-runas-granted]]
+`run_as_granted`::
+Logged when an authenticated user attempts to <<run-as-privilege,run as>>
+another user that they have the necessary privileges to do so.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:44:42,068+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"run_as_granted", "user.name":"elastic", "user.run_as.name":"user1",
+"user.realm":"reserved", "user.run_as.realm":"default_native",
+"user.roles":["superuser"], "origin.type":"rest", "origin.address":
+"[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":
+"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
+====
+
+[[event-system-granted]]
+`system_access_granted`::
+Logs <<event-access-granted,`access_granted`>> events only for
+<<internal-users,internal users>>, such as `_xpack`. If you include this setting
+in addition to `access_granted`, then `access_granted` events are
+logged for _all_ users.
++
+NOTE: This event type is disabled by default to avoid cluttering the logs.
+
+[[event-tampered-request]]
+`tampered_request`::
+Logged when the {security-features} detect that the request has been tampered
+with. Typically relates to `search/scroll` requests when the scroll ID is
+believed to have been tampered with.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action":
+"tampered_request", "origin.address":"[::1]:50543", "url.path":
+"/twitter/_async_search", "url.query":"pretty", "request.method":"POST",
+"request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
+====
 
 [discrete]
 [[audit-event-attributes]]
 === Audit event attributes
 
-In 6.5.0, there is a new <<audit-log-output, `logfile` audit output>> format.
-This format also brings in a few changes for audit event attributes.
+The audit events are formatted as JSON documents, and each event is printed on a separate
+line in the audit log. The entries themselves do not contain an end-of-line delimiter.
+For more details, see <<audit-log-entry-format>>.
 
-The new format is output to the `<clustername>_audit.json` file.
-The audit entries are formatted as flat JSON documents (that is to say, no
-nested objects), one per line. Hence, the attribute names are JSON keys and they
-follow a dotted name syntax. Any attributes that lack a value (`null`) are not
-output.
-
-The following list shows attributes that are common to all audit events.
-Their names and values are analogous to those in the deprecated `logfile` or
-`index` output formats. However, it is expected that the formats will evolve
-independently during the 6.x releases, so it is advisable to follow the attribute
-descriptions for the format that you are using.
+The following list shows attributes that are common to all audit event types:
 
 `@timestamp`      ::    The time, in ISO9601 format, when the event occurred.
 `node.name`       ::    The name of the node. This can be changed
@@ -68,19 +471,8 @@ descriptions for the format that you are using.
 `host.ip`         ::    The bound IP address of the node, with which the node
                         can be communicated with.
 `host.name`       ::    The unresolved node's hostname.
-`origin.address`  ::    The source IP address of the request associated with
-                        this event. This could be the address of the remote client,
-                        the address of another cluster node, or the local node's
-                        bound address, if the request originated locally. Unless
-                        the remote client connects directly to the cluster, the
-                        _client  address_ will actually be the address of the first
-                        OSI layer 3 proxy in front of the cluster.
-`origin.type`     ::    The origin type of the request associated with this event:
-                        `rest` (request originated from a REST API request),
-                        `transport` (request was received on the transport channel),
-                        or `local_node` (the local node issued the request).
 `event.type`      ::    The internal processing layer that generated the event:
-                        `rest`, `transport` or `ip_filter`.
+                        `rest`, `transport`, `ip_filter` or `security_config_change`.
                         This is different from `origin.type` because a request
                         originating from the REST API is translated to a number
                         of transport messages, generating audit events with
@@ -89,7 +481,31 @@ descriptions for the format that you are using.
                         `authentication_failed`, `authentication_success`,
                         `realm_authentication_failed`, `access_denied`, `access_granted`,
                         `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied`, or `run_as_granted`.
+                        `run_as_denied`, or `run_as_granted`. In addition, if
+                        `event.type` equals `security_config_change`, the
+                        `event.action` attribute takes one of the following values:
+                        `put_user`, `change_password`, `put_role`, `put_role_mapping`,
+                        `change_enable_user`, `change_disable_user`, `put_privileges`,
+                        `create_apikey`, `delete_user`, `delete_role`,
+                        `delete_role_mapping`, `invalidate_apikeys` or `delete_privileges`.
+`request.id`      ::    A synthetic identifier that can be used to correlate the events
+                        associated with a particular REST request.
+
+In addition, all the events of types `rest`, `transport` and `ip_filter` (but not
+`security_config_change`) have the following extra attributes, which
+show more details about the requesting client:
+
+`origin.address`  ::    The source IP address of the request associated with
+                        this event. This could be the address of the remote client,
+                        the address of another cluster node, or the local node's
+                        bound address, if the request originated locally. Unless
+                        the remote client connects directly to the cluster, the
+                        _client address_ will actually be the address of the first
+                        OSI layer 3 proxy in front of the cluster.
+`origin.type`     ::    The origin type of the request associated with this event:
+                        `rest` (request originated from a REST API request),
+                        `transport` (request was received on the transport channel),
+                        or `local_node` (the local node issued the request).
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has
@@ -110,7 +526,7 @@ descriptions for the format that you are using.
 The events with `event.type` equal to `rest` have one of the following `event.action`
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
 `realm_authentication_failed`, `tampered_request` or `run_as_denied`.
-These event types also have the following extra attributes (in addition to the
+These events also have the following extra attributes (in addition to the
 common ones):
 
 `url.path`        ::    The path part of the URL (between the port and the query
@@ -122,8 +538,8 @@ common ones):
                         event. It is one of GET, POST, PUT, DELETE, OPTIONS,
                         HEAD, PATCH, TRACE and CONNECT.
 `request.body`    ::    The full content of the REST request associated with this
-                        event, if enabled. This contains the query body. The body
-                        is escaped according to the JSON RFC 4627.
+                        event, if enabled. This contains the HTTP request body.
+                        The body is escaped as a string value according to the JSON RFC 4627.
 
 ==== Audit event attributes of the transport event type
 
@@ -131,7 +547,7 @@ The events with `event.type` equal to `transport` have one of the following `eve
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
 `realm_authentication_failed`, `access_granted`, `access_denied`, `run_as_granted`,
 `run_as_denied`, or `tampered_request`.
-These event types also have the following extra attributes (in addition to the common
+These events also have the following extra attributes (in addition to the common
 ones):
 
 `action`              ::    The name of the transport action that was executed.
@@ -144,12 +560,80 @@ ones):
 
 The events with `event.type` equal to `ip_filter` have one of the following `event.action`
 attribute values: `connection_granted` or `connection_denied`.
-These event types also have the following extra attributes (in addition to the common
+These events also have the following extra attributes (in addition to the common
 ones):
 
 `transport_profile`   ::    The transport profile the request targeted.
 `rule`                ::    The <<ip-filtering, IP filtering>> rule that denied
                             the request.
+
+==== Audit event attributes of the security_config_change event type
+
+The events with the `event.type` attribute equal to `security_config_change` have one of the following
+`event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`,
+`change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
+`delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
+These events also have *one* of the following extra attributes (in addition to the common
+ones). The attribute's value is a nested JSON object:
+
+`put`                 ::    The object representation of the security config that
+                            is being created, or the overwrite of an existing config.
+                            It contains the config for a `user`, `role`, `role_mapping`, or
+                            for application `privileges`.
+`delete`              ::    The object representation of the security config that
+                            is being deleted. It can be the config for a `user`, `role`,
+                            `role_mapping` or for application `privileges`.
+`change`              ::    The object representation of the security config that
+                            is being changed. It can be the `password`, `enable` or `disable`,
+                            config object for native or built-in users.
+`create`              ::    The object representation of the new security config that is being
+                            created. This is currently only used for API keys auditing.
+                            If the API key is created using the
+                            <<security-api-create-api-key, create API key API>> it only contains
+                            an `apikey` config object. If the API key is created using the
+                            <<security-api-grant-api-key, grant API key API>> it also contains
+                            a `grant` config object.
+`invalidate`          ::    The object representation of the security configuration that is being invalidated.
+                            The only config that currently supports invalidation is `apikeys`, through
+                            the <<security-api-invalidate-api-key, invalidate API key API>>.
+
+The schemas of the security config objects mentioned above are as follows. They are very similar to the
+request bodies of the corresponding security APIs.
+
+`user`                ::     An object like `{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
+                             "full_name": <string>, "email": <string>, "has_password": <boolean>,
+                             "metadata": <object>}`. The `full_name`, `email` and `metadata` fields are omitted if empty.
+
+`role`                ::     An object like `{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
+                             {"application":{"manage":{<string>:<string_list>}}}, "indices": [
+                             {"names": <string_list>, "privileges": <string_list>, "field_security":
+                             {"grant": <string_list>, "except": <string_list>}, "query": <string>,
+                             "allow_restricted_indices": <boolean>}], "applications":[{"application": <string>,
+                             "privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
+                             "metadata": <object>}}`. The `global`, `field_security`, `except`, `query`,
+                             `allow_restricted_indices` and `metadata` fields are omitted if empty.
+
+`role_mapping`        ::     An object like `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
+                             "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`.
+                             The `roles` and `role_templates` fields are omitted if empty.
+                             The `rules` object has a recursively nested schema, identical to what is passed in
+                             the <<mapping-roles, API request for mapping roles>>.
+
+`privileges`          ::     An array of objects like `{"application": <string>, "name": <string>, "actions": <string_list>,
+                             "metadata": <object>}`.
+
+`password`            ::     A simple object like `{"user":{"name": <string>}}`.
+`enable`              ::     A simple object like `{"user":{"name": <string>}}`.
+`disable`             ::     A simple object like `{"user":{"name": <string>}}`.
+`apikey`              ::     An object like `{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`.
+                             The `role_descriptors` objects have the same schema as the `role_descriptor` object that
+                             is part of the above `role` config object.
+`grant`               ::     An object like `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
+                             "has_access_token": <boolean>}`
+`apikeys`             ::     An object like `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
+                             <boolean>, "user":{"name": <string>, "realm": <string>}}`.
+
+`service_token`       ::   An object like `{"namespace":<string>,"service":<string>,"name":<string>}`.
 
 ==== Extra audit event attributes for specific events
 
@@ -165,15 +649,17 @@ that have been previously described:
   `user.name`          ::   The name of the _effective_ user. This is usually the
                             same as the _authenticated_ user, but if using the
                             <<run-as-privilege, run as authorization functionality>>
-                            this instead denotes the name of the  _impersonated_ user.
+                            this instead denotes the name of the _impersonated_ user.
                             If authenticated using an API key, this is
                             the name of the API key owner.
-  `user.realm`         ::   Name of the realm to which the _effective_ user 
+                            If authenticated using a service account token, this is the
+                            service account principal, i.e. `namespace/service_name`.
+  `user.realm`         ::   Name of the realm to which the _effective_ user
                             belongs. If authenticated using an API key, this is
                             the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::   This attribute is present only if the request is
                             using the <<run-as-privilege, run as authorization functionality>>
-                            and denotes the name of the  _authenticated_ user, 
+                            and denotes the name of the _authenticated_ user,
                             which is also known as the _impersonator_.
   `user.run_by.realm`  ::   Name of the realm to which the _authenticated_
                             (_impersonator_) user belongs.
@@ -181,16 +667,26 @@ that have been previously described:
                             uses the <<run-as-privilege, run as authorization functionality>>.
   `authentication.type`::   Method used to authenticate the user.
                             Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+  `apikey.id`          ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+  `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+  `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
 * `authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
-                             If the request authentication token is invalid or 
+                             If the request authentication token is invalid or
                              unparsable, this information might be missing.
-
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+                                 If the request authentication token is invalid or unparsable,
+                                 this information might be missing.
+  `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+                                 If the request authentication token is invalid or unparsable,
+                                 this information might be missing.
 * `realm_authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
   `realm`              ::    The name of the realm that rejected this authentication.
@@ -198,7 +694,10 @@ that have been previously described:
                              in the chain.**
 
 * `run_as_denied` and `run_as_granted`:
-  `user.roles`         ::    The role names of the user as an array.
+  `user.roles`         ::    The role names as an array of the _authenticated_ user which is being
+                             granted or denied the _impersonation_ action.
+                             If authenticated as a <<service-accounts,service account>>,
+                             this is always an empty array.
   `user.name`          ::    The name of the _authenticated_ user which is being
                              granted or denied the _impersonation_ action.
   `user.realm`         ::    The realm name that the _authenticated_ user belongs to.
@@ -210,13 +709,15 @@ that have been previously described:
   `user.roles`         ::    The role names of the user as an array. If authenticated
                              using an API key, this contains the
                              role names of the API key owner.
+                             If authenticated as a <<service-accounts,service account>>,
+                             this is always an empty array.
   `user.name`          ::    The name of the _effective_ user. This is usually the
                              same as the _authenticated_ user, but if using the
                              <<run-as-privilege, run as authorization functionality>>
-                             this instead denotes the name of the  _impersonated_ user.
+                             this instead denotes the name of the _impersonated_ user.
                              If authenticated using an API key, this is
                              the name of the API key owner.
-  `user.realm`         ::   Name of the realm to which the _effective_ user 
+  `user.realm`         ::   Name of the realm to which the _effective_ user
                             belongs. If authenticated using an API key, this is
                             the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::    This attribute is present only if the request is
@@ -229,324 +730,11 @@ that have been previously described:
                              (_impersonator_) user belongs to.
   `authentication.type`::   Method used to authenticate the user.
                             Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+  `apikey.id`          ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+  `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-
-
-[discrete]
-[[audit-event-attributes-deprecated-formats]]
-=== Audit event attributes for the deprecated formats
-
-The following table shows the common attributes that can be associated with
-every event, when it is output to the `<clustername>_access.log` file.
-
-.Common attributes
-[cols="2,7",options="header"]
-|======
-| Attribute           | Description
-| `@timestamp`        | When the event occurred.
-| `node_name`         | The name of the node.
-| `node_host_name`    | The hostname of the node.
-| `node_host_address` | The IP address of the node.
-| `layer`             | The layer from which this event originated: `rest`, `transport` or `ip_filter`
-| `event_type`        | The type of event that occurred: `anonymous_access_denied`,
-                        `authentication_failed`, `authentication_success`,
-                        `realm_authentication_failed`, `access_denied`, `access_granted`,
-                        `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied`, `run_as_granted`.
-|======
-
-These are positional attributes, which are printed at the beginning of each log line and
-are not adjoined by the attribute name.
-
-The attribute `origin_address` is also common to every audit event. It is always
-named, that is, it is not positional. It denotes the source IP address of the
-request associated with this event. This might be the address of the client, the
-address of another cluster node, or the local node's bound address (if the request
-originated locally). Unless the client connects directly to the cluster, the
-_client  address_ is the address of the first OSI layer 3 proxy in front of the
-cluster.
-
-In addition, every event might have the `opaque_id` attribute, with the value as
-it has been passed in by the `X-Opaque-Id` HTTP request header. This header can
-be used freely by the client to mark API calls, as it has no semantics in
-Elasticsearch. Every audit event, generated as part of handling a request thus
-marked, contains the `opaque_id` attribute.
-
-The following tables show the attributes that can are associated with each type
-of event, in addition to the common ones previously described:
-
-.REST anonymous_access_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST authentication_success attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ user is the same as the
-                         _authenticated_ one, which is indicated by the `principal`
-                         attribute.
-| `realm`              | The realm that authenticated the user.
-| `uri`                | The REST endpoint URI.
-| `params`             | The REST URI query parameters.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `principal`          | The principal (username) that failed authentication.
-                         If the request's authentication token is invalid, this
-                         information might be missing.
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST realm_authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `realm`              | The realm that failed to authenticate the user.
-                         **A separate entry is logged for each consulted realm.**
-| `principal`          | The principal (username) that failed authentication.
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST tampered_request attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.Transport anonymous_access_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport authentication_success attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         users are equivalent and are indicated by the
-                         `principal` attribute.
-| `realm`              | The realm that authenticated the user.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username. If the
-                         request's authentication token is invalid, this
-                         information might be missing.  
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         users are equivalent and are indicated by the
-                         `principal` attribute.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport realm_authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `realm`              | The realm that failed to authenticate the user.
-                         **A separate entry is logged for each consulted realm.**
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The principal (username) that failed authentication.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport access_granted attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username for which
-                         authorization succeeded. Unless the request is using
-                         the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and _authenticated_ usernames are equivalent.
-| `realm`              | The realm name that `principal` belongs to.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         usernames are equivalent and are indicated by the
-                         `principal` attribute.
-| `run_by_realm`       | The realm name that `run_by_principal` belongs to
-                         (when applicable).
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport access_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username for which
-                         authorization failed. Unless the request is using
-                         the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and the _authenticated_ usernames are
-                         equivalent.
-| `realm`              | The realm name that `principal` belongs to.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         usernames are equivalent and are indicated by the
-                         `principal` attribute.
-| `run_by_realm`       | The realm name that `run_by_principal` belongs to
-                         (when applicable).
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         relates to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport run_as_granted attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _authenticated_ (_impersonator_) username for which
-                         the impersonation operation was granted.
-| `realm`              | The realm name that the _authenticated_ user belongs to.
-| `run_as_principal`   | The _impersonated_ username.
-| `run_as_realm`       | The realm name that the _impersonated_ username belongs to.
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         relates to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport run_as_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _authenticated_ (_impersonator_) username for which
-                         the impersonation operation was denied.
-| `realm`              | The realm name that the _authenticated_ user belongs to.
-| `run_as_principal`   | The _impersonated_ username.
-| `run_as_realm`       | The realm name that the _impersonated_ username belongs to.
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         relates to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport tampered_request attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username. Unless the request
-                         is using the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and the _authenticated_ usernames are 
-                         equivalent. If the requests's authentication token is
-                         invalid, this information might be missing. 
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_ usernames
-                         are equivalent and are indicated by the `principal` attribute.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.IP filter connection_granted attributes
-[cols="2,7",options="header"]
-|======
-| Attribute           | Description
-| `transport_profile` | The transport profile the request targeted.
-| `rule`              | The <<ip-filtering, IP filtering>> rule that granted
-                        the request.
-|======
-
-.IP filter connection_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute           | Description
-| `transport_profile` | The transport profile the request targeted.
-| `rule`              | The <<ip-filtering, IP filtering>> rule that denied
-                        the request.
-|======
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+  `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.

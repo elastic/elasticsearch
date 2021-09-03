@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -184,7 +185,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (!line.isEmpty() && !line.startsWith("//")) {
+                if (line.isEmpty() == false && line.startsWith("//") == false) {
                     // parse test name
                     if (testName == null) {
                         if (testNames.keySet().contains(line)) {

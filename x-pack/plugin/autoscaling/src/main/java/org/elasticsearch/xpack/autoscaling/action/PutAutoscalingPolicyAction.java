@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -11,25 +12,25 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.io.IOException;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -52,7 +53,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
                 @SuppressWarnings("unchecked")
                 final List<String> roles = (List<String>) c[0];
                 @SuppressWarnings("unchecked")
-                final var deciders = (List<Map.Entry<String, AutoscalingDeciderConfiguration>>) c[1];
+                final var deciders = (List<Map.Entry<String, Settings>>) c[1];
                 return new Request(
                     name,
                     roles != null ? roles.stream().collect(Sets.toUnmodifiableSortedSet()) : null,
@@ -62,26 +63,21 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
                 );
             });
             PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), AutoscalingPolicy.ROLES_FIELD);
-            PARSER.declareNamedObjects(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c, n) -> new AbstractMap.SimpleEntry<>(n, p.namedObject(AutoscalingDeciderConfiguration.class, n, null)),
-                AutoscalingPolicy.DECIDERS_FIELD
-            );
+            PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
+                p.nextToken();
+                return new AbstractMap.SimpleEntry<>(n, Settings.fromXContent(p));
+            }, AutoscalingPolicy.DECIDERS_FIELD);
         }
 
         private final String name;
         private final SortedSet<String> roles;
-        private final SortedMap<String, AutoscalingDeciderConfiguration> deciders;
+        private final SortedMap<String, Settings> deciders;
 
         public static Request parse(final XContentParser parser, final String name) {
             return PARSER.apply(parser, name);
         }
 
-        public Request(
-            final String name,
-            final SortedSet<String> roles,
-            final SortedMap<String, AutoscalingDeciderConfiguration> deciders
-        ) {
+        public Request(final String name, final SortedSet<String> roles, final SortedMap<String, Settings> deciders) {
             this.name = name;
             this.roles = roles;
             this.deciders = deciders;
@@ -89,20 +85,21 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
 
         public Request(final StreamInput in) throws IOException {
             super(in);
-            name = in.readString();
+            this.name = in.readString();
             if (in.readBoolean()) {
-                roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+                this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
             } else {
-                roles = null;
+                this.roles = null;
             }
             if (in.readBoolean()) {
-                deciders = new TreeMap<>(
-                    in.readNamedWriteableList(AutoscalingDeciderConfiguration.class)
-                        .stream()
-                        .collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
-                );
+                int deciderCount = in.readInt();
+                SortedMap<String, Settings> deciders = new TreeMap<>();
+                for (int i = 0; i < deciderCount; ++i) {
+                    deciders.put(in.readString(), Settings.readSettingsFromStream(in));
+                }
+                this.deciders = Collections.unmodifiableSortedMap(deciders);
             } else {
-                deciders = null;
+                this.deciders = null;
             }
         }
 
@@ -118,7 +115,11 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             }
             if (deciders != null) {
                 out.writeBoolean(true);
-                out.writeNamedWriteableList(deciders.values().stream().collect(Collectors.toUnmodifiableList()));
+                out.writeInt(deciders.size());
+                for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
+                    out.writeString(entry.getKey());
+                    Settings.writeSettingsToStream(entry.getValue(), out);
+                }
             } else {
                 out.writeBoolean(false);
             }
@@ -132,7 +133,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             return roles;
         }
 
-        public SortedMap<String, AutoscalingDeciderConfiguration> deciders() {
+        public SortedMap<String, Settings> deciders() {
             return deciders;
         }
 
@@ -141,7 +142,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             ActionRequestValidationException exception = null;
             if (roles != null) {
                 List<String> errors = roles.stream()
-                    .filter(Predicate.not(DiscoveryNode.getPossibleRoleNames()::contains))
+                    .filter(Predicate.not(DiscoveryNodeRole.roleNames()::contains))
                     .collect(Collectors.toList());
                 if (errors.isEmpty() == false) {
                     exception = new ActionRequestValidationException();

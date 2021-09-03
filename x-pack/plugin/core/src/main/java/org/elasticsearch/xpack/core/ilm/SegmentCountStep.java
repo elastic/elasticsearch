@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -15,9 +16,9 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,6 +44,11 @@ public class SegmentCountStep extends AsyncWaitStep {
     public SegmentCountStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
         super(key, nextStepKey, client);
         this.maxNumSegments = maxNumSegments;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     public int getMaxNumSegments() {

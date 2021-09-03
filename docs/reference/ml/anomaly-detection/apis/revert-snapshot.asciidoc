@@ -17,9 +17,8 @@ Reverts to a specific snapshot.
 == {api-prereq-title}
 
 * Before you revert to a saved snapshot, you must close the job.
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-revert-snapshot-desc]]
 == {api-description-title}
@@ -32,6 +31,10 @@ then it might be appropriate to reset the model state to a time before this
 event. For example, you might consider reverting to a saved snapshot after Black
 Friday or a critical system failure.
 
+NOTE: Reverting to a snapshot does not change the `data_counts` values of the 
+{anomaly-job}, these values are not reverted to the earlier state.
+
+
 [[ml-revert-snapshot-path-parms]]
 == {api-path-parms-title}
 
@@ -42,6 +45,13 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `<snapshot_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
++
+--
+You can specify `empty` as the <snapshot_id>. Reverting to the `empty` snapshot 
+means the {anomaly-job} starts learning a new model from scratch when it is 
+started.
+--
+
 
 [[ml-revert-snapshot-request-body]]
 == {api-request-body-title}
@@ -55,6 +65,7 @@ NOTE: If you choose not to delete intervening results when reverting a snapshot,
 the job will not accept input data that is older than the current time.
 If you want to resend data, then delete the intervening results.
 
+
 [[ml-revert-snapshot-example]]
 == {api-examples-title}
 
@@ -66,6 +77,7 @@ POST _ml/anomaly_detectors/high_sum_total_sales/model_snapshots/1575402237/_reve
 }
 --------------------------------------------------
 // TEST[skip:todo]
+
 
 When the operation is complete, you receive the following results:
 [source,js]
@@ -106,4 +118,5 @@ When the operation is complete, you receive the following results:
 }
 ----
 
-For a description of these properties, see the <<ml-get-snapshot-results,get model snapshots API>>.
+For a description of these properties, see the 
+<<ml-get-snapshot-results,get model snapshots API>>.

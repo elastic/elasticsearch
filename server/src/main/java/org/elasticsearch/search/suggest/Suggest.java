@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -158,13 +147,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return new Suggest(suggestions);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
-        for (Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-            List<Suggestion> value = unmergedResults.getValue();
+        for (Map.Entry<String, List<Suggestion<?>>> unmergedResults : groupedSuggestions.entrySet()) {
+            List<Suggestion<?>> value = unmergedResults.getValue();
+            @SuppressWarnings("rawtypes")
             Class<? extends Suggestion> suggestionClass = null;
-            for (Suggestion suggestion : value) {
+            for (Suggestion<?> suggestion : value) {
                 if (suggestionClass == null) {
                     suggestionClass = suggestion.getClass();
                 } else if (suggestionClass != suggestion.getClass()) {
@@ -173,7 +162,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                         " query on a single completion suggester version");
                 }
             }
-            Suggestion reduce = value.get(0).reduce(value);
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Suggestion<? extends Entry<? extends Option>> reduce = value.get(0).reduce((List) value);
             reduce.trim();
             reduced.add(reduce);
         }
@@ -439,7 +429,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 final Map<O, O> entries = new HashMap<>();
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
-                    if (!leader.text.equals(entry.text)) {
+                    if (leader.text.equals(entry.text) == false) {
                         throw new IllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
                                 "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
                                 entry.text + "] expected [" + leader.text +"]");

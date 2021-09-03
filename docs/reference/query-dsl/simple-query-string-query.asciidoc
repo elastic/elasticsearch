@@ -86,9 +86,10 @@ query string into tokens. Defaults to the
 `default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
 `auto_generate_synonyms_phrase_query`::
-(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
-queries are automatically created for multi-term synonyms. Defaults to `true`.
-See <<simple-query-string-synonyms>> for an example.
+(Optional, Boolean) If `true`, the parser creates a
+<<query-dsl-match-query-phrase,`match_phrase`>> query for each
+<<token-graphs-multi-position-tokens,multi-position token>>. Defaults to `true`.
+For examples, see <<simple-query-string-synonyms>>.
 
 `flags`::
 (Optional, string) List of enabled operators for the
@@ -273,33 +274,36 @@ GET /_search
 <1> The `subject` field is three times as important as the `message` field.
 
 [[simple-query-string-synonyms]]
-===== Synonyms
+===== Multi-position tokens
 
-The `simple_query_string` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
-synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
-For example, the following synonym: `"ny, new york"` would produce:
+By default, the `simple_query_string` query parser creates a
+<<query-dsl-match-query-phrase,`match_phrase`>> query for each
+<<token-graphs-multi-position-tokens,multi-position token>> in the query string.
+For example, the parser creates a `match_phrase` query for the multi-word
+synonym `ny, new york`:
 
 `(ny OR ("new york"))`
 
-It is also possible to match multi terms synonyms with conjunctions instead:
+To match multi-position tokens with an `AND` conjunction instead, set
+`auto_generate_synonyms_phrase_query` to `false`:
 
 [source,console]
---------------------------------------------------
+----
 GET /_search
 {
-   "query": {
-       "simple_query_string" : {
-           "query" : "ny city",
-           "auto_generate_synonyms_phrase_query" : false
-       }
-   }
+  "query": {
+    "simple_query_string": {
+      "query": "ny city",
+      "auto_generate_synonyms_phrase_query": false
+    }
+  }
 }
---------------------------------------------------
+----
 
-The example above creates a boolean query:
+For the above example, the parser creates the following
+<<query-dsl-bool-query,`bool`>> query:
 
 `(ny OR (new AND york)) city)`
 
-that matches documents with the term `ny` or the conjunction `new AND york`.
-By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
-
+This `bool` query matches documents with the term `ny` or the conjunction
+`new AND york`.

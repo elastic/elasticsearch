@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
@@ -50,7 +51,7 @@ import java.util.Optional;
  */
 public class ChunkedDataExtractor implements DataExtractor {
 
-    private interface DataSummary {
+    interface DataSummary {
         long estimateChunk();
         boolean hasData();
         long earliestTime();
@@ -102,7 +103,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -208,11 +209,11 @@ public class ChunkedDataExtractor implements DataExtractor {
             LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-            Aggregations aggregations = searchResponse.getAggregations();
             long earliestTime = 0;
             long latestTime = 0;
             long totalHits = searchResponse.getHits().getTotalHits().value;
             if (totalHits > 0) {
+                Aggregations aggregations = searchResponse.getAggregations();
                 Min min = aggregations.get(EARLIEST_TIME);
                 earliestTime = (long) min.getValue();
                 Max max = aggregations.get(LATEST_TIME);
@@ -230,6 +231,13 @@ public class ChunkedDataExtractor implements DataExtractor {
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
             Aggregations aggregations = searchResponse.getAggregations();
+            // This can happen if all the indices the datafeed is searching are deleted after it started.
+            // Note that unlike the scrolled data summary method above we cannot check for this situation
+            // by checking for zero hits, because aggregations that work on rollups return zero hits even
+            // when they retrieve data.
+            if (aggregations == null) {
+                return AggregatedDataSummary.noDataSummary(context.histogramInterval);
+            }
             Min min = aggregations.get(EARLIEST_TIME);
             Max max = aggregations.get(LATEST_TIME);
             return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);
@@ -239,6 +247,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             return new SearchSourceBuilder()
                 .size(0)
                 .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
+                .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
                 .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
         }
@@ -263,9 +272,9 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private class ScrolledDataSummary implements DataSummary {
 
-        private long earliestTime;
-        private long latestTime;
-        private long totalHits;
+        private final long earliestTime;
+        private final long latestTime;
+        private final long totalHits;
 
         private ScrolledDataSummary(long earliestTime, long latestTime, long totalHits) {
             this.earliestTime = earliestTime;
@@ -307,13 +316,18 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
     }
 
-    private class AggregatedDataSummary implements DataSummary {
+    static class AggregatedDataSummary implements DataSummary {
 
         private final double earliestTime;
         private final double latestTime;
         private final long histogramIntervalMillis;
 
-        private AggregatedDataSummary(double earliestTime, double latestTime, long histogramInterval) {
+        static AggregatedDataSummary noDataSummary(long histogramInterval) {
+            // hasData() uses infinity to mean no data
+            return new AggregatedDataSummary(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, histogramInterval);
+        }
+
+        AggregatedDataSummary(double earliestTime, double latestTime, long histogramInterval) {
             this.earliestTime = earliestTime;
             this.latestTime = latestTime;
             this.histogramIntervalMillis = histogramInterval;

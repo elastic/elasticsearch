@@ -1,6 +1,8 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -12,16 +14,17 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly project(path: ':modules:transport-netty4')
-  compileOnly project(path: ':plugins:transport-nio')
+  compileOnly project(path: xpackModule('core'))
+  api project(path: ':modules:transport-netty4')
+  api project(path: ':plugins:transport-nio')
 
   testImplementation project(path: xpackModule('monitoring'))
+  testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
 
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   api 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
   // the following are all SAML dependencies - might as well download the whole internet
@@ -56,14 +59,14 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:7.0.2"
-  api "com.nimbusds:nimbus-jose-jwt:8.6"
+  api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
+  api "com.nimbusds:nimbus-jose-jwt:9.8.1"
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
-  api "net.minidev:json-smart:2.3"
-  api "net.minidev:accessors-smart:1.2"
-  api "org.ow2.asm:asm:7.1"
+  api "net.minidev:json-smart:2.4.2"
+  api "net.minidev:accessors-smart:2.4.2"
+  api "org.ow2.asm:asm:8.0.1"
 
   testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -81,7 +84,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:8.6')
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.8.1')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -131,10 +134,6 @@ dependencies {
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-}
-
 tasks.named("processInternalClusterTestResources").configure {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))
@@ -145,19 +144,9 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   archives tasks.named("jar")
-  testArtifacts testJar
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -271,13 +260,6 @@ tasks.named("thirdPartyAudit").configure {
     'net.sf.ehcache.Element',
     // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
     'org.slf4j.ext.EventData',
-    // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
-    'org.cryptomator.siv.SivMode',
-    // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-    'com.google.crypto.tink.subtle.Ed25519Sign',
-    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-    'com.google.crypto.tink.subtle.Ed25519Verify',
-    'com.google.crypto.tink.subtle.X25519',
     // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
     // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
     'org.bouncycastle.asn1.ASN1Encodable',
@@ -427,11 +409,13 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
     'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
     'org.bouncycastle.jce.provider.BouncyCastleProvider',
+    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
     'org.bouncycastle.jce.spec.ECNamedCurveGenParameterSpec',
     'org.bouncycastle.math.ec.ECFieldElement',
     'org.bouncycastle.math.ec.ECPoint',
     'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.operator.OperatorCreationException',
     'org.bouncycastle.util.Arrays',
     'org.bouncycastle.util.Strings',
     'org.bouncycastle.util.io.Streams',
@@ -461,7 +445,13 @@ tasks.named("thirdPartyAudit").configure {
           'javax.xml.bind.JAXBException',
           'javax.xml.bind.Unmarshaller',
           'javax.xml.bind.UnmarshallerHandler',
-          // Optional dependencies of oauth2-oidc-sdk
+          // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
+          'org.cryptomator.siv.SivMode',
+          // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
+          'com.google.crypto.tink.subtle.Ed25519Sign',
+          'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+          'com.google.crypto.tink.subtle.Ed25519Verify',
+          'com.google.crypto.tink.subtle.X25519',
           'com.nimbusds.common.contenttype.ContentType',
           'javax.activation.ActivationDataFlavor',
           'javax.activation.DataContentHandler',
@@ -472,21 +462,7 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.named("test").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-internalClusterTest {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-
+tasks.named("internalClusterTest").configure {
   /*
    * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
    * to keep direct memory usage under control.

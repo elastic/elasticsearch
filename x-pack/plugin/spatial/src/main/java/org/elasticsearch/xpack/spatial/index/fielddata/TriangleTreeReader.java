@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.store.ByteArrayDataInput;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+
+import java.io.IOException;
 
 /**
  * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
@@ -23,12 +26,13 @@ class TriangleTreeReader {
     /**
      * Visit the Triangle tree using the {@link Visitor} provided.
      */
-    public static void visit(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor, int thisMaxX, int thisMaxY) {
+    public static void visit(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor, int thisMaxX, int thisMaxY)
+        throws IOException {
         visit(input, visitor, true, thisMaxX, thisMaxY, true);
     }
 
-    private static boolean visit(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor,
-                                 boolean splitX, int thisMaxX, int thisMaxY, boolean isRoot) {
+    private static boolean visit(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor,
+                                 boolean splitX, int thisMaxX, int thisMaxY, boolean isRoot) throws IOException {
         byte metadata = input.readByte();
         int thisMinX;
         int thisMinY;
@@ -81,27 +85,27 @@ class TriangleTreeReader {
         return visitor.push();
     }
 
-    private static boolean pushLeft(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor,
-                                    int thisMaxX, int thisMaxY, boolean splitX) {
+    private static boolean pushLeft(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor,
+                                    int thisMaxX, int thisMaxY, boolean splitX)  throws IOException {
         int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
         int size = input.readVInt();
         if (visitor.push(nextMaxX, nextMaxY)) {
-            return visit(input, visitor, !splitX, nextMaxX, nextMaxY, false);
+            return visit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
         } else {
             input.skipBytes(size);
             return visitor.push();
         }
     }
 
-    private static boolean pushRight(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor, int thisMaxX,
-                                     int thisMaxY, int thisMinX, int thisMinY, boolean splitX, int rightSize) {
+    private static boolean pushRight(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor, int thisMaxX,
+                                     int thisMaxY, int thisMinX, int thisMinY, boolean splitX, int rightSize) throws IOException {
         if ((splitX == false && visitor.pushY(thisMinY)) || (splitX && visitor.pushX(thisMinX))) {
             int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
             int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
             int size = input.readVInt();
             if (visitor.push(nextMaxX, nextMaxY)) {
-                return visit(input, visitor, !splitX, nextMaxX, nextMaxY, false);
+                return visit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
             } else {
                 input.skipBytes(size);
             }

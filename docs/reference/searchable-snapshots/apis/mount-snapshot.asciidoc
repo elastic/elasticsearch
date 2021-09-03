@@ -6,9 +6,7 @@
 <titleabbrev>Mount snapshot</titleabbrev>
 ++++
 
-beta::[]
-
-Mount a snapshot as a snapshot backed index.
+Mount a snapshot as a searchable snapshot index.
 
 [[searchable-snapshots-api-mount-request]]
 ==== {api-request-title}
@@ -45,7 +43,23 @@ to mount.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `false`.
+
+`storage`::
++
+--
+(Optional, string)
+<<searchable-snapshot-mount-storage-options,Mount option>> for the
+{search-snap} index. Possible values are:
+
+`full_copy` (Default):::
+<<fully-mounted,Fully mounted index>>.
+
+`shared_cache`:::
+<<partially-mounted,Partially mounted index>>.
+--
 
 [[searchable-snapshots-api-mount-request-body]]
 ==== {api-request-body-title}
@@ -115,7 +129,7 @@ POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
   "index_settings": { <3>
     "index.number_of_replicas": 0
   },
-  "ignored_index_settings": [ "index.refresh_interval" ] <4>
+  "ignore_index_settings": [ "index.refresh_interval" ] <4>
 }
 --------------------------------------------------
 // TEST[continued]
@@ -123,4 +137,4 @@ POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 <1> The name of the index in the snapshot to mount
 <2> The name of the index to create
 <3> Any index settings to add to the new index
-<4> List of indices to ignore when mounting the snapshotted index
+<4> List of index settings to ignore when mounting the snapshotted index

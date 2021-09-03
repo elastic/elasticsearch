@@ -1,38 +1,31 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
+// HLRC is published under the Elastic License
+ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
+
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
@@ -58,7 +51,11 @@ dependencies {
   testImplementation(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
+  testImplementation(project(':modules:ingest-geoip')) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
   testImplementation(project(':x-pack:plugin:eql'))
+  testImplementation(project(':x-pack:plugin:ql:test-fixtures'))
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -72,17 +69,24 @@ File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
 
+def clusterUserNameProvider = providers.systemProperty('tests.rest.cluster.username')
+        .orElse('test_user')
+        .forUseAtConfigurationTime()
+
+def clusterPasswordProvider = providers.systemProperty('tests.rest.cluster.password')
+        .orElse('test-user-password')
+        .forUseAtConfigurationTime()
+
 tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'
-  systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+  systemProperty 'tests.rest.cluster.username', clusterUserNameProvider.get()
+  systemProperty 'tests.rest.cluster.password', clusterPasswordProvider.get()
 }
 
-// Requires https://github.com/elastic/elasticsearch/pull/64403 to have this moved to task avoidance api.
-RestIntegTestTask asyncIntegTest = tasks.create("asyncIntegTest", RestIntegTestTask) {
+TaskProvider<RestIntegTestTask> asyncIntegTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
     systemProperty 'tests.rest.async', 'true'
-    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+    systemProperty 'tests.rest.cluster.username', clusterUserNameProvider.get()
+    systemProperty 'tests.rest.cluster.password', clusterPasswordProvider.get()
 }
 
 tasks.named("check").configure {
@@ -112,12 +116,20 @@ testClusters.all {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   extraConfigFile 'roles.yml', file('roles.yml')
-  user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-    password: System.getProperty('tests.rest.cluster.password', 'test-password'),
-    role: System.getProperty('tests.rest.cluster.role', 'admin')
+  user username: clusterUserNameProvider.get(),
+    password: clusterPasswordProvider.get(),
+    role: providers.systemProperty('tests.rest.cluster.role').orElse('admin').forUseAtConfigurationTime().get()
   user username: 'admin_user', password: 'admin-password'
 
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // the client package should be owned by the client, but server has some classes there too
+  ignoreClasses 'org.elasticsearch.client.*'
 }

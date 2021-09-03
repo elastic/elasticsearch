@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -47,7 +36,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * tests using all versions
  */
 @ESIntegTestCase.SuiteScopeTestCase
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
@@ -67,13 +56,14 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         internalCluster().wipeIndices("idx2");
     }
 
-    private void prepareIndex(ZonedDateTime date, int numHours, int stepSizeHours, int idxIdStart)
-        throws IOException, InterruptedException {
+    private void prepareIndex(ZonedDateTime date, int numHours, int stepSizeHours, int idxIdStart) throws IOException,
+        InterruptedException {
 
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
-            reqs[i - idxIdStart] = client().prepareIndex("idx2").setId("" + i)
-                    .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
+            reqs[i - idxIdStart] = client().prepareIndex("idx2")
+                .setId("" + i)
+                .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }
         indexRandom(true, reqs);
@@ -83,13 +73,11 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, 1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("2h")
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                dateHistogram("date_histo").field("date").offset("2h").format(DATE_FORMAT).fixedInterval(DateHistogramInterval.DAY)
+            )
+            .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
@@ -105,13 +93,11 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, -1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("-2h")
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                dateHistogram("date_histo").field("date").offset("-2h").format(DATE_FORMAT).fixedInterval(DateHistogramInterval.DAY)
+            )
+            .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
@@ -131,14 +117,15 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         prepareIndex(date("2014-03-14T00:00:00+00:00"), 12, 1, 13);
 
         SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .offset("6h")
-                        .minDocCount(0)
-                        .format(DATE_FORMAT)
-                        .dateHistogramInterval(DateHistogramInterval.DAY))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                dateHistogram("date_histo").field("date")
+                    .offset("6h")
+                    .minDocCount(0)
+                    .format(DATE_FORMAT)
+                    .fixedInterval(DateHistogramInterval.DAY)
+            )
+            .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(24L));
 

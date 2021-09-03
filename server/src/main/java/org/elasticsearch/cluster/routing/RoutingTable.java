@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -28,7 +17,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -104,8 +93,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public boolean hasIndex(Index index) {
-        IndexRoutingTable indexRouting = index(index.getName());
-        return indexRouting != null && indexRouting.getIndex().equals(index);
+        IndexRoutingTable indexRouting = index(index);
+        return indexRouting != null;
     }
 
     public IndexRoutingTable index(String index) {
@@ -113,7 +102,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public IndexRoutingTable index(Index index) {
-        return indicesRouting.get(index.getName());
+        IndexRoutingTable indexRouting = index(index.getName());
+        return indexRouting != null && indexRouting.getIndex().equals(index) ? indexRouting : null;
     }
 
     public ImmutableOpenMap<String, IndexRoutingTable> indicesRouting() {
@@ -145,8 +135,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @throws ShardNotFoundException if provided shard id is unknown
      */
     public IndexShardRoutingTable shardRoutingTable(ShardId shardId) {
-        IndexRoutingTable indexRouting = index(shardId.getIndexName());
-        if (indexRouting == null || indexRouting.getIndex().equals(shardId.getIndex()) == false) {
+        IndexRoutingTable indexRouting = index(shardId.getIndex());
+        if (indexRouting == null) {
             throw new IndexNotFoundException(shardId.getIndex());
         }
         IndexShardRoutingTable shard = indexRouting.shard(shardId.id());
@@ -158,7 +148,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     @Nullable
     public ShardRouting getByAllocationId(ShardId shardId, String allocationId) {
-        final IndexRoutingTable indexRoutingTable = index(shardId.getIndexName());
+        final IndexRoutingTable indexRoutingTable = index(shardId.getIndex());
         if (indexRoutingTable == null) {
             return null;
         }
@@ -265,6 +255,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public ShardsIterator allShards(String[] indices) {
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, false);
+    }
+
+    public ShardsIterator allActiveShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, ShardRouting::active, false);
     }
 
     public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-ccr'
@@ -19,7 +19,7 @@ tasks.register('internalClusterTestNoSecurityManager', Test) {
   include noSecurityManagerITClasses
   systemProperty 'tests.security.manager', 'false'
 }
-check.dependsOn 'internalClusterTestNoSecurityManager'
+tasks.named("check").configure { dependsOn 'internalClusterTestNoSecurityManager' }
 
 tasks.named('internalClusterTest').configure {
   exclude noSecurityManagerITClasses
@@ -30,13 +30,20 @@ addQaCheckDependencies()
 dependencies {
   compileOnly project(":server")
 
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 
-testingConventions.naming {
-  IT {
-    baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
+tasks.named("testingConventions").configure {
+  naming {
+    IT {
+      baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
+    }
   }
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // xpack core has xpackinfo classes for ccr under this package
+  ignoreClasses 'org.elasticsearch.xpack.ccr.*'
 }

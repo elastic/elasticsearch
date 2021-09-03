@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,12 +45,26 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SizeFieldMapper build() {
-            return new SizeFieldMapper(enabled.getValue(), new NumberFieldType(NAME, NumberType.INTEGER));
+            return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
+        }
+    }
+
+    private static class SizeFieldType extends NumberFieldType {
+        SizeFieldType() {
+            super(NAME, NumberType.INTEGER);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (hasDocValues() == false) {
+                return lookup -> List.of();
+            }
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(new Explicit<>(false, false), new NumberFieldType(NAME, NumberType.INTEGER)),
+        c -> new SizeFieldMapper(new Explicit<>(false, false), new SizeFieldType()),
         c -> new Builder()
     );
 
@@ -79,7 +85,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(DocumentParserContext context) throws IOException {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
         if (enabled.value() == false) {
             return;

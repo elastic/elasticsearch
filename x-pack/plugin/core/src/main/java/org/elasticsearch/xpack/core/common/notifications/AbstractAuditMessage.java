@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -27,6 +28,14 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField NODE_NAME = new ParseField("node_name");
     public static final ParseField JOB_TYPE = new ParseField("job_type");
+
+    private static final String TRUNCATED_SUFFIX = "... (truncated)";
+    /**
+     * The max length of an audit message in characters is 32766 / 4 = 8191
+     * where 32766 is the limit in bytes Lucene sets for a term field
+     * and 4 is the max number of bytes required to represent a UTF8 character.
+     */
+    public static final int MAX_AUDIT_MESSAGE_CHARS = 8191;
 
     protected static final <T extends AbstractAuditMessage> ConstructingObjectParser<T, Void> createParser(
             String name, AbstractAuditMessageFactory<T> messageFactory, ParseField resourceField) {
@@ -88,7 +97,13 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         if (resourceId != null) {
             builder.field(getResourceField(), resourceId);
         }
-        builder.field(MESSAGE.getPreferredName(), message);
+
+        if (message.length() > MAX_AUDIT_MESSAGE_CHARS) {
+            assert message.length() > MAX_AUDIT_MESSAGE_CHARS : "Audit message is unexpectedly large";
+            builder.field(MESSAGE.getPreferredName(), truncateMessage(message, MAX_AUDIT_MESSAGE_CHARS));
+        } else {
+            builder.field(MESSAGE.getPreferredName(), message);
+        }
         builder.field(LEVEL.getPreferredName(), level);
         builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         if (nodeName != null) {
@@ -134,4 +149,29 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
      * @return resource id field name used when storing a new message
      */
     protected abstract String getResourceField();
+
+    /**
+     * Truncate the message and append {@value #TRUNCATED_SUFFIX} so
+     * that the resulting string does not exceed {@code maxLength} characters
+     *
+     * {@code message} must be at least {@code maxLength} long
+     *
+     * @param message The message to truncate. Must have length of at least maxLength
+     * @param maxLength The length to truncate to
+     * @return The truncated string ending int {@value #TRUNCATED_SUFFIX}
+     */
+    static String truncateMessage(String message, int maxLength) {
+        StringBuilder sb = new StringBuilder(maxLength);
+        sb.append(message, 0, maxLength - TRUNCATED_SUFFIX.length());
+        int lastWhitespace = sb.lastIndexOf(" ");
+        if (lastWhitespace < 0) {
+            // no space char
+            lastWhitespace = maxLength - TRUNCATED_SUFFIX.length();
+        } else {
+            lastWhitespace++; // point to next char which is a non-space char
+        }
+        sb.replace(lastWhitespace, lastWhitespace + TRUNCATED_SUFFIX.length(), TRUNCATED_SUFFIX);
+        sb.delete(lastWhitespace + TRUNCATED_SUFFIX.length(), sb.length());
+        return sb.toString();
+    }
 }

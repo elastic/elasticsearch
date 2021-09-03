@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -11,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -58,6 +59,7 @@ public class JobDataCountsPersister {
      * @param counts The counts
      */
     public void persistDataCounts(String jobId, DataCounts counts) {
+        counts.setLogTime(Instant.now());
         try {
             resultsPersisterService.indexWithRetry(jobId,
                 AnomalyDetectorsIndex.resultsWriteAlias(jobId),
@@ -87,22 +89,15 @@ public class JobDataCountsPersister {
      * @param listener ActionType response listener
      */
     public void persistDataCountsAsync(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
+        counts.setLogTime(Instant.now());
         try (XContentBuilder content = serialiseCounts(counts)) {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
                 .id(DataCounts.documentId(jobId))
                 .setRequireAlias(true)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(content);
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    listener.onResponse(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request,
+                    listener.delegateFailure((l, r) -> l.onResponse(true)));
         } catch (IOException ioe) {
             String msg = new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId).getFormattedMessage();
             logger.error(msg, ioe);

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[transform-search]]
-=== Search {watcher-transform}
+=== {watcher} search {watcher-transform}
+++++
+<titleabbrev>Search {watcher-transform}</titleabbrev>
+++++
 
 A <<transform,{watcher-transform}>> that executes a search on the cluster and
 replaces the current payload in the watch execution context with the returned
@@ -65,8 +68,9 @@ The following table lists all available settings for the search
                                                                                   a REST `_search` request. The body can be static text
                                                                                   or include `mustache` <<templates,templates>>.
 
-| `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. Can be one
-                                                                                  of `open`, `closed`, `none` or `all`
+| `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. An array
+                                                                                  consisting of a combination of `open`, `closed`,
+                                                                                  and `hidden`. Alternatively a value of `none` or `all`.
                                                                                   (see <<multi-index,multi-index support>>)
 
 | `request.indices_options.ignore_unavailable`  | no        | `true`            | A boolean value that determines whether the search
@@ -92,7 +96,7 @@ The following table lists all available settings for the search
 The search {watcher-transform} support mustache <<templates, templates>>. This
 can either be as part of the body definition or alternatively point to an
 existing template (either defined in a file or
-<<pre-registered-templates,registered>> as a script in Elasticsearch).
+<<create-search-template,stored>> as a script in Elasticsearch).
 
 For example, the following snippet shows a search that refers to the scheduled
 time of the watch:

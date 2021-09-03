@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -13,9 +14,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -32,6 +34,8 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -80,7 +84,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
     public void testMoveToRolloverStep() throws Exception {
         String originalIndex = index + "-000001";
-        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+        String shrunkenOriginalIndex = SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
 
         createFullPolicy(client(), policy, TimeValue.timeValueHours(10));
@@ -124,8 +128,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToInjectedStep() throws Exception {
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1), TimeValue.timeValueHours(12));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null), TimeValue.timeValueHours(12));
 
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -152,6 +155,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         assertOK(client().performRequest(moveToStepRequest));
 
         // Make sure we actually move on to and execute the shrink action
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         assertBusy(() -> {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));
@@ -160,7 +164,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToStepRereadsPolicy() throws Exception {
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
 
         createIndexWithSettings(client(), "test-1", alias, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -172,7 +176,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), "test-1"),
             equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))), 30, TimeUnit.SECONDS);
 
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, 1L), TimeValue.ZERO);
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L), TimeValue.ZERO);
 
         // Move to the same step, which should re-read the policy
         Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
@@ -234,4 +238,122 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         });
     }
 
+    public void testMoveToStepWithoutStepName() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"action\": \"forcemerge\"\n" +
+            "  }\n" +
+            "}");
+
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually move on to and execute the forcemerge action
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testMoveToStepWithoutAction() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+       "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\"\n" +
+            "  }\n" +
+            "}");
+
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually move on to and execute the forcemerge action
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testInvalidToMoveToStepWithoutActionButWithName() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step with an invalid request
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"name\": \"forcemerge\"\n" +
+            "  }\n" +
+            "}");
+
+        assertBusy(() -> {
+            ResponseException exception =
+                expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
+            String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
+            String expectedErrorMessage = "phase; phase and action; or phase, action, and step must be provided, " +
+                "but a step name was specified without a corresponding action";
+            assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
+        });
+    }
+
+    public void testResolveToNonexistentStep() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step with an invalid request
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"action\": \"shrink\"\n" +
+            "  }\n" +
+            "}");
+
+        assertBusy(() -> {
+            ResponseException exception =
+                expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
+            String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
+            String expectedErrorMessage = "unable to determine concrete step key from target next step key: " +
+                "{\\\"phase\\\":\\\"warm\\\",\\\"action\\\":\\\"shrink\\\"}";
+            assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
+        });
+    }
 }

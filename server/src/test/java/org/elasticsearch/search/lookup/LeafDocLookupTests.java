@@ -1,29 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+
+import java.util.function.Function;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.anyObject;
@@ -35,6 +29,7 @@ public class LeafDocLookupTests extends ESTestCase {
     private ScriptDocValues<?> docValues;
     private LeafDocLookup docLookup;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -60,7 +55,38 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {
+    public void testFlattenedField() {
+        ScriptDocValues<?> docValues1 = mock(ScriptDocValues.class);
+        IndexFieldData<?> fieldData1 = createFieldData(docValues1);
+
+        ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
+        IndexFieldData<?> fieldData2 = createFieldData(docValues2);
+
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(new ContentPath(1));
+        DynamicFieldType fieldType = fieldMapper.fieldType();
+        MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
+        MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
+
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
+            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
+            return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
+        };
+
+        LeafDocLookup docLookup = new LeafDocLookup(field -> {
+            if (field.equals("flattened.key1")) {
+                return fieldType1;
+            }
+            if (field.equals("flattened.key2")) {
+                return fieldType2;
+            }
+            return null;
+        }, fieldDataSupplier, null);
+
+        assertEquals(docValues1, docLookup.get("flattened.key1"));
+        assertEquals(docValues2, docLookup.get("flattened.key2"));
+    }
+
+    private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues) {
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
         doReturn(scriptDocValues).when(leafFieldData).getScriptValues();
 

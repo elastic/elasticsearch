@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
+
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -129,17 +119,17 @@ public class WindowsServiceTests extends PackagingTestCase {
             mv(installation.bundledJdk, relocatedJdk);
             Result result = sh.runIgnoreExitCode(serviceScript + " install");
             assertThat(result.exitCode, equalTo(1));
-            assertThat(result.stderr, containsString("could not find java in bundled jdk"));
+            assertThat(result.stderr, containsString("could not find java in bundled JDK"));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }
     }
 
     public void test14InstallBadJavaHome() throws IOException {
-        sh.getEnv().put("JAVA_HOME", "doesnotexist");
+        sh.getEnv().put("ES_JAVA_HOME", "doesnotexist");
         Result result = sh.runIgnoreExitCode(serviceScript + " install");
         assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stderr, containsString("could not find java in JAVA_HOME"));
+        assertThat(result.stderr, containsString("could not find java in ES_JAVA_HOME"));
     }
 
     public void test15RemoveNotInstalled() {
@@ -150,7 +140,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test16InstallSpecialCharactersInJdkPath() throws IOException {
         assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) jdk");
-        sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
+        sh.getEnv().put("ES_JAVA_HOME", relocatedJdk.toString());
 
         try {
             mv(installation.bundledJdk, relocatedJdk);
@@ -238,9 +228,9 @@ public class WindowsServiceTests extends PackagingTestCase {
 
         try {
             mv(installation.bundledJdk, relocatedJdk);
-            sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
+            sh.getEnv().put("ES_JAVA_HOME", relocatedJdk.toString());
             assertCommand(serviceScript + " install");
-            sh.getEnv().remove("JAVA_HOME");
+            sh.getEnv().remove("ES_JAVA_HOME");
             assertCommand(serviceScript + " start");
             assertStartedAndStop();
         } finally {

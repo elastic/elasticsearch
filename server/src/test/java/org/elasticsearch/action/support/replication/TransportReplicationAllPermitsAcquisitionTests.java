@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.support.replication;
 
@@ -42,9 +31,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
@@ -127,7 +116,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         clusterService = createClusterService(threadPool);
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
-        Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
+        Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
         DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         state.nodes(DiscoveryNodes.builder()
@@ -231,7 +220,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(delayedOperations + 1);
         final List<Thread> threads = new ArrayList<>(delayedOperationsBarrier.getParties());
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"rawtypes", "unchecked"})
         final PlainActionFuture<Response>[] futures = new PlainActionFuture[numOperations];
         final TestAction[] actions = new TestAction[numOperations];
 
@@ -250,6 +239,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             Thread thread = new Thread(() -> {
                 final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
                     = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+                @SuppressWarnings("rawtypes")
                 TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                     singlePermitAction.new AsyncPrimaryAction(primaryRequest, listener, null) {
                         @Override
@@ -262,6 +252,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
+                        @SuppressWarnings({"rawtypes", "unchecked"})
                         void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
                             assertThat(reference.indexShard.getActiveOperationsCount(), greaterThan(0));
                             assertSame(primary, reference.indexShard);
@@ -301,11 +292,14 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
+            @SuppressWarnings("rawtypes")
             final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
                 = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+            @SuppressWarnings("rawtypes")
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                 allPermitsAction.new AsyncPrimaryAction(primaryRequest, allPermitFuture, null) {
                     @Override
+                    @SuppressWarnings({"rawtypes", "unchecked"})
                     void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
                         assertEquals("All permits must be acquired",
                             IndexShard.OPERATIONS_BLOCKED, reference.indexShard.getActiveOperationsCount());

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,8 +51,8 @@ public class MetricConfig implements Writeable, ToXContentObject {
     public static final ParseField SUM = new ParseField("sum");
     public static final ParseField AVG = new ParseField("avg");
     public static final ParseField VALUE_COUNT = new ParseField("value_count");
+    public static final String NAME = "metrics";
 
-    static final String NAME = "metrics";
     private static final String FIELD = "field";
     private static final String METRICS = "metrics";
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
@@ -84,7 +85,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
         this.metrics = metrics;
     }
 
-    MetricConfig(final StreamInput in) throws IOException {
+    public MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
         metrics = in.readStringList();
     }

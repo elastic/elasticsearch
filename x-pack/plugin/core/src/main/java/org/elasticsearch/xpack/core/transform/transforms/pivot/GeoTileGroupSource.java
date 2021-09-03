@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -104,7 +105,9 @@ public class GeoTileGroupSource extends SingleGroupSource {
             builder.field(PRECISION.getPreferredName(), precision);
         }
         if (geoBoundingBox != null) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
+            builder.endObject();
         }
         builder.endObject();
         return builder;

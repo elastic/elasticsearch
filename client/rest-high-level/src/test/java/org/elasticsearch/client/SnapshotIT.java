@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -44,14 +33,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.mockito.internal.util.collections.Sets;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -157,10 +151,18 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         boolean waitForCompletion = randomBoolean();
         request.waitForCompletion(waitForCompletion);
         if (randomBoolean()) {
-            request.userMetadata(randomUserMetadata());
+            request.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
+        final List<String> featureStates = randomFrom(
+            List.of(
+                Collections.emptyList(),
+                Collections.singletonList(TASKS_FEATURE_NAME),
+                Collections.singletonList(NO_FEATURE_STATES_VALUE)
+            )
+        );
+        request.featureStates(featureStates);
 
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
@@ -193,7 +195,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
         CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository2, snapshot2);
         createSnapshotRequest2.waitForCompletion(true);
-        Map<String, Object> originalMetadata = randomUserMetadata();
+        Map<String, Object> originalMetadata = AbstractSnapshotIntegTestCase.randomUserMetadata();
         createSnapshotRequest2.userMetadata(originalMetadata);
         CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
@@ -209,14 +211,17 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
 
         assertThat(response.isFailed(), is(false));
-        assertThat(response.getRepositories(), equalTo(Sets.newSet(repository1, repository2)));
+        assertEquals(
+            Sets.newSet(repository1, repository2),
+            response.getSnapshots().stream().map(SnapshotInfo::repository).collect(Collectors.toSet())
+        );
 
-        assertThat(response.getSnapshots(repository1), hasSize(1));
-        assertThat(response.getSnapshots(repository1).get(0).snapshotId().getName(), equalTo(snapshot1));
-
-        assertThat(response.getSnapshots(repository2), hasSize(1));
-        assertThat(response.getSnapshots(repository2).get(0).snapshotId().getName(), equalTo(snapshot2));
-        assertThat(response.getSnapshots(repository2).get(0).userMetadata(), equalTo(originalMetadata));
+        assertThat(response.getSnapshots(), hasSize(2));
+        assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(snapshot1));
+        assertThat(response.getSnapshots().get(0).repository(), equalTo(repository1));
+        assertThat(response.getSnapshots().get(1).snapshotId().getName(), equalTo(snapshot2));
+        assertThat(response.getSnapshots().get(1).userMetadata(), equalTo(originalMetadata));
+        assertThat(response.getSnapshots().get(1).repository(), equalTo(repository2));
     }
 
 
@@ -264,7 +269,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
         if (randomBoolean()) {
-            createSnapshotRequest.userMetadata(randomUserMetadata());
+            createSnapshotRequest.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
@@ -273,9 +278,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
 
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.indices(testIndex);
         request.waitForCompletion(true);
         request.renamePattern(testIndex);
         request.renameReplacement(restoredIndex);
+        if (randomBoolean()) {
+            request.includeGlobalState(true);
+            request.featureStates(Collections.singletonList(NO_FEATURE_STATES_VALUE));
+        }
 
         RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
                 highLevelClient().snapshot()::restoreAsync);
@@ -306,7 +316,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         createSnapshotRequest.indices("*");
         createSnapshotRequest.waitForCompletion(true);
         if (randomBoolean()) {
-            createSnapshotRequest.userMetadata(randomUserMetadata());
+            createSnapshotRequest.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
@@ -339,7 +349,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         createSnapshotRequest.waitForCompletion(true);
         if (randomBoolean()) {
-            createSnapshotRequest.userMetadata(randomUserMetadata());
+            createSnapshotRequest.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
@@ -375,27 +385,4 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    private static Map<String, Object> randomUserMetadata() {
-        if (randomBoolean()) {
-            return null;
-        }
-
-        Map<String, Object> metadata = new HashMap<>();
-        long fields = randomLongBetween(0, 4);
-        for (int i = 0; i < fields; i++) {
-            if (randomBoolean()) {
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                        randomAlphaOfLengthBetween(5, 5));
-            } else {
-                Map<String, Object> nested = new HashMap<>();
-                long nestedFields = randomLongBetween(0, 4);
-                for (int j = 0; j < nestedFields; j++) {
-                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                            randomAlphaOfLengthBetween(5, 5));
-                }
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
-            }
-        }
-        return metadata;
-    }
 }

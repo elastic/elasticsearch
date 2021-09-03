@@ -1,0 +1,145 @@
+---
+setup:
+  - skip:
+      features: headers
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  # Creates a role and a user "Logstash Agent" who can use
+  # the Monitoring Bulk API and read the monitoring indices.
+  - do:
+      security.put_role:
+        name: "logstash_agent_role"
+        body:  >
+            {
+              "cluster": ["cluster:admin/xpack/monitoring/bulk"],
+              "indices": [
+                {
+                  "privileges": ["read"],
+                  "names": ".monitoring-*"
+                }
+              ]
+            }
+  - do:
+      security.put_user:
+        username: "logstash_agent"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "logstash_agent_role" ]
+          }
+
+  # Creates a role and a user "Unknown Agent" who can only
+  # read the monitoring indices.
+  - do:
+      security.put_role:
+        name: "unknown_agent_role"
+        body:  >
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                {
+                  "privileges": ["read"],
+                  "names": ".monitoring-*"
+                }
+              ]
+            }
+  - do:
+      security.put_user:
+        username: "unknown_agent"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "unknown_agent_role" ]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "logstash_agent"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "logstash_agent_role"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "unknown_agent"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "unknown_agent_role"
+        ignore: 404
+
+---
+"Monitoring Bulk API":
+  - skip:
+      features: catch_unauthorized
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
+
+  - do:
+      headers:
+        # Authorization: logstash_agent
+        Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0LXBhc3N3b3Jk"
+      monitoring.bulk:
+        system_id:          "logstash"
+        system_api_version: "6"
+        interval:           "10s"
+        body:
+          - index:
+              _type:  logstash_metric
+          - metric:
+              queue:  10
+          - index:
+              _index: _data
+              _type:  logstash_info
+          - info:
+              license: basic
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-logstash-*
+        body: { "query": { "term" : { "type": "logstash_metric" } } }
+  - match: { hits.total: 1 }
+
+  # We actively ignore indexing requests made to .monitoring-data-N starting with 5.5
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-data-*
+  - match: { hits.total: 0 }
+
+  - do:
+      catch: forbidden
+      headers:
+        # Authorization: unknown_agent
+        Authorization: "Basic dW5rbm93bl9hZ2VudDpzM2tyaXQtcGFzc3dvcmQ="
+      monitoring.bulk:
+        system_id:          "logstash"
+        system_api_version: "6"
+        interval:           "10s"
+        body:
+          - index:
+              _type:  logstash_metric
+          - metric:
+              queue:  10
+  - match: { "error.type": "security_exception" }
+  - match: { "error.reason": "action [cluster:admin/xpack/monitoring/bulk] is unauthorized for user [unknown_agent]" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-logstash-*
+        body: { "query": { "term" : { "type": "logstash_metric" } } }
+  - match: { hits.total: 1 }

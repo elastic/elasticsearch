@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -14,7 +15,9 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 
 import java.io.IOException;
@@ -29,9 +32,9 @@ public class Watch implements ToXContentObject {
 
     private final String id;
     private final Trigger trigger;
-    private final ExecutableInput input;
+    private final ExecutableInput<? extends Input, ? extends Input.Result> input;
     private final ExecutableCondition condition;
-    @Nullable private final ExecutableTransform transform;
+    @Nullable private final ExecutableTransform<? extends Transform, ? extends Transform.Result> transform;
     private final List<ActionWrapper> actions;
     @Nullable private final TimeValue throttlePeriod;
     @Nullable private final Map<String, Object> metadata;
@@ -40,7 +43,8 @@ public class Watch implements ToXContentObject {
     private final long sourceSeqNo;
     private final long sourcePrimaryTerm;
 
-    public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
+    public Watch(String id, Trigger trigger, ExecutableInput<? extends Input, ? extends Input.Result>input, ExecutableCondition condition,
+                 @Nullable ExecutableTransform<? extends Transform, ? extends Transform.Result> transform,
                  @Nullable TimeValue throttlePeriod, List<ActionWrapper> actions, @Nullable Map<String, Object> metadata,
                  WatchStatus status, long sourceSeqNo, long sourcePrimaryTerm) {
         this.id = id;
@@ -64,13 +68,13 @@ public class Watch implements ToXContentObject {
         return trigger;
     }
 
-    public ExecutableInput input() { return input;}
+    public ExecutableInput<? extends Input, ? extends Input.Result> input() { return input;}
 
     public ExecutableCondition condition() {
         return condition;
     }
 
-    public ExecutableTransform transform() {
+    public ExecutableTransform<? extends Transform, ? extends Transform.Result> transform() {
         return transform;
     }
 

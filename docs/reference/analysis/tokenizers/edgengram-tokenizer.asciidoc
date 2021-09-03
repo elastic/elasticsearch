@@ -14,7 +14,7 @@ Edge N-Grams are useful for _search-as-you-type_ queries.
 TIP: When you need _search-as-you-type_ for text which has a widely known
 order, such as movie or song titles, the
 <<completion-suggester,completion suggester>> is a much more efficient
-choice than edge N-grams.  Edge N-grams have the advantage when trying to
+choice than edge N-grams. Edge N-grams have the advantage when trying to
 autocomplete words that can appear in any order.
 
 [discrete]
@@ -67,7 +67,7 @@ The above sentence would produce the following terms:
 [ Q, Qu ]
 ---------------------------
 
-NOTE: These default gram lengths are almost entirely useless.  You need to
+NOTE: These default gram lengths are almost entirely useless. You need to
 configure the `edge_ngram` before using it.
 
 [discrete]
@@ -76,19 +76,19 @@ configure the `edge_ngram` before using it.
 The `edge_ngram` tokenizer accepts the following parameters:
 
 `min_gram`::
-    Minimum length of characters in a gram.  Defaults to `1`.
+    Minimum length of characters in a gram. Defaults to `1`.
 
 `max_gram`::
 +
 --
-Maximum length of characters in a gram.  Defaults to `2`.
+Maximum length of characters in a gram. Defaults to `2`.
 
 See <<max-gram-limits>>.
 --
 
 `token_chars`::
 
-    Character classes that should be included in a token.  Elasticsearch
+    Character classes that should be included in a token. Elasticsearch
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +
@@ -106,7 +106,7 @@ Character classes may be any of the following:
 
     Custom characters that should be treated as part of a token. For example,
     setting this to `+-_` will make the tokenizer treat the plus, minus and
-    underscore sign  as part of a token.
+    underscore sign as part of a token.
 
 [discrete]
 [[max-gram-limits]]

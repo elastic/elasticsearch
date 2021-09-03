@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -67,17 +70,14 @@ public class DataTierIT extends ESIntegTestCase {
         startColdOnlyNode();
         ensureGreen();
 
-        String setting = randomBoolean() ? DataTierAllocationDecider.INDEX_ROUTING_REQUIRE :
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER;
-
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .put(setting, DataTier.DATA_WARM))
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.get(setting), equalTo(DataTier.DATA_WARM));
+        assertThat(idxSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), equalTo(DataTier.DATA_WARM));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -110,14 +110,14 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_COLD))
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "cold"))
             .get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(""));
         // The key should not be put in place since it was overridden
         assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
+        assertThat(idxSettings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box"), equalTo("cold"));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -166,9 +166,11 @@ public class DataTierIT extends ESIntegTestCase {
         startWarmOnlyNode();
 
         Template t = new Template(Settings.builder()
-            .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "warm")
             .build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t).build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -185,7 +187,8 @@ public class DataTierIT extends ESIntegTestCase {
         t = new Template(Settings.builder()
             .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
             .build(), null, null);
-        ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
+        ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+                 .template(t).build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -243,6 +246,35 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryShardBytesMAD, greaterThanOrEqualTo(0L));
     }
 
+    public void testIllegalOnFrozen() {
+        startDataNode();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex(index, Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_FROZEN)
+                .build()));
+        assertThat(e.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+
+        String initialTier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
+        createIndex(index, Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, initialTier)
+            .build());
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> updatePreference(DataTier.DATA_FROZEN));
+        assertThat(e2.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+
+        updatePreference(randomValueOtherThan(initialTier, () -> randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD)));
+    }
+
+    private void updatePreference(String tier) {
+        client().admin().indices().updateSettings(new UpdateSettingsRequest(index)
+            .settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))).actionGet();
+    }
+
     private DataTiersFeatureSetUsage getUsage() {
         XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
         return usages.getUsages().stream()
@@ -255,6 +287,7 @@ public class DataTierIT extends ESIntegTestCase {
     public void startDataNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data", "ingest"))
+            .put("node.attr.box", "all")
             .build();
         internalCluster().startNode(nodeSettings);
     }
@@ -262,6 +295,7 @@ public class DataTierIT extends ESIntegTestCase {
     public void startContentOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_content", "ingest"))
+            .put("node.attr.box", "content")
             .build();
         internalCluster().startNode(nodeSettings);
     }
@@ -269,6 +303,7 @@ public class DataTierIT extends ESIntegTestCase {
     public void startHotOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_hot", "ingest"))
+            .put("node.attr.box", "hot")
             .build();
         internalCluster().startNode(nodeSettings);
     }
@@ -276,6 +311,7 @@ public class DataTierIT extends ESIntegTestCase {
     public void startWarmOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_warm", "ingest"))
+            .put("node.attr.box", "warm")
             .build();
         internalCluster().startNode(nodeSettings);
     }
@@ -283,6 +319,7 @@ public class DataTierIT extends ESIntegTestCase {
     public void startColdOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_cold", "ingest"))
+            .put("node.attr.box", "cold")
             .build();
         internalCluster().startNode(nodeSettings);
     }
@@ -290,6 +327,7 @@ public class DataTierIT extends ESIntegTestCase {
     public void startFrozenOnlyNode() {
         Settings nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
+            .put("node.attr.box", "frozen")
             .build();
         internalCluster().startNode(nodeSettings);
     }

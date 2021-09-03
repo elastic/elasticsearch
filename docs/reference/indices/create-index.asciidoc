@@ -17,6 +17,14 @@ PUT /my-index-000001
 
 `PUT /<index>`
 
+[[indices-create-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the target index. To
+add the index to an alias, you must have the `manage` index privilege for the
+alias.
+
 [[indices-create-api-desc]]
 ==== {api-description-title}
 You can use the create index API to add a new index to an {es} cluster. When
@@ -56,13 +64,54 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[indices-create-api-request-body]]
 ==== {api-request-body-title}
 
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
+(Optional, object of objects) Aliases for the index.
++
+--
+// tag::aliases-props[]
+[%collapsible%open]
+.Properties of `aliases` objects
+=======
+`<alias>`::
+(Required, object) The key is the alias name. Index alias names support
+<<date-math-index-names,date math>>.
++
+The object body contains options for the alias. Supports an empty object.
++
+.Properties of `<alias>`
+[%collapsible%open]
+======
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query used to limit documents the
+alias can access.
+
+`index_routing`::
+(Optional, string) Value used to route indexing operations to a specific shard.
+If specified, this overwrites the `routing` value for indexing operations.
+
+`is_hidden`::
+(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
+`false`. All indices for the alias must have the same `is_hidden` value.
+
+`is_write_index`::
+(Optional, Boolean) If `true`, the index is the <<write-index,write index>> for
+the alias. Defaults to `false`.
+
+`routing`::
+(Optional, string) Value used to route indexing and search operations to a
+specific shard.
+
+`search_routing`::
+(Optional, string) Value used to route search operations to a specific shard. If
+specified, this overwrites the `routing` value for search operations.
+======
+=======
+// end::aliases-props[]
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
@@ -137,7 +186,7 @@ PUT /test
 [[create-index-aliases]]
 ===== Aliases
 
-The create index API allows also to provide a set of <<indices-aliases,aliases>>:
+The create index API allows also to provide a set of <<alias,aliases>>:
 
 [source,console]
 --------------------------------------------------
@@ -155,6 +204,18 @@ PUT /test
 }
 --------------------------------------------------
 
+Index alias names also support <<date-math-index-names,date math>>.
+
+[source,console]
+----
+PUT /logs
+{
+  "aliases": {
+    "<logs_{now/M}>": {}
+  }
+}
+----
+
 [[create-index-wait-for-active-shards]]
 ===== Wait for active shards
 
@@ -167,7 +228,7 @@ what happened:
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "index": "test"
+  "index": "logs"
 }
 --------------------------------------------------
 

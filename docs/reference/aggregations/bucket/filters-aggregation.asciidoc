@@ -4,9 +4,8 @@
 <titleabbrev>Filters</titleabbrev>
 ++++
 
-Defines a multi bucket aggregation where each bucket is associated with a
-filter. Each bucket will collect all documents that match its associated
-filter.
+A multi-bucket aggregation where each bucket contains the documents
+that match a <<query-dsl,query>>.
 
 Example:
 
@@ -92,7 +91,7 @@ GET logs/_search
 // TEST[continued]
 
 The filtered buckets are returned in the same order as provided in the
-request.  The response for this example would be:
+request. The response for this example would be:
 
 [source,console-result]
 --------------------------------------------------

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
     name 'x-pack-async-search'
@@ -8,16 +8,13 @@ esplugin {
 }
 archivesBaseName = 'x-pack-async-search'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
 addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":server")
 
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('async'))
 }

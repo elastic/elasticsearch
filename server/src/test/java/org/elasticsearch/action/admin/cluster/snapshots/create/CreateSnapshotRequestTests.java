@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
@@ -42,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.snapshots.SnapshotInfoTests.randomUserMetadata;
+import static org.elasticsearch.snapshots.SnapshotInfoTestUtils.randomUserMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -67,6 +56,17 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
+            List<String> featureStates = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                featureStates.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            original.featureStates(featureStates);
+        }
+
+        if (randomBoolean()) {
             original.partial(randomBoolean());
         }
 
@@ -82,9 +82,12 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
             Collection<Option> options = randomSubsetOf(Arrays.asList(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
 
-            original.indicesOptions(new IndicesOptions(
+            original.indicesOptions(
+                new IndicesOptions(
                     options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)));
+                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
+                )
+            );
         }
 
         if (randomBoolean()) {
@@ -96,10 +99,10 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent().createParser(
-                NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();
-        CreateSnapshotRequest processed = new CreateSnapshotRequest((String)map.get("repository"), (String)map.get("snapshot"));
+        CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
         processed.waitForCompletion(original.waitForCompletion());
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.source(map);
@@ -154,8 +157,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
     }
 
     private CreateSnapshotRequest createSnapshotRequestWithMetadata(Map<String, Object> metadata) {
-        return new CreateSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .indices(randomAlphaOfLength(5))
+        return new CreateSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)).indices(randomAlphaOfLength(5))
             .userMetadata(metadata);
     }
 }

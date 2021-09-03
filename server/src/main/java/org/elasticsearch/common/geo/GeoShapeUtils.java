@@ -1,23 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -31,7 +21,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.util.ArrayList;
@@ -62,7 +52,10 @@ public class GeoShapeUtils {
     }
 
     public static org.apache.lucene.geo.Point toLucenePoint(Point point) {
-        return new org.apache.lucene.geo.Point(point.getLat(), point.getLon());
+        // Quantize the points to match points in index.
+        final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getLon()));
+        final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getLat()));
+        return new org.apache.lucene.geo.Point(lat, lon);
     }
 
     public static org.apache.lucene.geo.Line toLuceneLine(Line line) {
@@ -75,15 +68,17 @@ public class GeoShapeUtils {
 
     public static LatLonGeometry[] toLuceneGeometry(
         String name,
-        QueryShardContext context,
+        SearchExecutionContext context,
         Geometry geometry,
-        List<Class<? extends Geometry>> unsupportedGeometries
+        ShapeRelation relation
     ) {
+        if (geometry == null) {
+            return new LatLonGeometry[0];
+        }
         final List<LatLonGeometry> geometries = new ArrayList<>();
         geometry.visit(new GeometryVisitor<>() {
             @Override
             public Void visit(Circle circle) {
-                checkSupported(circle);
                 if (circle.isEmpty() == false) {
                     geometries.add(GeoShapeUtils.toLuceneCircle(circle));
                 }
@@ -92,7 +87,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(GeometryCollection<?> collection) {
-                checkSupported(collection);
                 if (collection.isEmpty() == false) {
                     for (Geometry shape : collection) {
                         shape.visit(this);
@@ -103,8 +97,12 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(org.elasticsearch.geometry.Line line) {
-                checkSupported(line);
                 if (line.isEmpty() == false) {
+                    if (relation == ShapeRelation.WITHIN) {
+                        // Line geometries and WITHIN relation is not supported by Lucene. Throw an error here
+                        // to have same behavior for runtime fields.
+                        throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape Line");
+                    }
                     geometries.add(GeoShapeUtils.toLuceneLine(line));
                 }
                 return null;
@@ -112,12 +110,11 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(LinearRing ring) {
-                throw new QueryShardException(context, "Field [" + name + "] found and unsupported shape LinearRing");
+                throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape LinearRing");
             }
 
             @Override
             public Void visit(MultiLine multiLine) {
-                checkSupported(multiLine);
                 if (multiLine.isEmpty() == false) {
                     for (Line line : multiLine) {
                         visit(line);
@@ -128,7 +125,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(MultiPoint multiPoint) {
-                checkSupported(multiPoint);
                 if (multiPoint.isEmpty() == false) {
                     for (Point point : multiPoint) {
                         visit(point);
@@ -139,7 +135,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(MultiPolygon multiPolygon) {
-                checkSupported(multiPolygon);
                 if (multiPolygon.isEmpty() == false) {
                     for (Polygon polygon : multiPolygon) {
                         visit(polygon);
@@ -150,7 +145,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(Point point) {
-                checkSupported(point);
                 if (point.isEmpty() == false) {
                     geometries.add(toLucenePoint(point));
                 }
@@ -160,7 +154,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(org.elasticsearch.geometry.Polygon polygon) {
-                checkSupported(polygon);
                 if (polygon.isEmpty() == false) {
                     List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
                     GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
@@ -171,17 +164,10 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(Rectangle r) {
-                checkSupported(r);
                 if (r.isEmpty() == false) {
                     geometries.add(toLuceneRectangle(r));
                 }
                 return null;
-            }
-
-            private void checkSupported(Geometry geometry) {
-                if (unsupportedGeometries.contains(geometry.getClass())) {
-                    throw new QueryShardException(context, "Field [" + name + "] found and unsupported shape [" + geometry.type() + "]");
-                }
             }
         });
         return geometries.toArray(new LatLonGeometry[geometries.size()]);
@@ -189,5 +175,4 @@ public class GeoShapeUtils {
 
     private GeoShapeUtils() {
     }
-
 }

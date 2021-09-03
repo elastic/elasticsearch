@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.history;
@@ -134,7 +135,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
                 int responses = bulkRequest.numberOfActions();
                 return new BulkResponse(IntStream.range(0, responses)
-                    .mapToObj(i -> new BulkItemResponse(i, DocWriteRequest.OpType.INDEX,
+                    .mapToObj(i -> BulkItemResponse.success(i, DocWriteRequest.OpType.INDEX,
                         new IndexResponse(new ShardId("index", "uuid", 0), randomAlphaOfLength(10), 1, 1, 1, true)))
                     .toArray(BulkItemResponse[]::new),
                     1000L);
@@ -174,7 +175,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 // The content of this BulkResponse doesn't matter, so just make it have the same number of responses with failures
                 int responses = bulkRequest.numberOfActions();
                 return new BulkResponse(IntStream.range(0, responses)
-                    .mapToObj(i -> new BulkItemResponse(i, DocWriteRequest.OpType.INDEX,
+                    .mapToObj(i -> BulkItemResponse.failure(i, DocWriteRequest.OpType.INDEX,
                         new BulkItemResponse.Failure("index", i + "", failureException)))
                     .toArray(BulkItemResponse[]::new),
                     1000L);

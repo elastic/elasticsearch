@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util.concurrent;
 
@@ -22,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -118,13 +107,22 @@ public final class ThreadContext implements Writeable {
         /**
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * The same is applied to Task.TRACE_ID.
          * Otherwise when context is stash, it should be empty.
          */
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_ID)) {
+            Map<String, String> map = new HashMap<>(2, 1);
+            if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+                map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
+            }
+            if (context.requestHeaders.containsKey(Task.TRACE_ID)) {
+                map.put(Task.TRACE_ID, context.requestHeaders.get(Task.TRACE_ID));
+            }
+            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
             threadLocal.set(threadContextStruct);
-        } else {
+        }
+        else {
             threadLocal.set(DEFAULT_CONTEXT);
         }
         return () -> {
@@ -320,7 +318,13 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Returns all of the request contexts headers
+     * Returns all of the request headers from the thread's context.<br>
+     * <b>Be advised, headers might contain credentials.</b>
+     * In order to avoid storing, and erroneously exposing, such headers,
+     * it is recommended to instead store security headers that prove
+     * the credentials have been verified successfully, and which are
+     * internal to the system, in the sense that they cannot be sent
+     * by the clients.
      */
     public Map<String, String> getHeaders() {
         HashMap<String, String> map = new HashMap<>(defaultHeader);

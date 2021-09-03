@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -25,9 +14,9 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -67,7 +56,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final SearchPhaseController controller;
     private final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
-    private final NamedWriteableRegistry namedWriteableRegistry;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -86,7 +74,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                                     CircuitBreaker circuitBreaker,
                                     SearchPhaseController controller,
                                     SearchProgressListener progressListener,
-                                    NamedWriteableRegistry namedWriteableRegistry,
                                     int expectedResultSize,
                                     Consumer<Exception> onPartialMergeFailure) {
         super(expectedResultSize);
@@ -95,7 +82,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.controller = controller;
         this.progressListener = progressListener;
         this.aggReduceContextBuilder = controller.getReduceContext(request);
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
@@ -140,9 +126,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
-        if (hasAggs) {
+        if (hasAggs
+                // reduced aggregations can be null if all shards failed
+                && reducePhase.aggregations != null) {
+
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
+            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations) - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]",
                 pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
@@ -189,7 +178,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList.add(lastMerge.reducedAggs);
             }
             for (QuerySearchResult result : toConsume) {
-                aggsList.add(result.consumeAggs().expand());
+                aggsList.add(result.consumeAggs());
             }
             newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
         } else {
@@ -206,7 +195,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
-        long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
+        long serializedSize = hasAggs ? DelayableWriteable.getSerializedSize(newAggs) : 0;
         return new MergeResult(processedShards, newTopDocs, newAggs, hasAggs ? serializedSize : 0);
     }
 
@@ -287,12 +276,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * provided {@link QuerySearchResult}.
          */
         long ramBytesUsedQueryResult(QuerySearchResult result) {
-            if (hasAggs == false) {
-                return 0;
-            }
-            return result.aggregations()
-                .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
-                .ramBytesUsed();
+            return hasAggs ? result.aggregations().getSerializedSize() : 0;
         }
 
         /**
@@ -317,6 +301,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
                     }
                 } else {
+                    if (hasAggs) {
+                        long aggsSize = ramBytesUsedQueryResult(result);
+                        try {
+                            addEstimateAndMaybeBreak(aggsSize);
+                        } catch (Exception exc) {
+                            result.releaseAggs();
+                            buffer.forEach(QuerySearchResult::releaseAggs);
+                            buffer.clear();
+                            onMergeFailure(exc);
+                            next.run();
+                            return;
+                        }
+                        aggsCurrentBufferSize += aggsSize;
+                    }
                     // add one if a partial merge is pending
                     int size = buffer.size() + (hasPartialReduce ? 1 : 0);
                     if (size >= batchReduceSize) {
@@ -329,11 +327,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         emptyResults.clear();
                         queue.add(task);
                         tryExecuteNext();
-                    }
-                    if (hasAggs) {
-                        long aggsSize = ramBytesUsedQueryResult(result);
-                        addWithoutBreaking(aggsSize);
-                        aggsCurrentBufferSize += aggsSize;
                     }
                     buffer.add(result);
                 }
@@ -355,19 +348,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 circuitBreakerBytes = 0;
             }
             failure.compareAndSet(null, exc);
-            MergeTask task = runningTask.get();
-            runningTask.compareAndSet(task, null);
-            onPartialMergeFailure.accept(exc);
-            List<MergeTask> toCancels = new ArrayList<>();
+            final List<Releasable> toCancels = new ArrayList<>();
+            toCancels.add(() -> onPartialMergeFailure.accept(exc));
+            final MergeTask task = runningTask.getAndSet(null);
             if (task != null) {
-                toCancels.add(task);
+                toCancels.add(task::cancel);
             }
-            queue.stream().forEach(toCancels::add);
-            queue.clear();
+            MergeTask mergeTask;
+            while ((mergeTask = queue.pollFirst()) != null) {
+                toCancels.add(mergeTask::cancel);
+            }
             mergeResult = null;
-            for (MergeTask toCancel : toCancels) {
-                toCancel.cancel();
-            }
+            Releasables.close(toCancels);
         }
 
         private void onAfterMerge(MergeTask task, MergeResult newResult, long estimatedSize) {
@@ -407,17 +399,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     final MergeResult thisMergeResult = mergeResult;
                     long estimatedTotalSize = (thisMergeResult != null ? thisMergeResult.estimatedSize : 0) + task.aggsBufferSize;
                     final MergeResult newMerge;
+                    final QuerySearchResult[] toConsume = task.consumeBuffer();
+                    if (toConsume == null) {
+                        return;
+                    }
                     try {
-                        final QuerySearchResult[] toConsume = task.consumeBuffer();
-                        if (toConsume == null) {
-                            return;
-                        }
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
                         addEstimateAndMaybeBreak(estimatedMergeSize);
                         estimatedTotalSize += estimatedMergeSize;
                         ++ numReducePhases;
                         newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
                     } catch (Exception t) {
+                        for (QuerySearchResult result : toConsume) {
+                            result.releaseAggs();
+                        }
                         onMergeFailure(t);
                         return;
                     }
@@ -464,7 +459,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList.add(mergeResult.reducedAggs);
             }
             for (QuerySearchResult result : buffer) {
-                aggsList.add(result.consumeAggs().expand());
+                aggsList.add(result.consumeAggs());
             }
             return aggsList;
         }
@@ -512,7 +507,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         public synchronized void cancel() {
-            consumeBuffer();
+            QuerySearchResult[] buffer = consumeBuffer();
+            if (buffer != null) {
+                for (QuerySearchResult result : buffer) {
+                    result.releaseAggs();
+                }
+            }
             consumeListener();
         }
     }

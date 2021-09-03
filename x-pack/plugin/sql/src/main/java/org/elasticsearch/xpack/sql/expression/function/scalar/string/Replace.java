@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor.doProcess;
@@ -43,21 +46,21 @@ public class Replace extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), SECOND);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
 
-        return isStringAndExact(replacement, sourceText(), ParamOrdinal.THIRD);
+        return isStringAndExact(replacement, sourceText(), THIRD);
     }
 
     @Override
@@ -121,10 +124,6 @@ public class Replace extends ScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
-
         return new Replace(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

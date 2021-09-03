@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.broadcast.node;
@@ -43,12 +32,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.NodeShouldNotConnectException;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -60,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Consumer;
 
 /**
  * Abstraction for transporting aggregated shard-level operations in a single request (NodeRequest) per-node
@@ -116,7 +110,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     private Response newResponse(
             Request request,
-            AtomicReferenceArray responses,
+            AtomicReferenceArray<?> responses,
             List<NoShardAvailableActionException> unavailableShardExceptions,
             Map<String, List<ShardRouting>> nodes,
             ClusterState clusterState) {
@@ -132,12 +126,13 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     exceptions.add(new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), exception));
                 }
             } else {
+                @SuppressWarnings("unchecked")
                 NodeResponse response = (NodeResponse) responses.get(i);
                 broadcastByNodeResponses.addAll(response.results);
                 totalShards += response.getTotalShards();
                 successfulShards += response.getSuccessfulShards();
                 for (BroadcastShardOperationFailedException throwable : response.getExceptions()) {
-                    if (!TransportActions.isShardNotAvailableException(throwable)) {
+                    if (TransportActions.isShardNotAvailableException(throwable) == false) {
                         exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(),
                             throwable.getShardId().getId(), throwable));
                     }
@@ -183,12 +178,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     /**
      * Executes the shard-level operation. This method is called once per shard serially on the receiving node.
+     * This method should not throw an exception, but pass the exception to the listener instead.
      *
      * @param request      the node-level request
      * @param shardRouting the shard on which to execute the operation
-     * @return the result of the shard-level operation for the shard
+     * @param task         the task for this node-level request
+     * @param listener     the listener to notify with the result of the shard-level operation
      */
-    protected abstract ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException;
+    protected abstract void shardOperation(Request request, ShardRouting shardRouting, Task task,
+                                           ActionListener<ShardOperationResult> listener);
 
     /**
      * Determines the shards on which this operation will be executed on. The operation is executed once per shard.
@@ -280,7 +278,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 // routing table as such
                 if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                     String nodeId = shard.currentNodeId();
-                    if (!nodeIds.containsKey(nodeId)) {
+                    if (nodeIds.containsKey(nodeId) == false) {
                         nodeIds.put(nodeId, new ArrayList<>());
                     }
                     nodeIds.get(nodeId).add(shard);
@@ -316,26 +314,30 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
-                NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                final NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
-                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
-                    @Override
-                    public NodeResponse read(StreamInput in) throws IOException {
-                        return new NodeResponse(in);
-                    }
 
-                    @Override
-                    public void handleResponse(NodeResponse response) {
-                        onNodeResponse(node, nodeIndex, response);
-                    }
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onNodeFailure(node, nodeIndex, exp);
-                    }
-                });
+                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, transportRequestOptions,
+                        new TransportResponseHandler<NodeResponse>() {
+                            @Override
+                            public NodeResponse read(StreamInput in) throws IOException {
+                                return new NodeResponse(in);
+                            }
+
+                            @Override
+                            public void handleResponse(NodeResponse response) {
+                                onNodeResponse(node, nodeIndex, response);
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                onNodeFailure(node, nodeIndex, exp);
+                            }
+                        });
             } catch (Exception e) {
                 onNodeFailure(node, nodeIndex, e);
             }
@@ -358,9 +360,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
-            if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
-            }
+            logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
 
             // this is defensive to protect against the possibility of double invocation
             // the current implementation of TransportService#sendRequest guards against this
@@ -373,6 +373,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onCompletion() {
+            if (task instanceof CancellableTask && ((CancellableTask)task).notifyIfCancelled(listener)) {
+                return;
+            }
+
             Response response = null;
             try {
                 response = newResponse(request, responses, unavailableShardExceptions, nodeIds, clusterState);
@@ -398,43 +402,81 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
             }
-            final Object[] shardResultOrExceptions = new Object[totalShards];
+            final AtomicArray<Object> shardResultOrExceptions = new AtomicArray<>(totalShards);
 
+            final AtomicInteger counter = new AtomicInteger(shards.size());
             int shardIndex = -1;
             for (final ShardRouting shardRouting : shards) {
                 shardIndex++;
-                onShardOperation(request, shardResultOrExceptions, shardIndex, shardRouting);
-            }
+                final int finalShardIndex = shardIndex;
+                onShardOperation(request, shardRouting, task,
+                    ActionListener.notifyOnce(new ActionListener<ShardOperationResult>() {
 
-            List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
-            List<ShardOperationResult> results = new ArrayList<>();
-            for (int i = 0; i < totalShards; i++) {
-                if (shardResultOrExceptions[i] instanceof BroadcastShardOperationFailedException) {
-                    accumulatedExceptions.add((BroadcastShardOperationFailedException) shardResultOrExceptions[i]);
-                } else {
-                    results.add((ShardOperationResult) shardResultOrExceptions[i]);
-                }
-            }
+                        @Override
+                        public void onResponse(ShardOperationResult shardOperationResult) {
+                            shardResultOrExceptions.setOnce(finalShardIndex, shardOperationResult);
+                            if (counter.decrementAndGet() == 0) {
+                                finishHim(request, channel, task, shardResultOrExceptions);
+                            }
+                        }
 
-            channel.sendResponse(new NodeResponse(request.getNodeId(), totalShards, results, accumulatedExceptions));
+                        @Override
+                        public void onFailure(Exception e) {
+                            shardResultOrExceptions.setOnce(finalShardIndex, e);
+                            if (counter.decrementAndGet() == 0) {
+                                finishHim(request, channel, task, shardResultOrExceptions);
+                            }
+                        }
+                    }));
+            }
         }
 
-        private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex,
-                                      final ShardRouting shardRouting) {
+        @SuppressWarnings("unchecked")
+        private void finishHim(NodeRequest request, TransportChannel channel, Task task,
+                               AtomicArray<Object> shardResultOrExceptions) {
+            if (task instanceof CancellableTask) {
+                try {
+                    ((CancellableTask) task).ensureNotCancelled();
+                } catch (TaskCancelledException e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException ioException) {
+                        e.addSuppressed(ioException);
+                        logger.warn("failed to send response", e);
+                    }
+                    return;
+                }
+            }
+            List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
+            List<ShardOperationResult> results = new ArrayList<>();
+            for (int i = 0; i < shardResultOrExceptions.length(); i++) {
+                if (shardResultOrExceptions.get(i) instanceof BroadcastShardOperationFailedException) {
+                    accumulatedExceptions.add((BroadcastShardOperationFailedException) shardResultOrExceptions.get(i));
+                } else {
+                    results.add((ShardOperationResult) shardResultOrExceptions.get(i));
+                }
+            }
+
             try {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
-                }
-                ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
-                shardResults[shardIndex] = result;
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
-                }
-            } catch (Exception e) {
+                channel.sendResponse(new NodeResponse(request.getNodeId(), shardResultOrExceptions.length(), results,
+                    accumulatedExceptions));
+            } catch (IOException e) {
+                logger.warn("failed to send response", e);
+            }
+        }
+
+        private void onShardOperation(final NodeRequest request, final ShardRouting shardRouting, final Task task,
+                                      final ActionListener<ShardOperationResult> listener) {
+            if (task instanceof CancellableTask && ((CancellableTask)task).notifyIfCancelled(listener)) {
+                return;
+            }
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+            }
+            final Consumer<Exception> failureHandler = e -> {
                 BroadcastShardOperationFailedException failure =
                     new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
                 failure.setShard(shardRouting.shardId());
-                shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
                         logger.trace(new ParameterizedMessage(
@@ -446,6 +488,26 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                             "[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
                     }
                 }
+                listener.onFailure(failure);
+            };
+            try {
+                shardOperation(request.indicesLevelRequest, shardRouting, task, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ShardOperationResult shardOperationResult) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                        }
+                        listener.onResponse(shardOperationResult);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        failureHandler.accept(e);
+                    }
+                });
+            } catch (Exception e) {
+                assert false : "shardOperation should not throw an exception, but delegate to listener instead";
+                failureHandler.accept(e);
             }
         }
     }
@@ -494,6 +556,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             indicesLevelRequest.writeTo(out);
             out.writeList(shards);
             out.writeString(nodeId);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return indicesLevelRequest.createTask(id, type, action, parentTaskId, headers);
         }
     }
 
@@ -557,7 +624,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     }
 
     /**
-     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
+     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting, Task, ActionListener) shardOperation} for
      * which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {

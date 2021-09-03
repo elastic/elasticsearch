@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -31,7 +20,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -42,11 +30,13 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -61,6 +51,11 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.BYTE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.INTEGER;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -86,10 +81,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.SHORT, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.INTEGER, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG, false, true).build(contentPath).fieldType()
+                new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true).build(contentPath).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, "test", () -> {
@@ -98,7 +93,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT, false, true)
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> {
@@ -106,7 +101,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         });
         assertTrue(fd instanceof SortedNumericIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE, false, true)
+        final MappedFieldType doubleMapper
+            = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> {
@@ -142,9 +138,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
         final ContentPath contentPath = new ContentPath(1);
         final MappedFieldType mapper1
-            = new TextFieldMapper.Builder("field_1", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(contentPath).fieldType();
+            = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true).build(contentPath).fieldType();
         final MappedFieldType mapper2
-            = new TextFieldMapper.Builder("field_2", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(contentPath).fieldType();
+            = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true).build(contentPath).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
@@ -208,7 +204,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
         final ContentPath contentPath = new ContentPath(1);
         final MappedFieldType mapper1
-            = new TextFieldMapper.Builder("s", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(contentPath).fieldType();
+            = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true).build(contentPath).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -313,19 +309,19 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG));
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG,
-            true, false, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG,
+            true, false, false, false, null, Collections.emptyMap(), null, false));
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE));
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE,
-            true, false, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE,
+            true, false, false, false, null, Collections.emptyMap(), null, false));
     }
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
     }
 }

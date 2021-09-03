@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -26,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.PropertyPermission;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
@@ -40,7 +30,7 @@ public class PluginSecurityTests extends ESTestCase {
         for (String file : files) {
             Files.createFile(plugin.resolve(file));
         }
-        return PolicyUtil.getPluginPolicyInfo(plugin);
+        return PolicyUtil.getPluginPolicyInfo(plugin, createTempDir());
     }
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
@@ -51,7 +41,7 @@ public class PluginSecurityTests extends ESTestCase {
         Path scratch = createTempDir();
         PluginPolicyInfo info = makeDummyPlugin("security/simple-plugin-security.policy");
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
-        assertThat(actual, contains(PluginSecurity.formatPermission(new RuntimePermission("queuePrintJob"))));
+        assertThat(actual, contains(PluginSecurity.formatPermission(new PropertyPermission("someProperty", "read"))));
     }
 
     /** Test that we can parse the set of permissions correctly for a complex policy */
@@ -64,24 +54,13 @@ public class PluginSecurityTests extends ESTestCase {
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
         assertThat(actual, containsInAnyOrder(
             PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),
-            PluginSecurity.formatPermission(new RuntimePermission("closeClassLoader"))));
+            PluginSecurity.formatPermission(new RuntimePermission("setFactory"))));
     }
 
     /** Test that we can format some simple permissions properly */
     public void testFormatSimplePermission() throws Exception {
         assertEquals(
-                "java.lang.RuntimePermission queuePrintJob",
-                PluginSecurity.formatPermission(new RuntimePermission("queuePrintJob")));
-    }
-
-    /** Test that we can format an unresolved permission properly */
-    public void testFormatUnresolvedPermission() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
-        Path scratch = createTempDir();
-        PluginPolicyInfo info = makeDummyPlugin("security/unresolved-plugin-security.policy");
-        Set<String> permissions = PluginSecurity.getPermissionDescriptions(info, scratch);
-        assertThat(permissions, contains("org.fake.FakePermission fakeName"));
+                "java.lang.RuntimePermission accessDeclaredMembers",
+                PluginSecurity.formatPermission(new RuntimePermission("accessDeclaredMembers")));
     }
 }

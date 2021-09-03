@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -39,11 +28,11 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -74,6 +63,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -89,7 +79,6 @@ import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -337,14 +326,18 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) {
-        String endpoint = new EndpointBuilder()
+    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder()
             .addPathPartAsIs("_ml")
-            .addPathPartAsIs("datafeeds")
-            .addPathPart(previewDatafeedRequest.getDatafeedId())
-            .addPathPartAsIs("_preview")
-            .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+            .addPathPartAsIs("datafeeds");
+        String endpoint = previewDatafeedRequest.getDatafeedId() != null ?
+            builder.addPathPart(previewDatafeedRequest.getDatafeedId()).addPathPartAsIs("_preview").build() :
+            builder.addPathPartAsIs("_preview").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        if (previewDatafeedRequest.getDatafeedId() == null) {
+            request.setEntity(createEntity(previewDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
     }
 
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {
@@ -870,6 +863,32 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request putTrainedModelAlias(PutTrainedModelAliasRequest putTrainedModelAliasRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(putTrainedModelAliasRequest.getModelId())
+            .addPathPartAsIs("model_aliases")
+            .addPathPart(putTrainedModelAliasRequest.getModelAlias())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (putTrainedModelAliasRequest.getReassign() != null) {
+            params.putParam(PutTrainedModelAliasRequest.REASSIGN, Boolean.toString(putTrainedModelAliasRequest.getReassign()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteTrainedModelAlias(DeleteTrainedModelAliasRequest deleteTrainedModelAliasRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(deleteTrainedModelAliasRequest.getModelId())
+            .addPathPartAsIs("model_aliases")
+            .addPathPart(deleteTrainedModelAliasRequest.getModelAlias())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
@@ -939,63 +958,4 @@ final class MLRequestConverters {
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
-    static Request findFileStructure(FindFileStructureRequest findFileStructureRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("find_file_structure")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        RequestConverters.Params params = new RequestConverters.Params();
-        if (findFileStructureRequest.getLinesToSample() != null) {
-            params.putParam(FindFileStructureRequest.LINES_TO_SAMPLE.getPreferredName(),
-                findFileStructureRequest.getLinesToSample().toString());
-        }
-        if (findFileStructureRequest.getTimeout() != null) {
-            params.putParam(FindFileStructureRequest.TIMEOUT.getPreferredName(), findFileStructureRequest.getTimeout().toString());
-        }
-        if (findFileStructureRequest.getCharset() != null) {
-            params.putParam(FindFileStructureRequest.CHARSET.getPreferredName(), findFileStructureRequest.getCharset());
-        }
-        if (findFileStructureRequest.getFormat() != null) {
-            params.putParam(FindFileStructureRequest.FORMAT.getPreferredName(), findFileStructureRequest.getFormat().toString());
-        }
-        if (findFileStructureRequest.getColumnNames() != null) {
-            params.putParam(FindFileStructureRequest.COLUMN_NAMES.getPreferredName(),
-                Strings.collectionToCommaDelimitedString(findFileStructureRequest.getColumnNames()));
-        }
-        if (findFileStructureRequest.getHasHeaderRow() != null) {
-            params.putParam(FindFileStructureRequest.HAS_HEADER_ROW.getPreferredName(),
-                findFileStructureRequest.getHasHeaderRow().toString());
-        }
-        if (findFileStructureRequest.getDelimiter() != null) {
-            params.putParam(FindFileStructureRequest.DELIMITER.getPreferredName(),
-                findFileStructureRequest.getDelimiter().toString());
-        }
-        if (findFileStructureRequest.getQuote() != null) {
-            params.putParam(FindFileStructureRequest.QUOTE.getPreferredName(), findFileStructureRequest.getQuote().toString());
-        }
-        if (findFileStructureRequest.getShouldTrimFields() != null) {
-            params.putParam(FindFileStructureRequest.SHOULD_TRIM_FIELDS.getPreferredName(),
-                findFileStructureRequest.getShouldTrimFields().toString());
-        }
-        if (findFileStructureRequest.getGrokPattern() != null) {
-            params.putParam(FindFileStructureRequest.GROK_PATTERN.getPreferredName(), findFileStructureRequest.getGrokPattern());
-        }
-        if (findFileStructureRequest.getTimestampFormat() != null) {
-            params.putParam(FindFileStructureRequest.TIMESTAMP_FORMAT.getPreferredName(), findFileStructureRequest.getTimestampFormat());
-        }
-        if (findFileStructureRequest.getTimestampField() != null) {
-            params.putParam(FindFileStructureRequest.TIMESTAMP_FIELD.getPreferredName(), findFileStructureRequest.getTimestampField());
-        }
-        if (findFileStructureRequest.getExplain() != null) {
-            params.putParam(FindFileStructureRequest.EXPLAIN.getPreferredName(), findFileStructureRequest.getExplain().toString());
-        }
-        request.addParameters(params.asMap());
-        BytesReference sample = findFileStructureRequest.getSample();
-        BytesRef source = sample.toBytesRef();
-        HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
-        request.setEntity(byteEntity);
-        return request;
-    }
 }

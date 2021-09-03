@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -18,10 +19,12 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Collections;
@@ -40,7 +43,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
     public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = new Authentication(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE),
+        final Authentication authentication = new Authentication(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE,
+            XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE),
             new Authentication.RealmRef("native", "default_native", "node1"), null);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,

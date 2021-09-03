@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BinaryImplNode;
+import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
@@ -66,10 +55,20 @@ import org.elasticsearch.painless.ir.StringConcatenationNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
+import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDCast;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.function.Consumer;
 
 /**
@@ -181,47 +180,48 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
 
         if (irUnaryMathNode.getChildNode() instanceof ConstantNode) {
             ConstantNode irConstantNode = (ConstantNode)irUnaryMathNode.getChildNode();
-            Operation operation = irUnaryMathNode.getOperation();
+            Object constantValue =  irConstantNode.getDecorationValue(IRDConstant.class);
+            Operation operation = irUnaryMathNode.getDecorationValue(IRDOperation.class);
             Class<?> type = irUnaryMathNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.SUB) {
                 if (type == int.class) {
-                    irConstantNode.setConstant(-(int)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(-(int)constantValue));
                 } else if (type == long.class) {
-                    irConstantNode.setConstant(-(long)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(-(long)constantValue));
                 } else if (type == float.class) {
-                    irConstantNode.setConstant(-(float)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(-(float)constantValue));
                 } else if (type == double.class) {
-                    irConstantNode.setConstant(-(double)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(-(double)constantValue));
                 } else {
                     throw irUnaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "unary operation [" + operation.symbol + "] on " +
-                            "constant [" + irConstantNode.getConstant() + "]"));
+                            "constant [" + irConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irConstantNode);
             } else if (operation == Operation.BWNOT) {
                 if (type == int.class) {
-                    irConstantNode.setConstant(~(int)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(~(int)constantValue));
                 } else if (type == long.class) {
-                    irConstantNode.setConstant(~(long)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(~(long)constantValue));
                 } else {
                     throw irUnaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "unary operation [" + operation.symbol + "] on " +
-                            "constant [" + irConstantNode.getConstant() + "]"));
+                            "constant [" + irConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irConstantNode);
             } else if (operation == Operation.NOT) {
                 if (type == boolean.class) {
-                    irConstantNode.setConstant(!(boolean)irConstantNode.getConstant());
+                    irConstantNode.attachDecoration(new IRDConstant(((boolean) constantValue) == false));
                 } else {
                     throw irUnaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "unary operation [" + operation.symbol + "] on " +
-                            "constant [" + irConstantNode.getConstant() + "]"));
+                            "constant [" + irConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irConstantNode);
@@ -239,42 +239,45 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         if (irBinaryMathNode.getLeftNode() instanceof ConstantNode && irBinaryMathNode.getRightNode() instanceof ConstantNode) {
             ConstantNode irLeftConstantNode = (ConstantNode)irBinaryMathNode.getLeftNode();
             ConstantNode irRightConstantNode = (ConstantNode)irBinaryMathNode.getRightNode();
+            Object leftConstantValue = irLeftConstantNode.getDecorationValue(IRDConstant.class);
+            Object rightConstantValue = irRightConstantNode.getDecorationValue(IRDConstant.class);
             Operation operation = irBinaryMathNode.getDecorationValue(IRDOperation.class);
             Class<?> type = irBinaryMathNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.MUL) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() * (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue * (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() * (long)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue * (long)rightConstantValue));
                 } else if (type == float.class) {
-                    irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() * (float)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue * (float)rightConstantValue));
                 } else if (type == double.class) {
-                    irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() * (double)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue * (double)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.DIV) {
                 try {
                     if (type == int.class) {
-                        irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() / (int)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue / (int)rightConstantValue));
                     } else if (type == long.class) {
-                        irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() / (long)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue / (long)rightConstantValue));
                     } else if (type == float.class) {
-                        irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() / (float)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue / (float)rightConstantValue));
                     } else if (type == double.class) {
-                        irLeftConstantNode.setConstant(
-                                (double)irLeftConstantNode.getConstant() / (double)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue / (double)rightConstantValue));
                     } else {
                         throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                                 "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                                 "binary operation [" + operation.symbol + "] on " +
-                                "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                                "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                                "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                     }
                 } catch (ArithmeticException ae) {
                     throw irBinaryMathNode.getLocation().createError(ae);
@@ -284,19 +287,19 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             } else if (operation == Operation.REM) {
                 try {
                     if (type == int.class) {
-                        irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() % (int)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue % (int)rightConstantValue));
                     } else if (type == long.class) {
-                        irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() % (long)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue % (long)rightConstantValue));
                     } else if (type == float.class) {
-                        irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() % (float)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue % (float)rightConstantValue));
                     } else if (type == double.class) {
-                        irLeftConstantNode.setConstant(
-                                (double)irLeftConstantNode.getConstant() % (double)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue % (double)rightConstantValue));
                     } else {
                         throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                                 "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                                 "binary operation [" + operation.symbol + "] on " +
-                                "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                                "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                                "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                     }
                 } catch (ArithmeticException ae) {
                     throw irBinaryMathNode.getLocation().createError(ae);
@@ -305,115 +308,123 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.ADD) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() + (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue + (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() + (long)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue + (long)rightConstantValue));
                 } else if (type == float.class) {
-                    irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() + (float)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue + (float)rightConstantValue));
                 } else if (type == double.class) {
-                    irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() + (double)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue + (double)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.SUB) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() - (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue - (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() - (long)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue - (long)rightConstantValue));
                 } else if (type == float.class) {
-                    irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() - (float)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue - (float)rightConstantValue));
                 } else if (type == double.class) {
-                    irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() - (double)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue - (double)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.LSH) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() << (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue << (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() << (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue << (int)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.RSH) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() >> (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue >> (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() >> (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue >> (int)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.USH) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() >>> (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue >>> (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() >>> (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue >>> (int)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] and " +
+                            "[" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.BWAND) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() & (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue & (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() & (long)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue & (long)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.XOR) {
                 if (type == boolean.class) {
-                    irLeftConstantNode.setConstant((boolean)irLeftConstantNode.getConstant() ^ (boolean)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((boolean)leftConstantValue ^ (boolean)rightConstantValue));
                 } else if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() ^ (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue ^ (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() ^ (long)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue ^ (long)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] and " +
+                            "[" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.BWOR) {
                 if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() | (int)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue | (int)rightConstantValue));
                 } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() | (long)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue | (long)rightConstantValue));
                 } else {
                     throw irBinaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
@@ -436,22 +447,23 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
 
             if (irLeftNode instanceof ConstantNode && irRightNode instanceof ConstantNode) {
                 ConstantNode irConstantNode = (ConstantNode)irLeftNode;
-                irConstantNode.setConstant("" + irConstantNode.getConstant() + ((ConstantNode)irRightNode).getConstant());
+                irConstantNode.attachDecoration(new IRDConstant(
+                        "" + irConstantNode.getDecorationValue(IRDConstant.class) + irRightNode.getDecorationValue(IRDConstant.class)));
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
             } else if (irLeftNode instanceof NullNode && irRightNode instanceof ConstantNode) {
                 ConstantNode irConstantNode = (ConstantNode)irRightNode;
-                irConstantNode.setConstant("" + null + ((ConstantNode)irRightNode).getConstant());
+                irConstantNode.attachDecoration(new IRDConstant("" + null + irRightNode.getDecorationValue(IRDConstant.class)));
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i);
             } else if (irLeftNode instanceof ConstantNode && irRightNode instanceof NullNode) {
                 ConstantNode irConstantNode = (ConstantNode)irLeftNode;
-                irConstantNode.setConstant("" + ((ConstantNode)irLeftNode).getConstant() + null);
+                irConstantNode.attachDecoration(new IRDConstant("" + irLeftNode.getDecorationValue(IRDConstant.class) + null));
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
             } else if (irLeftNode instanceof NullNode && irRightNode instanceof NullNode) {
                 ConstantNode irConstantNode = new ConstantNode(irLeftNode.getLocation());
-                irConstantNode.setConstant("" + null + null);
+                irConstantNode.attachDecoration(new IRDConstant("" + null + null));
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().set(i, irConstantNode);
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
@@ -477,28 +489,34 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         if (irBooleanNode.getLeftNode() instanceof ConstantNode && irBooleanNode.getRightNode() instanceof ConstantNode) {
             ConstantNode irLeftConstantNode = (ConstantNode)irBooleanNode.getLeftNode();
             ConstantNode irRightConstantNode = (ConstantNode)irBooleanNode.getRightNode();
-            Operation operation = irBooleanNode.getOperation();
+            Operation operation = irBooleanNode.getDecorationValue(IRDOperation.class);
             Class<?> type = irBooleanNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.AND) {
                 if (type == boolean.class) {
-                    irLeftConstantNode.setConstant((boolean)irLeftConstantNode.getConstant() && (boolean)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant(
+                            (boolean)irLeftConstantNode.getDecorationValue(IRDConstant.class) &&
+                            (boolean)irRightConstantNode.getDecorationValue(IRDConstant.class)));
                 } else {
                     throw irBooleanNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "binary operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.OR) {
                 if (type == boolean.class) {
-                    irLeftConstantNode.setConstant((boolean)irLeftConstantNode.getConstant() || (boolean)irRightConstantNode.getConstant());
+                    irLeftConstantNode.attachDecoration(new IRDConstant(
+                            (boolean)irLeftConstantNode.getDecorationValue(IRDConstant.class) ||
+                            (boolean)irRightConstantNode.getDecorationValue(IRDConstant.class)));
                 } else {
                     throw irBooleanNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                             "boolean operation [" + operation.symbol + "] on " +
-                            "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                            "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                            "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                 }
 
                 scope.accept(irLeftConstantNode);
@@ -518,58 +536,61 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                     irComparisonNode.getLeftNode() instanceof NullNode ? null : (ConstantNode)irComparisonNode.getLeftNode();
             ConstantNode irRightConstantNode =
                     irComparisonNode.getRightNode() instanceof NullNode ? null : (ConstantNode)irComparisonNode.getRightNode();
-            Operation operation = irComparisonNode.getOperation();
-            Class<?> type = irComparisonNode.getComparisonType();
+            Object leftConstantValue = irLeftConstantNode == null ? null : irLeftConstantNode.getDecorationValue(IRDConstant.class);
+            Object rightConstantValue = irRightConstantNode == null ? null : irRightConstantNode.getDecorationValue(IRDConstant.class);
+            Operation operation = irComparisonNode.getDecorationValue(IRDOperation.class);
+            Class<?> type = irComparisonNode.getDecorationValue(IRDComparisonType.class);
 
             if (operation == Operation.EQ || operation == Operation.EQR) {
-                if (type == boolean.class) {
-                    irLeftConstantNode.setConstant((boolean)irLeftConstantNode.getConstant() == (boolean)irRightConstantNode.getConstant());
-                } else if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() == (int)irRightConstantNode.getConstant());
-                } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() == (long)irRightConstantNode.getConstant());
-                } else if (type == float.class) {
-                    irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() == (float)irRightConstantNode.getConstant());
-                } else if (type == double.class) {
-                    irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() == (double)irRightConstantNode.getConstant());
-                } else if (irLeftConstantNode == null && irRightConstantNode == null) {
+                if (irLeftConstantNode == null && irRightConstantNode == null) {
                     irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
-                    irLeftConstantNode.setConstant(true);
+                    irLeftConstantNode.attachDecoration(new IRDConstant(true));
                 } else if (irLeftConstantNode == null || irRightConstantNode == null) {
                     irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
-                    irLeftConstantNode.setConstant(false);
+                    irLeftConstantNode.attachDecoration(new IRDConstant(false));
+                } else if (type == boolean.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((boolean)leftConstantValue == (boolean)rightConstantValue));
+                } else if (type == int.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue == (int)rightConstantValue));
+                } else if (type == long.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue == (long)rightConstantValue));
+                } else if (type == float.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue == (float)rightConstantValue));
+                } else if (type == double.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue == (double)rightConstantValue));
                 } else {
                     if (operation == Operation.EQ) {
-                        irLeftConstantNode.setConstant(irLeftConstantNode.getConstant().equals(irRightConstantNode.getConstant()));
+                        irLeftConstantNode.attachDecoration(new IRDConstant(leftConstantValue.equals(rightConstantValue)));
                     } else {
-                        irLeftConstantNode.setConstant(irLeftConstantNode.getConstant() == irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant(leftConstantValue == rightConstantValue));
                     }
                 }
 
                 irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.NE || operation == Operation.NER) {
-                if (type == boolean.class) {
-                    irLeftConstantNode.setConstant((boolean)irLeftConstantNode.getConstant() != (boolean)irRightConstantNode.getConstant());
-                } else if (type == int.class) {
-                    irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() != (int)irRightConstantNode.getConstant());
-                } else if (type == long.class) {
-                    irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() != (long)irRightConstantNode.getConstant());
-                } else if (type == float.class) {
-                    irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() != (float)irRightConstantNode.getConstant());
-                } else if (type == double.class) {
-                    irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() != (double)irRightConstantNode.getConstant());
-                } else if (irLeftConstantNode == null && irRightConstantNode == null) {
+                if (irLeftConstantNode == null && irRightConstantNode == null) {
                     irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
-                    irLeftConstantNode.setConstant(false);
+                    irLeftConstantNode.attachDecoration(new IRDConstant(false));
                 } else if (irLeftConstantNode == null || irRightConstantNode == null) {
                     irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
-                    irLeftConstantNode.setConstant(true);
+                    irLeftConstantNode.attachDecoration(new IRDConstant(true));
+                } else if (type == boolean.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((boolean)leftConstantValue != (boolean)rightConstantValue));
+                } else if (type == int.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue != (int)rightConstantValue));
+                } else if (type == long.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue != (long)rightConstantValue));
+                } else if (type == float.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue != (float)rightConstantValue));
+                } else if (type == double.class) {
+                    irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue != (double)rightConstantValue));
                 } else {
                     if (operation == Operation.NE) {
-                        irLeftConstantNode.setConstant(irLeftConstantNode.getConstant().equals(irRightConstantNode.getConstant()) == false);
+                        irLeftConstantNode.attachDecoration(new IRDConstant(leftConstantValue.equals(
+                                rightConstantValue) == false));
                     } else {
-                        irLeftConstantNode.setConstant(irLeftConstantNode.getConstant() != irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant(leftConstantValue != rightConstantValue));
                     }
                 }
 
@@ -578,76 +599,76 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             } else if (irLeftConstantNode != null && irRightConstantNode != null) {
                 if (operation == Operation.GT) {
                     if (type == int.class) {
-                        irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() > (int)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue > (int)rightConstantValue));
                     } else if (type == long.class) {
-                        irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() > (long)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue > (long)rightConstantValue));
                     } else if (type == float.class) {
-                        irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() > (float)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue > (float)rightConstantValue));
                     } else if (type == double.class) {
-                        irLeftConstantNode.setConstant(
-                                (double)irLeftConstantNode.getConstant() > (double)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue > (double)rightConstantValue));
                     } else {
                         throw irComparisonNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                                 "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                                 "comparison operation [" + operation.symbol + "] on " +
-                                "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                                "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                                "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                     }
 
                     irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 } else if (operation == Operation.GTE) {
                     if (type == int.class) {
-                        irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() >= (int)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue >= (int)rightConstantValue));
                     } else if (type == long.class) {
-                        irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() >= (long)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue >= (long)rightConstantValue));
                     } else if (type == float.class) {
-                        irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() >= (float)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue >= (float)rightConstantValue));
                     } else if (type == double.class) {
-                        irLeftConstantNode.setConstant(
-                                (double)irLeftConstantNode.getConstant() >= (double)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue >= (double)rightConstantValue));
                     } else {
                         throw irComparisonNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                                 "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                                 "comparison operation [" + operation.symbol + "] on " +
-                                "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                                "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                                "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                     }
 
                     irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 } else if (operation == Operation.LT) {
                     if (type == int.class) {
-                        irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() < (int)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue < (int)rightConstantValue));
                     } else if (type == long.class) {
-                        irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() < (long)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue < (long)rightConstantValue));
                     } else if (type == float.class) {
-                        irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() < (float)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue < (float)rightConstantValue));
                     } else if (type == double.class) {
-                        irLeftConstantNode.setConstant(
-                                (double)irLeftConstantNode.getConstant() < (double)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue < (double)rightConstantValue));
                     } else {
                         throw irComparisonNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                                 "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                                 "comparison operation [" + operation.symbol + "] on " +
-                                "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                                "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                                "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                     }
 
                     irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 } else if (operation == Operation.LTE) {
                     if (type == int.class) {
-                        irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() <= (int)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((int)leftConstantValue <= (int)rightConstantValue));
                     } else if (type == long.class) {
-                        irLeftConstantNode.setConstant((long)irLeftConstantNode.getConstant() <= (long)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((long)leftConstantValue <= (long)rightConstantValue));
                     } else if (type == float.class) {
-                        irLeftConstantNode.setConstant((float)irLeftConstantNode.getConstant() <= (float)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((float)leftConstantValue <= (float)rightConstantValue));
                     } else if (type == double.class) {
-                        irLeftConstantNode.setConstant(
-                                (double)irLeftConstantNode.getConstant() <= (double)irRightConstantNode.getConstant());
+                        irLeftConstantNode.attachDecoration(new IRDConstant((double)leftConstantValue <= (double)rightConstantValue));
                     } else {
                         throw irComparisonNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                                 "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
                                 "comparison operation [" + operation.symbol + "] on " +
-                                "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
+                                "constants [" + irLeftConstantNode.getDecorationString(IRDConstant.class) + "] " +
+                                "and [" + irRightConstantNode.getDecorationString(IRDConstant.class) + "]"));
                     }
 
                     irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
@@ -664,8 +685,9 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         if (irCastNode.getChildNode() instanceof ConstantNode &&
                 PainlessLookupUtility.isConstantType(irCastNode.getDecorationValue(IRDExpressionType.class))) {
             ConstantNode irConstantNode = (ConstantNode)irCastNode.getChildNode();
-            irConstantNode.setConstant(
-                    AnalyzerCaster.constCast(irCastNode.getLocation(), irConstantNode.getConstant(), irCastNode.getCast()));
+            Object constantValue = irConstantNode.getDecorationValue(IRDConstant.class);
+            constantValue = AnalyzerCaster.constCast(irCastNode.getLocation(), constantValue, irCastNode.getDecorationValue(IRDCast.class));
+            irConstantNode.attachDecoration(new IRDConstant(constantValue));
             irConstantNode.attachDecoration(irCastNode.getDecoration(IRDExpressionType.class));
             scope.accept(irConstantNode);
         }
@@ -798,6 +820,53 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             int j = i;
             irInvokeCallMemberNode.getArgumentNodes().get(i).visit(this, (e) -> irInvokeCallMemberNode.getArgumentNodes().set(j, e));
         }
+        PainlessMethod method = irInvokeCallMemberNode.getDecorationValue(IRDMethod.class);
+        if (method != null && method.annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            replaceCallWithConstant(irInvokeCallMemberNode, scope, method.javaMethod, null);
+            return;
+        }
+        PainlessInstanceBinding instanceBinding = irInvokeCallMemberNode.getDecorationValue(IRDInstanceBinding.class);
+        if (instanceBinding != null && instanceBinding.annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            replaceCallWithConstant(irInvokeCallMemberNode, scope, instanceBinding.javaMethod, instanceBinding.targetInstance);
+            return;
+        }
+    }
+
+    private void replaceCallWithConstant(
+        InvokeCallMemberNode irInvokeCallMemberNode,
+        Consumer<ExpressionNode> scope,
+        Method javaMethod,
+        Object receiver
+    ) {
+        Object[] args = new Object[irInvokeCallMemberNode.getArgumentNodes().size()];
+        for (int i = 0; i < irInvokeCallMemberNode.getArgumentNodes().size(); i++) {
+            ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
+            IRDConstant constantDecoration = argNode.getDecoration(IRDConstant.class);
+            if (constantDecoration == null) {
+                // TODO find a better string to output
+                throw irInvokeCallMemberNode.getLocation()
+                    .createError(
+                        new IllegalArgumentException(
+                            "all arguments to [" + javaMethod.getName() + "] must be constant but the [" + (i + 1) + "] argument isn't"
+                        )
+                    );
+            }
+            args[i] = constantDecoration.getValue();
+        }
+        Object result;
+        try {
+            result = javaMethod.invoke(receiver, args);
+        } catch (IllegalAccessException | IllegalArgumentException e) {
+            throw irInvokeCallMemberNode.getLocation()
+                .createError(new IllegalArgumentException("error invoking [" + irInvokeCallMemberNode + "] at compile time", e));
+        } catch (InvocationTargetException e) {
+            throw irInvokeCallMemberNode.getLocation()
+                .createError(new IllegalArgumentException("error invoking [" + irInvokeCallMemberNode + "] at compile time", e.getCause()));
+        }
+        ConstantNode replacement = new ConstantNode(irInvokeCallMemberNode.getLocation());
+        replacement.attachDecoration(new IRDConstant(result));
+        replacement.attachDecoration(irInvokeCallMemberNode.getDecoration(IRDExpressionType.class));
+        scope.accept(replacement);
     }
 
     @Override

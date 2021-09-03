@@ -23,6 +23,12 @@ GET my-index-000001/_doc/0
 
 `HEAD <index>/_source/<_id>`
 
+[[docs-get-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-get-api-desc]]
 ==== {api-description-title}
 You use GET to retrieve a document and its source or stored fields from a
@@ -161,9 +167,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 `refresh`::
-(Optional, Boolean)
-If `true`, {es} refreshes the affected shards to make this operation visible to
-search. If `false`, do nothing with refreshes. Defaults to `false`.
+(Optional, Boolean) If `true`, the request refreshes the relevant shard before
+retrieving the document. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
@@ -372,7 +377,7 @@ The API returns the following result:
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Field values fetched from the document itself are always returned as an array.
-Since the `counter` field is not stored, the get request  ignores it.
+Since the `counter` field is not stored, the get request ignores it.
 
 You can also retrieve metadata fields like the `_routing` field:
 

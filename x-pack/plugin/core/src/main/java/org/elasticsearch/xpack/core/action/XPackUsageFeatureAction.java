@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -37,7 +35,6 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction SNAPSHOT_LIFECYCLE = new XPackUsageFeatureAction(XPackField.SNAPSHOT_LIFECYCLE);
     public static final XPackUsageFeatureAction CCR = new XPackUsageFeatureAction(XPackField.CCR);
     public static final XPackUsageFeatureAction TRANSFORM = new XPackUsageFeatureAction(XPackField.TRANSFORM);
-    public static final XPackUsageFeatureAction VECTORS = new XPackUsageFeatureAction(XPackField.VECTORS);
     public static final XPackUsageFeatureAction VOTING_ONLY = new XPackUsageFeatureAction(XPackField.VOTING_ONLY);
     public static final XPackUsageFeatureAction FROZEN_INDICES = new XPackUsageFeatureAction(XPackField.FROZEN_INDICES);
     public static final XPackUsageFeatureAction SPATIAL = new XPackUsageFeatureAction(XPackField.SPATIAL);
@@ -48,18 +45,32 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction DATA_TIERS = new XPackUsageFeatureAction(XPackField.DATA_TIERS);
     public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
 
-    public static final List<XPackUsageFeatureAction> ALL;
-    static {
-        final List<XPackUsageFeatureAction> actions = new ArrayList<>();
-        actions.addAll(Arrays.asList(
-            SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
-            AGGREGATE_METRIC
-        ));
-        ALL = Collections.unmodifiableList(actions);
-    }
+    static final List<XPackUsageFeatureAction> ALL = List.of(
+        AGGREGATE_METRIC,
+        ANALYTICS,
+        CCR,
+        DATA_STREAMS,
+        DATA_TIERS,
+        EQL,
+        FROZEN_INDICES,
+        GRAPH,
+        INDEX_LIFECYCLE,
+        LOGSTASH,
+        MACHINE_LEARNING,
+        MONITORING,
+        ROLLUP,
+        SEARCHABLE_SNAPSHOTS,
+        SECURITY,
+        SNAPSHOT_LIFECYCLE,
+        SPATIAL,
+        SQL,
+        TRANSFORM,
+        VOTING_ONLY,
+        WATCHER
+    );
 
-    private XPackUsageFeatureAction(String name) {
+    // public for testing
+    public XPackUsageFeatureAction(String name) {
         super(BASE_NAME + name, XPackUsageFeatureResponse::new);
     }
 

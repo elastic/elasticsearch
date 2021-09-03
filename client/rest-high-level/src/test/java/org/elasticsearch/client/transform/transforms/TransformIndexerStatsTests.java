@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms;
@@ -51,6 +40,8 @@ public class TransformIndexerStatsTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomDouble(),
             randomDouble(),
             randomDouble()
@@ -63,6 +54,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             builder.field(TransformIndexerStats.PAGES_PROCESSED.getPreferredName(), stats.getPagesProcessed());
             builder.field(TransformIndexerStats.DOCUMENTS_PROCESSED.getPreferredName(), stats.getDocumentsProcessed());
             builder.field(TransformIndexerStats.DOCUMENTS_INDEXED.getPreferredName(), stats.getDocumentsIndexed());
+            builder.field(TransformIndexerStats.DOCUMENTS_DELETED.getPreferredName(), stats.getDocumentsDeleted());
             builder.field(TransformIndexerStats.TRIGGER_COUNT.getPreferredName(), stats.getTriggerCount());
             builder.field(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
             builder.field(TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -71,6 +63,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             builder.field(TransformIndexerStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
             builder.field(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
             builder.field(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
+            builder.field(TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
             builder.field(TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
             builder.field(
                 TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
@@ -86,6 +79,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             xContentFieldIfNotZero(builder, TransformIndexerStats.PAGES_PROCESSED.getPreferredName(), stats.getPagesProcessed());
             xContentFieldIfNotZero(builder, TransformIndexerStats.DOCUMENTS_PROCESSED.getPreferredName(), stats.getDocumentsProcessed());
             xContentFieldIfNotZero(builder, TransformIndexerStats.DOCUMENTS_INDEXED.getPreferredName(), stats.getDocumentsIndexed());
+            xContentFieldIfNotZero(builder, TransformIndexerStats.DOCUMENTS_DELETED.getPreferredName(), stats.getDocumentsDeleted());
             xContentFieldIfNotZero(builder, TransformIndexerStats.TRIGGER_COUNT.getPreferredName(), stats.getTriggerCount());
             xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
             xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -94,6 +88,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
             xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
             xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
+            xContentFieldIfNotZero(builder, TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
             xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
             xContentFieldIfNotZero(
                 builder,

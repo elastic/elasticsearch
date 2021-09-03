@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -44,8 +33,13 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalTerms.Bucket<Bucket> {
-        private Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
-                DocValueFormat formatter) {
+        private Bucket(
+            long docCount,
+            InternalAggregations aggregations,
+            boolean showDocCountError,
+            long docCountError,
+            DocValueFormat formatter
+        ) {
             super(docCount, aggregations, showDocCountError, docCountError, formatter);
         }
     }
@@ -87,7 +81,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
         throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 
@@ -108,12 +102,11 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, 0, 0, Collections.emptyList());
+        return doXContentCommon(builder, params, 0L, 0, Collections.emptyList());
     }
 
     @Override
-    protected void setDocCountError(long docCountError) {
-    }
+    protected void setDocCountError(long docCountError) {}
 
     @Override
     protected int getShardSize() {
@@ -121,8 +114,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public long getDocCountError() {
-        return 0;
+    public Long getDocCountError() {
+        return 0L;
     }
 
     @Override
@@ -138,10 +131,5 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     @Override
     public Bucket getBucketByKey(String term) {
         return null;
-    }
-
-    @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
     }
 }

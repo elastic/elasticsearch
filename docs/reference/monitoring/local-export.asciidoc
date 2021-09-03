@@ -81,15 +81,27 @@ exporter does not make use of it because it could enable a single misconfigured
 node to prematurely curate data from other production clusters that share the
 same monitoring cluster.
 
-In a dedicated monitoring cluster, the cleaning service can be used without
-having to also monitor the monitoring cluster. For example:
+In a dedicated monitoring cluster, you can use the cleaner service without
+having to monitor the monitoring cluster itself. For example:
 
 [source,yaml]
 ---------------------------------------------------
 xpack.monitoring.collection.enabled: false <1>
 xpack.monitoring.history.duration: 3d <2>
 ---------------------------------------------------
-<1> Disable the collection of data on the monitoring cluster.
-<2> Lower the default history duration from `7d` to `3d`. The minimum value is
+
+<1> Disables the collection of data on the monitoring cluster.
+<2> Lowers the default history duration from `7d` to `3d`. The minimum value is
 `1d`. This setting can be modified only when using a Gold or higher level
 license. For the Basic license level, it uses the default of 7 days.
+
+To disable the cleaner service, add a disabled local exporter:
+
+[source,yaml]
+----
+xpack.monitoring.exporters.my_local.type: local <1>
+xpack.monitoring.exporters.my_local.enabled: false <2>
+----
+
+<1> Adds a local exporter named `my_local`
+<2> Disables the local exporter. This also disables the cleaner service.

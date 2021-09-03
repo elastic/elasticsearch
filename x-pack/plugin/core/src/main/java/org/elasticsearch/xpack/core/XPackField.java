@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -47,6 +48,7 @@ public final class XPackField {
      */
     @Deprecated
     public static final String FLATTENED = "flattened";
+    @Deprecated
     /** Name constant for the vectors feature. */
     public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */
@@ -67,6 +69,8 @@ public final class XPackField {
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
     public static final String AGGREGATE_METRIC = "aggregate_metric";
+    /** Name constant for the operator privileges feature. */
+    public static final String OPERATOR_PRIVILEGES = "operator_privileges";
 
     private XPackField() {}
 

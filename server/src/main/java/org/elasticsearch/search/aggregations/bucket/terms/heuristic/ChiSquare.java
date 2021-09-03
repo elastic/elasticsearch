@@ -1,25 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
-
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -30,7 +17,9 @@ import java.io.IOException;
 public class ChiSquare extends NXYSignificanceHeuristic {
     public static final String NAME = "chi_square";
     public static final ConstructingObjectParser<ChiSquare, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, buildFromParsedArgs(ChiSquare::new));
+        NAME,
+        buildFromParsedArgs(ChiSquare::new)
+    );
     static {
         NXYSignificanceHeuristic.declareParseFields(PARSER);
     }
@@ -48,7 +37,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof ChiSquare)) {
+        if ((other instanceof ChiSquare) == false) {
             return false;
         }
         return super.equals(other);
@@ -70,11 +59,11 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "ChiSquare");
 
         // here we check if the term appears more often in subset than in background without subset.
-        if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
+        if (includeNegatives == false && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
             return Double.NEGATIVE_INFINITY;
         }
-        return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) /
-                ((frequencies.N_1) * (frequencies.N1_) * (frequencies.N0_) * (frequencies.N_0)));
+        return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) / ((frequencies.N_1)
+            * (frequencies.N1_) * (frequencies.N0_) * (frequencies.N_0)));
     }
 
     @Override
@@ -104,4 +93,3 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         }
     }
 }
-

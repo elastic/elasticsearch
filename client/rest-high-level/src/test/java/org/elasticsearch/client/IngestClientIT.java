@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -29,6 +18,7 @@ import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -169,7 +159,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             }
         } else {
             assertThat(results.get(0), instanceOf(SimulateDocumentBaseResult.class));
-            SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)results.get(0);
+            SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult) results.get(0);
             if (isFailure) {
                 assertNotNull(baseResult.getFailure());
                 assertThat(baseResult.getFailure().getMessage(),
@@ -187,5 +177,16 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
                 );
             }
         }
+    }
+
+    public void testGeoIpStats() throws IOException {
+        GeoIpStatsResponse response = execute(new MainRequest(), highLevelClient().ingest()::geoIpStats,
+            highLevelClient().ingest()::geoIpStatsAsync);
+        assertEquals(0, response.getDatabasesCount());
+        assertEquals(0, response.getSkippedDownloads());
+        assertEquals(0, response.getSuccessfulDownloads());
+        assertEquals(0, response.getFailedDownloads());
+        assertEquals(0, response.getTotalDownloadTime());
+        assertEquals(0, response.getNodes().size());
     }
 }

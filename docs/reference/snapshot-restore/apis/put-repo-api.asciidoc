@@ -1,7 +1,7 @@
 [[put-snapshot-repo-api]]
-=== Put snapshot repository API
+=== Create or update snapshot repository API
 ++++
-<titleabbrev>Put snapshot repository</titleabbrev>
+<titleabbrev>Create or update snapshot repository</titleabbrev>
 ++++
 
 Registers or updates a <<snapshots-register-repository,snapshot repository>>.
@@ -23,6 +23,12 @@ PUT /_snapshot/my_repository
 `PUT /_snapshot/<repository>`
 
 `POST /_snapshot/<repository>`
+
+[[put-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[put-snapshot-repo-api-desc]]
 ==== {api-description-title}
@@ -170,11 +176,8 @@ in snapshots. Data files are not compressed. Defaults to `true`.
 
 `max_number_of_snapshots`::
 (Optional, integer)
-Maximum number of snapshots the repository can contain. Defaults to `500`.
-+
-WARNING: We do not recommend increasing `max_number_of_snapshots`. Larger
-snapshot repositories may degrade master node performance and cause stability
-issues. Instead, delete older snapshots or use multiple repositories.
+Maximum number of snapshots the repository can contain.
+Defaults to `Integer.MAX_VALUE`, which is `2^31-1` or `2147483647`.
 
 `max_restore_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
@@ -23,12 +12,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -108,7 +97,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     private final Item[] items;
     private final long tookInMillis;
-    
+
     MultiSearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(Item::new, Item[]::new);
@@ -122,7 +111,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
-    }    
+    }
 
     @Override
     public Iterator<Item> iterator() {
@@ -135,7 +124,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public Item[] getResponses() {
         return this.items;
     }
-    
+
     /**
      * How long the msearch_template took.
      */
@@ -154,7 +143,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field("took", tookInMillis);       
+        builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             if (item.isFailure()) {
@@ -173,7 +162,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     static final class Fields {
         static final String RESPONSES = "responses";
     }
-    
+
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
         //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
@@ -188,7 +177,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             }
             templateResponses[i++] = new Item(stResponse, item.getFailure());
         }
-        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());    
+        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
     }
 
     @Override

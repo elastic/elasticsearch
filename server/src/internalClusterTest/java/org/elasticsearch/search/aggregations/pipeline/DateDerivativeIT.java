@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -68,14 +57,21 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return client().prepareIndex(idx).setSource(
-                jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
+        return client().prepareIndex(idx).setSource(jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx").setSource(
-                jsonBuilder().startObject().field("value", value).timeField("date", date(month, day)).startArray("dates")
-                        .timeValue(date(month, day)).timeValue(date(month + 1, day + 1)).endArray().endObject());
+        return client().prepareIndex("idx")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("value", value)
+                    .timeField("date", date(month, day))
+                    .startArray("dates")
+                    .timeValue(date(month, day))
+                    .timeValue(date(month + 1, day + 1))
+                    .endArray()
+                    .endObject()
+            );
     }
 
     @Override
@@ -86,15 +82,22 @@ public class DateDerivativeIT extends ESIntegTestCase {
         prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
-                    jsonBuilder().startObject().field("value", i * 2).endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+            );
         }
-        builders.addAll(Arrays.asList(indexDoc(1, 2, 1), // date: Jan 2, dates: Jan 2, Feb 3
+        builders.addAll(
+            Arrays.asList(
+                indexDoc(1, 2, 1), // date: Jan 2, dates: Jan 2, Feb 3
                 indexDoc(2, 2, 2), // date: Feb 2, dates: Feb 2, Mar 3
                 indexDoc(2, 15, 3), // date: Feb 15, dates: Feb 15, Mar 16
                 indexDoc(3, 2, 4), // date: Mar 2, dates: Mar 2, Apr 3
                 indexDoc(3, 15, 5), // date: Mar 15, dates: Mar 15, Apr 16
-                indexDoc(3, 23, 6))); // date: Mar 23, dates: Mar 23, Apr 24
+                indexDoc(3, 23, 6)
+            )
+        ); // date: Mar 23, dates: Mar 23, Apr 24
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -105,11 +108,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -147,11 +153,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldNormalised() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -208,12 +217,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable();
 
-        SearchResponse response = client()
-                .prepareSearch(IDX_DST_START)
-                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
-                        .timeZone(timezone).minDocCount(0)
-                        .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR)))
-                .get();
+        SearchResponse response = client().prepareSearch(IDX_DST_START)
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.DAY)
+                    .timeZone(timezone)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -224,21 +236,25 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(buckets.size(), equalTo(4));
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu-MM-dd");
-        ZonedDateTime expectedKeyFirstBucket =
-            LocalDate.from(dateFormatter.parse("2012-03-24")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeyFirstBucket = LocalDate.from(dateFormatter.parse("2012-03-24"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(0), expectedKeyFirstBucket, 1L, nullValue(), null, null);
 
-        ZonedDateTime expectedKeySecondBucket =
-            LocalDate.from(dateFormatter.parse("2012-03-25")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
-        assertBucket(buckets.get(1), expectedKeySecondBucket,2L, notNullValue(), 1d, 1d / 24d);
+        ZonedDateTime expectedKeySecondBucket = LocalDate.from(dateFormatter.parse("2012-03-25"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
+        assertBucket(buckets.get(1), expectedKeySecondBucket, 2L, notNullValue(), 1d, 1d / 24d);
 
         // the following is normalized using a 23h bucket width
-        ZonedDateTime expectedKeyThirdBucket =
-            LocalDate.from(dateFormatter.parse("2012-03-26")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeyThirdBucket = LocalDate.from(dateFormatter.parse("2012-03-26"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(2), expectedKeyThirdBucket, 3L, notNullValue(), 1d, 1d / 23d);
 
-        ZonedDateTime expectedKeyFourthBucket =
-            LocalDate.from(dateFormatter.parse("2012-03-27")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeyFourthBucket = LocalDate.from(dateFormatter.parse("2012-03-27"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(3), expectedKeyFourthBucket, 4L, notNullValue(), 1d, 1d / 24d);
     }
 
@@ -259,12 +275,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable();
 
-        SearchResponse response = client()
-                .prepareSearch(IDX_DST_END)
-                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
-                        .timeZone(timezone).minDocCount(0)
-                        .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR)))
-                .get();
+        SearchResponse response = client().prepareSearch(IDX_DST_END)
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.DAY)
+                    .timeZone(timezone)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -276,21 +295,25 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu-MM-dd").withZone(ZoneOffset.UTC);
 
-        ZonedDateTime expectedKeyFirstBucket =
-            LocalDate.from(dateFormatter.parse("2012-10-27")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeyFirstBucket = LocalDate.from(dateFormatter.parse("2012-10-27"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(0), expectedKeyFirstBucket, 1L, nullValue(), null, null);
 
-        ZonedDateTime expectedKeySecondBucket =
-            LocalDate.from(dateFormatter.parse("2012-10-28")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeySecondBucket = LocalDate.from(dateFormatter.parse("2012-10-28"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(1), expectedKeySecondBucket, 2L, notNullValue(), 1d, 1d / 24d);
 
         // the following is normalized using a 25h bucket width
-        ZonedDateTime expectedKeyThirdBucket =
-            LocalDate.from(dateFormatter.parse("2012-10-29")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeyThirdBucket = LocalDate.from(dateFormatter.parse("2012-10-29"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(2), expectedKeyThirdBucket, 3L, notNullValue(), 1d, 1d / 25d);
 
-        ZonedDateTime expectedKeyFourthBucket =
-            LocalDate.from(dateFormatter.parse("2012-10-30")).atStartOfDay(timezone).withZoneSameInstant(ZoneOffset.UTC);
+        ZonedDateTime expectedKeyFourthBucket = LocalDate.from(dateFormatter.parse("2012-10-30"))
+            .atStartOfDay(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
         assertBucket(buckets.get(3), expectedKeyFourthBucket, 4L, notNullValue(), 1d, 1d / 24d);
     }
 
@@ -312,12 +335,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable();
 
-        SearchResponse response = client()
-                .prepareSearch(IDX_DST_KATHMANDU)
-                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.HOUR)
-                        .timeZone(timezone).minDocCount(0)
-                        .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.MINUTE)))
-                .get();
+        SearchResponse response = client().prepareSearch(IDX_DST_KATHMANDU)
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.HOUR)
+                    .timeZone(timezone)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.MINUTE))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -329,22 +355,26 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC);
 
-        ZonedDateTime expectedKeyFirstBucket =
-            LocalDateTime.from(dateFormatter.parse("1985-12-31T22:00:00")).atZone(timezone).withZoneSameInstant(ZoneOffset.UTC);
-        assertBucket(buckets.get(0), expectedKeyFirstBucket, 1L, nullValue(), null,null);
+        ZonedDateTime expectedKeyFirstBucket = LocalDateTime.from(dateFormatter.parse("1985-12-31T22:00:00"))
+            .atZone(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
+        assertBucket(buckets.get(0), expectedKeyFirstBucket, 1L, nullValue(), null, null);
 
-        ZonedDateTime expectedKeySecondBucket =
-            LocalDateTime.from(dateFormatter.parse("1985-12-31T23:00:00")).atZone(timezone).withZoneSameInstant(ZoneOffset.UTC);
-        assertBucket(buckets.get(1), expectedKeySecondBucket, 2L, notNullValue(), 1d,1d / 60d);
+        ZonedDateTime expectedKeySecondBucket = LocalDateTime.from(dateFormatter.parse("1985-12-31T23:00:00"))
+            .atZone(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
+        assertBucket(buckets.get(1), expectedKeySecondBucket, 2L, notNullValue(), 1d, 1d / 60d);
 
         // the following is normalized using a 105min bucket width
-        ZonedDateTime expectedKeyThirdBucket =
-            LocalDateTime.from(dateFormatter.parse("1986-01-01T01:00:00")).atZone(timezone).withZoneSameInstant(ZoneOffset.UTC);
-        assertBucket(buckets.get(2), expectedKeyThirdBucket, 3L, notNullValue(), 1d,1d / 105d);
+        ZonedDateTime expectedKeyThirdBucket = LocalDateTime.from(dateFormatter.parse("1986-01-01T01:00:00"))
+            .atZone(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
+        assertBucket(buckets.get(2), expectedKeyThirdBucket, 3L, notNullValue(), 1d, 1d / 105d);
 
-        ZonedDateTime expectedKeyFourthBucket =
-            LocalDateTime.from(dateFormatter.parse("1986-01-01T02:00:00")).atZone(timezone).withZoneSameInstant(ZoneOffset.UTC);
-        assertBucket(buckets.get(3), expectedKeyFourthBucket, 4L, notNullValue(), 1d,1d / 60d);
+        ZonedDateTime expectedKeyFourthBucket = LocalDateTime.from(dateFormatter.parse("1986-01-01T02:00:00"))
+            .atZone(timezone)
+            .withZoneSameInstant(ZoneOffset.UTC);
+        assertBucket(buckets.get(3), expectedKeyFourthBucket, 4L, notNullValue(), 1d, 1d / 60d);
     }
 
     private static void addNTimes(int amount, String index, ZonedDateTime dateTime, List<IndexRequestBuilder> builders) throws Exception {
@@ -353,8 +383,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
         }
     }
 
-    private static void assertBucket(Histogram.Bucket bucket, ZonedDateTime expectedKey, long expectedDocCount,
-            Matcher<Object> derivativeMatcher, Double derivative, Double normalizedDerivative) {
+    private static void assertBucket(
+        Histogram.Bucket bucket,
+        ZonedDateTime expectedKey,
+        long expectedDocCount,
+        Matcher<Object> derivativeMatcher,
+        Double derivative,
+        Double normalizedDerivative
+    ) {
         assertThat(bucket, notNullValue());
         assertThat((ZonedDateTime) bucket.getKey(), equalTo(expectedKey));
         assertThat(bucket.getDocCount(), equalTo(expectedDocCount));
@@ -367,12 +403,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                            .subAggregation(sum("sum").field("value")).subAggregation(derivative("deriv", "sum")))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .minDocCount(0)
+                    .subAggregation(sum("sum").field("value"))
+                    .subAggregation(derivative("deriv", "sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -381,9 +420,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(3));
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation)histo).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histo).getProperty("_count");
-        Object[] propertiesCounts = (Object[]) ((InternalAggregation)histo).getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation) histo).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) histo).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation) histo).getProperty("sum.value");
 
         ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         Histogram.Bucket bucket = buckets.get(0);
@@ -412,8 +451,13 @@ public class DateDerivativeIT extends ESIntegTestCase {
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(4.0));
-        assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty(
-                "histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(4.0));
+        assertThat(
+            ((InternalMultiBucketAggregation.InternalBucket) bucket).getProperty(
+                "histo",
+                AggregationPath.parse("deriv.value").getPathElementsAsStringList()
+            ),
+            equalTo(4.0)
+        );
         assertThat((ZonedDateTime) propertiesKeys[1], equalTo(key));
         assertThat((long) propertiesDocCounts[1], equalTo(2L));
         assertThat((double) propertiesCounts[1], equalTo(5.0));
@@ -430,19 +474,27 @@ public class DateDerivativeIT extends ESIntegTestCase {
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(10.0));
-        assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty(
-                "histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(10.0));
+        assertThat(
+            ((InternalMultiBucketAggregation.InternalBucket) bucket).getProperty(
+                "histo",
+                AggregationPath.parse("deriv.value").getPathElementsAsStringList()
+            ),
+            equalTo(10.0)
+        );
         assertThat((ZonedDateTime) propertiesKeys[2], equalTo(key));
         assertThat((long) propertiesDocCounts[2], equalTo(3L));
         assertThat((double) propertiesCounts[2], equalTo(15.0));
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        dateHistogram("histo").field("dates").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                dateHistogram("histo").field("dates")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -471,7 +523,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(2.0));
 
-        key = ZonedDateTime.of(2012, 3, 1, 0, 0, 0, 0,ZoneOffset.UTC);
+        key = ZonedDateTime.of(2012, 3, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((ZonedDateTime) bucket.getKey(), equalTo(key));
@@ -493,11 +545,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx_unmapped")
-                .addAggregation(
-                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -508,11 +563,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx", "idx_unmapped")
-                .addAggregation(
-                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
+            .addAggregation(
+                dateHistogram("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 

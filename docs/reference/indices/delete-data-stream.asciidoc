@@ -6,7 +6,7 @@
 ++++
 
 Deletes one or more <<data-streams,data streams>> and their backing
-indices. See <<delete-a-data-stream>>.
+indices. See <<delete-data-stream>>.
 
 ////
 [source,console]
@@ -40,6 +40,12 @@ DELETE /_index_template/template
 
 `DELETE /_data_stream/<data-stream>`
 
+[[delete-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
 
 [[delete-data-stream-api-path-params]]
 ==== {api-path-parms-title}
@@ -48,3 +54,11 @@ DELETE /_index_template/template
 (Required, string)
 Comma-separated list of data streams to delete.
 Wildcard (`*`) expressions are supported.
+
+[role="child_attributes"]
+[[delete-data-stream-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.

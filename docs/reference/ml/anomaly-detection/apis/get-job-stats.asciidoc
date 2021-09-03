@@ -17,14 +17,13 @@ Retrieves usage information for {anomaly-jobs}.
 
 `GET _ml/anomaly_detectors/_stats` +
 
-`GET _ml/anomaly_detectors/_all/_stats` 
+`GET _ml/anomaly_detectors/_all/_stats`
 
 [[ml-get-job-stats-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-job-stats-desc]]
 == {api-description-title}
@@ -119,6 +118,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-record-timestamp]
 (date)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-sparse-record-timestamp]
 
+`log_time`:::
+(date) The timestamp of the `data_counts` according to server time.
+
 `missing_field_count`:::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=missing-field-count]
@@ -144,13 +146,13 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 
 `deleting`::
 (Boolean)
-Indicates that the process of deleting the job is in progress but not yet 
+Indicates that the process of deleting the job is in progress but not yet
 completed. It is only reported when `true`.
 
 //Begin forecasts_stats
 [[forecastsstats]]`forecasts_stats`::
-(object) An object that provides statistical information about forecasts 
-belonging to this job. Some statistics are omitted if no forecasts have been 
+(object) An object that provides statistical information about forecasts
+belonging to this job. Some statistics are omitted if no forecasts have been
 made.
 +
 NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
@@ -160,24 +162,24 @@ NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
 [%collapsible%open]
 ====
 `forecasted_jobs`:::
-(long) A value of `0` indicates that forecasts do not exist for this job. A 
+(long) A value of `0` indicates that forecasts do not exist for this job. A
 value of `1` indicates that at least one forecast exists.
 
 `memory_bytes`:::
-(object) The `avg`, `min`, `max` and `total` memory usage in bytes for forecasts 
+(object) The `avg`, `min`, `max` and `total` memory usage in bytes for forecasts
 related to this job. If there are no forecasts, this property is omitted.
 
 `records`:::
-(object) The `avg`, `min`, `max` and `total` number of `model_forecast` documents 
+(object) The `avg`, `min`, `max` and `total` number of `model_forecast` documents
 written for forecasts related to this job. If there are no forecasts, this
 property is omitted.
 
 `processing_time_ms`:::
-(object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 
+(object) The `avg`, `min`, `max` and `total` runtime in milliseconds for
 forecasts related to this job. If there are no forecasts, this property is omitted.
 
 `status`:::
-(object) The count of forecasts by their status. For example: 
+(object) The count of forecasts by their status. For example:
 {"finished" : 2, "started" : 1}. If there are no forecasts, this property is omitted.
 
 `total`:::
@@ -198,6 +200,10 @@ model.
 .Properties of `model_size_stats`
 [%collapsible%open]
 ====
+`assignment_memory_basis`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
+
 `bucket_allocation_failures_count`:::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-allocation-failures-count]
@@ -289,7 +295,7 @@ available only for open jobs.
 `attributes`:::
 (object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
-  
+
 `ephemeral_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
@@ -360,7 +366,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
 == {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_match` is `false`, this code indicates that there are no 
+  If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.
 
 [[ml-get-job-stats-example]]
@@ -453,7 +459,7 @@ The API returns the following results:
         "attributes" : {
           "ml.machine_memory" : "17179869184",
           "xpack.installed" : "true",
-          "ml.max_open_jobs" : "20"
+          "ml.max_open_jobs" : "512"
         }
       },
       "assignment_explanation" : "",

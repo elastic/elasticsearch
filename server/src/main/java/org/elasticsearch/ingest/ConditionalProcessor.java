@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -48,7 +38,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
             "_type", value -> {
-                deprecationLogger.deprecate("conditional-processor__type",
+                deprecationLogger.deprecate(DeprecationCategory.INDICES, "conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });
@@ -147,6 +137,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return condition.getIdOrCode();
     }
 
+    @SuppressWarnings("unchecked")
     private static Object wrapUnmodifiable(Object raw) {
         // Wraps all mutable types that the JSON parser can create by immutable wrappers.
         // Any inputs not wrapped are assumed to be immutable
@@ -313,6 +304,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> T[] toArray(final T[] a) {
             Object[] raw = data.toArray(new Object[0]);
             T[] wrapped = (T[]) Arrays.copyOf(raw, a.length, a.getClass());

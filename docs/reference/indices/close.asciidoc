@@ -18,6 +18,11 @@ POST /my-index-000001/_close
 
 `POST /<index>/_close`
 
+[[close-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
 [[close-index-api-desc]]
 ==== {api-description-title}
@@ -33,8 +38,9 @@ include::{es-repo-dir}/indices/open-close.asciidoc[tag=closed-index]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To close all indices, use `_all` or `*`.
-To disallow the closing of indices with `_all` or wildcard expressions,
-change the `action.destructive_requires_name` cluster setting to `true`.
+By default, you must explicitly name the indices you are closing.
+To specify indices to close with `_all`, `*`, or other wildcard
+expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
 

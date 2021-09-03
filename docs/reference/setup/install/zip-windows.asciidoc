@@ -1,7 +1,7 @@
 [[zip-windows]]
 === Install Elasticsearch with `.zip` on Windows
 
-Elasticsearch can be installed on Windows using the Windows `.zip` archive.  This
+Elasticsearch can be installed on Windows using the Windows `.zip` archive. This
 comes with a `elasticsearch-service.bat` command which will setup Elasticsearch to run as a
 service.
 
@@ -41,11 +41,7 @@ ifeval::["{release-state}"!="unreleased"]
 
 Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
 
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
-
-Unzip it with your favourite unzip tool.  This will create a folder called
+Unzip it with your favourite unzip tool. This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
 window, `cd` to the `%ES_HOME%` directory, for instance:
 
@@ -72,7 +68,7 @@ include::zip-windows-start.asciidoc[]
 ==== Configuring Elasticsearch on the command line
 
 Elasticsearch loads its configuration from the `%ES_HOME%\config\elasticsearch.yml`
-file by default.  The format of this config file is explained in
+file by default. The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
@@ -83,7 +79,7 @@ the command line, using the `-E` syntax as follows:
 .\bin\elasticsearch.bat -Ecluster.name=my_cluster -Enode.name=node_1
 --------------------------------------------
 
-NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.
+NOTE: Values that contain spaces must be surrounded with quotes. For instance `-Epath.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
@@ -124,24 +120,24 @@ The commands available are:
 
 `manager`:: Start a GUI for managing the installed service
 
-The name of the service and the value of `JAVA_HOME` will be made available during install:
+The name of the service and the value of `ES_JAVA_HOME` will be made available during install:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------------
 c:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
 Installing service      :  "elasticsearch-service-x64"
-Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
+Using ES_JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 --------------------------------------------------
 
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
-NOTE: The system environment variable `JAVA_HOME` should be set to the path to
-the JDK installation that you want the service to use. If you upgrade the JDK,
-you are not required to the reinstall the service but you must set the value of
-the system environment variable `JAVA_HOME` to the path to the new JDK
-installation. However, upgrading across JVM types (e.g. JRE versus SE) is not
-supported, and does require the service to be reinstalled.
+NOTE: The system environment variable `ES_JAVA_HOME` should be set to the path
+to the JDK installation that you want the service to use. If you upgrade the
+JDK, you are not required to the reinstall the service but you must set the
+value of the system environment variable `ES_JAVA_HOME` to the path to the new
+JDK installation. However, upgrading across JVM types (e.g. JRE versus SE) is
+not supported, and does require the service to be reinstalled.
 
 [[windows-service-settings]]
 [discrete]
@@ -165,13 +161,13 @@ The Elasticsearch service can be configured prior to installation by setting the
 
 `SERVICE_DISPLAY_NAME`::
 
-  The name of the service.  Defaults to `Elasticsearch <version> %SERVICE_ID%`.
+  The name of the service. Defaults to `Elasticsearch <version> %SERVICE_ID%`.
 
 `SERVICE_DESCRIPTION`::
 
-  The description of the service.  Defaults to `Elasticsearch <version> Windows Service - https://elastic.co`.
+  The description of the service. Defaults to `Elasticsearch <version> Windows Service - https://elastic.co`.
 
-`JAVA_HOME`::
+`ES_JAVA_HOME`::
 
   The installation directory of the desired JVM to run the service under.
 
@@ -194,20 +190,27 @@ The Elasticsearch service can be configured prior to installation by setting the
 
 `ES_START_TYPE`::
 
-    Startup mode for the service.  Can be either `auto` or `manual` (default).
+    Startup mode for the service. Can be either `auto` or `manual` (default).
 
 `ES_STOP_TIMEOUT` ::
 
-  The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
+  The timeout in seconds that procrun waits for service to exit gracefully. Defaults to `0`.
 
 NOTE: At its core, `elasticsearch-service.bat` relies on https://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
-NOTE: On Windows, the <<heap-size,heap size>> can be configured as for
-any other Elasticsearch installation when running Elasticsearch from the
-command line, or when installing Elasticsearch as a service for the
-first time. To adjust the heap size for an already installed service,
+[NOTE]
+====
+By default, {es} automatically sizes JVM heap based on a node's
+<<node-roles,roles>> and total memory. We recommend this default sizing for most
+production environments. If needed, you can override default sizing by manually
+setting the heap size.
+
+When installing {es} on Windows as a service for the first time or running {es}
+from the command line, you can manually <<set-jvm-heap-size>>.
+To resize the heap for an already installed service,
 use the service manager: `bin\elasticsearch-service.bat manager`.
+====
 
 NOTE: The service automatically configures a private temporary directory for use
 by Elasticsearch when it is running. This private temporary directory is
@@ -219,7 +222,7 @@ before you execute the service installation.
 
 Using the Manager GUI::
 
-It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `elasticsearch-service.bat manager` from the command-line will open up the manager window:
+It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things. Simply invoking `elasticsearch-service.bat manager` from the command-line will open up the manager window:
 
 image::images/service-manager-win.png["Windows Service Manager GUI",align="center"]
 
@@ -234,7 +237,7 @@ unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
 start using Elasticsearch, and uninstalling Elasticsearch is as easy as
-removing the `%ES_HOME%` directory.  However, it is advisable to change the
+removing the `%ES_HOME%` directory. However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
 
@@ -260,7 +263,7 @@ directory so that you do not delete important data later on.
 
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | %ES_HOME%\data
   | path.data
 

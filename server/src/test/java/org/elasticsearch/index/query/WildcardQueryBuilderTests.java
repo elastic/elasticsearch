@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -24,7 +13,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.mapper.TypeFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -69,7 +57,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
 
         if (expectedFieldName.equals(TEXT_FIELD_NAME)) {
@@ -102,7 +90,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testEmptyValue() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(TEXT_FIELD_NAME, "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
@@ -145,16 +133,10 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 
-    public void testTypeField() throws IOException {
-        WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
-        builder.doToQuery(createShardContext());
-        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
-    }
-
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
-        QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
@@ -162,14 +144,14 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         String fullIndexName = getIndex().getName();
         String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName +"*");
-        QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class,

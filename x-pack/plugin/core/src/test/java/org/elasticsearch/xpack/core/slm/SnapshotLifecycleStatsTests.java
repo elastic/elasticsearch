@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
@@ -22,10 +23,10 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
 
     public static SnapshotLifecycleStats.SnapshotPolicyStats randomPolicyStats(String policyId) {
         return new SnapshotLifecycleStats.SnapshotPolicyStats(policyId,
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong());
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE));
     }
 
     public static SnapshotLifecycleStats randomLifecycleStats() {
@@ -36,10 +37,10 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
             policyStats.put(policy, randomPolicyStats(policy));
         }
         return new SnapshotLifecycleStats(
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             policyStats);
     }
 

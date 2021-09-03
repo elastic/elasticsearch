@@ -1,37 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -81,8 +70,14 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         updateShardStats(startTime, time);
     }
 
-    SnapshotStatus(Snapshot snapshot, State state, List<SnapshotIndexShardStatus> shards, Boolean includeGlobalState,
-                   long startTime, long time) {
+    SnapshotStatus(
+        Snapshot snapshot,
+        State state,
+        List<SnapshotIndexShardStatus> shards,
+        Boolean includeGlobalState,
+        long startTime,
+        long time
+    ) {
         this.snapshot = Objects.requireNonNull(snapshot);
         this.state = Objects.requireNonNull(state);
         this.shards = Objects.requireNonNull(shards);
@@ -92,9 +87,15 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         updateShardStats(startTime, time);
     }
 
-    private SnapshotStatus(Snapshot snapshot, State state, List<SnapshotIndexShardStatus> shards,
-                          Map<String, SnapshotIndexStatus> indicesStatus, SnapshotShardsStats shardsStats,
-                          SnapshotStats stats, Boolean includeGlobalState) {
+    private SnapshotStatus(
+        Snapshot snapshot,
+        State state,
+        List<SnapshotIndexShardStatus> shards,
+        Map<String, SnapshotIndexStatus> indicesStatus,
+        SnapshotShardsStats shardsStats,
+        SnapshotStats stats,
+        Boolean includeGlobalState
+    ) {
         this.snapshot = snapshot;
         this.state = state;
         this.shards = shards;
@@ -217,7 +218,8 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     }
 
     static final ConstructingObjectParser<SnapshotStatus, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshot_status", true,
+        "snapshot_status",
+        true,
         (Object[] parsedObjects) -> {
             int i = 0;
             String name = (String) parsedObjects[i++];
@@ -227,7 +229,8 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
             Boolean includeGlobalState = (Boolean) parsedObjects[i++];
             SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
             SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
-            @SuppressWarnings("unchecked") List<SnapshotIndexStatus> indices = ((List<SnapshotIndexStatus>) parsedObjects[i]);
+            @SuppressWarnings("unchecked")
+            List<SnapshotIndexStatus> indices = ((List<SnapshotIndexStatus>) parsedObjects[i]);
 
             Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
             SnapshotsInProgress.State state = SnapshotsInProgress.State.valueOf(rawState);
@@ -245,15 +248,20 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
                 }
             }
             return new SnapshotStatus(snapshot, state, shards, indicesStatus, shardsStats, stats, includeGlobalState);
-        });
+        }
+    );
     static {
         PARSER.declareString(constructorArg(), new ParseField(SNAPSHOT));
         PARSER.declareString(constructorArg(), new ParseField(REPOSITORY));
         PARSER.declareString(constructorArg(), new ParseField(UUID));
         PARSER.declareString(constructorArg(), new ParseField(STATE));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(INCLUDE_GLOBAL_STATE));
-        PARSER.declareField(constructorArg(), SnapshotStats::fromXContent, new ParseField(SnapshotStats.Fields.STATS),
-            ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            constructorArg(),
+            SnapshotStats::fromXContent,
+            new ParseField(SnapshotStats.Fields.STATS),
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareObject(constructorArg(), SnapshotShardsStats.PARSER, new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS));
         PARSER.declareNamedObjects(constructorArg(), SnapshotIndexStatus.PARSER, new ParseField(INDICES));
     }
@@ -277,9 +285,12 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
 
         SnapshotStatus that = (SnapshotStatus) o;
-        return Objects.equals(snapshot, that.snapshot) && state == that.state && Objects.equals(indicesStatus, that.indicesStatus)
-                && Objects.equals(shardsStats, that.shardsStats) && Objects.equals(stats, that.stats)
-                && Objects.equals(includeGlobalState, that.includeGlobalState);
+        return Objects.equals(snapshot, that.snapshot)
+            && state == that.state
+            && Objects.equals(indicesStatus, that.indicesStatus)
+            && Objects.equals(shardsStats, that.shardsStats)
+            && Objects.equals(stats, that.stats)
+            && Objects.equals(includeGlobalState, that.includeGlobalState);
     }
 
     @Override

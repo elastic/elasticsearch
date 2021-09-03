@@ -9,15 +9,15 @@
         name: 'my_remote_cluster:*'
         expand_wildcards: [all]
 
-  - match: {indices.0.name: my_remote_cluster:.ds-simple-data-stream1-000001}
+  - match: {indices.0.name: "/my_remote_cluster:\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/"}
   - match: {indices.0.attributes.0: hidden}
   - match: {indices.0.attributes.1: open}
   - match: {indices.0.data_stream: simple-data-stream1}
-  - match: {indices.1.name: my_remote_cluster:.ds-simple-data-stream2-000001}
+  - match: {indices.1.name: "/my_remote_cluster:\\.ds-simple-data-stream2-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/"}
   - match: {indices.1.attributes.0: hidden}
   - match: {indices.1.attributes.1: open}
   - match: {indices.1.data_stream: simple-data-stream2}
-  - match: {indices.2.name: my_remote_cluster:.ds-simple-data-stream2-000002}
+  - match: {indices.2.name: "/my_remote_cluster:\\.ds-simple-data-stream2-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/"}
   - match: {indices.2.attributes.0: hidden}
   - match: {indices.2.attributes.1: open}
   - match: {indices.2.data_stream: simple-data-stream2}
@@ -34,11 +34,15 @@
   - match: {indices.7.attributes.0: open }
   - match: {indices.8.name: my_remote_cluster:secured_via_alias}
   - match: {indices.8.attributes.0: open}
-  - match: {indices.9.name: my_remote_cluster:single_doc_index}
+  - match: {indices.9.name: my_remote_cluster:shared_index}
+  - match: {indices.9.attributes.0: open}
+  - match: {indices.10.name: my_remote_cluster:single_doc_index}
   - match: {indices.10.attributes.0: open}
-  - match: {indices.10.name: my_remote_cluster:test_index}
-  - match: {indices.10.aliases.0: aliased_test_index}
-  - match: {indices.10.attributes.0: open}
+  - match: {indices.11.name: my_remote_cluster:terms_enum_index }
+  - match: {indices.11.attributes.0: open }
+  - match: {indices.12.name: my_remote_cluster:test_index}
+  - match: {indices.12.aliases.0: aliased_test_index}
+  - match: {indices.12.attributes.0: open}
   - match: {aliases.0.name: my_remote_cluster:.security}
   - match: {aliases.0.indices.0: .security-7}
   - match: {aliases.1.name: my_remote_cluster:aliased_closed_index}
@@ -48,9 +52,9 @@
   - match: {aliases.3.name: my_remote_cluster:secure_alias}
   - match: {aliases.3.indices.0: secured_via_alias}
   - match: {data_streams.0.name: my_remote_cluster:simple-data-stream1}
-  - match: {data_streams.0.backing_indices.0: .ds-simple-data-stream1-000001}
+  - match: {data_streams.0.backing_indices.0: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/"}
   - match: {data_streams.0.timestamp_field: "@timestamp"}
   - match: {data_streams.1.name: my_remote_cluster:simple-data-stream2}
-  - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
-  - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
+  - match: {data_streams.1.backing_indices.0: "/\\.ds-simple-data-stream2-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/"}
+  - match: {data_streams.1.backing_indices.1: "/\\.ds-simple-data-stream2-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/"}
   - match: {data_streams.1.timestamp_field: "@timestamp"}

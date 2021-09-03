@@ -1,0 +1,224 @@
+---
+"Bulk indexing of monitoring data":
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
+
+  - do:
+      monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "6"
+        interval:           "10s"
+        body:
+          - index:
+              _type:  test_type
+          - avg-cpu:
+              user:   13.26
+              nice:   0.17
+              system: 1.51
+              iowait: 0.85
+              idle:   84.20
+          - index:
+              _type:  test_type
+          - avg-cpu:
+              user:   13.23
+              nice:   0.17
+              system: 1.51
+              iowait: 0.85
+              idle:   84.24
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "test_type" } } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "6"
+        interval:           "123456ms"
+        type:               "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+          - '{"index": {"_type": "custom_type"}}'
+          - '{"field_1": "value_2"}'
+          - '{"index": {}}'
+          - '{"field_1": "value_3"}'
+          - '{"index": {"_index": "_data", "_type": "kibana"}}'
+          - '{"field_1": "value_4"}'
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "default_type" } } }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.interval_ms: 123456 }
+  - match: { hits.hits.1._source.interval_ms: 123456 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "custom_type" } } }
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.interval_ms: 123456 }
+
+  # We actively ignore indexing requests made to the _data index starting with 5.5
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-data-*
+
+  - match: { hits.total: 0 }
+
+  # Old system_api_version should still be accepted
+  - do:
+      monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "2"
+        interval:           "10000ms"
+        type:               "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+          - '{"index": {"_type": "custom_type"}}'
+          - '{"field_1": "value_2"}'
+          - '{"index": {}}'
+          - '{"field_1": "value_3"}'
+          - '{"index": {"_index": "_data", "_type": "kibana"}}'
+          - '{"field_1": "value_4"}'
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "default_type" } } }
+
+  - match: { hits.total: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "custom_type" } } }
+
+  - match: { hits.total: 2 }
+
+  # We actively ignore indexing requests made to the _data index starting with 5.5, even for the old versions
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-data-*
+
+  - match: { hits.total: 0 }
+
+  # Missing a system_id causes it to fail
+  - do:
+      catch: bad_request
+      monitoring.bulk:
+        system_api_version: "6"
+        interval:           "10s"
+        type:               "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+
+  # Missing a system_api_version causes it to fail
+  - do:
+      catch: bad_request
+      monitoring.bulk:
+        system_id:          "kibana"
+        interval:           "10s"
+        type:               "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+
+  # Missing an interval causes it to fail
+  - do:
+      catch: bad_request
+      monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "6"
+        type:               "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+
+---
+"Bulk indexing of monitoring data on closed indices should throw an export exception":
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
+      features: ["allowed_warnings"]
+
+  - do:
+      monitoring.bulk:
+        system_id:          "beats"
+        system_api_version: "6"
+        interval:           "5s"
+        body:
+          - index:
+              _type:  metric_beat
+          - modules:
+              nginx:  true
+              mysql:  false
+          - index:
+              _type:  file_beat
+          - file:
+              path:   /var/log/dmesg
+              size:   31kb
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .monitoring-beats-*
+  - match: { hits.total: 2 }
+
+  - do:
+      indices.close:
+        index: .monitoring-beats-*
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  - do:
+      catch: /export_exception/
+      monitoring.bulk:
+        system_id:          "beats"
+        system_api_version: "6"
+        interval:           "5s"
+        body:
+          - index:
+              _type:  file_beat
+          - file:
+              path:   /var/log/auth.log
+              size:   5kb

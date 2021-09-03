@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -40,18 +41,19 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -87,7 +89,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -99,9 +100,11 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import javax.crypto.SecretKey;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.CoreMatchers.is;
@@ -160,13 +163,15 @@ public class TokenServiceTests extends ESTestCase {
         when(client.prepareSearch(any(String.class)))
             .thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE));
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()),
                 randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest request = (BulkRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> responseActionListener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[1];
             BulkItemResponse[] responses = new BulkItemResponse[request.requests().size()];
             final String indexUUID = randomAlphaOfLength(22);
@@ -177,11 +182,11 @@ public class TokenServiceTests extends ESTestCase {
                 final UpdateResponse response = new UpdateResponse(shardId, result.getId(), result.getSeqNo(), result.getPrimaryTerm(),
                     result.getVersion() + 1, DocWriteResponse.Result.UPDATED);
                 response.setGetResult(result);
-                responses[i] = new BulkItemResponse(i, DocWriteRequest.OpType.UPDATE, response);
+                responses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, response);
             }
             responseActionListener.onResponse(new BulkResponse(responses, randomLongBetween(1, 500)));
             return null;
-        }).when(client).bulk(any(BulkRequest.class), any(ActionListener.class));
+        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
 
         this.securityContext = new SecurityContext(settings, threadPool.getThreadContext());
         // setup lifecycle service
@@ -191,7 +196,6 @@ public class TokenServiceTests extends ESTestCase {
 
         // License state (enabled by default)
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
@@ -238,7 +242,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -248,7 +253,8 @@ public class TokenServiceTests extends ESTestCase {
             TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
             anotherService.refreshMetadata(tokenService.getTokenMetadata());
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            anotherService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = anotherService.extractBearerTokenFromHeader(requestContext);
+            anotherService.tryAuthenticateToken(bearerToken, future);
             UserToken fromOtherService = future.get();
             assertAuthentication(authentication, fromOtherService.getAuthentication());
         }
@@ -263,7 +269,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertThat(serialized, nullValue());
         }
@@ -289,7 +296,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -297,7 +305,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -317,7 +326,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -355,7 +365,8 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(requestContext, accessToken);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            otherTokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = otherTokenService.extractBearerTokenFromHeader(requestContext);
+            otherTokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(serialized.getAuthentication(), authentication);
         }
@@ -366,7 +377,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            otherTokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = otherTokenService.extractBearerTokenFromHeader(requestContext);
+            otherTokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(serialized.getAuthentication(), authentication);
         }
@@ -392,7 +404,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -406,7 +419,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -425,7 +439,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertNull(serialized);
         }
@@ -435,7 +450,8 @@ public class TokenServiceTests extends ESTestCase {
         mockGetTokenFromId(tokenService, newUserTokenId, authentication, false);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -462,7 +478,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
@@ -471,7 +488,8 @@ public class TokenServiceTests extends ESTestCase {
             // verify a second separate token service with its own passphrase cannot verify
             TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            anotherService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = anotherService.extractBearerTokenFromHeader(requestContext);
+            anotherService.tryAuthenticateToken(bearerToken, future);
             assertNull(future.get());
         }
     }
@@ -515,7 +533,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
             final String headerValue = e.getHeader("WWW-Authenticate").get(0);
             assertThat(headerValue, containsString("Bearer realm="));
@@ -631,7 +650,8 @@ public class TokenServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // the clock is still frozen, so the cookie should be valid
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertAuthentication(authentication, future.get().getAuthentication());
         }
 
@@ -641,7 +661,8 @@ public class TokenServiceTests extends ESTestCase {
             // move the clock forward but don't go to expiry
             clock.fastForwardSeconds(fastForwardAmount);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertAuthentication(authentication, future.get().getAuthentication());
         }
 
@@ -649,7 +670,8 @@ public class TokenServiceTests extends ESTestCase {
             // move to expiry, stripping nanoseconds, as we don't store them in the security-tokens index
             clock.setTime(userToken.getExpirationTime().truncatedTo(ChronoUnit.MILLIS).atZone(clock.getZone()));
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertAuthentication(authentication, future.get().getAuthentication());
         }
 
@@ -657,7 +679,8 @@ public class TokenServiceTests extends ESTestCase {
             // move one second past expiry
             clock.fastForwardSeconds(1);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
             final String headerValue = e.getHeader("WWW-Authenticate").get(0);
             assertThat(headerValue, containsString("Bearer realm="));
@@ -678,7 +701,7 @@ public class TokenServiceTests extends ESTestCase {
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
 
         PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-        tokenService.getAndValidateToken(null, future);
+        tokenService.tryAuthenticateToken(null, future);
         assertNull(future.get());
 
         PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
@@ -724,7 +747,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertNull(future.get());
         }
     }
@@ -739,7 +763,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertNull(future.get());
         }
     }
@@ -754,7 +779,8 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertNull(future.get());
         }
     }
@@ -773,10 +799,11 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(requestContext, accessToken);
 
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             listener.onFailure(new NoShardAvailableActionException(new ShardId(new Index("foo", "uuid"), 0), "shard oh shard"));
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
 
         final SecurityIndexManager tokensIndex;
         if (oldNode != null) {
@@ -792,26 +819,30 @@ public class TokenServiceTests extends ESTestCase {
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken3 = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken3, future);
             assertNull(future.get());
 
             when(tokensIndex.isAvailable()).thenReturn(false);
             when(tokensIndex.getUnavailableReason()).thenReturn(new UnavailableShardsException(null, "unavailable"));
             when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken2 = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken2, future);
             assertNull(future.get());
 
             when(tokensIndex.indexExists()).thenReturn(false);
             future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken1 = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken1, future);
             assertNull(future.get());
 
             when(tokensIndex.isAvailable()).thenReturn(true);
             when(tokensIndex.indexExists()).thenReturn(true);
             mockGetTokenFromId(tokenService, userTokenId, authentication, false);
             future = new PlainActionFuture<>();
-            tokenService.getAndValidateToken(requestContext, future);
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
             assertAuthentication(future.get().getAuthentication(), authentication);
         }
     }
@@ -874,7 +905,8 @@ public class TokenServiceTests extends ESTestCase {
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(false);
-        tokenService.getAndValidateToken(threadContext, authFuture);
+        final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(threadContext);
+        tokenService.tryAuthenticateToken(bearerToken, authFuture);
         UserToken authToken = authFuture.actionGet();
         assertThat(authToken, Matchers.nullValue());
     }
@@ -897,6 +929,7 @@ public class TokenServiceTests extends ESTestCase {
                                           Client client) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             Version tokenVersion = tokenService.getTokenVersionCompatibility();
@@ -922,7 +955,7 @@ public class TokenServiceTests extends ESTestCase {
             }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     protected static UserToken buildUserToken(TokenService tokenService, String userTokenId, Authentication authentication) {
@@ -944,6 +977,7 @@ public class TokenServiceTests extends ESTestCase {
     private void mockGetTokenFromId(UserToken userToken, boolean isExpired) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             final String possiblyHashedUserTokenId;
@@ -969,7 +1003,7 @@ public class TokenServiceTests extends ESTestCase {
             }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     private void mockFindTokenFromRefreshToken(String refreshToken, UserToken userToken, @Nullable RefreshTokenStatus refreshTokenStatus) {
@@ -981,6 +1015,7 @@ public class TokenServiceTests extends ESTestCase {
         }
         doAnswer(invocationOnMock -> {
             final SearchRequest request = (SearchRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             final ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
             final SearchResponse response = mock(SearchResponse.class);
 
@@ -1010,6 +1045,7 @@ public class TokenServiceTests extends ESTestCase {
             BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
             if (refreshTokenStatus != null) {
                 var sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+                @SuppressWarnings("unchecked")
                 var refreshTokenSource = (Map<String, Object>) sourceAsMap.get("refresh_token");
                 refreshTokenSource.put("invalidated", refreshTokenStatus.isInvalidated());
                 refreshTokenSource.put("refreshed", refreshTokenStatus.isRefreshed());
@@ -1021,12 +1057,13 @@ public class TokenServiceTests extends ESTestCase {
             when(response.getHits()).thenReturn(hits);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).search(any(SearchRequest.class), any(ActionListener.class));
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
     }
 
     private void mockGetTokenAsyncForDecryptedToken(String accessToken) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             if (request.id().replace("token_", "").equals(TokenService.hashTokenString(accessToken))) {
@@ -1034,7 +1071,7 @@ public class TokenServiceTests extends ESTestCase {
             }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     public static void assertAuthentication(Authentication result, Authentication expected) {
@@ -1063,5 +1100,4 @@ public class TokenServiceTests extends ESTestCase {
         }
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
-
 }

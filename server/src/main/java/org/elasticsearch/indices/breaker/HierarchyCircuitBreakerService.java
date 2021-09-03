@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.breaker;
@@ -22,7 +11,7 @@ package org.elasticsearch.indices.breaker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -33,7 +22,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -94,13 +83,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
-    public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.Dynamic, Property.NodeScope);
-    public static final Setting<Double> ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.accounting.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
-    public static final Setting<CircuitBreaker.Type> ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING =
-        new Setting<>("indices.breaker.accounting.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
-
     public static final Setting<ByteSizeValue> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("network.breaker.inflight_requests.limit", "100%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING =
@@ -145,12 +127,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
         )));
-        childCircuitBreakers.put(CircuitBreaker.ACCOUNTING, validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.ACCOUNTING,
-                ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
-                ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
-                CircuitBreaker.Durability.PERMANENT
-        )));
         for (BreakerSettings breakerSettings : customBreakers) {
             if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
                 throw new IllegalArgumentException("More than one circuit breaker with the name ["
@@ -178,9 +154,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
             REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.REQUEST, limit, overhead));
-        clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
-            ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.ACCOUNTING, limit, overhead));
         clusterSettings.addAffixUpdateConsumer(CIRCUIT_BREAKER_LIMIT_SETTING,
             CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),

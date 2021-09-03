@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -27,8 +16,8 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -62,7 +51,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
-        testAggregation(aggregationBuilder,  new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
@@ -105,10 +94,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", 0, 5), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7),
-                    new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1),
-                    new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
@@ -117,10 +104,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltersAll() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", -1, 0), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7),
-                    new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1),
-                    new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(0.0, card.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(card));
@@ -128,8 +113,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingString() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name")
-            .field("number").missing("🍌🍌🍌");
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
@@ -138,12 +122,11 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        });
     }
 
     public void testUnmappedMissingNumber() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name")
-            .field("number").missing(1234);
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing(1234);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
@@ -152,12 +135,12 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        });
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name")
-            .field("number").missing(new GeoPoint(42.39561, -71.13051));
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number")
+            .missing(new GeoPoint(42.39561, -71.13051));
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
@@ -166,19 +149,26 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        });
     }
 
-    private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalCardinality> verify) throws IOException {
+    private void testAggregation(
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalCardinality> verify
+    ) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalCardinality> verify,
-        MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalCardinality> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 }

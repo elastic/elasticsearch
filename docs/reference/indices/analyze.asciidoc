@@ -28,6 +28,11 @@ GET /_analyze
 
 `POST /<index>/_analyze`
 
+[[analyze-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the specified index.
 
 [[analyze-api-path-params]]
 ==== {api-path-parms-title}

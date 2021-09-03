@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -37,48 +26,40 @@ import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.m
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-
 public class MetadataIT extends ESIntegTestCase {
 
     public void testMetadataSetOnAggregationResult() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .setMapping("name", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("name", "type=keyword").get());
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
-                .startObject()
-                    .field("name", name)
-                    .field("value", randomInt())
-                .endObject());
+            builders[i] = client().prepareIndex("idx")
+                .setSource(jsonBuilder().startObject().field("name", name).field("value", randomInt()).endObject());
         }
         indexRandom(true, builders);
         ensureSearchable();
 
-        final Map<String, Object> nestedMetadata = new HashMap<String, Object>() {{
-            put("nested", "value");
-        }};
+        final Map<String, Object> nestedMetadata = new HashMap<String, Object>() {
+            {
+                put("nested", "value");
+            }
+        };
 
-        Map<String, Object> metadata = new HashMap<String, Object>() {{
-            put("key", "value");
-            put("numeric", 1.2);
-            put("bool", true);
-            put("complex", nestedMetadata);
-        }};
+        Map<String, Object> metadata = new HashMap<String, Object>() {
+            {
+                put("key", "value");
+                put("numeric", 1.2);
+                put("bool", true);
+                put("complex", nestedMetadata);
+            }
+        };
 
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                    terms("the_terms")
-                        .setMetadata(metadata)
-                        .field("name")
-                        .subAggregation(
-                            sum("the_sum")
-                                .setMetadata(metadata)
-                                .field("value")
-                            )
-                )
-                .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
-                .get();
+            .addAggregation(
+                terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
+            )
+            .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
+            .get();
 
         assertSearchResponse(response);
 
@@ -114,7 +95,8 @@ public class MetadataIT extends ESIntegTestCase {
         Object nestedObject = returnedMetadata.get("complex");
         assertNotNull(nestedObject);
 
-        Map<String, Object> nestedMap = (Map<String, Object>)nestedObject;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nestedMap = (Map<String, Object>) nestedObject;
         assertEquals("value", nestedMap.get("nested"));
     }
 }

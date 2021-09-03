@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -57,8 +46,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, AdjacencyMatrixAggregationBuilder::new);
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        AdjacencyMatrixAggregationBuilder::new
+    );
     static {
         PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
@@ -78,7 +69,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         super(name);
     }
 
-
     /**
      * @param name
      *            the name of this aggregation
@@ -89,8 +79,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         this(name, DEFAULT_SEPARATOR, filters);
     }
 
-    protected AdjacencyMatrixAggregationBuilder(AdjacencyMatrixAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AdjacencyMatrixAggregationBuilder(
+        AdjacencyMatrixAggregationBuilder clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.separator = clone.separator;
@@ -141,7 +134,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     private void checkConsistency() {
         if ((filters == null) || (filters.size() == 0)) {
-            throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
+            throw new IllegalStateException("[" + name + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
         }
     }
 
@@ -163,8 +156,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
         return this;
     }
-
-
 
     /**
      * Set the separator used to join pairs of bucket keys
@@ -188,7 +179,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      * Get the filters. This will be an unmodifiable map
      */
     public Map<String, QueryBuilder> filters() {
-        Map<String, QueryBuilder>result = new HashMap<>(this.filters.size());
+        Map<String, QueryBuilder> result = new HashMap<>(this.filters.size());
         for (KeyedFilter keyedFilter : this.filters) {
             result.put(keyedFilter.key(), keyedFilter.filter());
         }
@@ -196,11 +187,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AdjacencyMatrixAggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AdjacencyMatrixAggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         boolean modified = false;
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
-            QueryBuilder rewritten = Rewriteable.rewrite(kf.filter(), queryShardContext);
+            QueryBuilder rewritten = Rewriteable.rewrite(kf.filter(), queryRewriteContext);
             modified = modified || rewritten != kf.filter();
             rewrittenFilters.add(new KeyedFilter(kf.key(), rewritten));
         }
@@ -212,14 +203,19 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
+        throws IOException {
         int maxFilters = BooleanQuery.getMaxClauseCount();
-        if (filters.size() > maxFilters){
+        if (filters.size() > maxFilters) {
             throw new IllegalArgumentException(
-                    "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
-                            + filters.size() + "]."
-                            + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
-                            + "] setting.");
+                "Number of filters is too large, must be less than or equal to: ["
+                    + maxFilters
+                    + "] but was ["
+                    + filters.size()
+                    + "]."
+                    + "This limit can be set by changing the ["
+                    + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
+                    + "] setting."
+            );
         }
         return new AdjacencyMatrixAggregatorFactory(name, filters, separator, context, parent, subFactoriesBuilder, metadata);
     }

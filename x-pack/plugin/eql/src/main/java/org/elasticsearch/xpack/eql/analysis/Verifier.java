@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
+import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
@@ -15,9 +18,10 @@ import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -26,10 +30,9 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -51,6 +54,7 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_F
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -65,12 +69,7 @@ public class Verifier {
         this.metrics = metrics;
     }
 
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::node, Failure::message));
-    }
-
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -89,7 +88,7 @@ public class Verifier {
             if (p instanceof Unresolvable) {
                 localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
             } else {
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;
@@ -143,17 +142,25 @@ public class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
+            Set<Failure> localFailures = new LinkedHashSet<>();
 
             plan.forEachDown(p -> {
-                Set<Failure> localFailures = new LinkedHashSet<>();
-                failures.addAll(localFailures);
+                // if the children are unresolved, so will this node; counting it will only add noise
+                if (p.childrenResolved() == false) {
+                    return;
+                }
 
+                checkFilterConditionType(p, localFailures);
+                checkJoinKeyTypes(p, localFailures);
+                checkRemoteClusterOnSameVersion(p, versionIncompatibleClusters, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
                     p.setAnalyzed();
                 }
             });
+
+            failures.addAll(localFailures);
         }
 
         // gather metrics
@@ -174,7 +181,7 @@ public class Verifier {
                         if (s.maxSpan().duration() > 0) {
                             b.set(SEQUENCE_MAXSPAN.ordinal());
                         }
-                        
+
                         int queriesCount = s.queries().size();
                         switch (queriesCount) {
                             case 2:  b.set(SEQUENCE_QUERIES_TWO.ordinal());
@@ -235,5 +242,49 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
+        if (plan instanceof Join) {
+            Join join = (Join) plan;
+            List<KeyedFilter> queries = join.queries();
+            KeyedFilter until = join.until();
+            // pick first query and iterate its keys
+            KeyedFilter first = queries.get(0);
+            List<? extends NamedExpression> keys = first.keys();
+            for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
+                NamedExpression currentKey = keys.get(keyIndex);
+                for (int i = 1; i < queries.size(); i++) {
+                    KeyedFilter filter = queries.get(i);
+                    doCheckKeyTypes(join, localFailures, currentKey, filter.keys().get(keyIndex));
+                    if (until.keys().isEmpty() == false) {
+                        doCheckKeyTypes(join, localFailures, currentKey, until.keys().get(keyIndex));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void doCheckKeyTypes(Join join, Set<Failure> localFailures, NamedExpression expectedKey, NamedExpression currentKey) {
+        if (DataTypes.areCompatible(expectedKey.dataType(), currentKey.dataType()) == false) {
+            localFailures.add(fail(currentKey, "{} key [{}] type [{}] is incompatible with key [{}] type [{}]",
+                join.nodeName(),
+                currentKey.name(), currentKey.dataType().esType(),
+                expectedKey.name(), expectedKey.dataType().esType()
+            ));
+        }
+    }
+
+    private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters,
+                                                 Collection<Failure> localFailures) {
+        if (plan instanceof EsRelation) {
+            EsRelation esRelation = (EsRelation) plan;
+            Collection<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
+            if (incompatibleClusters.size() > 0) {
+                localFailures.add(fail(esRelation, "the following remote cluster{} incompatible, being on a version different than local "
+                    + "cluster's [{}]: {}", incompatibleClusters.size() > 1 ? "s are" : " is", Version.CURRENT,
+                    incompatibleClusters));
+            }
+        }
     }
 }

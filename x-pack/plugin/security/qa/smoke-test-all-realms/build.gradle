@@ -1,0 +1,83 @@
+/*
+ * This QA test is intended to smoke test all security realms with minimal dependencies.
+ * That is, it makes sure a node that has every realm configured can start, and tests those realms that can be tested without needing external services.
+ * This tradeoff is intentional because we want this set of tests to be very stable - failures in this QA suite should be an indicator that
+ *    something is broken in Elasticsearch (and not that an external docker fixture broke)
+ * This test is also intended to work correctly on FIPS mode because we also want to know if a realm breaks on FIPS.
+ */
+
+apply plugin: 'elasticsearch.java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+
+  extraConfigFile 'http-server.key', file('src/javaRestTest/resources/ssl/http-server.key')
+  extraConfigFile 'http-server.crt', file('src/javaRestTest/resources/ssl/http-server.crt')
+  extraConfigFile 'http-client-ca.crt', file('src/javaRestTest/resources/ssl/http-client-ca.crt')
+  extraConfigFile 'saml-metadata.xml', file('src/javaRestTest/resources/saml-metadata.xml')
+  extraConfigFile 'kerberos.keytab', file('src/javaRestTest/resources/kerberos.keytab')
+  extraConfigFile 'oidc-jwkset.json', file('src/javaRestTest/resources/oidc-jwkset.json')
+
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+
+  // Need a trial license (not basic) to enable all realms
+  setting 'xpack.license.self_generated.type', 'trial'
+  // Need SSL to enable PKI realms
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.certificate', 'http-server.crt'
+  setting 'xpack.security.http.ssl.key', 'http-server.key'
+  setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
+  setting 'xpack.security.http.ssl.client_authentication', 'optional'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'http-client-ca.crt'
+
+  // Don't need transport SSL, so leave it out
+  setting 'xpack.security.transport.ssl.enabled', 'false'
+
+  // Configure every realm type
+  //  - File
+  setting 'xpack.security.authc.realms.file.file0.order', '0'
+  //  - Native
+  setting 'xpack.security.authc.realms.native.native1.order', '1'
+  //  - LDAP (configured but won't work because we don't want external fixtures in this test suite)
+  setting 'xpack.security.authc.realms.ldap.ldap2.order', '2'
+  setting 'xpack.security.authc.realms.ldap.ldap2.url', 'ldap://localhost:7777'
+  setting 'xpack.security.authc.realms.ldap.ldap2.user_search.base_dn', 'OU=users,DC=example,DC=com'
+  //  - AD (configured but won't work because we don't want external fixtures in this test suite)
+  setting 'xpack.security.authc.realms.active_directory.ad3.order', '3'
+  setting 'xpack.security.authc.realms.active_directory.ad3.domain_name', 'localhost'
+  //  - PKI (works)
+  setting 'xpack.security.authc.realms.pki.pki4.order', '4'
+  //  - SAML (configured but won't work because we don't want external fixtures in this test suite)
+  setting 'xpack.security.authc.realms.saml.saml5.order', '5'
+  setting 'xpack.security.authc.realms.saml.saml5.idp.metadata.path', 'saml-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.saml5.idp.entity_id', 'http://idp.example.com/'
+  setting 'xpack.security.authc.realms.saml.saml5.sp.entity_id', 'http://kibana.example.net/'
+  setting 'xpack.security.authc.realms.saml.saml5.sp.acs', 'http://kibana.example.net/api/security/v1/saml'
+  setting 'xpack.security.authc.realms.saml.saml5.attributes.principal', 'uid'
+  //  - Kerberos (configured but won't work because we don't want external fixtures in this test suite)
+  setting 'xpack.security.authc.realms.kerberos.kerb6.order', '6'
+  setting 'xpack.security.authc.realms.kerberos.kerb6.keytab.path', 'kerberos.keytab'
+  //  - OIDC (configured but won't work because we don't want external fixtures in this test suite)
+  setting 'xpack.security.authc.realms.oidc.openid7.order', '7'
+  setting 'xpack.security.authc.realms.oidc.openid7.rp.client_id', 'http://rp.example.net'
+  setting 'xpack.security.authc.realms.oidc.openid7.rp.response_type', 'id_token'
+  setting 'xpack.security.authc.realms.oidc.openid7.rp.redirect_uri', 'https://kibana.example.net/api/security/v1/oidc'
+  setting 'xpack.security.authc.realms.oidc.openid7.op.issuer', 'https://op.example.com/'
+  setting 'xpack.security.authc.realms.oidc.openid7.op.authorization_endpoint', 'https://op.example.com/auth'
+  setting 'xpack.security.authc.realms.oidc.openid7.op.jwkset_path', 'oidc-jwkset.json'
+  setting 'xpack.security.authc.realms.oidc.openid7.claims.principal', 'sub'
+  keystore 'xpack.security.authc.realms.oidc.openid7.rp.client_secret', 'this-is-my-secret'
+
+  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+  user username: "admin_user", password: "admin-password"
+  user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+}

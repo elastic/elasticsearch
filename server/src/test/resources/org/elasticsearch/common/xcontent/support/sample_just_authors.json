@@ -1,0 +1,14 @@
+{
+  "authors" : [
+    {
+      "name" : "John Doe",
+      "lastname" : "John",
+      "firstname" : "Doe"
+    },
+    {
+      "name" : "William Smith",
+      "lastname" : "William",
+      "firstname" : "Smith"
+    }
+  ]
+}

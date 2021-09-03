@@ -1,28 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
@@ -33,7 +24,9 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -43,6 +36,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.ilm.AllocateAction;
@@ -76,6 +70,7 @@ import org.elasticsearch.client.ml.dataframe.stats.outlierdetection.OutlierDetec
 import org.elasticsearch.client.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.Multi;
 import org.elasticsearch.client.ml.inference.preprocessing.NGram;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
@@ -88,17 +83,21 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
@@ -117,15 +116,18 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregation
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.RequestMatcher;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -147,6 +149,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -178,9 +181,62 @@ public class RestHighLevelClientTests extends ESTestCase {
     private RestHighLevelClient restHighLevelClient;
 
     @Before
-    public void initClient() {
+    public void initClient() throws IOException {
         restClient = mock(RestClient.class);
         restHighLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+        mockGetRoot(restClient);
+    }
+
+    /**
+     * Mock rest client to return a valid response to async GET with the current build "/"
+     */
+    static void mockGetRoot(RestClient restClient) throws IOException{
+        Build build = new Build(
+            Build.Flavor.DEFAULT, Build.CURRENT.type(), Build.CURRENT.hash(),
+            Build.CURRENT.date(), false, Build.CURRENT.getQualifiedVersion()
+        );
+
+        mockGetRoot(restClient, build, true);
+    }
+
+    /**
+     *  Mock rest client to return a valid response to async GET with a specific build version "/"
+     */
+    public static void mockGetRoot(RestClient restClient, Build build, boolean setProductHeader) throws IOException {
+        org.elasticsearch.action.main.MainResponse mainResp = new org.elasticsearch.action.main.MainResponse(
+            "node",
+            Version.fromString(build.getQualifiedVersion().replace("-SNAPSHOT", "")),
+            new ClusterName("cluster"),
+            "uuid",
+            build
+        );
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
+        mainResp.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.close();
+        mockGetRoot(restClient, baos.toByteArray(), setProductHeader);
+    }
+
+    /**
+     *  Mock rest client to return a valid response to async GET with an arbitrary binary payload "/"
+     */
+    public static void mockGetRoot(RestClient restClient, byte[] responseBody, boolean setProductHeader) throws IOException {
+        NByteArrayEntity entity = new NByteArrayEntity(responseBody, ContentType.APPLICATION_JSON);
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.OK));
+        when(response.getEntity()).thenReturn(entity);
+        if (setProductHeader) {
+            when(response.getHeader("X-Elastic-Product")).thenReturn("Elasticsearch");
+        }
+
+        when(restClient
+            .performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .thenAnswer(i -> {
+                    ((ResponseListener)i.getArguments()[1]).onSuccess(response);
+                    return Cancellable.NO_OP;
+                }
+            );
     }
 
     public void testCloseIsIdempotent() throws IOException {
@@ -707,7 +763,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(75, namedXContents.size());
+        assertEquals(78, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -717,7 +773,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 14, categories.size());
+        assertEquals("Had: " + categories, 16, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -754,6 +810,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ClassificationStats.NAME.getPreferredName()));
         assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
         assertTrue(names.contains(TimeSyncConfig.NAME));
+        assertEquals(Integer.valueOf(1), categories.get(RetentionPolicyConfig.class));
+        assertTrue(names.contains(TimeRetentionPolicyConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(OutlierDetection.NAME, Classification.NAME, Regression.NAME));
         assertEquals(Integer.valueOf(13), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
@@ -792,9 +850,16 @@ public class RestHighLevelClientTests extends ESTestCase {
                 registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
                 registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
-        assertEquals(Integer.valueOf(5), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
+        assertEquals(Integer.valueOf(6), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
         assertThat(names,
-            hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME, NGram.NAME));
+            hasItems(
+                FrequencyEncoding.NAME,
+                OneHotEncoding.NAME,
+                TargetMeanEncoding.NAME,
+                CustomWordEmbedding.NAME,
+                NGram.NAME,
+                Multi.NAME
+            ));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
         assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
         assertEquals(Integer.valueOf(4),
@@ -805,6 +870,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70041")
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
@@ -817,7 +883,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "scripts_painless_execute",
             "indices.simulate_template",
             "indices.resolve_index",
-            "indices.add_block"
+            "indices.add_block",
+            "open_point_in_time",
+            "close_point_in_time"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -853,7 +921,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
 
-        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
+        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
         Set<String> apiUnsupported = new HashSet<>(apiSpec);
         Set<String> apiNotFound = new HashSet<>();
@@ -915,6 +983,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("text_structure.") == false &&
+                                apiName.startsWith("searchable_snapshots.") == false &&
                                 apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&
@@ -944,6 +1014,218 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat("Some API are not supported but they should be: " + apiUnsupported, apiUnsupported.size(), equalTo(0));
     }
 
+    private static void doTestProductCompatibilityCheck(
+        boolean shouldBeAccepted, String version, boolean setProductHeader) throws Exception {
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+
+        RestClient restClient = mock(RestClient.class);
+
+        Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, version);
+        mockGetRoot(restClient, build, setProductHeader);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        if (shouldBeAccepted) {
+            assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
+        } else {
+            expectThrows(ElasticsearchException.class, () ->
+                highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT)
+            );
+        }
+    }
+
+    public void testProductCompatibilityCheck() throws Exception {
+        // Version < 6.0.0
+        doTestProductCompatibilityCheck(false, "5.0.0", false);
+
+        // Version < 6.0.0, product header
+        doTestProductCompatibilityCheck(false, "5.0.0", true);
+
+        // Version 6.x -
+        doTestProductCompatibilityCheck(true, "6.0.0", false);
+
+        // Version 7.x, x < 14
+        doTestProductCompatibilityCheck(true, "7.0.0", false);
+
+        // Version 7.14, no product header
+        doTestProductCompatibilityCheck(false, "7.14.0", false);
+
+        // Version 7.14, product header
+        doTestProductCompatibilityCheck(true, "7.14.0", true);
+
+        // Version 8.x, no product header
+        doTestProductCompatibilityCheck(false, "8.0.0", false);
+
+        // Version 8.x, product header
+        doTestProductCompatibilityCheck(true, "8.0.0", true);
+    }
+
+    public void testProductCompatibilityTagline() throws Exception {
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        RestHighLevelClient highLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        byte[] bytes = ("{" +
+            "  'cluster_name': '97b2b946a8494276822c3876d78d4f9c', " +
+            "  'cluster_uuid': 'SUXRYY1fQ5uMKEiykuR5ZA', " +
+            "  'version': { " +
+            "    'build_date': '2021-03-18T06:17:15.410153305Z', " +
+            "    'minimum_wire_compatibility_version': '6.8.0', " +
+            "    'build_hash': '78722783c38caa25a70982b5b042074cde5d3b3a', " +
+            "    'number': '7.12.0', " +
+            "    'lucene_version': '8.8.0', " +
+            "    'minimum_index_compatibility_version': '6.0.0-beta1', " +
+            "    'build_flavor': 'default', " +
+            "    'build_snapshot': false, " +
+            "    'build_type': 'docker' " +
+            "  }, " +
+            "  'name': 'instance-0000000000', " +
+            "  'tagline': 'hello world'" +
+            "}"
+        ).replace('\'', '"').getBytes(StandardCharsets.UTF_8);
+
+        mockGetRoot(restClient, bytes, true);
+
+        expectThrows(ElasticsearchException.class, () ->
+            highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT)
+        );
+    }
+
+    public void testProductCompatibilityFlavor() throws Exception {
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        byte[]
+            bytes = ("{" +
+            "  'cluster_name': '97b2b946a8494276822c3876d78d4f9c', " +
+            "  'cluster_uuid': 'SUXRYY1fQ5uMKEiykuR5ZA', " +
+            "  'version': { " +
+            "    'build_date': '2021-03-18T06:17:15.410153305Z', " +
+            "    'minimum_wire_compatibility_version': '6.8.0', " +
+            "    'build_hash': '78722783c38caa25a70982b5b042074cde5d3b3a', " +
+            "    'number': '7.12.0', " +
+            "    'lucene_version': '8.8.0', " +
+            "    'minimum_index_compatibility_version': '6.0.0-beta1', " +
+            // Invalid flavor
+            "    'build_flavor': 'foo', " +
+            "    'build_snapshot': false, " +
+            "    'build_type': 'docker' " +
+            "  }, " +
+            "  'name': 'instance-0000000000', " +
+            "  'tagline': 'You Know, for Search'" +
+            "}"
+        ).replace('\'', '"').getBytes(StandardCharsets.UTF_8);
+
+        mockGetRoot(restClient, bytes, true);
+
+        expectThrows(ElasticsearchException.class, () ->
+            highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT)
+        );
+    }
+
+    public void testProductCompatibilityRequestFailure() throws Exception {
+
+        RestClient restClient = mock(RestClient.class);
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        // Have the verification request fail
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .thenAnswer(i -> {
+                ((ResponseListener)i.getArguments()[1]).onFailure(new IOException("Something bad happened"));
+                return Cancellable.NO_OP;
+            });
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        expectThrows(ElasticsearchException.class, () -> {
+            highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT);
+        });
+
+        // Now have the validation request succeed
+        Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, "7.14.0");
+        mockGetRoot(restClient, build, true);
+
+        // API request should now succeed as validation has been retried
+        assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
+    }
+
+    public void testProductCompatibilityWithForbiddenInfoEndpoint() throws Exception {
+        RestClient restClient = mock(RestClient.class);
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        // Have the info endpoint used for verification return a 403 (forbidden)
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .thenAnswer(i -> {
+                StatusLine infoStatus = mock(StatusLine.class);
+                when(apiStatus.getStatusCode()).thenReturn(HttpStatus.SC_FORBIDDEN);
+                Response infoResponse = mock(Response.class);
+                when(apiResponse.getStatusLine()).thenReturn(infoStatus);
+                ((ResponseListener)i.getArguments()[1]).onSuccess(infoResponse);
+                return Cancellable.NO_OP;
+            });
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        // API request should succeed
+        Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, "7.14.0");
+        mockGetRoot(restClient, build, true);
+
+        assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
+    }
+
+    public void testCancellationForwarding() throws Exception {
+
+        mockGetRoot(restClient);
+        Cancellable cancellable = mock(Cancellable.class);
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")), any())).thenReturn(cancellable);
+
+        Cancellable result = restHighLevelClient.existsSourceAsync(
+            new GetSourceRequest("foo", "bar"),
+            RequestOptions.DEFAULT, ActionListener.wrap(() -> {})
+        );
+
+        result.cancel();
+        verify(cancellable, times(1)).cancel();
+    }
+
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {
         //A few methods return a boolean rather than a response object
         if (apiName.equals("ping") || apiName.contains("exist") || booleanReturnMethods.contains(apiName)) {
@@ -951,7 +1233,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
             // It's acceptable for 404s to be represented as empty Optionals
-            if (!method.getReturnType().isAssignableFrom(Optional.class)) {
+            if (method.getReturnType().isAssignableFrom(Optional.class) == false) {
                 assertThat("the return type for method [" + method + "] is incorrect",
                     method.getReturnType().getSimpleName(), endsWith("Response"));
             }

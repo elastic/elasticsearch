@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -27,7 +16,8 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -53,7 +43,6 @@ public class Segment implements Writeable {
     public org.apache.lucene.util.Version version = null;
     public Boolean compound = null;
     public String mergeId;
-    public long memoryInBytes;
     public Sort segmentSort;
     public Accountable ramTree = null;
     public Map<String, String> attributes;
@@ -69,7 +58,9 @@ public class Segment implements Writeable {
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
-        memoryInBytes = in.readLong();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readLong(); // memoryInBytes
+        }
         if (in.readBoolean()) {
             // verbose mode
             ramTree = readRamTree(in);
@@ -134,13 +125,6 @@ public class Segment implements Writeable {
     }
 
     /**
-     * Estimation of the memory usage used by a segment.
-     */
-    public long getMemoryInBytes() {
-        return this.memoryInBytes;
-    }
-
-    /**
      * Return the sort order of this segment, or null if the segment has no sort.
      */
     public Sort getSegmentSort() {
@@ -182,7 +166,9 @@ public class Segment implements Writeable {
         out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
-        out.writeLong(memoryInBytes);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeLong(0); // memoryInBytes
+        }
 
         boolean verbose = ramTree != null;
         out.writeBoolean(verbose);
@@ -326,7 +312,6 @@ public class Segment implements Writeable {
                 ", version='" + version + '\'' +
                 ", compound=" + compound +
                 ", mergeId='" + mergeId + '\'' +
-                ", memoryInBytes=" + memoryInBytes +
                 (segmentSort != null ? ", sort=" + segmentSort : "") +
                 ", attributes=" + attributes +
                 '}';

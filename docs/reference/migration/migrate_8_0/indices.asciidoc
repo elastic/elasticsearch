@@ -1,13 +1,11 @@
 [discrete]
 [[breaking_80_indices_changes]]
-=== Indices changes
+==== Indices changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
-
 .The deprecated `_upgrade` API has been removed.
 [%collapsible]
 ====
@@ -49,16 +47,16 @@ Discontinue use of the `index.force_memory_term_dictionary` index setting.
 Requests that include this setting will return an error.
 ====
 
-.The put index template API's `template` parameter has been removed.
+.The create or update index template API's `template` parameter has been removed.
 [%collapsible]
 ====
 *Details* +
-In 6.0, we deprecated the `template` parameter in put index template requests
-in favor of using `index_patterns`. Support for the `template` parameter is now
-removed in 8.0.
+In 6.0, we deprecated the `template` parameter in create or update index
+template requests in favor of using `index_patterns`. Support for the `template`
+parameter is now removed in 8.0.
 
 *Impact* +
-Use the {ref}/indices-templates-v1.html[put index template API]'s
+Use the {ref}/indices-templates-v1.html[create or update index template API]'s
 `index_patterns` parameter. Requests that include the `template` parameter will
 return an error.
 ====
@@ -102,3 +100,20 @@ Discontinue use of the `index.translog.retention.age` and
 `index.translog.retention.size` index settings. Requests that
 include these settings will return an error.
 ====
+
+.The default for the `?wait_for_active_shards` parameter on the close index API has changed.
+[%collapsible]
+====
+*Details* +
+When closing an index in earlier versions, by default {es} would not wait for
+the shards of the closed index to be properly assigned before returning. From
+version 8.0 onwards the default behaviour is to wait for shards to be assigned
+according to the
+{ref}/docs-index_.html#index-wait-for-active-shards[`index.write.wait_for_active_shards`
+index setting].
+
+*Impact* +
+Accept the new behaviour, or specify `?wait_for_active_shards=0` to preserve
+the old behaviour if needed.
+====
+//end::notable-breaking-changes[]

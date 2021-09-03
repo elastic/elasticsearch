@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -31,28 +21,31 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-tasks.register("copyKeystore", Sync) {
+tasks.register("copyNodeKeyMaterial", Sync) {
   from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
   into "${buildDir}/certs"
   doLast {
     file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
+    file("${buildDir}/certs/testnode.pem").setReadable(true, false)
+    file("${buildDir}/certs/testnode.crt").setReadable(true, false)
   }
 }
 
 elasticsearch_distributions {
   docker {
-    type = 'docker'
+    type = DOCKER
     architecture = Architecture.current()
-    flavor = System.getProperty('tests.distribution', 'default')
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
 
-preProcessFixture {
-  dependsOn "copyKeystore", elasticsearch_distributions.docker
+tasks.named("preProcessFixture").configure {
+  dependsOn "copyNodeKeyMaterial", elasticsearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -72,7 +65,7 @@ preProcessFixture {
 
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+  if ('default'.equalsIgnoreCase(providers.systemProperty('tests.distribution').orElse('default').forUseAtConfigurationTime().get())) {
     useComposeFiles = ['docker-compose.yml']
   } else {
     useComposeFiles = ['docker-compose-oss.yml']
@@ -89,7 +82,10 @@ def createAndSetWritable(Object... locations) {
 
 tasks.named("processTestResources").configure {
   from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
 }
 
 tasks.register("integTest", Test) {

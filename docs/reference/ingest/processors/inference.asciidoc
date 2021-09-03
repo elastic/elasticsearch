@@ -6,7 +6,6 @@
 <titleabbrev>{infer-cap}</titleabbrev>
 ++++
 
-beta::[]
 
 Uses a pre-trained {dfanalytics} model to infer against the data that is being
 ingested in the pipeline.
@@ -17,7 +16,7 @@ ingested in the pipeline.
 [options="header"]
 |======
 | Name               | Required  | Default                        | Description
-| `model_id`         | yes       | -                              | (String) The ID of the model to load and infer against.
+| `model_id`         | yes       | -                              | (String) The ID or alias for the trained model.
 | `target_field`     | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
 | `field_map`        | no        | If defined the model's default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
 | `inference_config` | no        | The default settings defined in the model  | (Object) Contains the inference type and its options. There are two types: <<inference-processor-regression-opt,`regression`>> and <<inference-processor-classification-opt,`classification`>>.
@@ -88,7 +87,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 
 [source,js]
 --------------------------------------------------
-{
+"inference":{
+  "model_id":"my_model_id"
   "inference_config": {
     "regression": {
       "results_field": "my_regression"
@@ -105,7 +105,8 @@ object.
 
 [source,js]
 --------------------------------------------------
-{
+"inference":{
+  "model_id":"my_model_id"
   "inference_config": {
     "classification": {
       "num_top_classes": 2,
@@ -123,14 +124,18 @@ categories for which the predicted probabilities are reported is 2
 classes to the `probabilities` field. Both fields are contained in the
 `target_field` results object.
 
+Refer to the 
+{ml-docs}/ml-dfa-lang-ident.html#ml-lang-ident-example[language identification] 
+trained model documentation for a full example.
+
 
 [discrete]
 [[inference-processor-feature-importance]]
 ==== {feat-imp-cap} object mapping
 
-Update your index mapping of the {feat-imp} result field as you can see below to
-get the full benefit of aggregating and searching for
-{ml-docs}/ml-feature-importance.html[{feat-imp}].
+To get the full benefit of aggregating and searching for
+{ml-docs}/ml-feature-importance.html[{feat-imp}], update your index mapping of 
+the {feat-imp} result field as you can see below:
 
 [source,js]
 --------------------------------------------------
@@ -149,14 +154,16 @@ get the full benefit of aggregating and searching for
 --------------------------------------------------
 // NOTCONSOLE
 
-The mapping field name for {feat-imp} is compounded as follows:
+The mapping field name for {feat-imp} (in the example above, it is 
+`ml.inference.feature_importance`) is compounded as follows:
 
 `<ml.inference.target_field>`.`<inference.tag>`.`feature_importance`
 
-If `inference.tag` is not provided in the processor definition, it is not part
-of the field path. The `<ml.inference.target_field>` defaults to `ml.inference`.
+* `<ml.inference.target_field>`: defaults to `ml.inference`.
+* `<inference.tag>`: if is not provided in the processor definition, then it is 
+not part of the field path.
 
-For example, you provide a tag `foo` in the definition as you can see below:
+For example, if you provide a tag `foo` in the definition as you can see below:
 
 [source,js]
 --------------------------------------------------
@@ -168,10 +175,10 @@ For example, you provide a tag `foo` in the definition as you can see below:
 // NOTCONSOLE
 
 
-The {feat-imp} value is written to the `ml.inference.foo.feature_importance`
-field.
+Then, the {feat-imp} value is written to the 
+`ml.inference.foo.feature_importance` field.
 
-You can also specify a target field as follows:
+You can also specify the target field as follows:
 
 [source,js]
 --------------------------------------------------

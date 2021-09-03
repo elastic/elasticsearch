@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -47,7 +49,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
@@ -62,7 +63,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
     private final PersistentTasksClusterService persistentTasksClusterService;
     private final PersistentTasksService persistentTasksService;
     private final ClusterService clusterService;
-    private final Client client;
+    private final OriginSettingClient client;
 
     @Inject
     public TransportSetUpgradeModeAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
@@ -73,7 +74,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
-        this.client = client;
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -229,13 +230,13 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
                 @Override
                 protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.info("Cluster update response built: " + acknowledged);
+                    logger.trace("Cluster update response built: " + acknowledged);
                     return AcknowledgedResponse.of(acknowledged);
                 }
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    logger.info("Executing cluster state update");
+                    logger.trace("Executing cluster state update");
                     MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
                     builder.isUpgradeMode(request.isEnabled());
                     ClusterState.Builder newState = ClusterState.builder(currentState);
@@ -308,7 +309,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         datafeedsToIsolate.forEach(datafeedId -> {
             IsolateDatafeedAction.Request isolationRequest = new IsolateDatafeedAction.Request(datafeedId);
             isolateDatafeedsExecutor.add(isolateListener ->
-                executeAsyncWithOrigin(client, ML_ORIGIN, IsolateDatafeedAction.INSTANCE, isolationRequest, isolateListener)
+                client.execute(IsolateDatafeedAction.INSTANCE, isolationRequest, isolateListener)
             );
         });
 

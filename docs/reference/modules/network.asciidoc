@@ -1,72 +1,74 @@
 [[modules-network]]
-=== Network settings
+=== Networking
 
-Elasticsearch binds to localhost only by default.  This is sufficient for you
-to run a local development server (or even a development cluster, if you start
-multiple nodes on the same machine), but you will need to configure some
-<<common-network-settings,basic network settings>> in order to run a real
-production cluster across multiple servers.
+Each {es} node has two different network interfaces. Clients send requests to
+{es}'s REST APIs using its <<http-settings,HTTP interface>>, but nodes
+communicate with other nodes using the <<transport-settings,transport
+interface>>. The transport interface is also used for communication with
+<<modules-remote-clusters,remote clusters>>.
+
+You can configure both of these interfaces at the same time using the
+`network.*` settings. If you have a more complicated network, you might need to
+configure the interfaces independently using the `http.*` and `transport.*`
+settings. Where possible, use the `network.*` settings that apply to both
+interfaces to simplify your configuration and reduce duplication.
+
+By default {es} binds only to `localhost` which means it cannot be accessed
+remotely. This configuration is sufficient for a local development cluster made
+of one or more nodes all running on the same host. To form a cluster across
+multiple hosts, or which is accessible to remote clients, you must adjust some
+<<common-network-settings,network settings>> such as `network.host`.
 
 [WARNING]
 .Be careful with the network configuration!
 =============================
-Never expose an unprotected node to the public internet.
+Never expose an unprotected node to the public internet. If you do, you are
+permitting anyone in the world to download, modify, or delete any of the data
+in your cluster.
 =============================
+
+Configuring {es} to bind to a non-local address will <<dev-vs-prod,convert some
+warnings into fatal exceptions>>. If a node refuses to start after configuring
+its network settings then you must address the logged exceptions before
+proceeding.
 
 [[common-network-settings]]
 ==== Commonly used network settings
 
+Most users will need to configure only the following network settings.
+
 `network.host`::
 (<<static-cluster-setting,Static>>)
-The node will bind to this hostname or IP address and _publish_ (advertise)
-this host to other nodes in the cluster. Accepts an IP address, hostname, a
-<<network-interface-values,special value>>, or an array of any combination of
-these. Note that any values containing a `:` (e.g., an IPv6 address or
-containing one of the <<network-interface-values,special values>>) must be
-quoted because `:` is a special character in YAML. `0.0.0.0` is an acceptable
-IP address and will bind to all network interfaces. The value `0` has the
-same effect as the value `0.0.0.0`.
+Sets the address of this node for both HTTP and transport traffic. The node
+will bind to this address and will also use it as its publish address. Accepts
+an IP address, a hostname, or a <<network-interface-values,special value>>.
 +
 Defaults to `_local_`.
 
-`discovery.seed_hosts`::
-(<<static-cluster-setting,Static>>)
-In order to join a cluster, a node needs to know the hostname or IP address of
-at least some of the other nodes in the cluster.  This setting provides the
-initial list of addresses this node will try to contact. Accepts IP addresses
-or hostnames. If a hostname lookup resolves to multiple IP addresses then each
-IP address will be used for discovery.
-{wikipedia}/Round-robin_DNS[Round robin DNS] -- returning a
-different IP from a list on each lookup -- can be used for discovery; non-
-existent IP addresses will throw exceptions and cause another DNS lookup on the
-next round of pinging (subject to <<networkaddress-cache-ttl,JVM DNS
-caching>>).
-+
-Defaults to `["127.0.0.1", "[::1]"]`.
-
 `http.port`::
 (<<static-cluster-setting,Static>>)
-Port to bind to for incoming HTTP requests. Accepts a single value or a range.
-If a range is specified, the node will bind to the first available port in the
-range.
+The port to bind for HTTP client communication. Accepts a single value or a
+range. If a range is specified, the node will bind to the first available port
+in the range.
 +
 Defaults to `9200-9300`.
 
 `transport.port`::
 (<<static-cluster-setting,Static>>)
-Port to bind for communication between nodes. Accepts a single value or a
+The port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port
-in the range.
+in the range. Set this setting to a single port, not a range, on every
+master-eligible node.
 +
 Defaults to `9300-9400`.
 
 [[network-interface-values]]
-==== Special values for `network.host`
+==== Special values for network addresses
 
-The following special values may be passed to `network.host`:
-
-`_[networkInterface]_`::
-  Addresses of a network interface, for example `_en0_`.
+You can configure {es} to automatically determine its addresses by using the
+following special values. Use these values when configuring
+`network.host`, `network.bind_host`, `network.publish_host`, and the
+corresponding settings for the HTTP and transport interfaces.
 
 `_local_`::
   Any loopback addresses on the system, for example `127.0.0.1`.
@@ -77,12 +79,30 @@ The following special values may be passed to `network.host`:
 `_global_`::
   Any globally-scoped addresses on the system, for example `8.8.8.8`.
 
+`_[networkInterface]_`::
+  Use the addresses of the network interface called `[networkInterface]`. For
+  example if you wish to use the addresses of an interface called `en0` then
+  set `network.host: _en0_`.
+
+`0.0.0.0`::
+  The addresses of all available network interfaces.
+
+NOTE: In some systems these special values resolve to multiple addresses. If
+so, {es} will select one of them as its publish address and may change its
+selection on each node restart. Ensure your node is accessible at every possible
+address.
+
+NOTE: Any values containing a `:` (e.g. an IPv6 address or some of the
+<<network-interface-values,special values>>) must be quoted because `:` is a
+special character in YAML.
+
 [[network-interface-values-ipv4-vs-ipv6]]
 ===== IPv4 vs IPv6
 
-These special values will work over both IPv4 and IPv6 by default, but you can
-also limit this with the use of `:ipv4` of `:ipv6` specifiers. For example,
-`_en0:ipv4_` would only bind to the IPv4 addresses of interface `en0`.
+These special values yield both IPv4 and IPv6 addresses by default, but you can
+also add an `:ipv4` or `:ipv6` suffix to limit them to just IPv4 or IPv6
+addresses respectively. For example, `network.host: _en0:ipv4_` would set this
+node's addresses to the IPv4 addresses of interface `en0`.
 
 [TIP]
 .Discovery in the Cloud
@@ -95,39 +115,89 @@ installed.
 
 ================================
 
+[[modules-network-binding-publishing]]
+==== Binding and publishing
+
+{es} uses network addresses for two distinct purposes known as binding and
+publishing. Most nodes will use the same address for everything, but more
+complicated setups may need to configure different addresses for different
+purposes.
+
+When an application such as {es} wishes to receive network communications, it
+must indicate to the operating system the address or addresses whose traffic it
+should receive. This is known as _binding_ to those addresses. {es} can bind to
+more than one address if needed, but most nodes only bind to a single address.
+{es} can only bind to an address if it is running on a host that has a network
+interface with that address. If necessary, you can configure the transport and
+HTTP interfaces to bind to different addresses.
+
+Each {es} node has an address at which clients and other nodes can contact it,
+known as its _publish address_. Each node has one publish address for its HTTP
+interface and one for its transport interface. These two addresses can be
+anything, and don't need to be addresses of the network interfaces on the host.
+The only requirements are that each node must be:
+
+* Accessible at its transport publish address by all other
+  nodes in its cluster, and by any remote clusters that will discover it using
+  <<sniff-mode>>.
+
+* Accessible at its HTTP publish address by all clients
+  that will discover it using sniffing.
+
+===== Using a single address
+
+The most common configuration is for {es} to bind to a single address at which
+it is accessible to clients and other nodes. In this configuration you should
+just set `network.host` to that address. You should not separately set any bind
+or publish addresses, nor should you separately configure the addresses for the
+HTTP or transport interfaces.
+
+===== Using multiple addresses
+
+Use the <<advanced-network-settings, advanced network settings>> if you wish to
+bind {es} to multiple addresses, or to publish a different address from the
+addresses to which you are binding. Set `network.bind_host` to the bind
+addresses, and `network.publish_host` to the address at which this node is
+exposed. In complex configurations, you can configure these addresses
+differently for the HTTP and transport interfaces.
+
 [[advanced-network-settings]]
 ==== Advanced network settings
 
-The `network.host` setting explained in <<common-network-settings,Commonly used network settings>>
-is a shortcut which sets the _bind host_ and the _publish host_ at the same
-time. In advanced used cases, such as when running behind a proxy server, you
-may need to set these settings to different values:
+These advanced settings let you bind to multiple addresses, or to use different
+addresses for binding and publishing. They are not required in most cases and
+you should not use them if you can use the <<common-network-settings,commonly
+used settings>> instead.
 
 `network.bind_host`::
-This specifies which network interface(s) a node should bind to in order to
-listen for incoming requests.  A node can bind to multiple interfaces, e.g.
-two network cards, or a site-local address and a local address. Defaults to
-`network.host`.
+(<<static-cluster-setting,Static>>)
+The network address(es) to which the node should bind in order to listen for
+incoming connections. Accepts a list of IP addresses, hostnames, and
+<<network-interface-values,special values>>. Defaults to the address given by
+`network.host`. Use this setting only if binding to multiple addresses or using
+different addresses for publishing and binding.
 
 `network.publish_host`::
-The publish host is the single interface that the node advertises to other nodes
-in the cluster, so that those nodes can connect to it. Currently an
-Elasticsearch node may be bound to multiple addresses, but only publishes one.
-If not specified, this defaults to the ``best'' address from `network.host`,
-sorted by IPv4/IPv6 stack preference, then by reachability. If you set a
-`network.host` that results in multiple bind addresses yet rely on a specific
-address for node-to-node communication, you should explicitly set
-`network.publish_host`.
+(<<static-cluster-setting,Static>>)
+The network address that clients and other nodes can use to contact this node.
+Accepts an IP address, a hostname, or a <<network-interface-values,special
+value>>. Defaults to the address given by `network.host`. Use this setting only
+if binding to multiple addresses or using different addresses for publishing
+and binding.
 
-Both of the above settings can be configured just like `network.host` -- they
-accept IP addresses, host names, and
-<<network-interface-values,special values>>.
+NOTE: You can specify a list of addresses for `network.host` and
+`network.publish_host`. You can also specify one or more hostnames or
+<<network-interface-values,special values>> that resolve to multiple addresses.
+If you do this then {es} chooses one of the addresses for its publish address.
+This choice uses heuristics based on IPv4/IPv6 stack preference and
+reachability and may change when the node restarts. Ensure
+each node is accessible at all possible publish addresses.
 
 [[tcp-settings]]
 ===== Advanced TCP settings
 
-Any component that uses TCP (like the <<modules-http,HTTP>> and
-<<modules-transport,transport>> layers) share the following settings:
+Use the following settings to control the low-level parameters of the TCP
+connections used by the HTTP and transport interfaces.
 
 `network.tcp.no_delay`::
 (<<static-cluster-setting,Static>>)
@@ -177,18 +247,8 @@ By default not explicitly set.
 The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
-[discrete]
-=== HTTP and transport network communication
+include::http.asciidoc[]
 
-Each {es} node uses the network for two different methods of communication:
+include::transport.asciidoc[]
 
-* it exposes an <<modules-http,HTTP interface>> for use by clients.
-
-* it exposes a <<modules-transport,transport interface>> for communication
-between nodes within a cluster and for communication with a
-<<modules-remote-clusters,remote cluster>>.
-
-The network settings described above apply to both methods of communication,
-and you can also configure each interface separately if needed. See the
-<<modules-http,HTTP>> and <<modules-transport,transport>> pages for more
-details on their respective configurations.
+include::network/tracers.asciidoc[]

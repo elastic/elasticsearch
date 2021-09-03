@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -18,11 +19,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCase {
+    private static final PolicyValidator NO_VALIDATION = policy -> {};
 
     public void testWriteBlock() {
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
@@ -42,7 +46,9 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NO_VALIDATION,
+            new AutoscalingLicenseChecker(() -> true)
         );
         final ClusterBlocks blocks = ClusterBlocks.builder()
             .addGlobalBlock(
@@ -64,7 +70,9 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NO_VALIDATION,
+            new AutoscalingLicenseChecker(() -> true)
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
@@ -84,7 +92,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         // put an entirely new policy
         final PutAutoscalingPolicyAction.Request request = randomPutAutoscalingPolicyRequest();
         final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, request, mockLogger);
+        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+            currentState,
+            request,
+            NO_VALIDATION,
+            mockLogger
+        );
 
         // ensure the new policy is in the updated cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -119,7 +132,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final Logger mockLogger = mock(Logger.class);
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(ClusterState.EMPTY_STATE, request, mockLogger)
+            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(ClusterState.EMPTY_STATE, request, NO_VALIDATION, mockLogger)
         );
         assertThat(
             exception.getMessage(),
@@ -150,7 +163,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             request.deciders()
         );
         final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, request, mockLogger);
+        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+            currentState,
+            request,
+            NO_VALIDATION,
+            mockLogger
+        );
 
         // ensure the updated policy is in the updated cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -188,10 +206,35 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             randomBoolean() ? policy.deciders() : null
         );
         final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, request, mockLogger);
+        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+            currentState,
+            request,
+            NO_VALIDATION,
+            mockLogger
+        );
 
         assertThat(state, sameInstance(currentState));
         verify(mockLogger).info("skipping updating autoscaling policy [{}] due to no change in policy", policy.name());
+        verifyNoMoreInteractions(mockLogger);
+    }
+
+    public void testPolicyValidator() {
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            randomAlphaOfLength(8),
+            randomRoles(),
+            Collections.emptySortedMap()
+        );
+        final Logger mockLogger = mock(Logger.class);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+                ClusterState.EMPTY_STATE,
+                request,
+                p -> { throw new IllegalArgumentException(); },
+                mockLogger
+            )
+        );
+
         verifyNoMoreInteractions(mockLogger);
     }
 

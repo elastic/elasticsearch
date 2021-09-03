@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -30,12 +19,13 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
@@ -67,7 +57,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         public static final String END_OFFSET = "end_offset";
         public static final String PAYLOAD = "payload";
         public static final String _INDEX = "_index";
-        public static final String _TYPE = "_type";
         public static final String _ID = "_id";
         public static final String _VERSION = "_version";
         public static final String FOUND = "found";
@@ -145,7 +134,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public Fields getFields() throws IOException {
         if (hasTermVectors() && isExists()) {
-            if (!sourceCopied) { // make the bytes safe
+            if (sourceCopied == false) { // make the bytes safe
                 headerRef = new BytesArray(headerRef.toBytesRef(), true);
                 termVectors = new BytesArray(termVectors.toBytesRef(), true);
             }
@@ -178,8 +167,11 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         assert id != null;
         builder.startObject();
         builder.field(FieldStrings._INDEX, index);
-        if (!isArtificial()) {
+        if (isArtificial() == false) {
             builder.field(FieldStrings._ID, id);
+        }
+        if(builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());
@@ -248,7 +240,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     }
 
     private void buildValues(XContentBuilder builder, Terms curTerms, int termFreq) throws IOException {
-        if (!(curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions())) {
+        if ((curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions()) == false) {
             return;
         }
 

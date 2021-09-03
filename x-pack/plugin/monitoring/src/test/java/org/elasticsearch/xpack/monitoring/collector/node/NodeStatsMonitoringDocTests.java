@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
@@ -12,6 +13,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -104,7 +107,11 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final NodeStatsMonitoringDoc doc =
                 new NodeStatsMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, "_node_id", true, nodeStats, false);
 
-        final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
+        final BytesReference xContent;
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            doc.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            xContent = BytesReference.bytes(builder);
+        }
         final String expected = XContentHelper.stripWhitespace(
             "{"
                 + "  \"cluster_uuid\": \"_cluster\","
@@ -151,16 +158,16 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 + "      },"
                 + "      \"segments\": {"
                 + "        \"count\": 19,"
-                + "        \"memory_in_bytes\": 20,"
-                + "        \"terms_memory_in_bytes\": 21,"
-                + "        \"stored_fields_memory_in_bytes\": 22,"
-                + "        \"term_vectors_memory_in_bytes\": 23,"
-                + "        \"norms_memory_in_bytes\": 24,"
-                + "        \"points_memory_in_bytes\": 25,"
-                + "        \"doc_values_memory_in_bytes\": 26,"
-                + "        \"index_writer_memory_in_bytes\": 27,"
-                + "        \"version_map_memory_in_bytes\": 28,"
-                + "        \"fixed_bit_set_memory_in_bytes\": 29"
+                + "        \"memory_in_bytes\": 0,"
+                + "        \"terms_memory_in_bytes\": 0,"
+                + "        \"stored_fields_memory_in_bytes\": 0,"
+                + "        \"term_vectors_memory_in_bytes\": 0,"
+                + "        \"norms_memory_in_bytes\": 0,"
+                + "        \"points_memory_in_bytes\": 0,"
+                + "        \"doc_values_memory_in_bytes\": 0,"
+                + "        \"index_writer_memory_in_bytes\": 20,"
+                + "        \"version_map_memory_in_bytes\": 21,"
+                + "        \"fixed_bit_set_memory_in_bytes\": 22"
                 + "      },"
                 + "      \"request_cache\": {"
                 + "        \"memory_size_in_bytes\": 13,"
@@ -179,24 +186,24 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 + "    \"os\": {"
                 + "      \"cpu\": {"
                 + "        \"load_average\": {"
-                + "          \"1m\": 41.0,"
-                + "          \"5m\": 42.0,"
-                + "          \"15m\": 43.0"
+                + "          \"1m\": 36.0,"
+                + "          \"5m\": 37.0,"
+                + "          \"15m\": 38.0"
                 + "        }"
                 + "      },"
                 + "      \"cgroup\": {"
                 + "        \"cpuacct\": {"
                 + "          \"control_group\": \"_cpu_acct_ctrl_group\","
-                + "          \"usage_nanos\": 47"
+                + "          \"usage_nanos\": 42"
                 + "        },"
                 + "        \"cpu\": {"
                 + "          \"control_group\": \"_cpu_ctrl_group\","
-                + "          \"cfs_period_micros\": 48,"
-                + "          \"cfs_quota_micros\": 49,"
+                + "          \"cfs_period_micros\": 43,"
+                + "          \"cfs_quota_micros\": 44,"
                 + "          \"stat\": {"
-                + "            \"number_of_elapsed_periods\": 44,"
-                + "            \"number_of_times_throttled\": 45,"
-                + "            \"time_throttled_nanos\": 46"
+                + "            \"number_of_elapsed_periods\": 39,"
+                + "            \"number_of_times_throttled\": 40,"
+                + "            \"time_throttled_nanos\": 41"
                 + "          }"
                 + "        },"
                 + "        \"memory\": {"
@@ -207,74 +214,74 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 + "      }"
                 + "    },"
                 + "    \"process\": {"
-                + "      \"open_file_descriptors\": 51,"
-                + "      \"max_file_descriptors\": 52,"
+                + "      \"open_file_descriptors\": 46,"
+                + "      \"max_file_descriptors\": 47,"
                 + "      \"cpu\": {"
-                + "        \"percent\": 50"
+                + "        \"percent\": 45"
                 + "      }"
                 + "    },"
                 + "    \"jvm\": {"
                 + "      \"mem\": {"
-                + "        \"heap_used_in_bytes\": 53,"
-                + "        \"heap_used_percent\": 98,"
-                + "        \"heap_max_in_bytes\": 54"
+                + "        \"heap_used_in_bytes\": 48,"
+                + "        \"heap_used_percent\": 97,"
+                + "        \"heap_max_in_bytes\": 49"
                 + "      },"
                 + "      \"gc\": {"
                 + "        \"collectors\": {"
                 + "          \"young\": {"
-                + "            \"collection_count\": 55,"
-                + "            \"collection_time_in_millis\": 56"
+                + "            \"collection_count\": 50,"
+                + "            \"collection_time_in_millis\": 51"
                 + "          },"
                 + "          \"old\": {"
-                + "            \"collection_count\": 57,"
-                + "            \"collection_time_in_millis\": 58"
+                + "            \"collection_count\": 52,"
+                + "            \"collection_time_in_millis\": 53"
                 + "          }"
                 + "        }"
                 + "      }"
                 + "    },"
                 + "    \"thread_pool\": {"
                 + "      \"generic\": {"
-                + "        \"threads\": 59,"
-                + "        \"queue\": 60,"
-                + "        \"rejected\": 61"
+                + "        \"threads\": 54,"
+                + "        \"queue\": 55,"
+                + "        \"rejected\": 56"
                 + "      },"
                 + "      \"get\": {"
-                + "        \"threads\": 62,"
-                + "        \"queue\": 63,"
-                + "        \"rejected\": 64"
+                + "        \"threads\": 57,"
+                + "        \"queue\": 58,"
+                + "        \"rejected\": 59"
                 + "      },"
                 + "      \"management\": {"
-                + "        \"threads\": 65,"
-                + "        \"queue\": 66,"
-                + "        \"rejected\": 67"
+                + "        \"threads\": 60,"
+                + "        \"queue\": 61,"
+                + "        \"rejected\": 62"
                 + "      },"
                 + "      \"search\": {"
-                + "        \"threads\": 68,"
-                + "        \"queue\": 69,"
-                + "        \"rejected\": 70"
+                + "        \"threads\": 63,"
+                + "        \"queue\": 64,"
+                + "        \"rejected\": 65"
                 + "      },"
                 + "      \"watcher\": {"
-                + "        \"threads\": 71,"
-                + "        \"queue\": 72,"
-                + "        \"rejected\": 73"
+                + "        \"threads\": 66,"
+                + "        \"queue\": 67,"
+                + "        \"rejected\": 68"
                 + "      },"
                 + "      \"write\": {"
-                + "        \"threads\": 74,"
-                + "        \"queue\": 75,"
-                + "        \"rejected\": 76"
+                + "        \"threads\": 69,"
+                + "        \"queue\": 70,"
+                + "        \"rejected\": 71"
                 + "      }"
                 + "    },"
                 + "    \"fs\": {"
                 + "      \"total\": {"
-                + "        \"total_in_bytes\": 38,"
-                + "        \"free_in_bytes\": 39,"
-                + "        \"available_in_bytes\": 40"
+                + "        \"total_in_bytes\": 33,"
+                + "        \"free_in_bytes\": 34,"
+                + "        \"available_in_bytes\": 35"
                 + "      },"
                 + "      \"io_stats\": {"
                 + "        \"total\": {"
-                + "          \"operations\": 8,"
-                + "          \"read_operations\": 4,"
-                + "          \"write_operations\": 4,"
+                + "          \"operations\": 10,"
+                + "          \"read_operations\": 5,"
+                + "          \"write_operations\": 5,"
                 + "          \"read_kilobytes\": 2,"
                 + "          \"write_kilobytes\": 2"
                 + "        }"
@@ -301,7 +308,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
         indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
-        indicesCommonStats.getStore().add(new StoreStats(++iota, no));
+        indicesCommonStats.getStore().add(new StoreStats(++iota, no, no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, ++iota, no, no, no, no, no, false, ++iota);
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));
@@ -312,13 +319,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(++iota, ++iota);
-        segmentsStats.addTermsMemoryInBytes(++iota);
-        segmentsStats.addStoredFieldsMemoryInBytes(++iota);
-        segmentsStats.addTermVectorsMemoryInBytes(++iota);
-        segmentsStats.addNormsMemoryInBytes(++iota);
-        segmentsStats.addPointsMemoryInBytes(++iota);
-        segmentsStats.addDocValuesMemoryInBytes(++iota);
+        segmentsStats.add(++iota);
         segmentsStats.addIndexWriterMemoryInBytes(++iota);
         segmentsStats.addVersionMapMemoryInBytes(++iota);
         segmentsStats.addBitsetMemoryInBytes(++iota);
@@ -327,8 +328,9 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap());
 
         // Filesystem
-        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, null);
-        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, ioStatsOne);
+        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota,++iota, null);
+        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, ++iota,
+            ioStatsOne);
 
         final FsInfo.IoStats ioStats = new FsInfo.IoStats(new FsInfo.DeviceStats[]{ioStatsTwo});
         final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[]{new FsInfo.Path(null, null, ++iota, ++iota, ++iota)});

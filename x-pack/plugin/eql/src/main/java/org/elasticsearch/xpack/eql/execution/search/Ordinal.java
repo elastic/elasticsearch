@@ -1,24 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Objects;
 
-public class Ordinal implements Comparable<Ordinal> {
+public class Ordinal implements Comparable<Ordinal>, Accountable {
 
-    private final long timestamp;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ordinal.class);
+
+    private final Timestamp timestamp;
     private final Comparable<Object> tiebreaker;
+    private final long implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
 
-    public Ordinal(long timestamp, Comparable<Object> tiebreaker) {
+    public Ordinal(Timestamp timestamp, Comparable<Object> tiebreaker, long implicitTiebreaker) {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+        this.implicitTiebreaker = implicitTiebreaker;
     }
 
-    public long timestamp() {
+    public Timestamp timestamp() {
         return timestamp;
     }
 
@@ -26,9 +34,18 @@ public class Ordinal implements Comparable<Ordinal> {
         return tiebreaker;
     }
 
+    public long implicitTiebreaker() {
+        return implicitTiebreaker;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tiebreaker);
+        return Objects.hash(timestamp, tiebreaker, implicitTiebreaker);
     }
 
     @Override
@@ -43,23 +60,29 @@ public class Ordinal implements Comparable<Ordinal> {
 
         Ordinal other = (Ordinal) obj;
         return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker);
+                && Objects.equals(tiebreaker, other.tiebreaker)
+                && Objects.equals(implicitTiebreaker, other.implicitTiebreaker);
     }
 
     @Override
     public String toString() {
-        return "[" + timestamp + "][" + (tiebreaker != null ? tiebreaker.toString() : "") + "]";
+        return "[" + timestamp + "][" + (tiebreaker != null ? tiebreaker.toString() : "") + "][" + implicitTiebreaker + "]";
     }
 
     @Override
     public int compareTo(Ordinal o) {
-        if (timestamp < o.timestamp) {
+        int timestampCompare = timestamp.compareTo(o.timestamp);
+        if (timestampCompare < 0) {
             return -1;
         }
-        if (timestamp == o.timestamp) {
+        if (timestampCompare == 0) {
             if (tiebreaker != null) {
-                // if the other tiebreaker is null, it is higher (nulls are last)
-                return o.tiebreaker != null ? tiebreaker.compareTo(o.tiebreaker) : -1;
+                if (o.tiebreaker != null) {
+                    int tiebreakerCompare = tiebreaker.compareTo(o.tiebreaker);
+                    return tiebreakerCompare == 0 ? Long.compare(implicitTiebreaker, o.implicitTiebreaker) : tiebreakerCompare;
+                } else {
+                    return -1;
+                }
             }
             // this tiebreaker is null
             else {
@@ -67,7 +90,7 @@ public class Ordinal implements Comparable<Ordinal> {
                 // this ordinal is greater (after) then the other tiebreaker
                 // so fall through to 1
                 if (o.tiebreaker == null) {
-                    return 0;
+                    return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
                 }
             }
         }
@@ -96,6 +119,8 @@ public class Ordinal implements Comparable<Ordinal> {
     }
 
     public Object[] toArray() {
-        return tiebreaker != null ? new Object[] { timestamp, tiebreaker } : new Object[] { timestamp };
+        return tiebreaker != null ?
+            new Object[] { timestamp.toString(), tiebreaker, implicitTiebreaker }
+            : new Object[] { timestamp.toString(), implicitTiebreaker };
     }
 }

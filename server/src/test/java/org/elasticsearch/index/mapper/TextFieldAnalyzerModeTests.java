@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,7 +13,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -42,8 +30,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -53,8 +39,6 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
     private static Map<String, NamedAnalyzer> defaultAnalyzers() {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         analyzers.put(DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null));
-        analyzers.put(DEFAULT_SEARCH_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null));
-        analyzers.put(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null));
         return analyzers;
     }
 
@@ -84,7 +68,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
 
         Map<String, Object> fieldNode = new HashMap<>();
         fieldNode.put("analyzer", "my_analyzer");
-        Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+        MappingParserContext parserContext = mock(MappingParserContext.class);
 
         // check AnalysisMode.ALL works
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -94,8 +78,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
 
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
-        builder.parse("field", parserContext, fieldNode);
+        TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
 
         // check that "analyzer" set to something that only supports AnalysisMode.SEARCH_TIME or AnalysisMode.INDEX_TIME is blocked
         AnalysisMode mode = randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
@@ -106,8 +89,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         fieldNode.put("analyzer", "my_analyzer");
         MapperException ex = expectThrows(MapperException.class, () -> {
-            TextFieldMapper.Builder bad = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
-            bad.parse("name", parserContext, fieldNode);
+            TextFieldMapper.PARSER.parse("name", fieldNode, parserContext);
         });
         assertThat(ex.getMessage(),
             containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run"));
@@ -122,7 +104,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
             if (settingToTest.equals("search_quote_analyzer")) {
                 fieldNode.put("search_analyzer", "standard");
             }
-            Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+            MappingParserContext parserContext = mock(MappingParserContext.class);
 
             // check AnalysisMode.ALL and AnalysisMode.SEARCH_TIME works
             Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -133,8 +115,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
 
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
-            builder.parse("textField", parserContext, fieldNode);
+            TextFieldMapper.PARSER.parse("textField", fieldNode, parserContext);
 
             // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked
             mode = AnalysisMode.INDEX_TIME;
@@ -151,8 +132,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
                 fieldNode.put("search_analyzer", "standard");
             }
             MapperException ex = expectThrows(MapperException.class, () -> {
-                TextFieldMapper.Builder bad = new TextFieldMapper.Builder("field", () -> Lucene.STANDARD_ANALYZER);
-                bad.parse("field", parserContext, fieldNode);
+                TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
             });
             assertEquals("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in search time mode.",
                 ex.getMessage());
@@ -163,7 +143,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
 
         Map<String, Object> fieldNode = new HashMap<>();
         fieldNode.put("analyzer", "my_analyzer");
-        Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+        MappingParserContext parserContext = mock(MappingParserContext.class);
 
         // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked if there is no search analyzer
         AnalysisMode mode = AnalysisMode.INDEX_TIME;
@@ -173,8 +153,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class, () -> {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
-            builder.parse("field", parserContext, fieldNode);
+            TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
         });
         assertThat(ex.getMessage(),
             containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run"));
@@ -190,8 +169,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
 
         indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
-        builder.parse("field", parserContext, fieldNode);
+        TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
     }
 
 }

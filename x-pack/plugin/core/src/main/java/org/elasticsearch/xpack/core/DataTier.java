@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core;
@@ -11,14 +12,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The {@code DataTier} class encapsulates the formalization of the "content",
@@ -35,8 +37,14 @@ public class DataTier {
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
+    public static final String DATA_FROZEN = "data_frozen";
 
-    public static final Set<String> ALL_DATA_TIERS = new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD));
+    public static final Set<String> ALL_DATA_TIERS =
+        new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN));
+
+    // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
+    private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS =
+        List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
 
     /**
      * Returns true if the given tier name is a valid tier
@@ -45,7 +53,21 @@ public class DataTier {
         return DATA_CONTENT.equals(tierName) ||
             DATA_HOT.equals(tierName) ||
             DATA_WARM.equals(tierName) ||
-            DATA_COLD.equals(tierName);
+            DATA_COLD.equals(tierName) ||
+            DATA_FROZEN.equals(tierName);
+    }
+
+    /**
+     * Based on the provided target tier it will return a comma separated list of preferred tiers.
+     * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`
+     * This is usually used in conjunction with {@link DataTierAllocationDecider#INDEX_ROUTING_PREFER_SETTING}
+     */
+    public static String getPreferredTiersConfiguration(String targetTier) {
+        int indexOfTargetTier = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(targetTier);
+        if (indexOfTargetTier == -1) {
+            throw new IllegalArgumentException("invalid data tier [" + targetTier + "]");
+        }
+        return ORDERED_FROZEN_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
     }
 
     /**
@@ -65,110 +87,40 @@ public class DataTier {
         return false;
     }
 
-    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
-        }
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_content",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
-                Setting.Property.Deprecated,
-                Setting.Property.NodeScope
-            );
-        }
-
-    };
-
-    public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
-        }
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_hot",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
-                Setting.Property.Deprecated,
-                Setting.Property.NodeScope
-            );
-        }
-
-    };
-
-    public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
-        }
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_warm",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
-                Setting.Property.Deprecated,
-                Setting.Property.NodeScope
-            );
-        }
-
-    };
-
-    public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
-        }
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_cold",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
-                Setting.Property.Deprecated,
-                Setting.Property.NodeScope
-            );
-        }
-
-    };
-
     public static boolean isContentNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DATA_CONTENT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isHotNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DATA_HOT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isWarmNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DATA_WARM_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isColdNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DATA_COLD_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+    }
+
+    public static boolean isFrozenNode(DiscoveryNode discoveryNode) {
+        return isFrozenNode(discoveryNode.getRoles());
+    }
+
+    public static boolean isFrozenNode(final Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) || roles.contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     /**
      * This setting provider injects the setting allocating all newly created indices with
-     * {@code index.routing.allocation.include._tier: "data_hot"} unless the user overrides the
-     * setting while the index is being created (in a create index request for instance)
+     * {@code index.routing.allocation.include._tier_preference: "data_hot"} for a data stream index
+     * or {@code index.routing.allocation.include._tier_preference: "data_content"} for an index not part of
+     * a data stream unless the user overrides the setting while the index is being created
+     * (in a create index request for instance)
      */
     public static class DefaultHotAllocationSettingProvider implements IndexSettingProvider {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);

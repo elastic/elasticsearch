@@ -1,32 +1,58 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.MockDeterministicScript;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * An extension to {@link ESSingleNodeTestCase} that adds node settings specifically needed for ML test cases.
@@ -52,40 +78,32 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(namedXContent);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(
             LocalStateMachineLearning.class,
+            DataStreamsPlugin.class,
+            ReindexPlugin.class,
+            IngestCommonPlugin.class,
+            MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class);
     }
 
-    /**
-     * This cleanup is to fix the problem described in
-     * https://github.com/elastic/elasticsearch/issues/38952
-     */
     @Override
     public void tearDown() throws Exception {
         try {
             logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            String[] nonAnnotationMlIndices;
-            boolean mlAnnotationsIndexExists;
-            do {
-                String[] mlIndices = client().admin().indices().prepareGetIndex().addIndices(".ml-*").get().indices();
-                nonAnnotationMlIndices = Arrays.stream(mlIndices).filter(name -> name.startsWith(".ml-annotations") == false)
-                    .toArray(String[]::new);
-                mlAnnotationsIndexExists = mlIndices.length > nonAnnotationMlIndices.length;
-            } while (nonAnnotationMlIndices.length > 0 && mlAnnotationsIndexExists == false);
-            if (nonAnnotationMlIndices.length > 0) {
-                // Delete the ML indices apart from the annotations index.  The annotations index will be deleted by the
-                // base class cleanup.  We want to delete all the others first so that the annotations index doesn't get
-                // automatically recreated.
-                assertAcked(client().admin().indices().prepareDelete(nonAnnotationMlIndices).get());
-            }
+            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         } finally {
             super.tearDown();
         }
@@ -128,6 +146,24 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         return responseHolder.get();
     }
 
+    protected static ThreadPool mockThreadPool() {
+        ThreadPool tp = mock(ThreadPool.class);
+        ExecutorService executor = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        when(tp.executor(any(String.class))).thenReturn(executor);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(tp).schedule(
+            any(Runnable.class), any(TimeValue.class), any(String.class)
+        );
+        return tp;
+    }
+
+
     public static void assertNoException(AtomicReference<Exception> error) throws Exception {
         if (error.get() == null) {
             return;
@@ -135,4 +171,41 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         throw error.get();
     }
 
+    public static class MockPainlessScriptEngine extends MockScriptEngine {
+
+        public static final String NAME = "painless";
+
+        public static class TestPlugin extends MockScriptPlugin {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new MockPainlessScriptEngine();
+            }
+
+            @Override
+            protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+                return Collections.emptyMap();
+            }
+        }
+
+        @Override
+        public String getType() {
+            return NAME;
+        }
+
+        @Override
+        public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
+            if (context.instanceClazz.equals(ScoreScript.class)) {
+                return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
+            }
+            if (context.name.equals("ingest")) {
+                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                    @Override
+                    public void execute(Map<String, Object> ctx) {
+                    }
+                };
+                return context.factoryClazz.cast(factory);
+            }
+            throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
+        }
+    }
 }

@@ -18,11 +18,16 @@ Snapshots can be stored in either local or remote repositories.
 Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
 Google Cloud Storage,
 and other platforms supported by a {plugins}/repository.html[repository plugin].
-
-Snapshots are incremental: each snapshot only stores data that
-is not part of an earlier snapshot.
-This enables you to take frequent snapshots with minimal overhead.
 // end::snapshot-intro[]
+
+{es} takes snapshots incrementally: the snapshotting process only copies data
+to the repository that was not already copied there by an earlier snapshot,
+avoiding unnecessary duplication of work or storage space. This means you can
+safely take snapshots very frequently with minimal overhead. This
+incrementality only applies within a single repository because no data is
+shared between repositories. Snapshots are also logically independent from each
+other, even within a single repository: deleting a snapshot does not affect the
+integrity of any other snapshot.
 
 // tag::restore-intro[]
 You can <<snapshots-restore-snapshot,restore snapshots>> to a running cluster, which includes all data streams and indices in the snapshot
@@ -36,16 +41,21 @@ You can use
 to automatically take and manage snapshots.
 
 // tag::backup-warning[]
-WARNING: You cannot back up an {es} cluster by simply copying
-the data directories of all of its nodes. {es} may be making changes to
-the contents of its data directories while it is running; copying its data
-directories cannot be expected to capture a consistent picture of their contents.
-If you try to restore a cluster from such a backup, it may fail and report
-corruption and/or missing files. Alternatively, it may appear to have succeeded
-though it silently lost some of its data. The only reliable way to back up a
-cluster is by using the snapshot and restore functionality.
-
+WARNING: **The only reliable and supported way to back up a cluster is by
+taking a snapshot**. You cannot back up an {es} cluster by making copies of the
+data directories of its nodes. There are no supported methods to restore any
+data from a filesystem-level backup. If you try to restore a cluster from such
+a backup, it may fail with reports of corruption or missing files or other data
+inconsistencies, or it may appear to have succeeded having silently lost some
+of your data.
 // end::backup-warning[]
+
+A copy of the data directories of a cluster's nodes does not work as a backup
+because it is not a consistent representation of their contents at a single
+point in time. You cannot fix this by shutting down nodes while making the
+copies, nor by taking atomic filesystem-level snapshots, because {es} has
+consistency requirements that span the whole cluster. You must use the built-in
+snapshot functionality for cluster backups.
 
 [discrete]
 [[snapshot-restore-version-compatibility]]
@@ -113,4 +123,3 @@ include::monitor-snapshot-restore.asciidoc[]
 include::delete-snapshot.asciidoc[]
 include::../slm/index.asciidoc[]
 include::../searchable-snapshots/index.asciidoc[]
-

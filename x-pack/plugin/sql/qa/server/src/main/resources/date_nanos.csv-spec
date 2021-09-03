@@ -1,0 +1,473 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests for date_nanos fields
+//
+
+selectAll
+schema::id:i|@timestamp:s|status:s
+SELECT id, "@timestamp"::string, status FROM logs_nanos ORDER BY id LIMIT 12;
+
+      id       |          @timestamp          |    status
+---------------+------------------------------+---------------
+1              |2017-11-10T21:15:54.0123Z     |OK
+2              |2017-11-10T21:15:39.987Z      |OK
+3              |2017-11-10T21:15:39.123456Z   |OK
+4              |2017-11-10T21:15:39.123456789Z|OK
+5              |2017-11-10T21:15:40.123Z      |OK
+6              |2017-11-10T21:15:40.123456Z   |OK
+7              |2017-11-10T21:15:40.123456789Z|OK
+8              |2017-11-10T21:15:41.98765Z    |OK
+9              |2017-11-10T21:15:41.98765432Z |OK
+10             |null                          |OK
+11             |2017-11-10T20:36:08.01234Z    |OK
+12             |2017-11-10T20:36:07.0123Z     |OK
+;
+
+selectWithScalars1
+schema::id:i|@timestamp:s|date_add:s|date_diff:i
+SELECT id, "@timestamp"::string, DATE_ADD('nanoseconds', 123456789, "@timestamp")::string AS date_add, DATE_DIFF('microseconds', '2017-11-10T21:15:39.123456Z'::datetime, "@timestamp") AS date_diff
+FROM logs_nanos ORDER BY id LIMIT 5;
+
+      id       |          @timestamp          |           date_add           |   date_diff
+---------------+------------------------------+------------------------------+---------------
+1              |2017-11-10T21:15:54.0123Z     |2017-11-10T21:15:54.135756789Z|14888844
+2              |2017-11-10T21:15:39.987Z      |2017-11-10T21:15:40.110456789Z|863544
+3              |2017-11-10T21:15:39.123456Z   |2017-11-10T21:15:39.246912789Z|0
+4              |2017-11-10T21:15:39.123456789Z|2017-11-10T21:15:39.246913578Z|0
+5              |2017-11-10T21:15:40.123Z      |2017-11-10T21:15:40.246456789Z|999544
+;
+
+selectWithScalars2
+schema::id:i|@timestamp:s|date_part:i|date_trunc:s
+SELECT id, "@timestamp"::string, DATE_PART('nanoseconds', "@timestamp") AS date_part, DATE_TRUNC('microseconds', "@timestamp")::string AS date_trunc
+FROM logs_nanos ORDER BY id LIMIT 12;
+
+      id       |          @timestamp          |   date_part   |        date_trunc
+---------------+------------------------------+---------------+---------------------------
+1              |2017-11-10T21:15:54.0123Z     |12300000       |2017-11-10T21:15:54.0123Z
+2              |2017-11-10T21:15:39.987Z      |987000000      |2017-11-10T21:15:39.987Z
+3              |2017-11-10T21:15:39.123456Z   |123456000      |2017-11-10T21:15:39.123456Z
+4              |2017-11-10T21:15:39.123456789Z|123456789      |2017-11-10T21:15:39.123456Z
+5              |2017-11-10T21:15:40.123Z      |123000000      |2017-11-10T21:15:40.123Z
+6              |2017-11-10T21:15:40.123456Z   |123456000      |2017-11-10T21:15:40.123456Z
+7              |2017-11-10T21:15:40.123456789Z|123456789      |2017-11-10T21:15:40.123456Z
+8              |2017-11-10T21:15:41.98765Z    |987650000      |2017-11-10T21:15:41.98765Z
+9              |2017-11-10T21:15:41.98765432Z |987654320      |2017-11-10T21:15:41.987654Z
+10             |null                          |null           |null
+11             |2017-11-10T20:36:08.01234Z    |12340000       |2017-11-10T20:36:08.01234Z
+12             |2017-11-10T20:36:07.0123Z     |12300000       |2017-11-10T20:36:07.0123Z
+;
+
+selectWithScalars3
+schema::id:i|@timestamp:s|second_of_minute:i|hour_of_day:i
+SELECT id, "@timestamp"::string, SECOND_OF_MINUTE("@timestamp") AS second_of_minute, HOUR("@timestamp") AS hour_of_day
+FROM logs_nanos ORDER BY id LIMIT 12;
+
+      id       |          @timestamp          |second_of_minute|  hour_of_day
+---------------+------------------------------+----------------+---------------
+1              |2017-11-10T21:15:54.0123Z     |54              |21
+2              |2017-11-10T21:15:39.987Z      |39              |21
+3              |2017-11-10T21:15:39.123456Z   |39              |21
+4              |2017-11-10T21:15:39.123456789Z|39              |21
+5              |2017-11-10T21:15:40.123Z      |40              |21
+6              |2017-11-10T21:15:40.123456Z   |40              |21
+7              |2017-11-10T21:15:40.123456789Z|40              |21
+8              |2017-11-10T21:15:41.98765Z    |41              |21
+9              |2017-11-10T21:15:41.98765432Z |41              |21
+10             |null                          |null            |null
+11             |2017-11-10T20:36:08.01234Z    |8               |20
+12             |2017-11-10T20:36:07.0123Z     |7               |20
+;
+
+selectWithScalars4
+schema::id:i|@timestamp:s|interval1:s|interval2:s
+SELECT id, "@timestamp"::string, ("@timestamp" + INTERVAL '65:43:21.0123' HOUR TO SECONDS)::string AS interval1, ("@timestamp" - INTERVAL '11:22.987' MINUTE TO SECONDS)::string AS interval2
+FROM logs_nanos ORDER BY id LIMIT 12;
+
+      id       |          @timestamp          |          interval1           |          interval2
+---------------+------------------------------+------------------------------+------------------------------
+1              |2017-11-10T21:15:54.0123Z     |2017-11-13T14:59:15.1353Z     |2017-11-10T21:04:31.0253Z
+2              |2017-11-10T21:15:39.987Z      |2017-11-13T14:59:01.110Z      |2017-11-10T21:04:17.000Z
+3              |2017-11-10T21:15:39.123456Z   |2017-11-13T14:59:00.246456Z   |2017-11-10T21:04:16.136456Z
+4              |2017-11-10T21:15:39.123456789Z|2017-11-13T14:59:00.246456789Z|2017-11-10T21:04:16.136456789Z
+5              |2017-11-10T21:15:40.123Z      |2017-11-13T14:59:01.246Z      |2017-11-10T21:04:17.136Z
+6              |2017-11-10T21:15:40.123456Z   |2017-11-13T14:59:01.246456Z   |2017-11-10T21:04:17.136456Z
+7              |2017-11-10T21:15:40.123456789Z|2017-11-13T14:59:01.246456789Z|2017-11-10T21:04:17.136456789Z
+8              |2017-11-10T21:15:41.98765Z    |2017-11-13T14:59:03.11065Z    |2017-11-10T21:04:19.00065Z
+9              |2017-11-10T21:15:41.98765432Z |2017-11-13T14:59:03.11065432Z |2017-11-10T21:04:19.00065432Z
+10             |null                          |null                          |null
+11             |2017-11-10T20:36:08.01234Z    |2017-11-13T14:19:29.13534Z    |2017-11-10T20:24:45.02534Z
+12             |2017-11-10T20:36:07.0123Z     |2017-11-13T14:19:28.1353Z     |2017-11-10T20:24:44.0253Z
+;
+
+selectWithCasts
+schema::id:i|@timestamp:s|cast_long:l|cast_double:d|cast_date:date|cast_time:s
+SELECT id, "@timestamp"::string, CAST("@timestamp" AS long) AS cast_long, CAST("@timestamp" AS double) AS cast_double, CAST("@timestamp" AS DATE) AS cast_date, CAST("@timestamp" AS TIME)::string AS cast_time
+FROM logs_nanos ORDER BY id LIMIT 12;
+
+      id       |          @timestamp          |   cast_long   |   cast_double   |       cast_date        |     cast_time
+---------------+------------------------------+---------------+-----------------+------------------------+-------------------
+1              |2017-11-10T21:15:54.0123Z     |1510348554012  |1.510348554012E12|2017-11-10T00:00:00.000Z|21:15:54.0123Z
+2              |2017-11-10T21:15:39.987Z      |1510348539987  |1.510348539987E12|2017-11-10T00:00:00.000Z|21:15:39.987Z
+3              |2017-11-10T21:15:39.123456Z   |1510348539123  |1.510348539123E12|2017-11-10T00:00:00.000Z|21:15:39.123456Z
+4              |2017-11-10T21:15:39.123456789Z|1510348539123  |1.510348539123E12|2017-11-10T00:00:00.000Z|21:15:39.123456789Z
+5              |2017-11-10T21:15:40.123Z      |1510348540123  |1.510348540123E12|2017-11-10T00:00:00.000Z|21:15:40.123Z
+6              |2017-11-10T21:15:40.123456Z   |1510348540123  |1.510348540123E12|2017-11-10T00:00:00.000Z|21:15:40.123456Z
+7              |2017-11-10T21:15:40.123456789Z|1510348540123  |1.510348540123E12|2017-11-10T00:00:00.000Z|21:15:40.123456789Z
+8              |2017-11-10T21:15:41.98765Z    |1510348541987  |1.510348541987E12|2017-11-10T00:00:00.000Z|21:15:41.98765Z
+9              |2017-11-10T21:15:41.98765432Z |1510348541987  |1.510348541987E12|2017-11-10T00:00:00.000Z|21:15:41.98765432Z
+10             |null                          |null           |null             |null                    |null
+11             |2017-11-10T20:36:08.01234Z    |1510346168012  |1.510346168012E12|2017-11-10T00:00:00.000Z|20:36:08.01234Z
+12             |2017-11-10T20:36:07.0123Z     |1510346167012  |1.510346167012E12|2017-11-10T00:00:00.000Z|20:36:07.0123Z
+;
+
+whereClauseWithExactMatch1
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE "@timestamp" = '2017-11-10T20:35:55.01234567Z' OR "@timestamp" = '2017-11-10T21:23:54.09876Z'::datetime
+ORDER BY id;
+
+      id       |          @timestamp
+---------------+-----------------------------
+40             |2017-11-10T20:35:55.01234567Z
+69             |2017-11-10T21:23:54.09876Z
+;
+
+whereClauseWithExactMatch2
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE "@timestamp" IN ('2017-11-10T20:35:55.01234567Z'::datetime, '2017-11-10T20:21:58.00000001Z'::datetime, '2017-11-10T21:17:46.98765Z'::datetime, '2017-11-10T00:01:20Z'::datetime)
+ORDER BY id;
+
+      id       |          @timestamp
+---------------+-----------------------------
+40             |2017-11-10T20:35:55.01234567Z
+63             |2017-11-10T20:21:58.00000001Z
+82             |2017-11-10T00:01:20.000Z
+93             |2017-11-10T21:17:46.98765Z
+;
+
+whereClauseWithIsNull
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE "@timestamp" IS NULL ORDER BY id;
+
+      id       |   @timestamp
+---------------+---------------
+10             |null
+26             |null
+47             |null
+57             |null
+64             |null
+80             |null
+84             |null
+99             |null
+;
+
+whereClauseWithRange1
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE "@timestamp" > '2017-11-10T21:15:40.12345'::datetime ORDER BY id LIMIT 10;
+
+      id       |          @timestamp
+---------------+------------------------------
+1              |2017-11-10T21:15:54.0123Z
+6              |2017-11-10T21:15:40.123456Z
+7              |2017-11-10T21:15:40.123456789Z
+8              |2017-11-10T21:15:41.98765Z
+9              |2017-11-10T21:15:41.98765432Z
+20             |2017-11-10T23:23:24.9876Z
+23             |2017-11-10T22:37:41.0098Z
+25             |2017-11-10T23:30:46.987Z
+27             |2017-11-10T23:36:32.000Z
+28             |2017-11-10T23:36:33.012345678Z
+;
+
+whereClauseWithRange2
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE "@timestamp" BETWEEN '2017-11-10T21:15:40.12345'::datetime AND '2017-11-10T21:23:55'::datetime ORDER BY id;
+
+      id       |          @timestamp
+---------------+------------------------------
+1              |2017-11-10T21:15:54.0123Z
+6              |2017-11-10T21:15:40.123456Z
+7              |2017-11-10T21:15:40.123456789Z
+8              |2017-11-10T21:15:41.98765Z
+9              |2017-11-10T21:15:41.98765432Z
+68             |2017-11-10T21:23:25.000Z
+69             |2017-11-10T21:23:54.09876Z
+87             |2017-11-10T21:17:37.000Z
+89             |2017-11-10T21:17:37.123456Z
+93             |2017-11-10T21:17:46.98765Z
+95             |2017-11-10T21:17:46.000Z
+97             |2017-11-10T21:17:48.000Z
+;
+
+whereClauseWithRange3
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE "@timestamp" BETWEEN '2017-11-10T21:15:40.12345' AND '2017-11-10T21:23:55' ORDER BY id;
+
+      id       |          @timestamp
+---------------+------------------------------
+1              |2017-11-10T21:15:54.0123Z
+6              |2017-11-10T21:15:40.123456Z
+7              |2017-11-10T21:15:40.123456789Z
+8              |2017-11-10T21:15:41.98765Z
+9              |2017-11-10T21:15:41.98765432Z
+68             |2017-11-10T21:23:25.000Z
+69             |2017-11-10T21:23:54.09876Z
+87             |2017-11-10T21:17:37.000Z
+89             |2017-11-10T21:17:37.123456Z
+93             |2017-11-10T21:17:46.98765Z
+95             |2017-11-10T21:17:46.000Z
+97             |2017-11-10T21:17:48.000Z
+;
+
+whereClauseWithScalar
+schema::id:i|@timestamp:s
+SELECT id, "@timestamp"::string FROM logs_nanos WHERE DATE_PART('nanoseconds', "@timestamp") < 20000000 ORDER BY id LIMIT 10;
+
+      id       |         @timestamp
+---------------+----------------------------
+1              |2017-11-10T21:15:54.0123Z
+11             |2017-11-10T20:36:08.01234Z
+12             |2017-11-10T20:36:07.0123Z
+13             |2017-11-10T20:36:07.0123456Z
+14             |2017-11-10T20:36:15.010Z
+15             |2017-11-10T20:36:15.012Z
+19             |2017-11-10T17:54:43.01234Z
+22             |2017-11-10T21:13:27.001Z
+23             |2017-11-10T22:37:41.0098Z
+27             |2017-11-10T23:36:32.000Z
+;
+
+orderByAsc1
+schema::id:i|ts_string:s
+SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos ORDER BY "@timestamp" LIMIT 10;
+
+      id       |          ts_string
+---------------+------------------------------
+83             |2017-11-10T00:01:04.12345Z
+82             |2017-11-10T00:01:20.000Z
+85             |2017-11-10T00:01:45.000Z
+96             |2017-11-10T00:04:50.999999999Z
+71             |2017-11-10T00:27:03.000Z
+72             |2017-11-10T00:27:46.1234567Z
+100            |2017-11-10T03:21:36.000000123Z
+55             |2017-11-10T17:14:10.987654Z
+19             |2017-11-10T17:54:43.01234Z
+21             |2017-11-10T17:54:59.98765Z
+;
+
+orderByAsc2
+schema::id:i|ts_string:s
+SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos WHERE id < 20 ORDER BY "@timestamp" DESC LIMIT 10;
+
+      id       |          ts_string
+---------------+------------------------------
+10             |null
+1              |2017-11-10T21:15:54.0123Z
+9              |2017-11-10T21:15:41.98765432Z
+8              |2017-11-10T21:15:41.98765Z
+7              |2017-11-10T21:15:40.123456789Z
+6              |2017-11-10T21:15:40.123456Z
+5              |2017-11-10T21:15:40.123Z
+2              |2017-11-10T21:15:39.987Z
+4              |2017-11-10T21:15:39.123456789Z
+3              |2017-11-10T21:15:39.123456Z
+;
+
+orderByDesc1
+schema::id:i|ts_string:s
+SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos ORDER BY "@timestamp" DESC LIMIT 12;
+
+      id       |          ts_string
+---------------+------------------------------
+10             |null
+26             |null
+47             |null
+57             |null
+64             |null
+80             |null
+84             |null
+99             |null
+31             |2017-11-10T23:56:36.000Z
+61             |2017-11-10T23:43:10.00001Z
+30             |2017-11-10T23:36:41.000Z
+28             |2017-11-10T23:36:33.012345678Z
+;
+
+orderByDesc2
+schema::id:i|ts_string:s
+SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos WHERE id < 20 ORDER BY "@timestamp" DESC LIMIT 10;
+
+      id       |          ts_string
+---------------+------------------------------
+10             |null
+1              |2017-11-10T21:15:54.0123Z
+9              |2017-11-10T21:15:41.98765432Z
+8              |2017-11-10T21:15:41.98765Z
+7              |2017-11-10T21:15:40.123456789Z
+6              |2017-11-10T21:15:40.123456Z
+5              |2017-11-10T21:15:40.123Z
+2              |2017-11-10T21:15:39.987Z
+4              |2017-11-10T21:15:39.123456789Z
+3              |2017-11-10T21:15:39.123456Z
+;
+
+orderByScalar
+schema::id:i|ts_string:s
+SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos ORDER BY DATE_PART('nanoseconds', "@timestamp") DESC LIMIT 10;
+
+      id       |          ts_string
+---------------+------------------------------
+96             |2017-11-10T00:04:50.999999999Z
+29             |2017-11-10T20:35:26.987654321Z
+52             |2017-11-10T20:35:55.987654321Z
+9              |2017-11-10T21:15:41.98765432Z
+79             |2017-11-10T20:35:52.98765432Z
+33             |2017-11-10T21:35:01.9876543Z
+48             |2017-11-10T20:53:05.9876543Z
+55             |2017-11-10T17:14:10.987654Z
+8              |2017-11-10T21:15:41.98765Z
+17             |2017-11-10T20:35:54.98765Z
+;
+
+// Cannot select the @timestamp column without casting to string because of
+// https://github.com/elastic/elasticsearch/issues/54947
+groupBy
+schema::max:i|count:l
+SELECT max(id) AS max, count(*) AS count FROM logs_nanos GROUP BY "@timestamp" ORDER BY 2 DESC LIMIT 12;
+
+   max  | count
+--------+------
+99      |8
+74      |6
+41      |4
+94      |3
+7       |3
+52      |2
+76      |2
+13      |2
+4       |2
+9       |2
+83      |1
+82      |1
+;
+
+groupByScalar
+schema::max:i|count:l|date_part:i
+SELECT max(id) AS max, count(*) AS count, DATE_PART('microseconds', "@timestamp") AS date_part
+FROM logs_nanos GROUP BY 3 ORDER BY 2 DESC, 3 ASC LIMIT 15;
+
+    max    |   count   |   date_part
+-----------+-----------+---------------
+100        |40         |0
+99         |8          |null
+89         |8          |123456
+53         |7          |12345
+79         |7          |987654
+43         |4          |987000
+93         |4          |987650
+38         |3          |12300
+45         |3          |123000
+83         |3          |123450
+19         |2          |12340
+61         |1          |10
+98         |1          |998
+22         |1          |1000
+23         |1          |9800
+;
+
+aggregates
+schema::max:s|min:s|status:s
+SELECT max("@timestamp")::string AS max, min("@timestamp")::string AS min, status FROM logs_nanos GROUP BY status ORDER BY status;
+
+          max           |          min           |    status
+------------------------+------------------------+---------------
+2017-11-10T23:23:24.987Z|2017-11-10T17:14:10.987Z|Error
+2017-11-10T23:56:36.000Z|2017-11-10T00:01:04.123Z|OK
+;
+
+having
+schema::max:s|min:s|vid:i
+SELECT max("@timestamp")::string AS max, min("@timestamp")::string AS min, id % 10 AS vid FROM logs_nanos
+GROUP BY 3 HAVING max("@timestamp") > '2017-11-10T23:30:46.123'::datetime OR min("@timestamp") < '2017-11-10T00:02:36.123Z'::datetime ORDER BY 3;
+
+          max           |          min           |      vid
+------------------------+------------------------+---------------
+2017-11-10T23:36:41.000Z|2017-11-10T03:21:36.000Z|0
+2017-11-10T23:56:36.000Z|2017-11-10T00:27:03.000Z|1
+2017-11-10T21:34:49.000Z|2017-11-10T00:01:20.000Z|2
+2017-11-10T22:37:41.009Z|2017-11-10T00:01:04.123Z|3
+2017-11-10T23:30:46.987Z|2017-11-10T00:01:45.000Z|5
+2017-11-10T23:36:32.000Z|2017-11-10T20:26:21.000Z|7
+2017-11-10T23:36:33.012Z|2017-11-10T20:06:49.000Z|8
+;
+
+topHits1
+schema::first:s|last:s|status:s
+SELECT first("@timestamp")::string AS first, last("@timestamp")::string AS last, status FROM logs_nanos GROUP BY status ORDER BY status;
+
+           first           |          last           |    status
+---------------------------+-------------------------+---------------
+2017-11-10T17:14:10.987654Z|2017-11-10T23:23:24.9876Z|Error
+2017-11-10T00:01:04.12345Z |2017-11-10T23:56:36.000Z |OK
+;
+
+topHits2
+schema::first:i|last:i|status:s
+SELECT first(id, "@timestamp") AS first, last(id, "@timestamp") AS last, status FROM logs_nanos GROUP BY status ORDER BY status;
+
+     first     |     last      |    status
+---------------+---------------+---------------
+55             |20             |Error
+83             |31             |OK
+;
+
+histogram1
+schema::h:ts|c:l
+SELECT HISTOGRAM("@timestamp", INTERVAL 1 HOUR) AS h, COUNT(*) as c FROM logs_nanos GROUP BY h ORDER BY h DESC;
+
+           h            |       c
+------------------------+---------------
+2017-11-10T23:00:00.000Z|9
+2017-11-10T22:00:00.000Z|5
+2017-11-10T21:00:00.000Z|26
+2017-11-10T20:00:00.000Z|38
+2017-11-10T19:00:00.000Z|4
+2017-11-10T17:00:00.000Z|3
+2017-11-10T03:00:00.000Z|1
+2017-11-10T00:00:00.000Z|6
+null                    |8
+;
+
+histogram2
+schema::h:ts|c:l
+SELECT HISTOGRAM("@timestamp", INTERVAL 99 SECONDS) AS h, COUNT(*) as c FROM logs_nanos GROUP BY h ORDER BY c DESC LIMIT 10;
+
+           h            |       c
+------------------------+---------------
+2017-11-10T20:34:39.000Z|28
+2017-11-10T21:14:15.000Z|10
+null                    |8
+2017-11-10T21:17:33.000Z|5
+2017-11-10T00:00:27.000Z|3
+2017-11-10T19:50:06.000Z|3
+2017-11-10T21:22:30.000Z|3
+2017-11-10T23:36:09.000Z|3
+2017-11-10T00:26:51.000Z|2
+2017-11-10T17:54:36.000Z|2
+;
+
+histogram3
+schema::h:i|c:l
+SELECT HISTOGRAM(DATE_PART('ns', "@timestamp"), 11111111) AS h, COUNT(*) as c FROM logs_nanos GROUP BY h ORDER BY h DESC;
+
+       h       |       c
+---------------+---------------
+999999990      |1
+977777768      |17
+122222221      |14
+88888888       |2
+11111111       |13
+0              |45
+null           |8
+;

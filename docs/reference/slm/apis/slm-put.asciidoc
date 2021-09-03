@@ -1,7 +1,7 @@
 [[slm-api-put-policy]]
-=== Put snapshot lifecycle policy API
+=== Create or update snapshot lifecycle policy API
 ++++
-<titleabbrev>Put policy</titleabbrev>
+<titleabbrev>Create or update policy</titleabbrev>
 ++++
 
 Creates or updates a snapshot lifecycle policy.
@@ -23,7 +23,7 @@ For more information, see <<security-privileges>>.
 [[slm-api-put-desc]]
 ==== {api-description-title}
 
-Use the put snapshot lifecycle policy API
+Use the create or update snapshot lifecycle policy API
 to create or update a snapshot lifecycle policy.
 
 If the policy already exists,
@@ -54,20 +54,9 @@ Configuration for each snapshot created by the policy.
 .Properties of `config`
 [%collapsible%open]
 ====
-`ignore_unavailable`::
-(Optional, Boolean)
-If `true`, missing data streams or indices do *not* cause snapshot creation to fail and return
-an error. Defaults to `false`.
-
-`include_global_state`::
-(Optional, Boolean)
-If `true`, cluster states are included in snapshots. Defaults to `false`.
-
-`indices`::
-(Optional, array of strings)
-Array of data streams and indices to include in snapshots.
-<<date-math-index-names,Date math>> and wildcard (`*`) expressions are
-supported.
+:page-id: put-slm-api
+include::{es-repo-dir}/snapshot-restore/apis/create-snapshot-api.asciidoc[tag=snapshot-config]
+:!page-id:
 ====
 
 `name`::
@@ -94,7 +83,8 @@ Retention rules used to retain and delete snapshots created by the policy.
 `expire_after`::
 (Optional, <<time-units, time units>>)
 Time period after which a snapshot is considered expired and eligible for
-deletion.
+deletion. {slm-init} deletes expired snapshots based on the
+<<slm-retention-schedule,`slm.retention_schedule`>>.
 
 `max_count`::
 (Optional, integer)
@@ -113,8 +103,8 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 
 `schedule`::
 (Required, <<cron-expressions,Cron syntax>>)
-Periodic or absolute schedule at which the policy creates snapshots and deletes 
-expired snapshots. Schedule changes to existing policies are applied immediately.
+Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
+applies `schedule` changes immediately.
 
 [[slm-api-put-example]]
 ==== {api-examples-title}

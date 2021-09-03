@@ -5,8 +5,8 @@ services:
       context: .
       args:
         bucket: "bucket"
-        accessKey: "access_key"
-        secretKey: "secret_key"
+        accessKey: "s3_test_access_key"
+        secretKey: "s3_test_secret_key"
       dockerfile: Dockerfile
     ports:
       - "9000"
@@ -16,8 +16,19 @@ services:
       context: .
       args:
         bucket: "bucket"
-        accessKey: "access_key"
-        secretKey: "secret_key"
+        accessKey: "s3_test_access_key"
+        secretKey: "s3_test_secret_key"
+      dockerfile: Dockerfile
+    ports:
+      - "9000"
+    command: ["server", "/minio/data"]
+  minio-fixture-repository-test-kit:
+    build:
+      context: .
+      args:
+        bucket: "bucket"
+        accessKey: "s3_test_access_key"
+        secretKey: "s3_test_secret_key"
       dockerfile: Dockerfile
     ports:
       - "9000"

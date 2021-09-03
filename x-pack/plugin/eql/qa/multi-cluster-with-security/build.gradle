@@ -1,0 +1,53 @@
+import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testImplementation project(path: xpackModule('eql:qa:common'))
+}
+
+testClusters {
+  'remote-cluster' {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'node.roles', '[data,ingest,master]'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.security.enabled', 'true'
+
+    user username: "test_user", password: "x-pack-test-password"
+  }
+
+  'integTest' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    }
+    setting 'cluster.remote.connections_per_cluster', "1"
+    setting 'xpack.security.enabled', 'true'
+
+    user username: "test_user", password: "x-pack-test-password"
+  }
+}
+
+tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
+  useCluster testClusters.'remote-cluster'
+  doLast {
+    "Starting remote cluster before integ tests and integTest cluster is started"
+  }
+}
+
+tasks.named("integTest").configure {
+  dependsOn 'startRemoteCluster'
+  useCluster testClusters.'remote-cluster'
+  doFirst {
+    nonInputProperties.systemProperty 'tests.rest.cluster.remote.host', "${-> testClusters.'remote-cluster'.getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'tests.rest.cluster.remote.user', "test_user"
+    nonInputProperties.systemProperty 'tests.rest.cluster.remote.password', "x-pack-test-password"
+  }
+}
+tasks.named("check").configure {dependsOn("integTest") } // run these tests as part of the "check" task

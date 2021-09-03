@@ -56,6 +56,12 @@ include-tagged::{doc-tests-file}[{api}-request-settings]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-maxPrimaryShardSize]
+--------------------------------------------------
+<1> The max primary shard size of the target index
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-aliases]
 --------------------------------------------------
 <1> The aliases to associate the target index with
@@ -75,5 +81,3 @@ include-tagged::{doc-tests-file}[{api}-response]
 <1> Indicates whether all of the nodes have acknowledged the request
 <2> Indicates whether the requisite number of shard copies were started for
 each shard in the index before timing out
-
-

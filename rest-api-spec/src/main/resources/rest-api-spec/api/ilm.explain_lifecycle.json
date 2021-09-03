@@ -1,0 +1,39 @@
+{
+  "ilm.explain_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html",
+      "description": "Retrieves information about the index's current lifecycle state, such as the currently executing phase, action, and step."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ilm/explain",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index to explain"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "only_managed": {
+        "type": "boolean",
+        "description": "filters the indices included in the response to ones managed by ILM"
+      },
+      "only_errors": {
+        "type": "boolean",
+        "description": "filters the indices included in the response to ones in an ILM error state, implies only_managed"
+      }
+    }
+  }
+}

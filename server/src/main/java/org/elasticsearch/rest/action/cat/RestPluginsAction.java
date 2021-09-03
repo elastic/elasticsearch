@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -30,12 +19,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -58,6 +49,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        final boolean includeBootstrapPlugins = request.paramAsBoolean("include_bootstrap", false);
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -72,7 +64,10 @@ public class RestPluginsAction extends AbstractCatAction {
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final NodesInfoResponse nodesInfoResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse), channel);
+                        return RestTable.buildResponse(
+                            buildTable(request, clusterStateResponse, nodesInfoResponse, includeBootstrapPlugins),
+                            channel
+                        );
                     }
                 });
             }
@@ -88,11 +83,12 @@ public class RestPluginsAction extends AbstractCatAction {
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
+        table.addCell("type", "alias:t;default:false;desc:plugin type");
         table.endHeaders();
         return table;
     }
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo) {
+    Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, boolean includeBootstrapPlugins) {
         DiscoveryNodes nodes = state.getState().nodes();
         Table table = getTableWithHeader(req);
 
@@ -106,12 +102,16 @@ public class RestPluginsAction extends AbstractCatAction {
                 continue;
             }
             for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
+                if (pluginInfo.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
+                    continue;
+                }
                 table.startRow();
                 table.addCell(node.getId());
                 table.addCell(node.getName());
                 table.addCell(pluginInfo.getName());
                 table.addCell(pluginInfo.getVersion());
                 table.addCell(pluginInfo.getDescription());
+                table.addCell(pluginInfo.getType().toString().toLowerCase(Locale.ROOT));
                 table.endRow();
             }
         }

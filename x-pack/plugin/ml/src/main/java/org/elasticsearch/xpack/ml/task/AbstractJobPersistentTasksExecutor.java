@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.task;
@@ -13,12 +14,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
+import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.ArrayList;
@@ -27,9 +37,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
+import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
 
@@ -60,16 +73,21 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return unavailableIndices;
     }
 
-    protected final boolean useAutoMemoryPercentage;
 
     protected final MlMemoryTracker memoryTracker;
     protected final IndexNameExpressionResolver expressionResolver;
+    protected final Cache<String, Long> auditedJobCapacity = CacheBuilder.<String, Long>builder()
+        // Using a TTL cache here so jobs that are awaiting assignment but get killed via the `_stop` API are gracefully removed
+        // Also, if a job is awaiting assignment for 30 minutes, writing another audit message is probably acceptable.
+        .setExpireAfterWrite(TimeValue.timeValueMinutes(30))
+        .build();
 
     protected volatile int maxConcurrentJobAllocations;
     protected volatile int maxMachineMemoryPercent;
     protected volatile int maxLazyMLNodes;
+    protected volatile boolean useAutoMemoryPercentage;
+    protected volatile long maxNodeMemory;
     protected volatile int maxOpenJobs;
-    protected final long maxNodeMemory;
 
     protected AbstractJobPersistentTasksExecutor(String taskName,
                                                  String executor,
@@ -92,6 +110,40 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
             .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAutoMemoryPercentage);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeSize);
+    }
+
+    protected String getUniqueId(String jobId) {
+        return getTaskName() + "-" + jobId;
+    }
+
+    protected void auditRequireMemoryIfNecessary(String jobId,
+                                                 AbstractAuditor<?> auditor,
+                                                 PersistentTasksCustomMetadata.Assignment assignment,
+                                                 JobNodeSelector jobNodeSelector,
+                                                 boolean isMemoryTrackerRecentlyRefreshed) {
+        if (assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
+            if (isMemoryTrackerRecentlyRefreshed) {
+                Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(
+                    maxMachineMemoryPercent,
+                    useAutoMemoryPercentage,
+                    maxOpenJobs
+                );
+                Long previouslyAuditedFreeMemory = auditedJobCapacity.get(getUniqueId(jobId));
+                if (capacityAndFreeMemory.v2().equals(previouslyAuditedFreeMemory) == false) {
+                    auditor.info(jobId,
+                        Messages.getMessage(JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
+                            ByteSizeValue.ofBytes(memoryTracker.getJobMemoryRequirement(getTaskName(), jobId)),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v2()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTier()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNode())));
+                    auditedJobCapacity.put(getUniqueId(jobId), capacityAndFreeMemory.v2());
+                }
+            }
+        } else {
+            auditedJobCapacity.invalidate(getUniqueId(jobId));
+        }
     }
 
     protected abstract String[] indicesOfInterest(Params params);
@@ -100,10 +152,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return true;
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState) {
-        // If we are waiting for an upgrade to complete, we should not assign to a node
+    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState,
+                                                                                     boolean isMemoryTrackerRecentlyRefreshed) {
+        // If we are waiting for an upgrade or reset to complete, we should not assign to a node
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return Optional.of(AWAITING_UPGRADE);
+        }
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            return Optional.of(RESET_IN_PROGRESS);
         }
         String jobId = getJobId(params);
 
@@ -113,7 +169,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         if (missingIndices.isPresent()) {
             return missingIndices;
         }
-        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId);
+        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId, isMemoryTrackerRecentlyRefreshed);
         if (staleMemory.isPresent()) {
             return staleMemory;
         }
@@ -136,6 +192,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         this.maxOpenJobs = maxOpenJobs;
     }
 
+    void setUseAutoMemoryPercentage(boolean useAutoMemoryPercentage) {
+        this.useAutoMemoryPercentage = useAutoMemoryPercentage;
+    }
+
+    void setMaxNodeSize(ByteSizeValue maxNodeSize) {
+        this.maxNodeMemory = maxNodeSize.getBytes();
+    }
+
     public Optional<PersistentTasksCustomMetadata.Assignment> checkRequiredIndices(String jobId,
                                                                                    ClusterState clusterState,
                                                                                    String... indicesOfInterest) {
@@ -152,8 +216,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return Optional.empty();
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId) {
-        boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
+    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId, boolean isMemoryTrackerRecentlyRefreshed) {
         if (isMemoryTrackerRecentlyRefreshed == false) {
             boolean scheduledRefresh = memoryTracker.asyncRefresh();
             if (scheduledRefresh) {

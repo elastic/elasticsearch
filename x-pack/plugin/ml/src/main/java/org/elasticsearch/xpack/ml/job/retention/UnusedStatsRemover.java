@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -30,7 +31,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 /**
  * If for any reason a job or trained model is deleted but some of its stats documents
@@ -50,9 +51,9 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         try {
-            if (isTimedOutSupplier.get()) {
+            if (isTimedOutSupplier.getAsBoolean()) {
                 listener.onResponse(false);
                 return;
             }
@@ -60,7 +61,7 @@ public class UnusedStatsRemover implements MlDataRemover {
                 .mustNot(QueryBuilders.termsQuery(Fields.JOB_ID.getPreferredName(), getDataFrameAnalyticsJobIds()))
                 .mustNot(QueryBuilders.termsQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), getTrainedModelIds()));
 
-            if (isTimedOutSupplier.get()) {
+            if (isTimedOutSupplier.getAsBoolean()) {
                 listener.onResponse(false);
                 return;
             }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
@@ -12,6 +13,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -45,6 +47,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -95,22 +98,23 @@ public final class SqlDataTypeConverter {
                 return right;
             }
         }
-        if (left == DATETIME) {
+        if (isDateTime(left)) {
             if (right == DATE || right == TIME) {
-                return left;
+                return DATETIME;
             }
             if (isInterval(right)) {
-                return left;
+                return DATETIME;
             }
         }
-        if (right == DATETIME) {
+        if (isDateTime(right)) {
             if (left == DATE || left == TIME) {
-                return right;
+                return DATETIME;
             }
             if (isInterval(left)) {
-                return right;
+                return DATETIME;
             }
         }
+
         // Interval * integer is a valid operation
         if (isInterval(left)) {
             if (right.isInteger()) {
@@ -190,7 +194,7 @@ public final class SqlDataTypeConverter {
         // fallback to default
         return DataTypeConverter.converterFor(from, to);
     }
-    
+
     private static Converter conversionToString(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_STRING;
@@ -200,7 +204,7 @@ public final class SqlDataTypeConverter {
         }
         return null;
     }
-    
+
     private static Converter conversionToLong(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_LONG;
@@ -292,7 +296,7 @@ public final class SqlDataTypeConverter {
         if (isString(from)) {
             return SqlConverter.STRING_TO_DATE;
         }
-        if (from == DATETIME) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_DATE;
         }
         return null;
@@ -314,7 +318,7 @@ public final class SqlDataTypeConverter {
         if (from == DATE) {
             return SqlConverter.DATE_TO_TIME;
         }
-        if (from == DATETIME) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_TIME;
         }
         return null;
@@ -347,7 +351,7 @@ public final class SqlDataTypeConverter {
     public enum SqlConverter implements Converter {
         DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
         TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
-        
+
         DATE_TO_LONG(delegate(DATETIME_TO_LONG)),
         TIME_TO_LONG(fromTime(value -> value)),
 
@@ -385,7 +389,7 @@ public final class SqlDataTypeConverter {
         TIME_TO_BOOLEAN(fromTime(value -> value != 0));
 
         public static final String NAME = "dtc-sql";
-        
+
         private final Function<Object, Object> converter;
 
         SqlConverter(Function<Object, Object> converter) {

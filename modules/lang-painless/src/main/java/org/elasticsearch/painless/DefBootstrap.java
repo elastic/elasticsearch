@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.symbol.FunctionTable;
 
@@ -138,11 +127,22 @@ public final class DefBootstrap {
         }
 
         /**
+         * guard method to give a more descriptive error message when a def receiver is null
+         */
+        static Class<?> checkNull(Object receiver, String name) {
+            if (receiver == null) {
+                throw new NullPointerException("cannot access method/field [" + name + "] from a null def reference");
+            }
+
+            return receiver.getClass();
+        }
+
+        /**
          * guard method for inline caching: checks the receiver's class is the same
          * as the cached class
          */
         static boolean checkClass(Class<?> clazz, Object receiver) {
-            return receiver.getClass() == clazz;
+            return receiver != null && receiver.getClass() == clazz;
         }
 
         /**
@@ -188,8 +188,11 @@ public final class DefBootstrap {
                     }
                 }
             };
-            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type),
-                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));
+            MethodHandle lookup =
+                    MethodHandles.filterArguments(CLASSVALUE_GET.bindTo(megamorphicCache), 0,
+                            MethodHandles.insertArguments(CHECK_NULL, 1, name));
+            lookup = lookup.asType(lookup.type().changeReturnType(MethodHandle.class));
+            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type), lookup);
         }
 
         /**
@@ -206,7 +209,7 @@ public final class DefBootstrap {
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);
             } else {
-                final Class<?> receiver = callArgs[0].getClass();
+                final Class<?> receiver = checkNull(callArgs[0], name);
                 final MethodHandle target = lookup(flavor, name, receiver).asType(type());
 
                 MethodHandle test = CHECK_CLASS.bindTo(receiver);
@@ -219,22 +222,22 @@ public final class DefBootstrap {
             }
         }
 
+        private static final MethodHandle CHECK_NULL;
         private static final MethodHandle CHECK_CLASS;
         private static final MethodHandle FALLBACK;
-        private static final MethodHandle MEGAMORPHIC_LOOKUP;
+        private static final MethodHandle CLASSVALUE_GET;
         static {
             final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
             final MethodHandles.Lookup publicMethodHandlesLookup = MethodHandles.publicLookup();
             try {
+                CHECK_NULL = methodHandlesLookup.findStatic(PIC.class, "checkNull",
+                        MethodType.methodType(Class.class, Object.class, String.class));
                 CHECK_CLASS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkClass",
                         MethodType.methodType(boolean.class, Class.class, Object.class));
                 FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
                         MethodType.methodType(Object.class, Object[].class));
-                MethodHandle mh = publicMethodHandlesLookup.findVirtual(ClassValue.class, "get",
+                CLASSVALUE_GET = publicMethodHandlesLookup.findVirtual(ClassValue.class, "get",
                         MethodType.methodType(Object.class, Class.class));
-                mh = MethodHandles.filterArguments(mh, 1,
-                        publicMethodHandlesLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
-                MEGAMORPHIC_LOOKUP = mh.asType(mh.type().changeReturnType(MethodHandle.class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.allocation;
@@ -48,7 +37,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -59,6 +48,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -277,12 +267,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         final Index index = resolveIndex("test");
 
         logger.info("--> closing all nodes");
-        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).availableShardPaths(new ShardId(index, 0));
+        Path shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).availableShardPath(new ShardId(index, 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
         internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
-        logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
-        assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
+        logger.info("--> deleting the shard data [{}] ", shardLocation);
+        assertThat(Files.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
         IOUtils.rm(shardLocation);
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");

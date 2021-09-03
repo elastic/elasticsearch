@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
@@ -23,7 +24,7 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 
 import java.io.IOException;
-import java.security.cert.CertificateException;
+import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.util.HashSet;
 import java.util.List;
@@ -86,7 +87,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
     }
 
-    private SamlServiceProviderDocument createFullDocument() throws CertificateException, IOException {
+    private SamlServiceProviderDocument createFullDocument() throws GeneralSecurityException, IOException {
         final List<X509Credential> credentials = readCredentials();
         final List<X509Certificate> certificates = credentials.stream()
             .map(X509Credential::getEntityCertificate)

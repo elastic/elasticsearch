@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -94,7 +95,7 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
         AnalysisConfig analysisConfig =
             createCountAnalysisConfig(randomAlphaOfLength(10), randomBoolean() ? "part" : null);
         assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality),
-            is(5L * 1024 * 1024));
+            is(40L * 1024 * 1024));
     }
 
     public void testCalculateCategorizationRequirementBytesPerPartitionCategorization() {
@@ -103,10 +104,11 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
         Map<String, Long> overallCardinality = new HashMap<>();
         overallCardinality.put("part", partitionCardinality);
 
+        boolean isStopOnWarn = randomBoolean();
         AnalysisConfig analysisConfig = createCountAnalysisConfigBuilder(randomAlphaOfLength(10), "part")
-            .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean())).build();
+            .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, isStopOnWarn)).build();
         assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality),
-            is(partitionCardinality * 5L * 1024 * 1024));
+            is(partitionCardinality * 20L * (isStopOnWarn ? 1 : 2) * 1024 * 1024));
     }
 
     public void testRoundUpToNextMb() {

@@ -11,6 +11,13 @@ Removes a JSON document from the specified index.
 
 `DELETE /<index>/_doc/<_id>`
 
+[[docs-delete-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete` or
+`write` <<privileges-list-indices,index privilege>> for the target index or
+index alias.
+
 [[docs-delete-api-desc]]
 ==== {api-description-title}
 
@@ -149,13 +156,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to <<index-wait-for-active-shards,wait for active shards>>. Defaults to
+`1m` (one minute).
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 

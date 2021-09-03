@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -37,7 +26,7 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -110,7 +99,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
     public void testAckedIndexing() throws Exception {
 
-        final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
+        final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;
         final String timeout = seconds + "s";
 
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
@@ -147,10 +136,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 final String name = "indexer_" + indexers.size();
                 final int numPrimaries = getNumShards("test").numPrimaries;
                 Thread thread = new Thread(() -> {
-                    while (!stop.get()) {
+                    while (stop.get() == false) {
                         String id = null;
                         try {
-                            if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
+                            if (semaphore.tryAcquire(10, TimeUnit.SECONDS) == false) {
                                 continue;
                             }
                             logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
@@ -323,7 +312,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
+        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).collect(Collectors.toList());
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation.logging;
@@ -27,7 +28,7 @@ import java.util.function.Consumer;
  */
 @Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class DeprecationIndexingAppender extends AbstractAppender {
-    public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation-elasticsearch";
+    public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
     private final Consumer<IndexRequest> requestConsumer;
 

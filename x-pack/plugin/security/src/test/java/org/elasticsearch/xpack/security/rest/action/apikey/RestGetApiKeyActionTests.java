@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 
@@ -42,7 +43,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestGetApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
@@ -55,9 +55,6 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         settings = Settings.builder().put("path.home", createTempDir().toString()).put("node.name", "test-" + getTestName())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
-        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
-        when(mockLicenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
     }
 
     @Override
@@ -86,8 +83,11 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         };
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
-                Collections.singletonList(new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1")));
+                Collections.singletonList(
+                    new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)));
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
@@ -128,7 +128,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 assertThat(actual.getApiKeyInfos().length, is(0));
             } else {
                 assertThat(actual.getApiKeyInfos(),
-                        arrayContaining(new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1")));
+                        arrayContaining(
+                            new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)));
             }
         }
 
@@ -157,9 +158,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final ApiKey apiKey1 = new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false,
-            "user-x", "realm-1");
+            "user-x", "realm-1", ApiKeyTests.randomMetadata());
         final ApiKey apiKey2 = new ApiKey("api-key-name-2", "api-key-id-2", creation, expiration, false,
-            "user-y", "realm-1");
+            "user-y", "realm-1", ApiKeyTests.randomMetadata());
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.type;
 
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.areCompatible;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.defaultPrecision;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
@@ -63,8 +65,8 @@ public class SqlDataTypesTests extends ESTestCase {
 
     public void testMetaMinimumScale() {
         assertNull(metaSqlMinimumScale(DATE));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(TIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
         assertNull(metaSqlMinimumScale(KEYWORD));
@@ -72,8 +74,8 @@ public class SqlDataTypesTests extends ESTestCase {
 
     public void testMetaMaximumScale() {
         assertNull(metaSqlMinimumScale(DATE));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATETIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(TIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMaximumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMaximumScale(LONG));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
         assertNull(metaSqlMaximumScale(KEYWORD));
@@ -136,6 +138,27 @@ public class SqlDataTypesTests extends ESTestCase {
         assertNull(compatibleInterval(INTERVAL_YEAR, INTERVAL_DAY_TO_HOUR));
         assertNull(compatibleInterval(INTERVAL_HOUR, INTERVAL_MONTH));
         assertNull(compatibleInterval(INTERVAL_MINUTE_TO_SECOND, INTERVAL_MONTH));
+    }
+
+    public void testIntervalCompabitilityWithDateTimes() {
+        for (DataType intervalType : asList(INTERVAL_YEAR,
+            INTERVAL_MONTH,
+            INTERVAL_DAY,
+            INTERVAL_HOUR,
+            INTERVAL_MINUTE,
+            INTERVAL_SECOND,
+            INTERVAL_YEAR_TO_MONTH,
+            INTERVAL_DAY_TO_HOUR,
+            INTERVAL_DAY_TO_MINUTE,
+            INTERVAL_DAY_TO_SECOND,
+            INTERVAL_HOUR_TO_MINUTE,
+            INTERVAL_HOUR_TO_SECOND,
+            INTERVAL_MINUTE_TO_SECOND)) {
+            for (DataType dateTimeType: asList(DATE, DATETIME)) {
+                assertTrue(areCompatible(intervalType, dateTimeType));
+                assertTrue(areCompatible(dateTimeType, intervalType));
+            }
+        }
     }
 
     public void testEsToDataType() {

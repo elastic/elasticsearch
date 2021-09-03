@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.compress;
@@ -22,7 +11,7 @@ package org.elasticsearch.common.compress;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -222,9 +211,10 @@ public class DeflateCompressor implements Compressor {
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
         final Inflater inflater = inflaterRef.get();
-        inflater.reset();
         try (InflaterOutputStream ios = new InflaterOutputStream(buffer, inflater)) {
             bytesReference.slice(HEADER.length, bytesReference.length() - HEADER.length).writeTo(ios);
+        } finally {
+            inflater.reset();
         }
         final BytesReference res = buffer.copyBytes();
         buffer.reset();
@@ -238,11 +228,12 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference compress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
-        final Deflater deflater = deflaterRef.get();
-        deflater.reset();
         buffer.write(HEADER);
+        final Deflater deflater = deflaterRef.get();
         try (DeflaterOutputStream dos = new DeflaterOutputStream(buffer, deflater, true)) {
             bytesReference.writeTo(dos);
+        } finally {
+            deflater.reset();
         }
         final BytesReference res = buffer.copyBytes();
         buffer.reset();

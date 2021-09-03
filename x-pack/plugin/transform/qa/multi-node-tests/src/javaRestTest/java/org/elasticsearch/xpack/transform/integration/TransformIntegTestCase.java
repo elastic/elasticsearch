@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -25,6 +26,8 @@ import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformResponse;
 import org.elasticsearch.client.transform.GetTransformStatsRequest;
 import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.PreviewTransformRequest;
+import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.client.transform.PutTransformRequest;
 import org.elasticsearch.client.transform.StartTransformRequest;
 import org.elasticsearch.client.transform.StartTransformResponse;
@@ -33,7 +36,6 @@ import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
-import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -44,7 +46,7 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -55,7 +57,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
@@ -118,8 +120,16 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void cleanUpTransforms() throws IOException {
         for (TransformConfig config : transformConfigs.values()) {
-            stopTransform(config.getId());
-            deleteTransform(config.getId());
+            try {
+                stopTransform(config.getId());
+                deleteTransform(config.getId());
+            } catch (ElasticsearchStatusException ex) {
+                if (ex.status().equals(RestStatus.NOT_FOUND)) {
+                    logger.info("tried to cleanup already deleted transform [{}]", config.getId());
+                } else {
+                    throw ex;
+                }
+            }
         }
         transformConfigs.clear();
     }
@@ -199,6 +209,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         }
     }
 
+    protected PreviewTransformResponse previewTransform(TransformConfig config, RequestOptions options) throws IOException {
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform().previewTransform(new PreviewTransformRequest(config), options);
+        }
+    }
+
     protected GetTransformStatsResponse getTransformStats(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
@@ -266,37 +282,20 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return new AggregationConfig(aggregations);
     }
 
-    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations)
-        throws Exception {
-        return createPivotConfig(groups, aggregations, null);
-    }
-
-    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations, Integer size)
-        throws Exception {
-        PivotConfig.Builder builder = PivotConfig.builder()
+    protected PivotConfig createPivotConfig(
+        Map<String, SingleGroupSource> groups,
+        AggregatorFactories.Builder aggregations
+    ) throws Exception {
+        return PivotConfig.builder()
             .setGroups(createGroupConfig(groups))
             .setAggregationConfig(createAggConfig(aggregations))
-            .setMaxPageSearchSize(size);
-        return builder.build();
-    }
-
-    protected TransformConfig createTransformConfig(
-        String id,
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations,
-        String destinationIndex,
-        String... sourceIndices
-    ) throws Exception {
-        return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), null, sourceIndices);
+            .build();
     }
 
     protected TransformConfig.Builder createTransformConfigBuilder(
         String id,
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations,
         String destinationIndex,
         QueryBuilder queryBuilder,
-        SettingsConfig.Builder settingsBuilder,
         String... sourceIndices
     ) throws Exception {
         return TransformConfig.builder()
@@ -304,22 +303,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
             .setFrequency(TimeValue.timeValueSeconds(10))
-            .setPivotConfig(createPivotConfig(groups, aggregations))
-            .setSettings(settingsBuilder != null ? settingsBuilder.build() : null)
             .setDescription("Test transform config id: " + id);
-    }
-
-    protected TransformConfig createTransformConfig(
-        String id,
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations,
-        String destinationIndex,
-        QueryBuilder queryBuilder,
-        SettingsConfig.Builder settingsBuilder,
-        String... sourceIndices
-    ) throws Exception {
-        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, settingsBuilder, sourceIndices)
-            .build();
     }
 
     protected void bulkIndexDocs(BulkRequest request) throws Exception {
@@ -335,7 +319,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         }
     }
 
-    protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
+    protected void createReviewsIndex(String indexName,
+                                      int numDocs,
+                                      int numUsers,
+                                      Function<Integer, Integer> userIdProvider,
+                                      Function<Integer, String> dateStringProvider) throws Exception {
+        assert numUsers > 0;
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
 
             // create mapping
@@ -358,6 +347,20 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                         .startObject("stars")
                         .field("type", "integer")
                         .endObject()
+                        .startObject("regular_object")
+                        .field("type", "object")
+                        .endObject()
+                        .startObject("nested_object")
+                        .field("type", "nested")
+                        .endObject()
+                        .startObject("comment")
+                        .field("type", "text")
+                        .startObject("fields")
+                        .startObject("keyword")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endObject();
                 }
                 builder.endObject();
@@ -368,30 +371,34 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
             // create index
             BulkRequest bulk = new BulkRequest(indexName);
-            int day = 10;
             for (int i = 0; i < numDocs; i++) {
-                long user = i % 28;
-                int stars = (i + 20) % 5;
-                long business = (i + 100) % 50;
-                int hour = 10 + (i % 13);
-                int min = 10 + (i % 49);
-                int sec = 10 + (i % 49);
+                Integer user = userIdProvider.apply(i);
+                int stars = i % 5;
+                long business = i % 50;
+                String dateString = dateStringProvider.apply(i);
 
-                String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
-
-                StringBuilder sourceBuilder = new StringBuilder();
-                sourceBuilder.append("{\"user_id\":\"")
-                    .append("user_")
-                    .append(user)
-                    .append("\",\"count\":")
+                StringBuilder sourceBuilder = new StringBuilder().append("{");
+                if (user != null) {
+                    sourceBuilder
+                        .append("\"user_id\":\"")
+                        .append("user_")
+                        .append(user)
+                        .append("\",");
+                }
+                sourceBuilder
+                    .append("\"count\":")
                     .append(i)
                     .append(",\"business_id\":\"")
                     .append("business_")
                     .append(business)
                     .append("\",\"stars\":")
                     .append(stars)
+                    .append(",\"comment\":")
+                    .append("\"Great stuff, deserves " + stars + " stars\"")
+                    .append(",\"regular_object\":{\"foo\": 42}")
+                    .append(",\"nested_object\":{\"bar\": 43}")
                     .append(",\"timestamp\":\"")
-                    .append(date_string)
+                    .append(dateString)
                     .append("\"}");
                 bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
@@ -399,7 +406,6 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                     BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                     assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                     bulk = new BulkRequest(indexName);
-                    day = (day + 1) % 28;
                 }
             }
             BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);

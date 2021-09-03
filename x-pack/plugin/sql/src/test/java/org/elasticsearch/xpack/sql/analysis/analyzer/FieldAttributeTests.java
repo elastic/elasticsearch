@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -165,7 +167,7 @@ public class FieldAttributeTests extends ESTestCase {
     public void testStarExpansionExcludesObjectAndUnsupportedTypes() {
         LogicalPlan plan = plan("SELECT * FROM test");
         List<? extends NamedExpression> list = ((Project) plan).projections();
-        assertThat(list, hasSize(10));
+        assertThat(list, hasSize(12));
         List<String> names = Expressions.names(list);
         assertThat(names, not(hasItem("some")));
         assertThat(names, not(hasItem("some.dotted")));
@@ -298,6 +300,17 @@ public class FieldAttributeTests extends ESTestCase {
         VerificationException ex = expectThrows(VerificationException.class, () ->
             plan("SELECT LENGTH(CONCAT(missing, 'x')) + 1 AS missing FROM test WHERE missing = 0"));
         assertEquals("Found 1 problem\nline 1:22: Unknown column [missing]", ex.getMessage());
+    }
+
+    public void testExpandStarOnIndexWithoutColumns() {
+        EsIndex test = new EsIndex("test", Collections.emptyMap());
+        getIndexResult = IndexResolution.valid(test);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        LogicalPlan plan = plan("SELECT * FROM test");
+
+        assertThat(plan, instanceOf(Project.class));
+        assertTrue(((Project) plan).projections().isEmpty());
     }
 
 }

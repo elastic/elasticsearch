@@ -8,14 +8,14 @@ The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
 
 In order to properly handle multi-word synonyms this token filter
-creates a <<token-graphs,graph token stream>> during processing.  For more
+creates a <<token-graphs,graph token stream>> during processing. For more
 information on this topic and its various complexities, please read the
 http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's TokenStreams are actually graphs] blog post.
 
 ["NOTE",id="synonym-graph-index-note"]
 ===============================
 This token filter is designed to be used as part of a search analyzer
-only.  If you want to apply synonyms during indexing please use the
+only. If you want to apply synonyms during indexing please use the
 standard <<analysis-synonym-tokenfilter,synonym token filter>>.
 ===============================
 
@@ -179,13 +179,13 @@ as well.
 ==== Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter
-in a tokenizer chain to parse the entries in a synonym file.  So, for example, if a
+in a tokenizer chain to parse the entries in a synonym file. So, for example, if a
 synonym filter is placed after a stemmer, then the stemmer will also be applied
-to the synonym entries.  Because entries in the synonym map cannot have stacked
-positions, some token filters may cause issues here.  Token filters that produce
+to the synonym entries. Because entries in the synonym map cannot have stacked
+positions, some token filters may cause issues here. Token filters that produce
 multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
-token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
+token. Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
 
 If you need to build analyzers that include both multi-token filters and synonym

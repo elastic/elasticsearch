@@ -1,31 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntFunction;
+import java.util.stream.IntStream;
 
 
 /**
@@ -134,6 +127,10 @@ public class NGram implements PreProcessor {
         return custom;
     }
 
+    public List<String> outputFields() {
+        return allPossibleNGramOutputFeatureNames();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -150,6 +147,30 @@ public class NGram implements PreProcessor {
     @Override
     public int hashCode() {
         return Objects.hash(field, featurePrefix, start, length, custom, nGrams);
+    }
+
+    private String nGramFeature(int nGram, int pos) {
+        return featurePrefix
+            + "."
+            + nGram
+            + pos;
+    }
+
+    private List<String> allPossibleNGramOutputFeatureNames() {
+        int totalNgrams = 0;
+        for (int nGram : nGrams) {
+            totalNgrams += (length - (nGram - 1));
+        }
+        if (totalNgrams <= 0) {
+            return Collections.emptyList();
+        }
+        List<String> ngramOutputs = new ArrayList<>(totalNgrams);
+
+        for (int nGram : nGrams) {
+            IntFunction<String> func = i -> nGramFeature(nGram, i);
+            IntStream.range(0, (length - (nGram - 1))).mapToObj(func).forEach(ngramOutputs::add);
+        }
+        return ngramOutputs;
     }
 
     public static Builder builder(String field) {

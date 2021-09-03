@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
+import java.util.List;
+
 /**
  * A NLP processor that directly returns the PyTorch result
  * without any post-processing
@@ -27,7 +29,7 @@ public class PassThroughProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // nothing to validate
     }
 
@@ -42,6 +44,7 @@ public class PassThroughProcessor implements NlpTask.Processor {
     }
 
     private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
+        // TODO - process all results in the batch
+        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult()[0]);
     }
 }

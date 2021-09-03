@@ -63,7 +63,6 @@ public class ESLZ4CompressorTests extends ESTestCase {
             LZ4Compressor unForkedCompressor = LZ4Factory.safeInstance().fastCompressor();
             int compressedSize = unForkedCompressor.compress(uncompressed, unForkedCompressed);
             assertArrayEquals(compressed, unForkedCompressed);
-            System.err.println(uncompressed.length + " " + compressedSize);
 
             LZ4FastDecompressor decompressor = LZ4Factory.safeInstance().fastDecompressor();
             byte[] output = new byte[uncompressed.length];

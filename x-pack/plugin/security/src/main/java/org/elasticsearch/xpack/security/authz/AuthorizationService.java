@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,9 +27,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
@@ -82,7 +79,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -182,8 +178,27 @@ public class AuthorizationService {
     public void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
                           final ActionListener<Void> listener) {
 
-        if (isPreauthorizedChildAction(authentication, action, originalRequest)) {
-            authorize(authentication, action, originalRequest, listener, this::authorizeChildAction);
+        final String auditId;
+        try {
+            auditId = requireAuditId(authentication, action, originalRequest);
+        } catch (ElasticsearchSecurityException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        if (checkOperatorPrivileges(authentication, action, originalRequest, listener) == false) {
+            return;
+        }
+
+        // sometimes a request might be wrapped within another, which is the case for proxied
+        // requests and concrete shard requests
+        final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+        final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action);
+
+        // Detect cases where a child action can be authorized automatically because the parent was authorized
+        final AuthorizationEngine engine = getAuthorizationEngine(authentication);
+        if (shouldAuthorizeAsChildAction(engine, requestInfo)) {
+            authorizeChildAction(engine, requestInfo, auditId, listener);
             return;
         }
 
@@ -194,115 +209,66 @@ public class AuthorizationService {
          * previous parent action that ran under the same thread context (also on the same node).
          * When the returned {@code StoredContext} is closed, ALL the original headers are restored.
          */
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false,
-                ACTION_SCOPE_AUTHORIZATION_KEYS)) {
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false, ACTION_SCOPE_AUTHORIZATION_KEYS)) {
             // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
             // prior to doing any authorization lets set the originating action in the thread context
             // the originating action is the current action if no originating action has yet been set in the current thread context
             // if there is already an original action, that stays put (eg. the current action is a child action)
             putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
-            authorize(authentication, action, originalRequest, listener, this::authorizeStandaloneAction);
-        }
-    }
 
-    private void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
-                           final ActionListener<Void> listener,
-                           final TriConsumer<RequestInfo, String, ActionListener<Void>> actionAuthorization) {
-        String auditId;
-        try {
-            auditId = requireAuditId(authentication, action, originalRequest);
-        } catch (ElasticsearchSecurityException e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        // sometimes a request might be wrapped within another, which is the case for proxied
-        // requests and concrete shard requests
-        final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
-
-        if (checkOperatorPrivileges(authentication, action, originalRequest, listener) == false) {
-            return;
-        }
-
-        if (SystemUser.is(authentication.getUser())) {
-            // this never goes async so no need to wrap the listener
-            authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
-        } else {
-            final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action);
-            actionAuthorization.apply(requestInfo, auditId, listener);
+            if (SystemUser.is(authentication.getUser())) {
+                // this never goes async so no need to wrap the listener
+                authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
+            } else {
+                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(
+                        authorizationInfo -> {
+                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                        }, listener::onFailure), threadContext);
+                engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
+            }
         }
     }
 
     /**
      * @return {@code true} if this action is a child action of an already authorized action that is in the thread context
-     * <strong>and</strong> we can infer that this aciton is authorized from the parent action.
+     * <strong>and</strong> we can infer that this action is authorized from the parent action.
      */
-    private boolean isPreauthorizedChildAction(Authentication authentication, String action, TransportRequest request) {
-        if (isIndexAction(action) == false) {
-            // For now, we only treat index level actions as inheriting their parent authorization
+    private boolean shouldAuthorizeAsChildAction(AuthorizationEngine engine, RequestInfo requestInfo) {
+        if (SystemUser.is(requestInfo.getAuthentication().getUser())) {
+            // System user requests are already handled efficiently and never use an AuthorizationEngine
             return false;
         }
-        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action) || action.equals(TransportShardBulkAction.ACTION_NAME)) {
-            // These need special handling, so don't short circuit
+        if (isIndexAction(requestInfo.getAction()) == false) {
+            // We depend on there being an IndicesAccessControl, so only consult the engine for index actions
             return false;
         }
-        if (AuthorizationEngine.Util.isScrollRelatedAction(action) || AuthorizationEngine.Util.isAsyncRelatedAction(action)) {
-            // These need special handling, so don't short circuit
-            return false;
-        }
-        if (SystemUser.is(authentication.getUser())) {
-            // For now, don't short circuit system user
-            return false;
-        }
-        final String originalAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-        if (Strings.isNullOrEmpty(originalAction)) {
+
+        final String parentAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
+        if (Strings.isNullOrEmpty(parentAction)) {
             // No parent action
             return false;
         }
-        if (action.startsWith(originalAction) == false) {
-            // Parent action is not a true parent
-            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
-            // or similar (e.g. search phases) as children, but not every action that is triggered
-            // within another action should be authorized this way
-            return false;
-        }
-        final IndicesRequest indicesRequest;
-        if (request instanceof IndicesRequest) {
-            indicesRequest = (IndicesRequest) request;
-        } else {
-            // Can only handle indices request here
-            return false;
-        }
 
-        final String[] indices = indicesRequest.indices();
-        if (indices == null || indices.length == 0) {
-            // No indices to check
-            return false;
-        }
-
-        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-        if (indicesAccessControl == null) {
+        final IndicesAccessControl parentAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        if (parentAccessControl == null) {
             // This is almost certainly an error, but leave it to be handled later
             return false;
         }
 
-        if (Arrays.stream(indices).allMatch(idx -> {
-            if (Regex.isSimpleMatchPattern(idx)) {
-                // The request contains a wildcard
-                return false;
-            }
-            IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
-            // The parent context has already successfully authorized access to this index (by name)
-            return iac != null && iac.isGranted();
-        })) {
-            logger.trace("Short circuit authorization child action [{}] (child of [{}]) on indices [{}]", action, originalAction, indices);
+        if (engine.isChildActionAuthorizedByParent(requestInfo, parentAction, parentAccessControl)) {
+            logger.trace(
+                "Automatically authorizing child action [{}] (child of [{}]) with request [{}]",
+                requestInfo.getAction(),
+                parentAction,
+                requestInfo.getRequest()
+            );
             return true;
-        } else {
-            return false;
         }
+        return false;
     }
 
-    private void authorizeChildAction(RequestInfo requestInfo, String auditId, ActionListener<Void> listener) {
+    private void authorizeChildAction(AuthorizationEngine engine, RequestInfo requestInfo, String auditId, ActionListener<Void> listener) {
         AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
         if (authorizationInfo == null) {
             listener.onFailure(
@@ -317,7 +283,6 @@ public class AuthorizationService {
             return;
         }
         if (isIndexAction(requestInfo.getAction())) {
-            final AuthorizationEngine engine = getAuthorizationEngine(requestInfo.getAuthentication());
             new AuthorizationResultListener<>(
                 ignore -> runRequestInterceptors(requestInfo, authorizationInfo, engine, listener),
                 listener::onFailure,
@@ -327,14 +292,6 @@ public class AuthorizationService {
         } else {
             listener.onFailure(internalError("Only index actions can be authorized as child action"));
         }
-    }
-
-    private void authorizeStandaloneAction(RequestInfo requestInfo, String auditId, ActionListener<Void> listener) {
-        final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
-            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-        }, listener::onFailure), threadContext);
-        getAuthorizationEngine(requestInfo.getAuthentication()).resolveAuthorizationInfo(requestInfo, authzInfoListener);
     }
 
     private String requireAuditId(Authentication authentication, String action, TransportRequest originalRequest) {

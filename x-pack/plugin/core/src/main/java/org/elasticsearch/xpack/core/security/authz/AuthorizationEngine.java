@@ -8,17 +8,10 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ClearScrollAction;
-import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
-import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
-import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -27,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -89,26 +81,6 @@ import java.util.Set;
  */
 public interface AuthorizationEngine {
 
-    class Util {
-        public static boolean isScrollRelatedAction(String action) {
-            return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
-                action.equals(ClearScrollAction.NAME) ||
-                action.equals("indices:data/read/sql/close_cursor") ||
-                action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-        }
-
-        public static boolean isAsyncRelatedAction(String action) {
-            return action.equals(SubmitAsyncSearchAction.NAME) ||
-                action.equals(GetAsyncSearchAction.NAME) ||
-                action.equals(DeleteAsyncResultAction.NAME) ||
-                action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
-                action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
-        }
-    }
     /**
      * Asynchronously resolves any necessary information to authorize the given user(s). This could
      * include retrieval of permissions from an index or external system.
@@ -119,6 +91,16 @@ public interface AuthorizationEngine {
      *                 or failure using {@link ActionListener#onFailure(Exception)}
      */
     void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener);
+
+    /**
+     * Determine whether to treat the action specified in the {@link RequestInfo} parameter as an implicitly authorized child of
+     * the {@code parentAction} (with the given {@link IndicesAccessControl}).
+     * If this returns {@code true} no other methods in the engine will be called for this request, the action will be automatically
+     * authorized (and will be audited if auditing is enabled).
+     */
+    default boolean isChildActionAuthorizedByParent(RequestInfo request, String parentAction, IndicesAccessControl parentAccessControl) {
+        return false;
+    }
 
     /**
      * Asynchronously authorizes an attempt for a user to run as another user.

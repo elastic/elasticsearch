@@ -18,22 +18,29 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
+import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
@@ -64,10 +71,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -124,6 +133,50 @@ public class RBACEngine implements AuthorizationEngine {
 
     private void getRoles(User user, Authentication authentication, ActionListener<Role> listener) {
         rolesStore.getRoles(user, authentication, listener);
+    }
+
+    @Override
+    public boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, String parentAction, IndicesAccessControl parentAccessControl) {
+        final String childAction = requestInfo.getAction();
+        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(childAction) || childAction.equals(TransportShardBulkAction.ACTION_NAME)) {
+            // These need special handling, so don't short circuit
+            return false;
+        }
+        if (isScrollRelatedAction(childAction) || isAsyncRelatedAction(childAction)) {
+            // These need special handling, so don't short circuit
+            return false;
+        }
+        if (childAction.startsWith(parentAction) == false) {
+            // Parent action is not a true parent
+            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
+            // or similar (e.g. search phases) as children, but not every action that is triggered
+            // within another action should be authorized this way
+            return false;
+        }
+        final IndicesRequest indicesRequest;
+        if (requestInfo.getRequest() instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) requestInfo.getRequest();
+        } else {
+            // Can only handle indices request here
+            return false;
+        }
+
+        final String[] indices = indicesRequest.indices();
+        if (indices == null || indices.length == 0) {
+            // No indices to check
+            return false;
+        }
+
+
+        return Arrays.stream(indices).allMatch(idx -> {
+            if (Regex.isSimpleMatchPattern(idx)) {
+                // The request contains a wildcard
+                return false;
+            }
+            IndicesAccessControl.IndexAccessControl iac = parentAccessControl.getIndexPermissions(idx);
+            // The parent context has already successfully authorized access to this index (by name)
+            return iac != null && iac.isGranted();
+        });
     }
 
     @Override
@@ -245,7 +298,7 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(e);
             }
         } else if (request instanceof IndicesRequest == false) {
-            if (Util.isScrollRelatedAction(action)) {
+            if (isScrollRelatedAction(action)) {
                 // scroll is special
                 // some APIs are indices requests that are not actually associated with indices. For example,
                 // search scroll request, is categorized under the indices context, but doesn't hold indices names
@@ -282,7 +335,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the originating search request are attached to the thread context upon validating the scroll.
                     listener.onResponse(new IndexAuthorizationResult(true, null));
                 }
-            } else if (Util.isAsyncRelatedAction(action)) {
+            } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
@@ -615,4 +668,22 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    private static boolean isScrollRelatedAction(String action) {
+        return action.equals(SearchScrollAction.NAME) ||
+            action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
+            action.equals(ClearScrollAction.NAME) ||
+            action.equals("indices:data/read/sql/close_cursor") ||
+            action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+    }
+
+    private static boolean isAsyncRelatedAction(String action) {
+        return action.equals(SubmitAsyncSearchAction.NAME) ||
+            action.equals(GetAsyncSearchAction.NAME) ||
+            action.equals(DeleteAsyncResultAction.NAME) ||
+            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
+            action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
 }

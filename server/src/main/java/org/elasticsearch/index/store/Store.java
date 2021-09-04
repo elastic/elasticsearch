@@ -388,6 +388,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     @Override
+    public final boolean hasReferences() {
+        return refCounter.hasReferences();
+    }
+
+    @Override
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!

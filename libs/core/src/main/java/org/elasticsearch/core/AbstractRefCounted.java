@@ -58,6 +58,11 @@ public abstract class AbstractRefCounted implements RefCounted {
         return false;
     }
 
+    @Override
+    public boolean hasReferences() {
+        return refCount.get() > 0;
+    }
+
     /**
      * Called whenever the ref count is incremented or decremented. Can be overridden to record access to the instance for debugging
      * purposes.

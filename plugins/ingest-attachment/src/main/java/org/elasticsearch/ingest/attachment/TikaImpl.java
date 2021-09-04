@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
+import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
@@ -24,6 +25,7 @@ import org.elasticsearch.jdk.JavaVersion;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.URISyntaxException;
@@ -109,6 +111,13 @@ final class TikaImpl {
                 throw new AssertionError(cause);
             }
         }
+    }
+
+    /**
+     * detects media type with tika, throwing any exception hit while parsing the document
+     */
+    static String detect(InputStream inputStream) throws IOException {
+        return TIKA_INSTANCE.detect(TikaInputStream.get(inputStream));
     }
 
     // apply additional containment for parsers, this is intersected with the current permissions

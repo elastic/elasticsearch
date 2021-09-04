@@ -65,6 +65,15 @@ dependencies {
   api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency
   api 'com.zaxxer:SparseBitSet:1.2'
+
+  api files("thumbnails4j/thumbnails4j-xlsx-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-xls-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-pptx-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-pdf-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-image-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-docx-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-doc-1.0.0-SNAPSHOT.jar")
+  api files("thumbnails4j/thumbnails4j-core-1.0.0-SNAPSHOT.jar")
 }
 
 restResources {

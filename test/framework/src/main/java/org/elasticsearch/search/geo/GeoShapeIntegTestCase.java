@@ -463,6 +463,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertHitCount(result, 1);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77174")
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
         Version version = VersionUtils.randomIndexCompatibleVersion(random());

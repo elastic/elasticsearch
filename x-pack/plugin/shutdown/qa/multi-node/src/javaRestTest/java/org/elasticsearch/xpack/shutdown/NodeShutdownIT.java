@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -37,21 +40,25 @@ import static org.hamcrest.Matchers.nullValue;
 public class NodeShutdownIT extends ESRestTestCase {
 
     public void testRestartCRUD() throws Exception {
-        checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue());
+        checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);
     }
 
     public void testRemoveCRUD() throws Exception {
-        checkCRUD(randomFrom("remove", "REMOVE"), null);
+        checkCRUD(randomFrom("remove", "REMOVE"), null, null);
+    }
+
+    public void testReplaceCRUD() throws Exception {
+        checkCRUD(randomFrom("replace", "REPLACE"), null, randomAlphaOfLength(10));
     }
 
     @SuppressWarnings("unchecked")
-    public void checkCRUD(String type, String allocationDelay) throws Exception {
+    public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName) throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
 
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
-        putNodeShutdown(nodeIdToShutdown, type, allocationDelay);
+        putNodeShutdown(nodeIdToShutdown, type, allocationDelay, targetNodeName);
 
         // Ensure we can read it back
         {
@@ -63,6 +70,7 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat((String) nodesArray.get(0).get("type"), equalToIgnoringCase(type));
             assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
             assertThat(nodesArray.get(0).get("allocation_delay"), equalTo(allocationDelay));
+            assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
         }
 
         // Delete it and make sure it's deleted
@@ -364,22 +372,71 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     private void putNodeShutdown(String nodeIdToShutdown, String type) throws IOException {
-        putNodeShutdown(nodeIdToShutdown, type, null);
+        putNodeShutdown(nodeIdToShutdown, type, null, null);
     }
 
-    private void putNodeShutdown(String nodeIdToShutdown, String type, @Nullable String allocationDelay) throws IOException {
+    private void putNodeShutdown(String nodeIdToShutdown, String type, @Nullable String allocationDelay, @Nullable String targetNodeName)
+        throws IOException {
         String reason = this.getTestName();
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        if (type.equalsIgnoreCase("restart") && allocationDelay != null) {
-            putShutdown.setJsonEntity(
-                "{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\", \"allocation_delay\": \"" + allocationDelay + "\"}"
-            );
 
+        try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+            putBody.startObject();
+            {
+                putBody.field("type", type);
+                putBody.field("reason", reason);
+                if (allocationDelay != null) {
+                    assertThat("allocation delay parameter is only valid for RESTART-type shutdowns", type, equalToIgnoringCase("restart"));
+                    putBody.field("allocation_delay", allocationDelay);
+                }
+                if (targetNodeName != null) {
+                    assertThat(
+                        "target node name parameter is only valid for REPLACE-type shutdowns",
+                        type,
+                        equalToIgnoringCase("replace")
+                    );
+                    putBody.field("target_node_name", targetNodeName);
+                } else {
+                    assertThat("target node name is required for REPALCE-type shutdowns", type, not(equalToIgnoringCase("replace")));
+                }
+            }
+            putBody.endObject();
+            putShutdown.setJsonEntity(Strings.toString(putBody));
+        }
+
+        if (type.equalsIgnoreCase("restart") && allocationDelay != null) {
+            assertNull("target node name parameter is only valid for REPLACE-type shutdowns", targetNodeName);
+            try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+                putBody.startObject();
+                {
+                    putBody.field("type", type);
+                    putBody.field("reason", reason);
+                    putBody.field("allocation_delay", allocationDelay);
+                }
+                putBody.endObject();
+                putShutdown.setJsonEntity(Strings.toString(putBody));
+            }
         } else {
             assertNull("allocation delay parameter is only valid for RESTART-type shutdowns", allocationDelay);
-            putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
+            try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+                putBody.startObject();
+                {
+                    putBody.field("type", type);
+                    putBody.field("reason", reason);
+                    if (targetNodeName != null) {
+                        assertThat(
+                            "target node name parameter is only valid for REPLACE-type shutdowns",
+                            type,
+                            equalToIgnoringCase("replace")
+                        );
+                        putBody.field("target_node_name", targetNodeName);
+                    }
+                }
+                putBody.endObject();
+                putShutdown.setJsonEntity(Strings.toString(putBody));
+            }
         }
         assertOK(client().performRequest(putShutdown));
     }

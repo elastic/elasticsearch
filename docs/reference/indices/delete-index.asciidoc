@@ -4,7 +4,10 @@
 <titleabbrev>Delete index</titleabbrev>
 ++++
 
-Deletes an existing index.
+TIP: Deleting an index deletes it and its sub-children (e.g. shards, documents). It does 
+not delete related objects like index patterns, Kibana visualizations/dashboards.
+
+Deletes an existing index or multiple indices via wildcard.
 
 [source,console]
 --------------------------------------------------
@@ -12,6 +15,10 @@ DELETE /my-index-000001
 --------------------------------------------------
 // TEST[setup:my_index]
 
+[source,console]
+--------------------------------------------------
+DELETE /my-index-00000*
+--------------------------------------------------
 
 [[delete-index-api-request]]
 ==== {api-request-title}

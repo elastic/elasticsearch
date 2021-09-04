@@ -219,8 +219,13 @@ PUT my-index-000001/_settings
 [[fix-an-oversharded-cluster]]
 === Fix an oversharded cluster
 
-If your cluster is experiencing stability issues due to oversharded indices,
+If your cluster is experiencing the following error or stability issues due to oversharded indices,
 you can use one or more of the following methods to fix them.
+
+[source,txt]
+----
+Validation Failed: 1: this action would add [#] total shards, but this cluster currently has [#]/[#] maximum shards open;
+----
 
 [discrete]
 [[create-indices-that-cover-longer-time-periods]]
@@ -314,3 +319,14 @@ POST _reindex
   }
 }
 ----
+
+[discrete]
+[[more-info]]
+==== Additional Resources
+
+- https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing
+- https://www.elastic.co/blog/how-many-shards-should-i-have-in-my-elasticsearch-cluster
+- https://www.slideshare.net/dadoonet/managing-your-black-friday-logs-cloudconfit-93309899
+- https://www.youtube.com/watch?v=ilP7tG6tabI
+- https://www.elastic.co/webinars/using-rally-to-get-your-elasticsearch-cluster-size-right
+

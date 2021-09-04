@@ -129,20 +129,20 @@ public class MapsTests extends ESTestCase {
     }
 
     public void testCollectToUnmodifiableSortedMap() {
-        SortedMap<String, String> canadianProvinces = Stream.of(new Tuple<>("ON", "Ontario"),
+        SortedMap<String, String> canadianProvinces = Stream.of(
+                new Tuple<>("ON", "Ontario"),
                 new Tuple<>("QC", "Quebec"),
                 new Tuple<>("NS", "Nova Scotia"),
                 new Tuple<>("NB", "New Brunswick"),
                 new Tuple<>("MB", "Manitoba"))
             .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
 
-        assertThat(canadianProvinces, equalTo(new TreeMap<>(Maps.ofEntries(
-            Stream.of(entry("ON", "Ontario"),
-                    entry("QC", "Quebec"),
-                    entry("NS", "Nova Scotia"),
-                    entry("NB", "New Brunswick"),
-                    entry("MB", "Manitoba"))
-                .collect(Collectors.toList())
+        assertThat(canadianProvinces, equalTo(new TreeMap<>(Maps.ofEntries(List.of(
+            entry("ON", "Ontario"),
+            entry("QC", "Quebec"),
+            entry("NS", "Nova Scotia"),
+            entry("NB", "New Brunswick"),
+            entry("MB", "Manitoba"))
         ))));
         expectThrows(UnsupportedOperationException.class, () -> canadianProvinces.put("BC", "British Columbia"));
     }

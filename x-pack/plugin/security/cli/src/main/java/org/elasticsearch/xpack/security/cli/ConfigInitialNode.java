@@ -173,7 +173,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             }
         } catch (Exception e) {
             try {
-                FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
+                deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
@@ -190,7 +190,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         // provided that they both have the same owner and permissions.
         final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
         if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
-            FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
+            deleteDirectory(instantAutoConfigDir);
             // the following is only printed once, if the node starts successfully
             throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because of config dir ownership mismatch");
         }
@@ -223,7 +223,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 }
             });
         } catch (Exception e) {
-            FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
+            deleteDirectory(instantAutoConfigDir);
             // this is an error which mustn't be ignored during node startup
             // the exit code for unhandled Exceptions is "1"
             throw e;
@@ -237,7 +237,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
             } catch (Exception e) {
                 try {
-                    FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
+                    deleteDirectory(instantAutoConfigDir);
                 } catch (Exception ex) {
                     e.addSuppressed(ex);
                 }
@@ -304,7 +304,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 e.addSuppressed(ex);
             }
             try {
-                FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
+                deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
@@ -421,7 +421,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 e.addSuppressed(ex);
             }
             try {
-                FileUtils.deleteDirectory(instantAutoConfigDir.toFile());
+                deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
@@ -430,6 +430,11 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
         assert isInitialNodeAutoConfigured(env);
+    }
+
+    @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")
+    private void deleteDirectory(Path directory) throws IOException {
+        FileUtils.deleteDirectory(directory.toFile());
     }
 
     @SuppressForbidden(reason = "DNS resolve InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")

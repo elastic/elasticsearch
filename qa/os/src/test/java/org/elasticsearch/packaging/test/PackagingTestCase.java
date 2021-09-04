@@ -366,7 +366,16 @@ public abstract class PackagingTestCase extends Assert {
      * @throws Exception if Elasticsearch can't start
      */
     public void startElasticsearch() throws Exception {
-        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+        try {
+            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+        } catch (Exception e) {
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("Dumping jstack of elasticsearch process ({}) that failed to start", pid);
+                sh.runIgnoreExitCode("jstack " + pid);
+            }
+            throw e;
+        }
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {

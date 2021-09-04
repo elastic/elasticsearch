@@ -85,11 +85,13 @@ public class ServerUtils {
         }
 
         if (securityEnabled) {
+            logger.info("Waiting for elasticsearch WITH Security enabled");
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests
             waitForXpack(installation);
         } else {
+            logger.info("Waiting for elasticsearch WITHOUT Security enabled");
             waitForElasticsearch("green", null, installation, null, null);
         }
     }
@@ -141,7 +143,7 @@ public class ServerUtils {
         return executor.execute(request).returnResponse();
     }
 
-    // polls every second for Elasticsearch to be running on 9200
+    // polls every two seconds for Elasticsearch to be running on 9200
     private static void waitForXpack(Installation installation) {
         int retries = 60;
         while (retries > 0) {
@@ -152,7 +154,7 @@ public class ServerUtils {
                 // ignore, only want to establish a connection
             }
             try {
-                Thread.sleep(1000);
+                Thread.sleep(2000);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 return;

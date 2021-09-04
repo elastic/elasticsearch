@@ -118,16 +118,7 @@ public class ArchiveTests extends PackagingTestCase {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
-        try {
-            startElasticsearch();
-        } catch (Exception e) {
-            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
-                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch process ({}) that failed to start", pid);
-                sh.runIgnoreExitCode("jstack " + pid);
-            }
-            throw e;
-        }
+        startElasticsearch();
 
         assertThat(installation.logs.resolve("gc.log"), fileExists());
         ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));

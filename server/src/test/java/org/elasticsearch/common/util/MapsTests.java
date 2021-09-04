@@ -12,7 +12,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -138,11 +137,11 @@ public class MapsTests extends ESTestCase {
             .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
 
         assertThat(canadianProvinces, equalTo(new TreeMap<>(Maps.ofEntries(
-            Stream.of(new AbstractMap.SimpleEntry<>("ON", "Ontario"),
-                    new AbstractMap.SimpleEntry<>("QC", "Quebec"),
-                    new AbstractMap.SimpleEntry<>("NS", "Nova Scotia"),
-                    new AbstractMap.SimpleEntry<>("NB", "New Brunswick"),
-                    new AbstractMap.SimpleEntry<>("MB", "Manitoba"))
+            Stream.of(entry("ON", "Ontario"),
+                    entry("QC", "Quebec"),
+                    entry("NS", "Nova Scotia"),
+                    entry("NB", "New Brunswick"),
+                    entry("MB", "Manitoba"))
                 .collect(Collectors.toList())
         ))));
         expectThrows(UnsupportedOperationException.class, () -> canadianProvinces.put("BC", "British Columbia"));

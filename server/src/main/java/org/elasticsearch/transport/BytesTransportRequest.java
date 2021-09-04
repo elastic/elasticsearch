@@ -74,4 +74,9 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     public boolean decRef() {
         return bytes.decRef();
     }
+
+    @Override
+    public boolean hasReferences() {
+        return bytes.hasReferences();
+    }
 }

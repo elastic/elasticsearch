@@ -95,7 +95,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                           DiscoveryNode sourceNode,
                           SnapshotFilesProvider snapshotFilesProvider,
                           PeerRecoveryTargetService.RecoveryListener listener) {
-        super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;

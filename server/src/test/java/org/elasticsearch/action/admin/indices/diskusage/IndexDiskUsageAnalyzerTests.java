@@ -520,15 +520,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             assertFieldStats(field, "doc values",
                 actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
             assertFieldStats(field, "inverted index",
-                actualField.getInvertedIndexBytes(), expectedField.getInvertedIndexBytes(), 0.01, 1024);
+                actualField.getInvertedIndexBytes(), expectedField.getInvertedIndexBytes(), 0.01, 2048);
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();
         IndexDiskUsageStats.PerFieldDiskUsage expectedTotal = perFieldStats.total();
-        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.01, 1024);
-        assertFieldStats("total", "points", actualTotal.getPointsBytes(), expectedTotal.getPointsBytes(), 0.01, 1024);
-        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.01, 1024);
-        assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.01, 1024);
+        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.01, 2048);
+        assertFieldStats("total", "points", actualTotal.getPointsBytes(), expectedTotal.getPointsBytes(), 0.01, 2048);
+        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.01, 2048);
+        assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.01, 2048);
     }
 
     private static void assertFieldStats(String fieldName, String fieldType,

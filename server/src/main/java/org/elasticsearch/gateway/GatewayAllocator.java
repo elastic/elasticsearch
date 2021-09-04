@@ -121,7 +121,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
         assert replicaShardAllocator != null;
-        if (allocation.routingNodes().hasInactiveShards()) {
+        if (allocation.routingNodes().hasInactiveReplicas()) {
             // cancel existing recoveries if we have a better match
             replicaShardAllocator.processExistingRecoveries(allocation);
         }

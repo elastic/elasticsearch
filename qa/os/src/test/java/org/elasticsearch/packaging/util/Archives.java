@@ -238,6 +238,7 @@ public class Archives {
         if (daemonize) {
             command.add("-d");
         }
+        command.add("-v"); // verbose auto-configuration
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
@@ -289,6 +290,7 @@ public class Archives {
             if (daemonize) {
                 command.add("-d");
             }
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(pidFile.toString());
             if (keystorePassword != null) {

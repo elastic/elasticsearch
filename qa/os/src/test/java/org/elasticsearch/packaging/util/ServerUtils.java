@@ -88,7 +88,7 @@ public class ServerUtils {
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests
-            waitForXpack();
+            waitForXpack(installation);
         } else {
             waitForElasticsearch("green", null, installation, null, null);
         }
@@ -142,7 +142,7 @@ public class ServerUtils {
     }
 
     // polls every second for Elasticsearch to be running on 9200
-    private static void waitForXpack() {
+    private static void waitForXpack(Installation installation) {
         int retries = 60;
         while (retries > 0) {
             retries -= 1;
@@ -158,6 +158,10 @@ public class ServerUtils {
                 return;
             }
         }
+        if (installation != null) {
+            FileUtils.logAllLogs(installation.logs, logger);
+        }
+
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }
 

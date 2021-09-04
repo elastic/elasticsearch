@@ -123,6 +123,17 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+[[install-rhel-security]]
+==== Override Red Hat TMP if Security Compliance
+
+If you are applying a security compliance in your RHEL installation 
+you must change the path of the TMP directory that will use elasticsearch as Java.
+
+1. Uncomment `-Djava.io.tmpdir=${ES_TMPDIR}` under `/etc/elasticsearch/jvm.options`
+2. Add `ES_TMPDIR=/usr/share/elasticsearch/tmp` under `/etc/sysconfig/elasticsearch`
+3. Create the /usr/share/elasticsearch/tmp directory and make sure that the owner and group are elasticsearch and the permissions are `0755`
+4. Lastly make sure that `/dev/shm` doesn't have the noexec attribute with command: `mount | grep tmpfs | grep '/dev/shm'`
+
 ifdef::include-xpack[]
 [role="xpack"]
 [[rpm-enable-indices]]

@@ -417,6 +417,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
     }
 
+    public String descriptionWithoutAttributes() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        appendDescriptionWithoutAttributes(stringBuilder);
+        return stringBuilder.toString();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId());

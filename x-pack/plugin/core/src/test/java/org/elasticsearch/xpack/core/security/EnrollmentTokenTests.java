@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.enrollment;
+package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.EnrollmentToken;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

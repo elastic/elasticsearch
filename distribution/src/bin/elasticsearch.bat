@@ -5,6 +5,7 @@ setlocal enableextensions
 
 SET params='%*'
 SET checkpassword=Y
+SET enrolltocluster=N
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
@@ -31,6 +32,11 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 	IF "!current!" == "--version" (
 		SET checkpassword=N
+	)
+
+	IF "!current!" == "--enrollment-token" (
+        SHIFT
+        SET enrollmenttoken=%~1
 	)
 
 	IF "!silent!" == "Y" (
@@ -67,6 +73,13 @@ IF "%checkpassword%"=="Y" (
     )
   )
 )
+
+set ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster
+set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
+set ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
+call "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
+  || goto exit
+
 
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a

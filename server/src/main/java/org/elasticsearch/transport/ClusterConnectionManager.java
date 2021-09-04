@@ -193,10 +193,23 @@ public class ClusterConnectionManager implements ConnectionManager {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
                                 conn.addCloseListener(ActionListener.wrap(() -> {
-                                    logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     connectedNodes.remove(node, conn);
                                     connectionListener.onNodeDisconnected(node, conn);
                                     conn.onRemoved();
+                                }));
+
+                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                    if (connectingRefCounter.hasReferences() == false) {
+                                        logger.trace("connection manager shut down, closing transport connection to [{}]", node);
+                                    } else if (conn.hasReferences()) {
+                                        logger.info("transport connection to [{}] closed by remote", node.descriptionWithoutAttributes());
+                                        // In production code we only close connections via ref-counting, so this message confirms that a
+                                        // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
+                                        // node leaves the cluster with "reason: disconnected" but without this message being logged then
+                                        // that's a bug.
+                                    } else {
+                                        logger.debug("closing unused transport connection to [{}]", node);
+                                    }
                                 }));
                             }
                         }

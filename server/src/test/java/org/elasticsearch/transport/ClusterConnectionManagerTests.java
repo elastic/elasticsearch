@@ -8,16 +8,23 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -35,8 +42,10 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -118,6 +127,69 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         assertEquals(0, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(1, nodeDisconnectedCount.get());
+    }
+
+    @TestLogging(reason="testing log messages emitted on disconnect", value="org.elasticsearch.transport.ClusterConnectionManager:TRACE")
+    public void testDisconnectLogging() throws IllegalAccessException {
+        final Supplier<DiscoveryNode> nodeFactory = () -> new DiscoveryNode(
+            randomAlphaOfLength(10),
+            new TransportAddress(InetAddress.getLoopbackAddress(), 0),
+            Collections.singletonMap("attr", "val"),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT);
+        final DiscoveryNode remoteClose = nodeFactory.get();
+        final DiscoveryNode localClose = nodeFactory.get();
+        final DiscoveryNode shutdownClose = nodeFactory.get();
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            final DiscoveryNode discoveryNode = (DiscoveryNode) invocationOnMock.getArguments()[0];
+            listener.onResponse(new TestConnect(discoveryNode));
+            return null;
+        }).when(transport).openConnection(any(), eq(connectionProfile), anyActionListener());
+
+        final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
+        final AtomicReference<Releasable> toClose = new AtomicReference<>();
+
+        PlainActionFuture.get(f -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, f.map(x -> null)));
+        PlainActionFuture.get(f -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, f.map(x -> null)));
+        PlainActionFuture.get(f -> connectionManager.connectToNode(localClose, connectionProfile, validator, f.map(toClose::getAndSet)));
+
+        final Releasable localConnectionRef = toClose.getAndSet(null);
+        assertThat(localConnectionRef, notNullValue());
+
+        final String loggerName = "org.elasticsearch.transport.ClusterConnectionManager";
+        final Logger logger = LogManager.getLogger(loggerName);
+        final MockLogAppender appender = new MockLogAppender();
+        try {
+            appender.start();
+            Loggers.addAppender(logger, appender);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "locally-triggered close message",
+                loggerName,
+                Level.DEBUG,
+                "closing unused transport connection to [" + localClose + "]"));
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "remotely-triggered close message",
+                loggerName,
+                Level.INFO,
+                "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"));
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "shutdown-triggered close message",
+                loggerName,
+                Level.TRACE,
+                "connection manager shut down, closing transport connection to [" + shutdownClose + "]"));
+
+            Releasables.close(localConnectionRef);
+            connectionManager.disconnectFromNode(remoteClose);
+            connectionManager.close();
+
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+        }
     }
 
     public void testConcurrentConnects() throws Exception {

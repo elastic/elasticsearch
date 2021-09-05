@@ -11,7 +11,7 @@ Example:
 
 [source,console]
 --------------------------------------------------
-GET /_search
+GET /sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -68,7 +68,7 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 
 [source,console]
 --------------------------------------------------
-GET /_search
+GET /sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -121,7 +121,7 @@ It is also possible to customize the key for each range:
 
 [source,console]
 --------------------------------------------------
-GET /_search
+GET /sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -178,7 +178,7 @@ apply a particular currency conversion rate:
 
 [source,console,id=range-aggregation-runtime-field-example]
 ----
-GET /_search
+GET /sales/_search
 {
   "runtime_mappings": {
     "price.euros": {
@@ -248,7 +248,7 @@ The following example, not only "bucket" the documents to the different buckets 
 
 [source,console]
 --------------------------------------------------
-GET /_search
+GET /sales/_search
 {
   "aggs": {
     "price_ranges": {

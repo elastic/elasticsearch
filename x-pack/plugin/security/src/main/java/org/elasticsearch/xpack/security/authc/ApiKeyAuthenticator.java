@@ -16,14 +16,14 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-public class ApiKeyAuthenticator implements Authenticator {
+class ApiKeyAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 
     private final ApiKeyService apiKeyService;
     private final String nodeName;
 
-    public ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName) {
+    ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName) {
         this.apiKeyService = apiKeyService;
         this.nodeName = nodeName;
     }

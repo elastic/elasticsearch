@@ -15,12 +15,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
-public class OAuth2TokenAuthenticator implements Authenticator {
+class OAuth2TokenAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(OAuth2TokenAuthenticator.class);
     private final TokenService tokenService;
 
-    public OAuth2TokenAuthenticator(TokenService tokenService) {
+    OAuth2TokenAuthenticator(TokenService tokenService) {
         this.tokenService = tokenService;
     }
 

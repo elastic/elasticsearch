@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 
-public class ServiceAccountAuthenticator implements Authenticator {
+class ServiceAccountAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountAuthenticator.class);
     private final ServiceAccountService serviceAccountService;
     private final String nodeName;
 
-    public ServiceAccountAuthenticator(ServiceAccountService serviceAccountService, String nodeName) {
+    ServiceAccountAuthenticator(ServiceAccountService serviceAccountService, String nodeName) {
         this.serviceAccountService = serviceAccountService;
         this.nodeName = nodeName;
     }

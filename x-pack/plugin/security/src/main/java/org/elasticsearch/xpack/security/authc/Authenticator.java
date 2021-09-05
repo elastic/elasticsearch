@@ -61,7 +61,7 @@ public interface Authenticator {
         private final ThreadContext threadContext;
         private final AuthenticationService.AuditableRequest request;
         private final User fallbackUser;
-        private final boolean fallbackToAnonymous;
+        private final boolean allowAnonymous;
         private final Realms realms;
         private final List<AuthenticationToken> authenticationTokens = new ArrayList<>();
         private final List<String> unsuccessfulMessages = new ArrayList<>();
@@ -74,13 +74,13 @@ public interface Authenticator {
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,
             User fallbackUser,
-            boolean fallbackToAnonymous,
+            boolean allowAnonymous,
             Realms realms
         ) {
             this.threadContext = threadContext;
             this.request = request;
             this.fallbackUser = fallbackUser;
-            this.fallbackToAnonymous = fallbackToAnonymous;
+            this.allowAnonymous = allowAnonymous;
             this.realms = realms;
         }
 
@@ -96,8 +96,8 @@ public interface Authenticator {
             return fallbackUser;
         }
 
-        public boolean shouldFallbackToAnonymous() {
-            return fallbackToAnonymous;
+        public boolean isAllowAnonymous() {
+            return allowAnonymous;
         }
 
         public void setHandleNullToken(boolean value) {

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -67,7 +66,6 @@ public class AuthenticationService {
     private final ThreadContext threadContext;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
-    private final boolean isAnonymousUserEnabled;
     private final AuthenticatorChain authenticatorChain;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
@@ -79,7 +77,6 @@ public class AuthenticationService {
         this.auditTrailService = auditTrailService;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
-        this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         if (SUCCESS_AUTH_CACHE_ENABLED.get(settings)) {
             this.lastSuccessfulAuthCache = CacheBuilder.<String, Realm>builder()
                 .setMaximumWeight(Integer.toUnsignedLong(SUCCESS_AUTH_CACHE_MAX_SIZE.get(settings)))
@@ -89,17 +86,17 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
 
-        authenticatorChain = new AuthenticatorChain(
-            Node.NODE_NAME_SETTING.get(settings),
-            AuthenticationServiceField.RUN_AS_ENABLED.get(settings),
-            serviceAccountService,
-            tokenService,
-            apiKeyService,
+        final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.authenticatorChain = new AuthenticatorChain(
+            settings,
             operatorPrivilegesService,
             anonymousUser,
-            numInvalidation,
-            lastSuccessfulAuthCache,
-            new AuthenticationContextSerializer());
+            new AuthenticationContextSerializer(),
+            new ServiceAccountAuthenticator(serviceAccountService, nodeName),
+            new OAuth2TokenAuthenticator(tokenService),
+            new ApiKeyAuthenticator(apiKeyService, nodeName),
+            new RealmsAuthenticator(nodeName, numInvalidation, lastSuccessfulAuthCache)
+        );
     }
 
     /**
@@ -123,14 +120,14 @@ public class AuthenticationService {
      * @param request The request to be authenticated
      * @param allowAnonymous If {@code false}, then authentication will <em>not</em> fallback to anonymous.
      *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
-     *                               configured to allow anonymous access (see {@link #isAnonymousUserEnabled}).
+     *                               configured to allow anonymous access.
      */
     public void authenticate(RestRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
             null,
-            shouldFallbackToAnonymous(allowAnonymous),
+            allowAnonymous,
             realms);
         authenticatorChain.authenticateAsync(context, authenticationListener);
     }
@@ -161,12 +158,12 @@ public class AuthenticationService {
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
      * the user and that user is then "attached" to the message's context.
      * If no user or credentials are found to be attached to the given message, and the caller allows anonymous access
-     * ({@code allowAnonymous} parameter), and this service is configured for anonymous access (see {@link #isAnonymousUserEnabled},
+     * ({@code allowAnonymous} parameter), and this service is configured for anonymous access,
      * then the anonymous user will be returned instead.
      * @param action       The action of the message
      * @param transportRequest      The request to be authenticated
      * @param allowAnonymous Whether to permit anonymous access for this request (this only relevant if the service is
- *                       {@link #isAnonymousUserEnabled configured for anonymous access}).
+     *                       configured for anonymous access).
      */
     public void authenticate(String action, TransportRequest transportRequest, boolean allowAnonymous,
                              ActionListener<Authentication> listener) {
@@ -174,7 +171,7 @@ public class AuthenticationService {
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
             null,
-            shouldFallbackToAnonymous(allowAnonymous),
+            allowAnonymous,
             realms);
         authenticatorChain.authenticateAsync(context, listener);
     }
@@ -192,7 +189,7 @@ public class AuthenticationService {
                 threadContext,
                 new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
                 null,
-                shouldFallbackToAnonymous(true),
+                true,
                 realms);
         context.addAuthenticationToken(token);
         authenticatorChain.authenticateAsyncWithExistingCredentials(context, listener);
@@ -225,31 +222,6 @@ public class AuthenticationService {
     // pkg private method for testing
     long getNumInvalidation() {
         return numInvalidation.get();
-    }
-
-    /**
-     * Determines whether to support anonymous access for the current request. Returns {@code true} if all of the following are true
-     * <ul>
-     *     <li>The service has anonymous authentication enabled (see {@link #isAnonymousUserEnabled})</li>
-     *     <li>Anonymous access is accepted for this request ({@code allowAnonymousOnThisRequest} parameter)
-     *     <li>The {@link ThreadContext} does not provide API Key or Bearer Token credentials. If these are present, we
-     *     treat the request as though it attempted to authenticate (even if that failed), and will not fall back to anonymous.</li>
-     * </ul>
-     */
-    boolean shouldFallbackToAnonymous(boolean allowAnonymousOnThisRequest) {
-        if (isAnonymousUserEnabled == false) {
-            return false;
-        }
-        if (allowAnonymousOnThisRequest == false) {
-            return false;
-        }
-        String header = threadContext.getHeader("Authorization");
-        if (Strings.hasText(header) &&
-            ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
-                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
-            return false;
-        }
-        return true;
     }
 
     abstract static class AuditableRequest {

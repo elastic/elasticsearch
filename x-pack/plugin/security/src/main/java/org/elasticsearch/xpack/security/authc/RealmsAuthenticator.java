@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
-public class RealmsAuthenticator implements Authenticator {
+class RealmsAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
@@ -44,7 +44,7 @@ public class RealmsAuthenticator implements Authenticator {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private boolean authenticationTokenExtracted = false;
 
-    public RealmsAuthenticator(
+    RealmsAuthenticator(
         String nodeName, AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.nodeName = nodeName;
         this.numInvalidation = numInvalidation;
@@ -67,6 +67,7 @@ public class RealmsAuthenticator implements Authenticator {
 
     @Override
     public boolean canFollowedByNullTokenHandler() {
+        // TODO: once a token is extracted by realms, we should no longer handle null token if no realm can authenticate the token
         return false == authenticationTokenExtracted;
     }
 

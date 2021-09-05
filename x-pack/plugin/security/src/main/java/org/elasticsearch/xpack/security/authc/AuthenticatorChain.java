@@ -13,28 +13,27 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public class AuthenticatorChain {
+class AuthenticatorChain {
 
     private static final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
 
@@ -42,59 +41,52 @@ public class AuthenticatorChain {
     private final boolean runAsEnabled;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final AnonymousUser anonymousUser;
+    private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
     private final List<Authenticator> existingCredentialsAuthenticators;
 
-    public AuthenticatorChain(
-        String nodeName,
-        boolean runAsEnabled,
-        ServiceAccountService serviceAccountService,
-        TokenService tokenService,
-        ApiKeyService apiKeyService,
+    AuthenticatorChain(
+        Settings settings,
         OperatorPrivilegesService operatorPrivilegesService,
         AnonymousUser anonymousUser,
-        AtomicLong numInvalidation,
-        Cache<String, Realm> lastSuccessfulAuthCache,
-        AuthenticationContextSerializer authenticationSerializer
+        AuthenticationContextSerializer authenticationSerializer,
+        ServiceAccountAuthenticator serviceAccountAuthenticator,
+        OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
+        ApiKeyAuthenticator apiKeyAuthenticator,
+        RealmsAuthenticator realmsAuthenticator
     ) {
-        this.nodeName = nodeName;
-        this.runAsEnabled = runAsEnabled;
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.anonymousUser = anonymousUser;
+        this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
-        realmsAuthenticator = new RealmsAuthenticator(nodeName, numInvalidation, lastSuccessfulAuthCache);
-        allAuthenticators = List.of(
-            new ServiceAccountAuthenticator(serviceAccountService, nodeName),
-            new OAuth2TokenAuthenticator(tokenService),
-            new ApiKeyAuthenticator(apiKeyService, nodeName),
-            realmsAuthenticator);
-        existingCredentialsAuthenticators = List.of(realmsAuthenticator);
+        this.realmsAuthenticator = realmsAuthenticator;
+        this.allAuthenticators = List.of(
+            serviceAccountAuthenticator,
+            oAuth2TokenAuthenticator,
+            apiKeyAuthenticator,
+            realmsAuthenticator
+        );
+        this.existingCredentialsAuthenticators = List.of(realmsAuthenticator);
     }
 
-    public void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
-        // TODO: wrap listener so it clears all authentication token from context
-        if (context.getDefaultOrderedRealmList().isEmpty()) {
-            // TODO: should we still try token and api key auth?
-            // this happens when the license state changes between the call to authenticate and the actual invocation
-            // to get the realm list
-            logger.debug("No realms available, failing authentication");
-            listener.onResponse(null);
+    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
+        assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
+        final Authentication authentication;
+        try {
+            authentication = lookForExistingAuthentication(context);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (authentication != null) {
+            logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
+            listener.onResponse(authentication);
         } else {
-            final Authentication authentication;
-            try {
-                authentication = lookForExistingAuthentication(context);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            if (authentication != null) {
-                logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
-                listener.onResponse(authentication);
-            } else {
-                doAuthenticate(context, allAuthenticators, true, listener);
-            }
+            doAuthenticate(context, allAuthenticators, true, ActionListener.runBefore(listener, context::close));
         }
     }
 
@@ -104,7 +96,7 @@ public class AuthenticatorChain {
      * This method currently uses a shorter chain to match existing behaviour. But there is no reason
      * why this could not use the same chain.
      */
-    public void authenticateAsyncWithExistingCredentials(
+    void authenticateAsyncWithExistingCredentials(
         Authenticator.Context context,
         ActionListener<Authentication> listener) {
         assert context.getAuthenticationToken() != null : "existing authentication token must not be null";
@@ -275,7 +267,7 @@ public class AuthenticatorChain {
                 Version.CURRENT,
                 Authentication.AuthenticationType.INTERNAL,
                 Collections.emptyMap());
-        } else if (context.shouldFallbackToAnonymous()) {
+        } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
                 "No valid credentials found in request [{}], using anonymous [{}]",
                 context.getRequest(),
@@ -317,10 +309,7 @@ public class AuthenticatorChain {
      * Finishes the authentication process by ensuring the returned user is enabled and that the run as user is enabled if there is
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
-    void finishAuthentication(
-        Authenticator.Context context,
-        Authentication authentication,
-        ActionListener<Authentication> listener) {
+    void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
             logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
@@ -358,5 +347,30 @@ public class AuthenticatorChain {
         if (false == context.getUnsuccessfulMessages().isEmpty()) {
             ese.addMetadata("es.additional_unsuccessful_credentials", context.getUnsuccessfulMessages());
         }
+    }
+
+    /**
+     * Determines whether to support anonymous access for the current request. Returns {@code true} if all of the following are true
+     * <ul>
+     *     <li>The service has anonymous authentication enabled (see {@link #isAnonymousUserEnabled})</li>
+     *     <li>Anonymous access is accepted for this request ({@code allowAnonymousOnThisRequest} parameter)
+     *     <li>The {@link ThreadContext} does not provide API Key or Bearer Token credentials. If these are present, we
+     *     treat the request as though it attempted to authenticate (even if that failed), and will not fall back to anonymous.</li>
+     * </ul>
+     */
+    private boolean shouldFallbackToAnonymous(Authenticator.Context context) {
+        if (isAnonymousUserEnabled == false) {
+            return false;
+        }
+        if (context.isAllowAnonymous() == false) {
+            return false;
+        }
+        String header = context.getThreadContext().getHeader("Authorization");
+        if (Strings.hasText(header) &&
+            ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
+                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+            return false;
+        }
+        return true;
     }
 }

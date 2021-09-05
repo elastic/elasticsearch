@@ -19,7 +19,7 @@ CHECK_KEYSTORE=true
 DAEMONIZE=false
 ENROLL_TO_CLUSTER=false
 # Store original arg array as we will be shifting through it below
-ARG_LIST=$@
+ARG_LIST=($@)
 while [ $# -gt 0 ]; do
    if [[ $1 == "--enrollment-token" ]]; then
      ENROLL_TO_CLUSTER=true
@@ -79,7 +79,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$ARG_LIST" <<<"$KEYSTORE_PASSWORD"
+    "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
     "$JAVA" \
@@ -92,7 +92,7 @@ else
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$ARG_LIST" \
+    "${ARG_LIST[@]}" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?
   pid=$!

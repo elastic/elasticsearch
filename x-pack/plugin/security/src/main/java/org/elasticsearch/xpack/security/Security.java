@@ -688,18 +688,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                         }
                     )
                 );
-//            try {
-//                final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(envReference.get());
-//                final EnrollmentToken enrollmentToken =
-//                    enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, elasticPassword);
-//                sb.append("Enrollment Token for Kibana: ");
-//                sb.append(enrollmentToken.getEncoded());
-//                sb.append("\n");
-//            } catch (Exception e) {
-//                logger.warn("Failed to generate an enrollment token for Kibana. You can run " +
-//                    "bin/elasticsearch-create-enrollment-token -s kibana to get an enrollment token.", e);
-//            }
-
         }
     }
 

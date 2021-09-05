@@ -1,5 +1,5 @@
 pr: 77292
 summary: Enroll additional nodes to cluster
-area: "Infra/CLI, Security, Packaging"
+area: "Security"
 type: enhancement
 issues: []

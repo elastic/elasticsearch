@@ -18,22 +18,18 @@ source "`dirname "$0"`"/elasticsearch-env
 CHECK_KEYSTORE=true
 DAEMONIZE=false
 ENROLL_TO_CLUSTER=false
-for option in "$@"; do
-  case "$option" in
-    -h|--help|-V|--version)
-      CHECK_KEYSTORE=false
-      ;;
-    -d|--daemonize)
-      DAEMONIZE=true
-      ;;
-  esac
-done
+# Store original arg array as we will be shifting through it below
+ARG_LIST=$@
 while [ $# -gt 0 ]; do
    if [[ $1 == "--enrollment-token" ]]; then
-        ENROLL_TO_CLUSTER=true
-        ENROLLMENT_TOKEN="$2"
+     ENROLL_TO_CLUSTER=true
+     ENROLLMENT_TOKEN="$2"
+   elif [[ $1 == "-h" || $1 == "--help" || $1 == "-V" || $1 == "--version" ]]; then
+     CHECK_KEYSTORE=false
+   elif [[ $1 == "-d" || $1 == "--daemonize" ]]; then
+     DAEMONIZE=true
    fi
-  shift
+   shift
 done
 
 if [ -z "$ES_TMPDIR" ]; then
@@ -83,7 +79,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@" <<<"$KEYSTORE_PASSWORD"
+    "$ARG_LIST" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
     "$JAVA" \
@@ -96,7 +92,7 @@ else
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@" \
+    "$ARG_LIST" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?
   pid=$!

@@ -60,17 +60,11 @@ public class SyncPluginsCommandTests extends ESTestCase {
     private final Function<String, Path> temp;
     private MockTerminal terminal;
     private Tuple<Path, Environment> env;
-    private Path pluginDir;
-
-    private final boolean isPosix;
-    private final boolean isReal;
     private final String javaIoTmpdir;
 
     @SuppressForbidden(reason = "sets java.io.tmpdir")
     public SyncPluginsCommandTests(FileSystem fs, Function<String, Path> temp) {
         this.temp = temp;
-        this.isPosix = fs.supportedFileAttributeViews().contains("posix");
-        this.isReal = fs == PathUtils.getDefaultFileSystem();
         PathUtilsForTesting.installMock(fs);
         javaIoTmpdir = System.getProperty("java.io.tmpdir");
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
@@ -83,7 +77,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        pluginDir = createPluginDir(temp);
+//        pluginDir = createPluginDir(temp);
         terminal = new MockTerminal();
         env = createEnv(temp);
         skipJarHellAction = new InstallPluginAction(terminal, null) {
@@ -111,6 +105,10 @@ public class SyncPluginsCommandTests extends ESTestCase {
         super.tearDown();
     }
 
+    /**
+     * Generates all the parameters for the JUnit tests - in this case, filesystems to use.
+     * @return junit parameters for {@link #SyncPluginsCommandTests(FileSystem, Function)}
+     */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         class Parameter {
@@ -156,98 +154,6 @@ public class SyncPluginsCommandTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", home).build();
         return Tuple.tuple(home, TestEnvironment.newEnvironment(settings));
     }
-
-    static Path createPluginDir(Function<String, Path> temp) {
-        return temp.apply("pluginDir");
-    }
-    //
-    // /** creates a fake jar file with empty class files */
-    // static void writeJar(Path jar, String... classes) throws IOException {
-    // try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(jar))) {
-    // for (String clazz : classes) {
-    // stream.putNextEntry(new ZipEntry(clazz + ".class")); // no package names, just support simple classes
-    // }
-    // }
-    // }
-    //
-    // static Path writeZip(Path structure, String prefix) throws IOException {
-    // Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
-    // try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
-    // forEachFileRecursively(structure, (file, attrs) -> {
-    // String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file);
-    // stream.putNextEntry(new ZipEntry(target));
-    // Files.copy(file, stream);
-    // });
-    // }
-    // return zip;
-    // }
-    //
-    // /** creates a plugin .zip and returns the url for testing */
-    // static PluginDescriptor createPluginZip(String name, Path structure, String... additionalProps) throws IOException {
-    // return createPlugin(name, structure, additionalProps);
-    // }
-    //
-    // static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
-    // String[] properties = Stream.concat(
-    // Stream.of(
-    // "description",
-    // "fake desc",
-    // "name",
-    // name,
-    // "version",
-    // "1.0",
-    // "elasticsearch.version",
-    // Version.CURRENT.toString(),
-    // "java.version",
-    // System.getProperty("java.specification.version"),
-    // "classname",
-    // "FakePlugin"
-    // ),
-    // Arrays.stream(additionalProps)
-    // ).toArray(String[]::new);
-    // PluginTestUtil.writePluginProperties(structure, properties);
-    // String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
-    // writeJar(structure.resolve("plugin.jar"), className);
-    // }
-    //
-    // static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
-    // StringBuilder securityPolicyContent = new StringBuilder("grant {\n ");
-    // for (String permission : permissions) {
-    // securityPolicyContent.append("permission java.lang.RuntimePermission \"");
-    // securityPolicyContent.append(permission);
-    // securityPolicyContent.append("\";");
-    // }
-    // securityPolicyContent.append("\n};\n");
-    // Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
-    // }
-    //
-    // static PluginDescriptor createPlugin(String name, Path structure, String... additionalProps) throws IOException {
-    // writePlugin(name, structure, additionalProps);
-    // return new PluginDescriptor(name, writeZip(structure, null).toUri().toURL().toString());
-    // }
-    //
-    // void installPlugin(String id) throws Exception {
-    // PluginDescriptor plugin = id == null ? null : new PluginDescriptor(id, id);
-    // installPlugin(plugin, env.v1(), skipJarHellAction);
-    // }
-    //
-    // void installPlugin(PluginDescriptor plugin) throws Exception {
-    // installPlugin(plugin, env.v1(), skipJarHellAction);
-    // }
-    //
-    // void installPlugins(final List<PluginDescriptor> plugins, final Path home) throws Exception {
-    // installPlugins(plugins, home, skipJarHellAction);
-    // }
-    //
-    // void installPlugin(PluginDescriptor plugin, Path home, InstallPluginAction action) throws Exception {
-    // installPlugins(plugin == null ? List.of() : List.of(plugin), home, action);
-    // }
-    //
-    // void installPlugins(final List<PluginDescriptor> plugins, final Path home, final InstallPluginAction action) throws Exception {
-    // final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-    // action.setEnvironment(env);
-    // action.execute(plugins);
-    // }
 
     /**
      * Check that the sync tool will run successfully with no plugins declared and no plugins installed.
@@ -315,13 +221,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
         verify(removePluginAction, never()).execute(any());
         verify(installPluginAction, never()).execute(any());
 
-        String expected = String.join(
-            "\n",
-            "No plugins to remove.",
-            "The following plugins need to be installed:",
-            "",
-            "    analysis-icu"
-        );
+        String expected = String.join("\n", "No plugins to remove.", "The following plugins need to be installed:", "", "    analysis-icu");
 
         assertThat(terminal.getOutput().trim(), equalTo(expected));
     }
@@ -413,6 +313,69 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
+     * Check that the sync tool will run successfully when adding and removing plugins
+     */
+    public void testSync_withPluginsToAddAndRemove_succeeds() throws Exception {
+        // Remove 2 plugins...
+        writePluginDescriptor("plugin-to-remove1", env.v2().pluginsFile().resolve("plugin-to-remove1"));
+        writePluginDescriptor("plugin-to-remove2", env.v2().pluginsFile().resolve("plugin-to-remove2"));
+        // ...And keep 1
+        writePluginDescriptor("plugin-to-keep", env.v2().pluginsFile().resolve("plugin-to-keep"));
+
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: plugin-to-keep");
+        yaml.add("  - id: plugin-to-add1");
+        yaml.add("  - id: plugin-to-add2");
+        Files.writeString(pluginsFile, yaml.toString());
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
+
+        verify(removePluginAction).execute(List.of(new PluginDescriptor("plugin-to-remove1"), new PluginDescriptor("plugin-to-remove2")));
+        verify(installPluginAction).execute(List.of(new PluginDescriptor("plugin-to-add1"), new PluginDescriptor("plugin-to-add2")));
+    }
+
+    /**
+     * Check that the sync tool will print the correct summary when adding and removing plugins
+     */
+    public void testSync_withDryRunPluginsToAddAndRemove_printsCorrectSummary() throws Exception {
+        // Remove 2 plugins...
+        writePluginDescriptor("plugin-to-remove1", env.v2().pluginsFile().resolve("plugin-to-remove1"));
+        writePluginDescriptor("plugin-to-remove2", env.v2().pluginsFile().resolve("plugin-to-remove2"));
+        // ...And keep 1
+        writePluginDescriptor("plugin-to-keep", env.v2().pluginsFile().resolve("plugin-to-keep"));
+
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: plugin-to-keep");
+        yaml.add("  - id: plugin-to-add1");
+        yaml.add("  - id: plugin-to-add2");
+        Files.writeString(pluginsFile, yaml.toString());
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), true, removePluginAction, installPluginAction);
+
+        verify(removePluginAction, never()).execute(any());
+        verify(installPluginAction, never()).execute(any());
+
+        String expected = String.join(
+            "\n",
+            "The following plugins need to be removed:",
+            "",
+            "    plugin-to-remove1",
+            "    plugin-to-remove2",
+            "",
+            "The following plugins need to be installed:",
+            "",
+            "    plugin-to-add1",
+            "    plugin-to-add2"
+        );
+
+        assertThat(terminal.getOutput().trim(), equalTo(expected));
+    }
+
+    /**
      * Check that the sync tool will fail gracefully when the config file is missing.
      */
     public void testSync_withMissingConfig_fails() {
@@ -438,6 +401,45 @@ public class SyncPluginsCommandTests extends ESTestCase {
 
         assertThat(exception.getMessage(), startsWith("Malformed [proxy], expected [host:port] in"));
         assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
+    }
+
+    /**
+     * Check that the sync tool will run successfully with an unofficial plugin.
+     */
+    public void testSync_withUnofficialPlugin_succeeds() throws Exception {
+        StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+        yaml.add("    url: https://example.com/example-plugin.zip");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
+
+        verify(removePluginAction, never()).execute(any());
+        verify(installPluginAction).execute(List.of(new PluginDescriptor("example-plugin", "https://example.com/example-plugin.zip")));
+    }
+
+    /**
+     * Check that the sync tool will run successfully with an unofficial plugin and a proxy.
+     */
+    public void testSync_withUnofficialPluginAndProxy_succeeds() throws Exception {
+        StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+        yaml.add("    url: https://example.com/example-plugin.zip");
+        yaml.add("    proxy: example-proxy.com:8080");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        SyncPluginsCommand command = new SyncPluginsCommand();
+        command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
+
+        verify(removePluginAction, never()).execute(any());
+        verify(installPluginAction).execute(
+            List.of(new PluginDescriptor("example-plugin", "https://example.com/example-plugin.zip", "example-proxy.com:8080"))
+        );
     }
 
     private static void writePluginDescriptor(String name, Path pluginPath) throws IOException {

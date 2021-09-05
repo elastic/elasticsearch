@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -60,6 +61,14 @@ public class PluginsManifest {
         }
 
         for (PluginDescriptor p : this.getPlugins()) {
+            if (p.getUrl() != null) {
+                try {
+                    new URL(p.getUrl());
+                } catch (MalformedURLException e) {
+                    throw new UserException(ExitCodes.CONFIG, "Malformed URL for plugin [" + p.getId() + "]");
+                }
+            }
+
             String proxy = p.getProxy();
             if (proxy != null) {
                 validateProxy(proxy, p.getId(), manifestPath);

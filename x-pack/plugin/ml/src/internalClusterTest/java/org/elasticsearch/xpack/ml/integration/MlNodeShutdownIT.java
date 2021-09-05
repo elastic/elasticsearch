@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/77281")
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
     public void testJobsVacateShuttingDownNode() throws Exception {

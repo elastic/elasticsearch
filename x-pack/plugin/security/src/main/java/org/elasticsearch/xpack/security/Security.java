@@ -32,6 +32,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +50,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -159,6 +161,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
@@ -339,10 +342,12 @@ import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin, SearchPlugin {
@@ -390,6 +395,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<NativeUsersStore> nativeUsersStoreReference = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -453,7 +459,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         scriptServiceReference.set(scriptService);
-
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
@@ -492,9 +497,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
-
+        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false) {
+            securityIndex.get().addStateListener(this::generatePasswordAndEnrollmentToken);
+        }
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
+        nativeUsersStoreReference.set(nativeUsersStore);
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -626,6 +634,73 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         cacheInvalidatorRegistry.validate();
 
         return components;
+    }
+
+    private void generatePasswordAndEnrollmentToken(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
+            && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
+            && securityIndex.get().indexExists() == false) {
+
+            final SecureString elasticPassword = new SecureString(generatePassword(20));
+            nativeUsersStoreReference.get()
+                .createReservedUser(
+                    ElasticUser.NAME,
+                    elasticPassword.getChars(),
+                    ActionListener.wrap(
+                        r -> {
+                            logger.info("");
+                            logger.info("-----------------------------------------------------------------");
+                            logger.info("");
+                            logger.info("");
+                            logger.info("");
+                            logger.info("Password for the elastic user is: ");
+                            logger.info(elasticPassword);
+                            logger.info("");
+                            logger.info("");
+                            logger.info("Please note this down as it will not be shown again.");
+                            logger.info("");
+                            logger.info("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
+                            logger.info("in order to reset the password for the elastic user.");
+                            logger.info("");
+                            logger.info("");
+                            logger.info("");
+                            logger.info("-----------------------------------------------------------------");
+                            logger.info("");
+                        },
+                        e -> {
+                            if (e instanceof VersionConflictEngineException == false) {
+                                logger.info("");
+                                logger.info("-----------------------------------------------------------------");
+                                logger.info("");
+                                logger.info("");
+                                logger.info("");
+                                logger.info("Failed to set the password for the elastic user automatically");
+                                logger.info("");
+                                logger.info("You can use 'bin/elasticsearch-reset-elastic-password'");
+                                logger.info("in order to set the password for the elastic user.");
+                                logger.info("");
+                                logger.info("");
+                                logger.info("");
+                                logger.info("-----------------------------------------------------------------");
+                                logger.info("");
+                            }
+                            logger.warn(e);
+                        }
+                    )
+                );
+//            try {
+//                final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(envReference.get());
+//                final EnrollmentToken enrollmentToken =
+//                    enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, elasticPassword);
+//                sb.append("Enrollment Token for Kibana: ");
+//                sb.append(enrollmentToken.getEncoded());
+//                sb.append("\n");
+//            } catch (Exception e) {
+//                logger.warn("Failed to generate an enrollment token for Kibana. You can run " +
+//                    "bin/elasticsearch-create-enrollment-token -s kibana to get an enrollment token.", e);
+//            }
+
+        }
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

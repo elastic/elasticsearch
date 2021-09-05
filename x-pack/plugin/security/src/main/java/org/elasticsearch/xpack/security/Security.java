@@ -498,7 +498,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         this.tokenService.set(tokenService);
         components.add(tokenService);
         if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false) {
-            securityIndex.get().addStateListener(this::generatePasswordAndEnrollmentToken);
+            securityIndex.get().addStateListener(this::generateElasticPassword);
         }
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
@@ -636,7 +636,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         return components;
     }
 
-    private void generatePasswordAndEnrollmentToken(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    private void generateElasticPassword(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
             && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
             && securityIndex.get().indexExists() == false) {

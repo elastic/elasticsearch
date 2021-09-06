@@ -15,7 +15,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class BertPassThroughConfigTests extends InferenceConfigItemTestCase<BertPassThroughConfig> {
+public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThroughConfig> {
 
     private boolean lenient;
 
@@ -25,27 +25,27 @@ public class BertPassThroughConfigTests extends InferenceConfigItemTestCase<Bert
     }
 
     @Override
-    protected BertPassThroughConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? BertPassThroughConfig.fromXContentLenient(parser) : BertPassThroughConfig.fromXContentStrict(parser);
+    protected PassThroughConfig doParseInstance(XContentParser parser) throws IOException {
+        return lenient ? PassThroughConfig.fromXContentLenient(parser) : PassThroughConfig.fromXContentStrict(parser);
     }
 
     @Override
-    protected Writeable.Reader<BertPassThroughConfig> instanceReader() {
-        return BertPassThroughConfig::new;
+    protected Writeable.Reader<PassThroughConfig> instanceReader() {
+        return PassThroughConfig::new;
     }
 
     @Override
-    protected BertPassThroughConfig createTestInstance() {
+    protected PassThroughConfig createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected BertPassThroughConfig mutateInstanceForVersion(BertPassThroughConfig instance, Version version) {
+    protected PassThroughConfig mutateInstanceForVersion(PassThroughConfig instance, Version version) {
         return instance;
     }
 
-    public static BertPassThroughConfig createRandom() {
-        return new BertPassThroughConfig(
+    public static PassThroughConfig createRandom() {
+        return new PassThroughConfig(
             VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :

@@ -605,13 +605,13 @@ public class OsProbe {
             stats.put(parts[0], Long.parseLong(parts[1]));
         }
 
-        final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
+        final List<String> expectedKeys = org.elasticsearch.core.List.of("system_usec", "usage_usec", "user_usec");
         expectedKeys.forEach(key -> {
             assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
             assert stats.get(key) != -1 : stats.get(key);
         });
 
-        final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
+        final List<String> optionalKeys = org.elasticsearch.core.List.of("nr_periods", "nr_throttled", "throttled_usec");
         optionalKeys.forEach(key -> {
             if (stats.containsKey(key) == false) {
                 stats.put(key, 0L);

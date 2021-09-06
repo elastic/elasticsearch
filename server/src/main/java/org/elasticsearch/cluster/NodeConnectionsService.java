@@ -142,6 +142,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         runnables.forEach(Runnable::run);
     }
 
+    /**
+     * Makes a single attempt to reconnect to any nodes which are disconnected but should be connected. Does not attempt to reconnect any
+     * nodes which are in the process of disconnecting. The onCompletion handler is called after all connection attempts have completed.
+     */
     void ensureConnections(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
         synchronized (mutex) {
@@ -149,29 +153,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             if (connectionTargets.isEmpty()) {
                 runnables.add(onCompletion);
             } else {
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(onCompletion), connectionTargets.size());
-                for (final ConnectionTarget connectionTarget : connectionTargets) {
-                    runnables.add(connectionTarget.connect(listener));
-                }
-            }
-        }
-        runnables.forEach(Runnable::run);
-    }
-
-    /**
-     * Makes a single attempt to reconnect to any nodes which are disconnected but should be connected. Does not attempt to reconnect any
-     * nodes which are in the process of disconnecting. The onCompletion handler is called after all ongoing connection/disconnection
-     * attempts have completed.
-     */
-    private void connectDisconnectedTargets(Runnable onCompletion) {
-        final List<Runnable> runnables = new ArrayList<>();
-        synchronized (mutex) {
-            final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
-            if (connectionTargets.isEmpty()) {
-                runnables.add(onCompletion);
-            } else {
-                logger.trace("connectDisconnectedTargets: {}", targetsByNode);
+                logger.trace("ensureConnections: {}", targetsByNode);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     ActionListener.wrap(onCompletion), connectionTargets.size());
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
@@ -185,7 +167,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     class ConnectionChecker extends AbstractRunnable {
         protected void doRun() {
             if (connectionChecker == this) {
-                connectDisconnectedTargets(this::scheduleNextCheck);
+                ensureConnections(this::scheduleNextCheck);
             }
         }
 

@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
-    private static final Charset UTF_8 = Charset.forName("UTF-8");
 
     private long queryWarnThreshold;
     private long queryInfoThreshold;
@@ -168,7 +167,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         private static String escapeJson(String text) {
             byte[] sourceEscaped = JsonStringEncoder.getInstance().quoteAsUTF8(text);
-            return new String(sourceEscaped, UTF_8);
+            return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
     }
 

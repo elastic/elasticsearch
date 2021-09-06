@@ -1,6 +1,0 @@
-pr: 77289
-summary: Handle a max memory value of 'max'
-area: Packaging
-type: bug
-issues:
- - 77280

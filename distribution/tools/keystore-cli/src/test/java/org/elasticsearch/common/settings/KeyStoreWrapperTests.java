@@ -10,7 +10,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -42,7 +41,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
@@ -341,13 +339,12 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     private void possiblyAlterEncryptedBytes(
-        IndexOutput indexOutput,
+        IndexOutput out,
         byte[] salt,
         byte[] iv,
         byte[] encryptedBytes,
         int truncEncryptedDataLength
     ) throws Exception {
-        DataOutput out = EndiannessReverserUtil.wrapDataOutput(indexOutput);
         out.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
         out.writeInt(salt.length);
         out.writeBytes(salt, salt.length);

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -33,10 +32,10 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             "foo.bar",
             new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION.toString()),
             indexShard.store())) {
-            EndiannessReverserUtil.wrapDataOutput(indexOutput).writeInt(1);
+            CodecUtil.writeBEInt(indexOutput, 1);
             IndexOutput openIndexOutput = multiFileWriter.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
-            EndiannessReverserUtil.wrapDataOutput(openIndexOutput).writeInt(1);
+            CodecUtil.writeBEInt(openIndexOutput, 1);
             CodecUtil.writeFooter(indexOutput);
         }
 

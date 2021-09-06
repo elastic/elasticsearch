@@ -77,7 +77,7 @@ the resources available to handle the extra load that will result.
 (<<cluster-update-settings,Dynamic>>, Expert) Enables snapshot-based peer recoveries.
 +
 NOTE: This feature is designed for indirect use by Elasticsearch Service. Direct use is not supported. Elastic reserves the right to change or remove this feature in future releases without prior notice.
-
++
 {es} recovers replicas and relocates primary shards using the _peer recovery_
 process, which involves constructing a new copy of a shard on the target node.
 When `indices.recovery.use_snapshots` is `false` {es} will construct this new

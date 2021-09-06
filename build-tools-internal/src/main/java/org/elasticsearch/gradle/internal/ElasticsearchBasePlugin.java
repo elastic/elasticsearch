@@ -92,7 +92,6 @@ public class ElasticsearchBasePlugin implements Plugin<Project> {
         licenseFileProperty.convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
     }
 
-
     private void configureNoticeDefaultConvention(RegularFileProperty noticeFileProperty) {
         File noticeFileDefault = new File(buildLayout.getRootDirectory(), "NOTICE.txt");
         noticeFileProperty.convention(projectLayout.file(providerFactory.provider(() -> noticeFileDefault)));

@@ -297,7 +297,12 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
         final Thread[] clientThreads = new Thread[between(1, 5)];
         final CyclicBarrier startBarrier = new CyclicBarrier(clientThreads.length + 1);
-        final Semaphore operationPermits = new Semaphore(1000);
+        final boolean expectPruning = randomBoolean();
+        final Semaphore operationPermits = new Semaphore(between(
+            1,
+            expectPruning
+                ? SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(Settings.EMPTY) - 1
+                : SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(Settings.EMPTY) * 2));
         for (int i = 0; i < clientThreads.length; i++) {
             clientThreads[i] = new Thread(() -> {
                 try {
@@ -333,6 +338,19 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
         try {
             assertThat(httpClientStatsTracker.getClientStats(), empty());
+
+            // starts collecting stats again
+            clusterSettings.applySettings(
+                Settings.builder().put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), true).build());
+
+            final HttpChannel httpChannel = randomHttpChannel();
+            httpClientStatsTracker.addClientStats(httpChannel);
+            if (expectPruning == false && randomBoolean()) {
+                // won't be pruned, the clock is not moving and we don't open enough channels to hit the limit
+                httpChannel.close();
+            }
+            assertTrue(httpClientStatsTracker.getClientStats().stream()
+                .anyMatch(cs -> cs.remoteAddress.equals(NetworkAddress.format(httpChannel.getRemoteAddress()))));
         } finally {
             for (Thread clientThread : clientThreads) {
                 clientThread.join();

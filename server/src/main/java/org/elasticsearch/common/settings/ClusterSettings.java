@@ -478,7 +478,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
             SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
-            SnapshotsService.MAX_CONCURRENT_SNAPSHOT_TO_DELETE_PER_REPOSITORY_SETTING,
             SnapshotsService.SNAPSHOT_TO_DELETE_RETRY_INTERVAL_SETTING,
             RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
             FsHealthService.ENABLED_SETTING,

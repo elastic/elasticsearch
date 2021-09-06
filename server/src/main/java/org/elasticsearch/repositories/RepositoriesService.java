@@ -217,7 +217,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
                             } else {
                                 ensureRepositoryNotInUse(currentState, request.name());
-                                updatedMetadata = newRepositoryMetadata;
+                                updatedMetadata = newRepositoryMetadata.withSnapshotsToDelete(repositoryMetadata.snapshotsToDelete());
                             }
                             found = true;
                             repositoriesMetadata.add(updatedMetadata);

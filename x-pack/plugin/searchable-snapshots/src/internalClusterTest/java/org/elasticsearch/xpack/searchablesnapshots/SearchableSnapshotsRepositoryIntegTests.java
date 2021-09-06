@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -683,7 +686,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         assertAcked(prepareCreate(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         ensureGreen(index);
-        populateIndex(index, 5_000);
+        populateIndex(index, scaledRandomIntBetween(0, 5_000));
         refresh(index);
 
         final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
@@ -697,7 +700,8 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         mountSnapshot(repository, snapshot, index, mounted, deleteSnapshotIndexSettings(true), randomFrom(Storage.values()));
         assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
 
-        blockAllDataNodes(repository);
+        final IndexId indexId = getRepositoryData(repository).resolveIndexId(index);
+        blockMasterOnShardLevelSnapshotFile(repository, indexId.getId());
 
         final ActionFuture<RestoreSnapshotResponse> restoreFuture = client().admin()
             .cluster()
@@ -710,7 +714,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         awaitClusterState(state -> state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).isEmpty() == false);
 
-        final ActionFuture<AcknowledgedResponse> deleteFuture = client().admin().indices().prepareDelete(mounted).execute();
+        final ActionFuture<AcknowledgedResponse> deleteIndexFuture = client().admin().indices().prepareDelete(mounted).execute();
 
         awaitClusterState(
             state -> state.metadata()
@@ -725,9 +729,133 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final RestoreInfo restoreInfoResponse = restoreFuture.actionGet().getRestoreInfo();
         assertThat(restoreInfoResponse.successfulShards(), equalTo(numShards.numPrimaries));
         assertThat(restoreInfoResponse.failedShards(), equalTo(0));
-        assertAcked(deleteFuture.get());
+        assertAcked(deleteIndexFuture.get());
 
         expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
+    }
+
+    public void testSearchableSnapshotIsDeletedWithOnGoingClone() throws Exception {
+        final String repository = "repository-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(logger, repository, "mock");
+
+        final String index = "index";
+        assertAcked(prepareCreate(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+        ensureGreen(index);
+        populateIndex(index, scaledRandomIntBetween(0, 5_000));
+        refresh(index);
+
+        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repository, sourceSnapshot);
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        final String mounted = "mounted-" + index;
+        mountSnapshot(repository, sourceSnapshot, index, mounted, deleteSnapshotIndexSettings(true), randomFrom(Storage.values()));
+        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+
+        final IndexId indexId = getRepositoryData(repository).resolveIndexId(index);
+        blockMasterOnShardLevelSnapshotFile(repository, indexId.getId());
+
+        final String cloneTarget = "target-snapshot";
+        final ActionFuture<AcknowledgedResponse> cloneSnapshot = clusterAdmin().prepareCloneSnapshot(
+            repository,
+            sourceSnapshot,
+            cloneTarget
+        ).setIndices(index).execute();
+        awaitNumberOfSnapshotsInProgress(1);
+
+        final String masterNode = internalCluster().getMasterName();
+        waitForBlock(masterNode, repository);
+
+        final ActionFuture<AcknowledgedResponse> deleteIndex = client().admin().indices().prepareDelete(mounted).execute();
+        awaitClusterState(
+            state -> state.metadata()
+                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .repository(repository)
+                .hasSnapshotsToDelete()
+        );
+
+        assertFalse(cloneSnapshot.isDone());
+        unblockNode(repository, masterNode);
+        awaitNoMoreSnapshotsDeletions();
+
+        assertAcked(cloneSnapshot.get());
+        assertAcked(deleteIndex.get());
+
+        assertThat(clusterAdmin().prepareSnapshotStatus().setRepository(repository).get().getSnapshots(), hasSize(0));
+    }
+
+    public void testSearchableSnapshotDeletedFromReadOnlyRepository() throws Exception {
+        final String repository = "repository-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final Settings.Builder repositorySettings = randomRepositorySettings();
+        createRepository(repository, "mock", repositorySettings);
+
+        final String index = "index";
+        assertAcked(prepareCreate(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+        ensureGreen(index);
+        populateIndex(index, scaledRandomIntBetween(10, 5_000));
+        refresh(index);
+
+        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repository, sourceSnapshot);
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        final String mounted = "mounted-" + index;
+        mountSnapshot(repository, sourceSnapshot, index, mounted, deleteSnapshotIndexSettings(true), randomFrom(Storage.values()));
+        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+
+        logger.info("--> updating repository [{}] to be readonly", repository);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(repository)
+                .setVerify(randomBoolean())
+                .setType(FsRepository.TYPE)
+                .setSettings(repositorySettings.put(BlobStoreRepository.READONLY_SETTING_KEY, true))
+        );
+
+        logger.info("--> deleting snapshot backed index [{}]", mounted);
+        assertAcked(client().admin().indices().prepareDelete(mounted));
+
+        awaitClusterState(state -> {
+            final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            final RepositoryMetadata repositoryMetadata = repositories.repository(repository);
+            return repositoryMetadata != null
+                && repositoryMetadata.hasSnapshotsToDelete()
+                && repositoryMetadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, false);
+        });
+
+        logger.info("--> updating repository [{}] to be writeable again", repository);
+        assertBusy(() -> {
+            try {
+                AcknowledgedResponse response = client().admin()
+                    .cluster()
+                    .preparePutRepository(repository)
+                    .setVerify(randomBoolean())
+                    .setType(FsRepository.TYPE)
+                    .setSettings(repositorySettings.putNull(BlobStoreRepository.READONLY_SETTING_KEY))
+                    .get();
+                assertAcked(response);
+            } catch (IllegalStateException e) {
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "trying to modify or unregister repository ["
+                            + repository
+                            + "] that is currently used (snapshot deletion is in progress)"
+                    )
+                );
+            }
+        });
+
+        awaitNoMoreSnapshotsDeletions();
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> clusterAdmin().prepareSnapshotStatus().setRepository(repository).setSnapshots(sourceSnapshot).get()
+        );
     }
 
     private static Settings deleteSnapshotIndexSettings(boolean value) {

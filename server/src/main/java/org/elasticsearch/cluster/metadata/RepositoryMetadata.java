@@ -246,6 +246,10 @@ public class RepositoryMetadata implements Writeable {
         return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, snapshotsToDelete);
     }
 
+    public RepositoryMetadata withSnapshotsToDelete(List<SnapshotId> snapshotsToDelete) {
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration, snapshotsToDelete);
+    }
+
     public RepositoryMetadata addSnapshotsToDelete(Collection<SnapshotId> snapshotsToDelete) {
         final List<SnapshotId> snapshots = new ArrayList<>(this.snapshotsToDelete);
         for (SnapshotId snapshotToDelete : snapshotsToDelete) {

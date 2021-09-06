@@ -21,7 +21,6 @@ import java.io.IOException;
 public abstract class BaseNodeResponse extends TransportResponse {
 
     private DiscoveryNode node;
-    private String nodeId;
 
     protected BaseNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -33,25 +32,10 @@ public abstract class BaseNodeResponse extends TransportResponse {
         this.node = node;
     }
 
-    public void purgeNodeInfo() {
-        // set nodeId and purge DiscoveryNode and TransportAddr structures
-        this.nodeId = this.getNode().getId();
-        this.node = null;
-        this.remoteAddress(null);
-    }
-
-    public String getNodeId() {
-        if (this.nodeId == null && node != null) {
-            return node.getId();
-        }
-        return this.nodeId;
-    }
-
     /**
      * The node this information relates to.
      */
     public DiscoveryNode getNode() {
-        assert node != null;
         return node;
     }
 

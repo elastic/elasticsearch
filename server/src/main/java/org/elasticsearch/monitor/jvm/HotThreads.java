@@ -50,7 +50,7 @@ public class HotThreads {
         new String[] {"java.util.concurrent.LinkedTransferQueue", "poll"}
     );
 
-    // NOTE: these are JVM dependent
+    // NOTE: these are JVM dependent and JVM version dependent
     private static final List<String> knownJvmInternalThreads = Arrays.asList(
         "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner"
     );
@@ -209,15 +209,13 @@ public class HotThreads {
         return result;
     }
 
-    ThreadInfo[][] captureThreadStacks(ThreadMXBean threadBean, List<ThreadTimeAccumulator> topThreads) throws InterruptedException {
-        long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
-
+    ThreadInfo[][] captureThreadStacks(ThreadMXBean threadBean, long[] threadIds) throws InterruptedException {
         ThreadInfo[][] result = new ThreadInfo[threadElementsSnapshotCount][];
         for (int j = 0; j < threadElementsSnapshotCount; j++) {
             // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
             // null will be set in the corresponding element in the returned array. A thread is alive if it has
             // been started and has not yet died.
-            result[j] = threadBean.getThreadInfo(topThreadIds, Integer.MAX_VALUE);
+            result[j] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
             Thread.sleep(threadElementsSnapshotDelay.millis());
         }
 
@@ -259,11 +257,12 @@ public class HotThreads {
 
             CollectionUtil.introSort(topThreads, Comparator.comparingLong(getter).reversed());
             topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
-
-            //TODO: Continue refactoring below.
+            long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
 
             // analyse N stack traces for the top threads
-            ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreads);
+            ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreadIds);
+
+            //TODO: Continue refactoring below.
             for (int t = 0; t < topThreads.size(); t++) {
                 long time = getter.applyAsLong(topThreads.get(t));
                 String threadName = null;
@@ -332,9 +331,16 @@ public class HotThreads {
         }
     }
 
-    int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
-        StackTraceElement[] s1 = threadInfo == null ? EMPTY_STACK : threadInfo.getStackTrace();
-        StackTraceElement[] s2 = threadInfo0 == null ? EMPTY_STACK : threadInfo0.getStackTrace();
+    static StackTraceElement[] getStackTrace(ThreadInfo threadInfo) {
+        if (threadInfo == null) {
+            return EMPTY_STACK;
+        }
+        return threadInfo.getStackTrace();
+    }
+
+    static int similarity(ThreadInfo threadInfo, ThreadInfo threadInfoOther) {
+        StackTraceElement[] s1 = getStackTrace(threadInfo);
+        StackTraceElement[] s2 = getStackTrace(threadInfoOther);
         int i = s1.length - 1;
         int j = s2.length - 1;
         int rslt = 0;

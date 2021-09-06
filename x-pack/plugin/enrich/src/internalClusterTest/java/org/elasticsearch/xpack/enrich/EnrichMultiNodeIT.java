@@ -51,9 +51,11 @@ import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -243,7 +245,9 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
         assertThat(stats.getNodeId(), equalTo(nodeId));
         assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(stats.getExecutedSearchesTotal(), equalTo((long) numDocs));
+        // 'numDocs' lookups are done, but not 'numDocs' searches, because searches may get cached:
+        // and not all enrichments may happen via the same node.
+        assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
     }
 
     private static List<String> createSourceIndex(int numDocs) {

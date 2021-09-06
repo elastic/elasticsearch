@@ -71,7 +71,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
         ContentPath contentPath = new ContentPath(1);
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(contentPath).fieldType();
         ifdService.clear();
@@ -115,7 +115,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
         when(ft.fielddataBuilder(Matchers.any(), Matchers.any())).thenAnswer(invocationOnMock -> {
@@ -134,7 +134,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // copy the ifdService since we can set the listener only once.
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
 
         final ContentPath contentPath = new ContentPath(1);
         final MappedFieldType mapper1
@@ -200,7 +200,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // copy the ifdService since we can set the listener only once.
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-                indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+                indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
 
         final ContentPath contentPath = new ContentPath(1);
         final MappedFieldType mapper1
@@ -254,7 +254,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexFieldDataService shardPrivateService = new IndexFieldDataService(indexService.getIndexSettings(),
-            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
         // set it the first time...
         shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
             @Override
@@ -291,7 +291,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds =
-                new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
+                new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null);
             if (ft.hasDocValues()) {
                 ifds.getForField(ft, "test", () -> {
                     throw new UnsupportedOperationException();

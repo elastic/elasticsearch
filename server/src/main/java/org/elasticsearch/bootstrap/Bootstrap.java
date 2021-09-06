@@ -328,6 +328,12 @@ final class Bootstrap {
         final Runnable sysOutCloser = getSysOutCloser();
         final Runnable sysErrorCloser = getSysErrorCloser();
 
+        // If this is true, we retain access to the original stdout stream for exceptional cases that need to write to the console
+        final boolean hasConsole = foreground && (quiet == false);
+        if (hasConsole) {
+            ElasticsearchConsole.init();
+        }
+
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
@@ -342,10 +348,8 @@ final class Bootstrap {
             }
         }
 
-
         try {
-            final boolean closeStandardStreams = (foreground == false) || quiet;
-            if (closeStandardStreams) {
+            if (hasConsole == false) {
                 final Logger rootLogger = LogManager.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {

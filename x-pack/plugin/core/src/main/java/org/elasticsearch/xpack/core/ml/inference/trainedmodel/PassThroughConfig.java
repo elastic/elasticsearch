@@ -20,24 +20,24 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class BertPassThroughConfig implements NlpConfig {
+public class PassThroughConfig implements NlpConfig {
 
-    public static final String NAME = "bert_pass_through";
+    public static final String NAME = "pass_through";
 
-    public static BertPassThroughConfig fromXContentStrict(XContentParser parser) {
+    public static PassThroughConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }
 
-    public static BertPassThroughConfig fromXContentLenient(XContentParser parser) {
+    public static PassThroughConfig fromXContentLenient(XContentParser parser) {
         return LENIENT_PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<BertPassThroughConfig, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<BertPassThroughConfig, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<PassThroughConfig, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<PassThroughConfig, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<BertPassThroughConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<BertPassThroughConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new BertPassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
+    private static ConstructingObjectParser<PassThroughConfig, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<PassThroughConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
+            a -> new PassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
         parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
         parser.declareNamedObject(
             ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
@@ -49,12 +49,12 @@ public class BertPassThroughConfig implements NlpConfig {
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
 
-    public BertPassThroughConfig(VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
+    public PassThroughConfig(VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
         this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
     }
 
-    public BertPassThroughConfig(StreamInput in) throws IOException {
+    public PassThroughConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
     }
@@ -104,7 +104,7 @@ public class BertPassThroughConfig implements NlpConfig {
         if (o == this) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        BertPassThroughConfig that = (BertPassThroughConfig) o;
+        PassThroughConfig that = (PassThroughConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization);
     }

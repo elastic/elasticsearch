@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/77297")
     public void testJobsVacateShuttingDownNode() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(3);

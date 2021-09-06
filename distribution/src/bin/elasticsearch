@@ -53,12 +53,13 @@ if [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
   # It is passed in all the command line options in order to read the node settings ones (-E), while the other parameters are ignored
   # (a small caveat is that it also inspects the -v option in order to provide more information on how auto config went)
-  if ! ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
+  if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
     "`dirname "$0"`"/elasticsearch-cli "$@" <<<"$KEYSTORE_PASSWORD"; then
+      echo ""
+  else
     retval=$?
-    echo "$retval"
     # these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
     # eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
     if [[ $retval -ne 80 ]] && [[ $retval -ne 73 ]] && [[ $retval -ne 78 ]]; then

@@ -372,6 +372,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         }
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        assertFalse(connectionManager.nodeConnected(node));
         connectionManager.close();
     }
 

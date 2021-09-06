@@ -59,7 +59,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     }
 
     @Override
-    public boolean hasReferences() {
+    public final boolean hasReferences() {
         return refCount.get() > 0;
     }
 
@@ -79,7 +79,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     /**
      * Returns the current reference count.
      */
-    public int refCount() {
+    public final int refCount() {
         return this.refCount.get();
     }
 

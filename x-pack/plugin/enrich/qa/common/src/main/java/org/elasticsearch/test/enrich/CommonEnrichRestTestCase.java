@@ -34,12 +34,12 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     @After
     public void deletePolicies() throws Exception {
         Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
-        @SuppressWarnings("unchecked")
-        List<Map<?, ?>> policies = (List<Map<?, ?>>) responseMap.get("policies");
+        List<Map<?, ?>> policies = unsafeGetProperty(responseMap, "policies");
 
         for (Map<?, ?> entry : policies) {
-            Map<String, ?> config = ((Map<?, Map<String, ?>>) entry.get("config")).values().iterator().next();
-            String endpoint = "/_enrich/policy/" + config.get("name");
+            Map<?, Map<String, ?>> config = unsafeGetProperty(entry, "config");
+            Map<String, ?> policy = config.values().iterator().next();
+            String endpoint = "/_enrich/policy/" + policy.get("name");
             assertOK(client().performRequest(new Request("DELETE", endpoint)));
 
             List<?> sourceIndices = (List<?>) config.get("indices");
@@ -51,6 +51,11 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
                 }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <Property> Property unsafeGetProperty(Map<?, ?> map, String key) {
+        return (Property) map.get(key);
     }
 
     private void setupGenericLifecycleTest(boolean deletePipeilne, String field, String type) throws Exception {
@@ -249,8 +254,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), greaterThanOrEqualTo(1));
 
-        for (int i = 0; i < hits.size(); i++) {
-            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+        for (Object o : hits) {
+            Map<?, ?> hit = (Map<?, ?>) o;
 
             int foundRemoteRequestsTotal = (int) XContentMapValues.extractValue(
                 "_source.enrich_coordinator_stats.remote_requests_total",

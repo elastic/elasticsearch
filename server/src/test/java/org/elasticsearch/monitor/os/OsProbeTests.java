@@ -433,20 +433,14 @@ public class OsProbeTests extends ESTestCase {
             @Override
             List<String> readCgroupV2CpuStats(String controlGroup) {
                 assertThat(controlGroup, equalTo("/" + hierarchy));
-                return randomBoolean()
-                    ? org.elasticsearch.core.List.of(
-                            "usage_usec 364869866063112",
-                            "user_usec 34636",
-                            "system_usec 9896",
-                            "nr_periods 17992",
-                            "nr_throttled 1311",
-                            "throttled_usec 139298645489"
-                        )
-                    : org.elasticsearch.core.List.of(
-                            "usage_usec 364869866063112",
-                            "user_usec 34636",
-                            "system_usec 9896"
-                        );
+                return org.elasticsearch.core.List.of(
+                    "usage_usec 364869866063112",
+                    "user_usec 34636",
+                    "system_usec 9896",
+                    "nr_periods 17992",
+                    "nr_throttled 1311",
+                    "throttled_usec 139298645489"
+                );
             }
 
             @Override

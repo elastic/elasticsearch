@@ -42,7 +42,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             String endpoint = "/_enrich/policy/" + policy.get("name");
             assertOK(client().performRequest(new Request("DELETE", endpoint)));
 
-            List<?> sourceIndices = (List<?>) config.get("indices");
+            List<?> sourceIndices = (List<?>) policy.get("indices");
             for (Object sourceIndex : sourceIndices) {
                 try {
                     client().performRequest(new Request("DELETE", "/" + sourceIndex));

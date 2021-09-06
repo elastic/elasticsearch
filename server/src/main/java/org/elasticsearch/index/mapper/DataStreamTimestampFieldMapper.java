@@ -34,11 +34,18 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_data_stream_timestamp";
     private static final String DEFAULT_PATH = "@timestamp";
 
+    private static final DataStreamTimestampFieldMapper ENABLED_INSTANCE =
+        new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, true);
+    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE =
+        new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, false);
+
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
     public static final class TimestampFieldType extends MappedFieldType {
 
-        public TimestampFieldType() {
+        static final TimestampFieldType INSTANCE = new TimestampFieldType();
+
+        private TimestampFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
         }
 
@@ -84,16 +91,15 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper build() {
-            return new DataStreamTimestampFieldMapper(new TimestampFieldType(), enabled.getValue());
+            return enabled.getValue() ? ENABLED_INSTANCE : DISABLED_INSTANCE;
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new DataStreamTimestampFieldMapper(new TimestampFieldType(), false),
+        c -> DISABLED_INSTANCE,
         c -> new Builder()
     );
 
-    private final String path = DEFAULT_PATH;
     private final boolean enabled;
 
     private DataStreamTimestampFieldMapper(MappedFieldType mappedFieldType, boolean enabled) {
@@ -112,16 +118,16 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        Mapper mapper = lookup.getMapper(path);
+        Mapper mapper = lookup.getMapper(DEFAULT_PATH);
         if (mapper == null) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] does not exist");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] does not exist");
         }
 
         if (DateFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false
             && DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new IllegalArgumentException(
                 "data stream timestamp field ["
-                    + path
+                    + DEFAULT_PATH
                     + "] is of type ["
                     + mapper.typeName()
                     + "], but ["
@@ -134,19 +140,19 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         if (dateFieldMapper.fieldType().isSearchable() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] is not indexed");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] doesn't have doc values");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] doesn't have doc values");
         }
         if (dateFieldMapper.getNullValue() != null) {
             throw new IllegalArgumentException(
-                "data stream timestamp field [" + path + "] has disallowed [null_value] attribute specified"
+                "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [null_value] attribute specified"
             );
         }
         if (dateFieldMapper.getIgnoreMalformed()) {
             throw new IllegalArgumentException(
-                "data stream timestamp field [" + path + "] has disallowed [ignore_malformed] attribute specified"
+                "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [ignore_malformed] attribute specified"
             );
         }
 
@@ -192,16 +198,16 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        IndexableField[] fields = context.rootDoc().getFields(path);
+        IndexableField[] fields = context.rootDoc().getFields(DEFAULT_PATH);
         if (fields.length == 0) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] is missing");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
 
         long numberOfValues = Arrays.stream(fields)
             .filter(indexableField -> indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
             .count();
         if (numberOfValues > 1) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] encountered multiple values");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
         }
     }
 

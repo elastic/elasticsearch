@@ -16,10 +16,12 @@ import java.util.Map;
 
 public interface ExtendedStatsAggregatorProvider {
 
-    Aggregator build(String name,
-                     ValuesSourceConfig valuesSourceConfig,
-                     AggregationContext context,
-                     Aggregator parent,
-                     double sigma,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        AggregationContext context,
+        Aggregator parent,
+        double sigma,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

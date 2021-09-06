@@ -43,7 +43,7 @@ public class AggregationInfo implements ReportingService.Info {
             String key = in.readString();
             final int keys = in.readVInt();
             final Set<String> types = new TreeSet<>();
-            for (int j = 0; j < keys; j ++) {
+            for (int j = 0; j < keys; j++) {
                 types.add(in.readString());
             }
             aggs.put(key, types);

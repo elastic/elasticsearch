@@ -63,6 +63,6 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
         then:
         result.task(":checkoutBwcBranch").outcome == TaskOutcome.SUCCESS
         result.task(":consumer:register").outcome == TaskOutcome.SUCCESS
-        normalized(result.output).contains("/cloned/build/checkout")
+        result.output.contains("./build/checkout")
     }
 }

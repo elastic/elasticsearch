@@ -970,10 +970,23 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, getNamedWriteableRegistry(),
-                    allocationService, masterService, this::getPersistedState,
-                    Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},
-                    getElectionStrategy(), nodeHealthService);
+                coordinator = new Coordinator(
+                    "test_node",
+                    settings,
+                    clusterSettings,
+                    bigArrays,
+                    transportService,
+                    getNamedWriteableRegistry(),
+                    allocationService,
+                    masterService,
+                    this::getPersistedState,
+                    Cluster.this::provideSeedHosts,
+                    clusterApplierService,
+                    onJoinValidators,
+                    Randomness.get(),
+                    (s, p, r) -> {},
+                    getElectionStrategy(),
+                    nodeHealthService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService
                     = new GatewayService(settings, allocationService, clusterService, threadPool, coordinator, null);

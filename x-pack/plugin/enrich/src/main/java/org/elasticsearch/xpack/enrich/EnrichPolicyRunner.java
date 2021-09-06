@@ -235,7 +235,11 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void resolveEnrichMapping(final EnrichPolicy policy, GetIndexResponse getIndexResponse, ActionListener<XContentBuilder> resultListener) {
+    private void resolveEnrichMapping(
+        final EnrichPolicy policy,
+        GetIndexResponse getIndexResponse,
+        ActionListener<XContentBuilder> resultListener
+    ) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             createEnrichMappingBuilder((builder) -> builder.field("type", "keyword").field("doc_values", false), resultListener);
         } else if (EnrichPolicy.RANGE_TYPE.equals(policy.getType())) {
@@ -247,7 +251,11 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void resolveRangeTypeEnrichMapping(EnrichPolicy policy, GetIndexResponse response, ActionListener<XContentBuilder> resultListener) {
+    private void resolveRangeTypeEnrichMapping(
+        EnrichPolicy policy,
+        GetIndexResponse response,
+        ActionListener<XContentBuilder> resultListener
+    ) {
         String matchField = policy.getMatchField();
         List<String> types = collapseFieldMappingsValue(response, toFieldMappingProperty(matchField, "type"));
         if (types.isEmpty()) {
@@ -297,28 +305,20 @@ public class EnrichPolicyRunner implements Runnable {
                         );
                     } else {
                         createEnrichMappingBuilder(
-                            (builder) -> builder.field("type", matchType)
-                                .field("doc_values", false)
-                                .field("format", formatEntries.get(0)),
+                            (builder) -> builder.field("type", matchType).field("doc_values", false).field("format", formatEntries.get(0)),
                             resultListener
                         );
                     }
                 } else {
-                    createEnrichMappingBuilder(
-                        (builder) -> builder.field("type", matchType).field("doc_values", false),
-                        resultListener
-                    );
+                    createEnrichMappingBuilder((builder) -> builder.field("type", matchType).field("doc_values", false), resultListener);
                 }
             }
         }
     }
 
-    private List<String> collapseFieldMappingsValue(
-        GetIndexResponse response,
-        Function<Map<String, Object>, String> getPropertyFunction
-    ) {
+    private List<String> collapseFieldMappingsValue(GetIndexResponse response, Function<Map<String, Object>, String> getPropertyFunction) {
 
-       return StreamSupport.stream(response.mappings().values().spliterator(), false)
+        return StreamSupport.stream(response.mappings().values().spliterator(), false)
             .map(cursor -> cursor.value)
             .map(MappingMetadata::sourceAsMap)
             .map(map -> property(map, "properties"))
@@ -332,17 +332,17 @@ public class EnrichPolicyRunner implements Runnable {
         return (Map<String, Object>) map.getOrDefault(property, Map.of());
     }
 
-    private Function<Map<String,Object>, String> toFieldMappingProperty(String matchField, String property) {
+    private Function<Map<String, Object>, String> toFieldMappingProperty(String matchField, String property) {
         return map -> {
             String[] parts = matchField.split("\\.");
             Map<String, Object> result = map;
-            if(parts.length > 1) {
+            if (parts.length > 1) {
                 for (int i = 0; i < parts.length - 1; i++) {
                     result = property(result, parts[i]);
                     result = property(result, "properties");
                 }
             }
-            result = property(result, parts[parts.length-1]);
+            result = property(result, parts[parts.length - 1]);
             return String.valueOf(result.getOrDefault(property, "unknown"));
         };
     }

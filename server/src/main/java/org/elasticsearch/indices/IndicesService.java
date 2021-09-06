@@ -310,24 +310,21 @@ public class IndicesService extends AbstractLifecycleComponent
         // avoid closing these resources while ongoing requests are still being processed, we use a
         // ref count which will only close them when both this service and all index services are
         // actually closed
-        indicesRefCount = new AbstractRefCounted("indices") {
-            @Override
-            protected void closeInternal() {
-                try {
-                    IOUtils.close(
-                            analysisRegistry,
-                            indexingMemoryController,
-                            indicesFieldDataCache,
-                            cacheCleaner,
-                            indicesRequestCache,
-                            indicesQueryCache);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } finally {
-                    closeLatch.countDown();
-                }
+        indicesRefCount = AbstractRefCounted.of(() -> {
+            try {
+                IOUtils.close(
+                    analysisRegistry,
+                    indexingMemoryController,
+                    indicesFieldDataCache,
+                    cacheCleaner,
+                    indicesRequestCache,
+                    indicesQueryCache);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                closeLatch.countDown();
             }
-        };
+        });
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
@@ -985,7 +982,7 @@ public class IndicesService extends AbstractLifecycleComponent
             paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths));
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
-        if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
+        if (canDeleteIndexContents(shardId.getIndex())) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
@@ -1005,17 +1002,13 @@ public class IndicesService extends AbstractLifecycleComponent
      * This is the case if the index is deleted in the metadata or there is no allocation
      * on the local node and the index isn't on a shared file system.
      * @param index {@code Index} to check whether deletion is allowed
-     * @param indexSettings {@code IndexSettings} for the given index
      * @return true if the index can be deleted on this node
      */
-    public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings) {
+    public boolean canDeleteIndexContents(Index index) {
         // index contents can be deleted if its an already closed index (so all its resources have
         // already been relinquished)
         final IndexService indexService = indexService(index);
-        if (indexService == null && nodeEnv.hasNodeFile()) {
-            return true;
-        }
-        return false;
+        return indexService == null && nodeEnv.hasNodeFile();
     }
 
     /**
@@ -1526,7 +1519,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private final IndexDeletionAllowedPredicate DEFAULT_INDEX_DELETION_PREDICATE =
-        (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index, indexSettings);
+        (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {

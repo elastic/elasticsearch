@@ -48,11 +48,17 @@ class IndexerUtils {
      * @param isUpgradedDocID  `true` if this job is using the new ID scheme
      * @return                 A stream of rolled documents derived from the response
      */
-    static Stream<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
-                                               GroupConfig groupConfig, String jobId, boolean isUpgradedDocID) {
+    static Stream<IndexRequest> processBuckets(
+        CompositeAggregation agg,
+        String rollupIndex,
+        RollupIndexerJobStats stats,
+        GroupConfig groupConfig,
+        String jobId,
+        boolean isUpgradedDocID
+    ) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
-        return agg.getBuckets().stream().map(b ->{
+        return agg.getBuckets().stream().map(b -> {
             stats.incrementNumDocuments(b.getDocCount());
 
             // Put the composite keys into a treemap so that the key iteration order is consistent
@@ -63,7 +69,7 @@ class IndexerUtils {
             RollupIDGenerator idGenerator;
             if (isUpgradedDocID) {
                 idGenerator = new RollupIDGenerator.Murmur3(jobId);
-            } else  {
+            } else {
                 idGenerator = new RollupIDGenerator.CRC();
             }
             Map<String, Object> doc = new HashMap<>(keys.size() + metrics.size());
@@ -72,8 +78,10 @@ class IndexerUtils {
             idGenerator.add(jobId);
             processMetrics(metrics, doc);
 
-            doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD,
-                isUpgradedDocID ? Rollup.CURRENT_ROLLUP_VERSION : Rollup.ROLLUP_VERSION_V1);
+            doc.put(
+                RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD,
+                isUpgradedDocID ? Rollup.CURRENT_ROLLUP_VERSION : Rollup.ROLLUP_VERSION_V1
+            );
             doc.put(RollupField.ROLLUP_META + "." + RollupField.ID.getPreferredName(), jobId);
 
             IndexRequest request = new IndexRequest(rollupIndex, RollupField.TYPE_NAME, idGenerator.getID());
@@ -82,18 +90,23 @@ class IndexerUtils {
         });
     }
 
-    private static void processKeys(Map<String, Object> keys, Map<String, Object> doc,
-                                     long count, GroupConfig groupConfig, RollupIDGenerator idGenerator) {
+    private static void processKeys(
+        Map<String, Object> keys,
+        Map<String, Object> doc,
+        long count,
+        GroupConfig groupConfig,
+        RollupIDGenerator idGenerator
+    ) {
         keys.forEach((k, v) -> {
-            // Also add a doc count for each key.  This will duplicate data, but makes search easier later
+            // Also add a doc count for each key. This will duplicate data, but makes search easier later
             doc.put(k + "." + RollupField.COUNT_FIELD, count);
 
             if (k.endsWith("." + DateHistogramAggregationBuilder.NAME)) {
                 assert v != null;
                 doc.put(k + "." + RollupField.TIMESTAMP, v);
-                doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHistogram().getInterval());
-                doc.put(k  + "." + DateHistogramGroupConfig.TIME_ZONE, groupConfig.getDateHistogram().getTimeZone());
-                idGenerator.add((Long)v);
+                doc.put(k + "." + RollupField.INTERVAL, groupConfig.getDateHistogram().getInterval());
+                doc.put(k + "." + DateHistogramGroupConfig.TIME_ZONE, groupConfig.getDateHistogram().getTimeZone());
+                idGenerator.add((Long) v);
             } else if (k.endsWith("." + HistogramAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
                 doc.put(k + "." + RollupField.INTERVAL, groupConfig.getHistogram().getInterval());
@@ -107,14 +120,13 @@ class IndexerUtils {
                 if (v == null) {
                     idGenerator.addNull();
                 } else if (v instanceof String) {
-                    idGenerator.add((String)v);
+                    idGenerator.add((String) v);
                 } else if (v instanceof Long) {
-                    idGenerator.add((Long)v);
+                    idGenerator.add((Long) v);
                 } else if (v instanceof Double) {
-                    idGenerator.add((Double)v);
+                    idGenerator.add((Double) v);
                 } else {
-                    throw new RuntimeException("Encountered value of type ["
-                        + v.getClass() + "], which was unable to be processed.");
+                    throw new RuntimeException("Encountered value of type [" + v.getClass() + "], which was unable to be processed.");
                 }
             } else {
                 throw new ElasticsearchException("Could not identify key in agg [" + k + "]");

@@ -62,7 +62,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -362,7 +362,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                                                              IndexId requestedIndexId,
                                                              ShardId requestedShardId,
                                                              BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
-                                                             Consumer<Long> rateLimiterListener) {
+                                                             LongConsumer rateLimiterListener) {
                 assertThat(requestedRepositoryName, equalTo(repositoryName));
                 assertThat(requestedIndexId, equalTo(indexId));
                 assertThat(requestedShardId, equalTo(shardId));
@@ -441,7 +441,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                                                              IndexId requestedIndexId,
                                                              ShardId requestedShardId,
                                                              BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
-                                                             Consumer<Long> rateLimiterListener) {
+                                                             LongConsumer rateLimiterListener) {
                 switch (downloadFileErrorType) {
                     case CORRUPTED_FILE:
                         byte[] fileDataCopy = new byte[fileData.length];
@@ -550,7 +550,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                                                              IndexId requestedIndexId,
                                                              ShardId requestedShardId,
                                                              BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
-                                                             Consumer<Long> rateLimiterListener) {
+                                                             LongConsumer rateLimiterListener) {
                 return new ByteArrayInputStream(fileData);
             }
 

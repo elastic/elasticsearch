@@ -182,7 +182,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        normalized(result.output).contains("Unpacking $expectedArchiveName using $transformType") == false
+        result.output.contains("Unpacking $expectedArchiveName using $transformType") == false
 
         where:
         platform  | expectedArchiveName       | transformType

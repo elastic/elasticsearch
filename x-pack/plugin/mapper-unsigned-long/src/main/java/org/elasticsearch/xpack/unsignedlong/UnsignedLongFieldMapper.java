@@ -270,11 +270,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException(
-                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
-                );
-            }
+            checkNoTimeZone(timeZone);
             return DocValueFormat.UNSIGNED_LONG_SHIFTED;
         }
 

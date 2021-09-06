@@ -342,17 +342,25 @@ public class ServerUtils {
     }
 
     /**
-     * Explicitly disables security if the existing configuration didn't already have an explicit value for the
-     * xpack.security.enabled setting
+     * Explicitly disables security features
      */
     public static void disableSecurityFeatures(Installation installation) throws IOException {
-        List<String> configLines = List.of("xpack.security.enabled: false", "xpack.security.http.ssl.enabled: false", "xpack.security.transport.ssl.enabled: false");
+        List<String> disabledSecurityFeatures = List.of(
+            "xpack.security.http.ssl.enabled: false",
+            "xpack.security.transport.ssl.enabled: false",
+            "xpack.security.enabled: false"
+        );
         Path yamlFile = installation.config("elasticsearch.yml");
-        try (Stream<String> lines = Files.readAllLines(yamlFile).stream()) {
-            if (lines.noneMatch(s -> s.startsWith("xpack.security.enabled"))) {
-                Files.write(yamlFile, configLines, CREATE, APPEND);
-            }
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yamlFile).stream()) {
+            lines = allLines.filter(l -> l.startsWith("xpack.security.http.ssl.enabled:") == false)
+                .filter(l -> l.startsWith("xpack.security.transport.ssl.enabled:") == false)
+                .filter(l -> l.startsWith("xpack.security.enabled:") == false)
+                .collect(Collectors.toList());
         }
+        lines.addAll(disabledSecurityFeatures);
+        Files.write(yamlFile, lines, TRUNCATE_EXISTING);
+
     }
 
     public static void enableSecurityFeatures(Installation installation) throws IOException {

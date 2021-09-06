@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +35,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         ToXContentObject,
         Diffable<SingleNodeShutdownMetadata> {
 
+    public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_8_0_0;
+
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField REASON_FIELD = new ParseField("reason");
@@ -40,6 +44,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
+    public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -49,7 +54,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (String) a[2],
             (long) a[3],
             (boolean) a[4],
-            (TimeValue) a[5]
+            (TimeValue) a[5],
+            (String) a[6]
         )
     );
 
@@ -64,6 +70,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()), ALLOCATION_DELAY_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TARGET_NODE_NAME_FIELD);
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
@@ -78,6 +85,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final long startedAtMillis;
     private final boolean nodeSeen;
     @Nullable private final TimeValue allocationDelay;
+    @Nullable private final String targetNodeName;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
@@ -91,7 +99,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         String reason,
         long startedAtMillis,
         boolean nodeSeen,
-        @Nullable TimeValue allocationDelay
+        @Nullable TimeValue allocationDelay,
+        @Nullable String targetNodeName
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
@@ -102,6 +111,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
         }
         this.allocationDelay = allocationDelay;
+        if (targetNodeName != null && type != Type.REPLACE) {
+            throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
+                "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
+        } else if (targetNodeName == null && type == Type.REPLACE) {
+            throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
+        }
+        this.targetNodeName = targetNodeName;
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
@@ -111,6 +127,11 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.startedAtMillis = in.readVLong();
         this.nodeSeen = in.readBoolean();
         this.allocationDelay = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            this.targetNodeName = in.readOptionalString();
+        } else {
+            this.targetNodeName = null;
+        }
     }
 
     /**
@@ -149,6 +170,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     /**
+     * @return The name of the node to be used as a replacement for this node, or null.
+     */
+    public String getTargetNodeName() {
+        return targetNodeName;
+    }
+
+    /**
      * @return The amount of time shard reallocation should be delayed for shards on this node, so that they will not be automatically
      * reassigned while the node is restarting. Will be {@code null} for non-restart shutdowns.
      */
@@ -165,11 +193,18 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        out.writeEnum(type);
+        if (out.getVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+            out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
+        } else {
+            out.writeEnum(type);
+        }
         out.writeString(reason);
         out.writeVLong(startedAtMillis);
         out.writeBoolean(nodeSeen);
         out.writeOptionalTimeValue(allocationDelay);
+        if (out.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            out.writeOptionalString(targetNodeName);
+        }
     }
 
     @Override
@@ -183,6 +218,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
             if (allocationDelay != null) {
                 builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());
+            }
+            if (targetNodeName != null) {
+                builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), targetNodeName);
             }
         }
         builder.endObject();
@@ -200,7 +238,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             && getType() == that.getType()
             && getReason().equals(that.getReason())
             && getNodeSeen() == that.getNodeSeen()
-            && Objects.equals(allocationDelay, that.allocationDelay);
+            && Objects.equals(allocationDelay, that.allocationDelay)
+            && Objects.equals(targetNodeName, that.targetNodeName);
     }
 
     @Override
@@ -211,7 +250,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getReason(),
             getStartedAtMillis(),
             getNodeSeen(),
-            allocationDelay
+            allocationDelay,
+            targetNodeName
         );
     }
 
@@ -228,7 +268,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             .setType(original.getType())
             .setReason(original.getReason())
             .setStartedAtMillis(original.getStartedAtMillis())
-            .setNodeSeen(original.getNodeSeen());
+            .setNodeSeen(original.getNodeSeen())
+            .setTargetNodeName(original.getTargetNodeName());
     }
 
     public static class Builder {
@@ -238,6 +279,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         private long startedAtMillis = -1;
         private boolean nodeSeen = false;
         private TimeValue allocationDelay;
+        private String targetNodeName;
 
         private Builder() {}
 
@@ -295,6 +337,15 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return this;
         }
 
+        /**
+         * @param targetNodeName The name of the node which should be used to replcae this one. Only valid if the shutdown type is REPLACE.
+         * @return This builder.
+         */
+        public Builder setTargetNodeName(String targetNodeName) {
+            this.targetNodeName = targetNodeName;
+            return this;
+        }
+
         public SingleNodeShutdownMetadata build() {
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
@@ -306,7 +357,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
                 reason,
                 startedAtMillis,
                 nodeSeen,
-                allocationDelay
+                allocationDelay,
+                targetNodeName
             );
         }
     }

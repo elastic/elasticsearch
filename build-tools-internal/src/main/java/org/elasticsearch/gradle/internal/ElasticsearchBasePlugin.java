@@ -56,16 +56,19 @@ public class ElasticsearchBasePlugin implements Plugin<Project> {
 
     public void configureLicenseAndNotice(final Project project) {
         final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-        File licenseFileDefault = new File(buildLayout.getRootDirectory(), SSPL_LICENSE_PATH);
-        File noticeFileDefault = new File(buildLayout.getRootDirectory(), "NOTICE.txt");
-        RegularFileProperty licenseFileProperty = objectFactory.fileProperty()
-                .convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
-        RegularFileProperty noticeFileProperty = objectFactory.fileProperty()
-                .convention(projectLayout.file(providerFactory.provider(() -> noticeFileDefault)));
+        RegularFileProperty licenseFileProperty = objectFactory.fileProperty();
+        RegularFileProperty noticeFileProperty = objectFactory.fileProperty();
         ext.set("licenseFile", licenseFileProperty);
         ext.set("noticeFile", noticeFileProperty);
 
-        // add license/notice files to archives
+        configureLicenseDefaultConvention(licenseFileProperty);
+        configureNoticeDefaultConvention(noticeFileProperty);
+
+        updateJarTasksMetaInf(project);
+    }
+
+    private void updateJarTasksMetaInf(Project project) {
+        final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
         project.getTasks().withType(Jar.class).configureEach(jar -> {
             final RegularFileProperty licenseFileExtProperty = (RegularFileProperty) ext.get("licenseFile");
             final RegularFileProperty noticeFileExtProperty = (RegularFileProperty) ext.get("noticeFile");
@@ -82,5 +85,16 @@ public class ElasticsearchBasePlugin implements Plugin<Project> {
                 });
             });
         });
+    }
+
+    private void configureLicenseDefaultConvention(RegularFileProperty licenseFileProperty) {
+        File licenseFileDefault = new File(buildLayout.getRootDirectory(), SSPL_LICENSE_PATH);
+        licenseFileProperty.convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
+    }
+
+
+    private void configureNoticeDefaultConvention(RegularFileProperty noticeFileProperty) {
+        File noticeFileDefault = new File(buildLayout.getRootDirectory(), "NOTICE.txt");
+        noticeFileProperty.convention(projectLayout.file(providerFactory.provider(() -> noticeFileDefault)));
     }
 }

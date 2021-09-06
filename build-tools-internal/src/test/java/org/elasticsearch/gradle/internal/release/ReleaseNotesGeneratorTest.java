@@ -22,7 +22,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
@@ -42,9 +41,6 @@ public class ReleaseNotesGeneratorTest {
 
         // when:
         final String actualOutput = ReleaseNotesGenerator.generateFile(template, entries);
-
-        assertFalse("Expected output contains carriage returns!", expectedOutput.contains("\r"));
-        assertFalse("Actual output contains carriage returns!", actualOutput.contains("\r"));
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

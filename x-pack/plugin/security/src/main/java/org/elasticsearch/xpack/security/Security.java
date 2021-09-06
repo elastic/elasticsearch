@@ -32,7 +32,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +49,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -161,7 +159,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
@@ -347,7 +344,6 @@ import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERA
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
-import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin, SearchPlugin {
@@ -497,12 +493,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
-        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false) {
-            securityIndex.get().addStateListener(this::generateElasticPassword);
-        }
+
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        nativeUsersStoreReference.set(nativeUsersStore);
+        GenerateInitialElasticPasswordListener generateInitialElasticPasswordListener =
+            new GenerateInitialElasticPasswordListener(nativeUsersStore, securityIndex.get());
+        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false) {
+            securityIndex.get().addStateListener(generateInitialElasticPasswordListener);
+        }
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -634,61 +632,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         cacheInvalidatorRegistry.validate();
 
         return components;
-    }
-
-    private void generateElasticPassword(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
-            && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
-            && securityIndex.get().indexExists() == false) {
-
-            final SecureString elasticPassword = new SecureString(generatePassword(20));
-            nativeUsersStoreReference.get()
-                .createReservedUser(
-                    ElasticUser.NAME,
-                    elasticPassword.getChars(),
-                    ActionListener.wrap(
-                        r -> {
-                            logger.info("");
-                            logger.info("-----------------------------------------------------------------");
-                            logger.info("");
-                            logger.info("");
-                            logger.info("");
-                            logger.info("Password for the elastic user is: ");
-                            logger.info(elasticPassword);
-                            logger.info("");
-                            logger.info("");
-                            logger.info("Please note this down as it will not be shown again.");
-                            logger.info("");
-                            logger.info("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
-                            logger.info("in order to reset the password for the elastic user.");
-                            logger.info("");
-                            logger.info("");
-                            logger.info("");
-                            logger.info("-----------------------------------------------------------------");
-                            logger.info("");
-                        },
-                        e -> {
-                            if (e instanceof VersionConflictEngineException == false) {
-                                logger.info("");
-                                logger.info("-----------------------------------------------------------------");
-                                logger.info("");
-                                logger.info("");
-                                logger.info("");
-                                logger.info("Failed to set the password for the elastic user automatically");
-                                logger.info("");
-                                logger.info("You can use 'bin/elasticsearch-reset-elastic-password'");
-                                logger.info("in order to set the password for the elastic user.");
-                                logger.info("");
-                                logger.info("");
-                                logger.info("");
-                                logger.info("-----------------------------------------------------------------");
-                                logger.info("");
-                            }
-                            logger.warn(e);
-                        }
-                    )
-                );
-        }
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

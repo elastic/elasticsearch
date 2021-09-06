@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -146,6 +147,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.atLeastOnce;
@@ -2012,7 +2014,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(e, sameInstance(bailOut));
             verifyZeroInteractions(operatorPrivilegesService);
             final ServiceAccountToken serviceToken = ServiceAccountToken.fromBearerString(new SecureString(bearerString.toCharArray()));
-            verify(auditTrail).authenticationFailed(eq(reqId.get()), eq(serviceToken), eq("_action"), eq(transportRequest));
+            verify(auditTrail).authenticationFailed(eq(reqId.get()),
+                argThat(new ArgumentMatcher<AuthenticationToken>() {
+                    @Override
+                    public boolean matches(Object o) {
+                        return ((ServiceAccountToken) o).getTokenId().equals(serviceToken.getTokenId());
+                    }
+                }),
+                eq("_action"), eq(transportRequest));
         }
     }
 

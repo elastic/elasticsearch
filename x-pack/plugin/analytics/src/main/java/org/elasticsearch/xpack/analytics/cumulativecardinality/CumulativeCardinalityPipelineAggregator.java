@@ -73,14 +73,17 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
     }
 
-    private AbstractHyperLogLogPlusPlus resolveBucketValue(MultiBucketsAggregation agg,
-                                                           InternalMultiBucketAggregation.InternalBucket bucket,
-                                                           String aggPath) {
+    private AbstractHyperLogLogPlusPlus resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath
+    ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
         if (propertyValue == null) {
-            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a cardinality aggregation");
+            throw new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() + " must reference a cardinality aggregation"
+            );
         }
 
         if (propertyValue instanceof InternalCardinality) {
@@ -94,9 +97,14 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
             currentAggName = aggPathsList.get(0);
         }
 
-        throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-            + " must reference a cardinality aggregation, got: ["
-            + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        throw new AggregationExecutionException(
+            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference a cardinality aggregation, got: ["
+                + propertyValue.getClass().getSimpleName()
+                + "] at aggregation ["
+                + currentAggName
+                + "]"
+        );
     }
 
 }

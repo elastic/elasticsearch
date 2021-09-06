@@ -8,12 +8,17 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.FilterXContentParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,85 +37,31 @@ import static java.util.stream.Collectors.toSet;
 public abstract class AbstractFilteringTestCase extends ESTestCase {
 
     @FunctionalInterface
-    protected interface Builder extends CheckedFunction<XContentBuilder, XContentBuilder, IOException> {
-    }
+    protected interface Builder extends CheckedFunction<XContentBuilder, XContentBuilder, IOException> {}
 
     protected abstract void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException;
 
-    /** Sample test case **/
-    protected static final Builder SAMPLE = builder -> builder.startObject()
-            .field("title", "My awesome book")
-                .field("pages", 456)
-                .field("price", 27.99)
-                .field("timestamp", 1428582942867L)
-                .nullField("default")
-                .startArray("tags")
-                    .value("elasticsearch")
-                    .value("java")
-                .endArray()
-                .startArray("authors")
-                    .startObject()
-                        .field("name", "John Doe")
-                        .field("lastname", "John")
-                        .field("firstname", "Doe")
-                    .endObject()
-                    .startObject()
-                        .field("name", "William Smith")
-                        .field("lastname", "William")
-                        .field("firstname", "Smith")
-                    .endObject()
-                .endArray()
-                .startObject("properties")
-                    .field("weight", 0.8d)
-                    .startObject("language")
-                        .startObject("en")
-                            .field("lang", "English")
-                            .field("available", true)
-                            .startArray("distributors")
-                                .startObject()
-                                    .field("name", "The Book Shop")
-                                    .startArray("addresses")
-                                        .startObject()
-                                            .field("name", "address #1")
-                                            .field("street", "Hampton St")
-                                            .field("city", "London")
-                                        .endObject()
-                                        .startObject()
-                                            .field("name", "address #2")
-                                            .field("street", "Queen St")
-                                            .field("city", "Stornoway")
-                                        .endObject()
-                                    .endArray()
-                                .endObject()
-                                .startObject()
-                                    .field("name", "Sussex Books House")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                        .startObject("fr")
-                            .field("lang", "French")
-                            .field("available", false)
-                            .startArray("distributors")
-                                .startObject()
-                                    .field("name", "La Maison du Livre")
-                                    .startArray("addresses")
-                                        .startObject()
-                                            .field("name", "address #1")
-                                            .field("street", "Rue Mouffetard")
-                                            .field("city", "Paris")
-                                        .endObject()
-                                    .endArray()
-                                .endObject()
-                                .startObject()
-                                    .field("name", "Thetra")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
+    /** Sample test case */
+    protected static final Builder SAMPLE = builderFor("sample.json");
 
-    public void testNoFiltering() throws Exception {
+    protected static Builder builderFor(String file) {
+        return builder -> {
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        AbstractFilteringTestCase.class.getResourceAsStream(file)
+                    )
+            ) {
+                // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
+                return builder.copyCurrentStructure(new FilterXContentParser(parser) {
+                });
+            }
+        };
+    }
+
+    public final void testNoFiltering() throws Exception {
         final Builder expected = SAMPLE;
 
         testFilter(expected, SAMPLE, emptySet(), emptySet());
@@ -119,7 +70,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expected, SAMPLE, emptySet(), singleton("xyz"));
     }
 
-    public void testNoMatch() throws Exception {
+    public final void testNoMatch() throws Exception {
         final Builder expected = builder -> builder.startObject().endObject();
 
         testFilter(expected, SAMPLE, singleton("xyz"), emptySet());
@@ -127,998 +78,165 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expected, SAMPLE, emptySet(), singleton("**"));
     }
 
-    public void testSimpleFieldInclusive() throws Exception {
+    public final void testSimpleFieldInclusive() throws Exception {
         final Builder expected = builder -> builder.startObject().field("title", "My awesome book").endObject();
 
         testFilter(expected, SAMPLE, singleton("title"), emptySet());
     }
 
-    public void testSimpleFieldExclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
-        testFilter(expected, SAMPLE, emptySet(), singleton("title"));
+    public final void testSimpleFieldExclusive() throws Exception {
+        testFilter(builderFor("sample_no_title.json"), SAMPLE, emptySet(), singleton("title"));
     }
 
-    public void testSimpleFieldWithWildcardInclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("price", 27.99)
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
-        testFilter(expected, SAMPLE, singleton("pr*"), emptySet());
+    public final void testSimpleFieldWithWildcardInclusive() throws Exception {
+        testFilter(builderFor("sample_just_pr.json"), SAMPLE, singleton("pr*"), emptySet());
     }
 
-    public void testSimpleFieldWithWildcardExclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                        .endObject();
-
-        testFilter(expected, SAMPLE, emptySet(), singleton("pr*"));
+    public final void testSimpleFieldWithWildcardExclusive() throws Exception {
+        testFilter(builderFor("sample_no_pr.json"), SAMPLE, emptySet(), singleton("pr*"));
     }
 
-    public void testMultipleFieldsInclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                        .endObject();
-
+    public final void testMultipleFieldsInclusive() throws Exception {
+        Builder expected = builder -> builder.startObject().field("title", "My awesome book").field("pages", 456).endObject();
         testFilter(expected, SAMPLE, Sets.newHashSet("title", "pages"), emptySet());
     }
 
-    public void testMultipleFieldsExclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
-        testFilter(expected, SAMPLE, emptySet(), Sets.newHashSet("title", "pages"));
+    public final void testMultipleFieldsExclusive() throws Exception {
+        testFilter(builderFor("sample_no_title_pages.json"), SAMPLE, emptySet(), Sets.newHashSet("title", "pages"));
     }
 
-    public void testSimpleArrayInclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                    .endObject();
-
+    public final void testSimpleArrayInclusive() throws Exception {
+        Builder expected = builder -> builder.startObject().startArray("tags").value("elasticsearch").value("java").endArray().endObject();
         testFilter(expected, SAMPLE, singleton("tags"), emptySet());
     }
 
-    public void testSimpleArrayExclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
-        testFilter(expected, SAMPLE, emptySet(), singleton("tags"));
+    public final void testSimpleArrayExclusive() throws Exception {
+        testFilter(builderFor("sample_no_tags.json"), SAMPLE, emptySet(), singleton("tags"));
     }
 
-    public void testSimpleArrayOfObjectsInclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                        .endObject();
-
+    public final void testSimpleArrayOfObjectsInclusive() throws Exception {
+        Builder expected = builderFor("sample_just_authors.json");
         testFilter(expected, SAMPLE, singleton("authors"), emptySet());
         testFilter(expected, SAMPLE, singleton("authors.*"), emptySet());
         testFilter(expected, SAMPLE, singleton("authors.*name"), emptySet());
     }
 
-    protected static final Builder SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE = builder -> builder.startObject()
-                                            .field("title", "My awesome book")
-                                            .field("pages", 456)
-                                            .field("price", 27.99)
-                                            .field("timestamp", 1428582942867L)
-                                            .nullField("default")
-                                            .startArray("tags")
-                                                .value("elasticsearch")
-                                                .value("java")
-                                            .endArray()
-                                            .startObject("properties")
-                                                .field("weight", 0.8d)
-                                                .startObject("language")
-                                                    .startObject("en")
-                                                        .field("lang", "English")
-                                                        .field("available", true)
-                                                        .startArray("distributors")
-                                                            .startObject()
-                                                                .field("name", "The Book Shop")
-                                                                .startArray("addresses")
-                                                                    .startObject()
-                                                                        .field("name", "address #1")
-                                                                        .field("street", "Hampton St")
-                                                                        .field("city", "London")
-                                                                    .endObject()
-                                                                    .startObject()
-                                                                        .field("name", "address #2")
-                                                                        .field("street", "Queen St")
-                                                                        .field("city", "Stornoway")
-                                                                    .endObject()
-                                                                .endArray()
-                                                            .endObject()
-                                                            .startObject()
-                                                                .field("name", "Sussex Books House")
-                                                            .endObject()
-                                                        .endArray()
-                                                    .endObject()
-                                                    .startObject("fr")
-                                                        .field("lang", "French")
-                                                        .field("available", false)
-                                                        .startArray("distributors")
-                                                            .startObject()
-                                                                .field("name", "La Maison du Livre")
-                                                                .startArray("addresses")
-                                                                    .startObject()
-                                                                        .field("name", "address #1")
-                                                                        .field("street", "Rue Mouffetard")
-                                                                        .field("city", "Paris")
-                                                                    .endObject()
-                                                                .endArray()
-                                                            .endObject()
-                                                            .startObject()
-                                                                .field("name", "Thetra")
-                                                            .endObject()
-                                                        .endArray()
-                                                    .endObject()
-                                                .endObject()
-                                            .endObject()
-                                       .endObject();
-
-    public void testSimpleArrayOfObjectsExclusive() throws Exception {
-        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors"));
-        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors.*"));
-        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors.*name"));
+    public final void testSimpleArrayOfObjectsExclusive() throws Exception {
+        Builder expected = builderFor("sample_no_authors.json");
+        testFilter(expected, SAMPLE, emptySet(), singleton("authors"));
+        if (removesEmptyArrays()) {
+            testFilter(expected, SAMPLE, emptySet(), singleton("authors.*"));
+            testFilter(expected, SAMPLE, emptySet(), singleton("authors.*name"));
+        }
     }
 
-    public void testSimpleArrayOfObjectsPropertyInclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("lastname", "John")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("lastname", "William")
-                                                                .endObject()
-                                                            .endArray()
-                                                        .endObject();
+    protected abstract boolean removesEmptyArrays();
 
+    public void testSimpleArrayOfObjectsPropertyInclusive() throws Exception {
+        Builder expected = builderFor("sample_just_authors_lastname.json");
         testFilter(expected, SAMPLE, singleton("authors.lastname"), emptySet());
         testFilter(expected, SAMPLE, singleton("authors.l*"), emptySet());
     }
 
     public void testSimpleArrayOfObjectsPropertyExclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                       .endObject();
-
+        Builder expected = builderFor("sample_no_authors_lastname.json");
         testFilter(expected, SAMPLE, emptySet(), singleton("authors.lastname"));
         testFilter(expected, SAMPLE, emptySet(), singleton("authors.l*"));
     }
 
     public void testRecurseField1Inclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                            .   endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
+        Builder expected = builderFor("sample_just_names.json");
         testFilter(expected, SAMPLE, singleton("**.name"), emptySet());
     }
 
     public void testRecurseField1Exclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                       .endObject();
-
+        Builder expected = builderFor("sample_no_names.json");
         testFilter(expected, SAMPLE, emptySet(), singleton("**.name"));
     }
 
     public void testRecurseField2Inclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startObject("properties")
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
+        Builder expected = builderFor("sample_just_properties_names.json");
         testFilter(expected, SAMPLE, singleton("properties.**.name"), emptySet());
     }
 
     public void testRecurseField2Exclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                       .endObject();
-
+        Builder expected = builderFor("sample_no_properties_names.json");
         testFilter(expected, SAMPLE, emptySet(), singleton("properties.**.name"));
     }
 
     public void testRecurseField3Inclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startObject("properties")
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
+        Builder expected = builderFor("sample_just_properties_en_names.json");
         testFilter(expected, SAMPLE, singleton("properties.*.en.**.name"), emptySet());
     }
 
     public void testRecurseField3Exclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                       .endObject();
-
+        Builder expected = builderFor("sample_no_properties_en_names.json");
         testFilter(expected, SAMPLE, emptySet(), singleton("properties.*.en.**.name"));
     }
 
     public void testRecurseField4Inclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .startObject("properties")
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                        .endObject();
-
+        Builder expected = builderFor("sample_just_properties_distributors_names.json");
         testFilter(expected, SAMPLE, singleton("properties.**.distributors.name"), emptySet());
     }
 
     public void testRecurseField4Exclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startArray("authors")
-                                                                .startObject()
-                                                                    .field("name", "John Doe")
-                                                                    .field("lastname", "John")
-                                                                    .field("firstname", "Doe")
-                                                                .endObject()
-                                                                .startObject()
-                                                                    .field("name", "William Smith")
-                                                                    .field("lastname", "William")
-                                                                    .field("firstname", "Smith")
-                                                                .endObject()
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                        .endArray()
-                                                                    .endObject()
-                                                                .endObject()
-                                                            .endObject()
-                                                       .endObject();
-
+        Builder expected = builderFor("sample_no_properties_distributors_names.json");
         testFilter(expected, SAMPLE, emptySet(), singleton("properties.**.distributors.name"));
     }
 
     public void testRawField() throws Exception {
-        final Builder expectedRawField = builder -> builder
-                .startObject()
-                    .field("foo", 0)
-                    .startObject("raw")
-                        .field("content", "hello world!")
-                    .endObject()
-                .endObject();
-
-        final Builder expectedRawFieldFiltered = builder -> builder
-                .startObject()
-                    .field("foo", 0)
-                .endObject();
-
-        final Builder expectedRawFieldNotFiltered = builder -> builder
-                .startObject()
-                    .startObject("raw")
-                        .field("content", "hello world!")
-                    .endObject()
-                .endObject();
-
-        Builder sampleWithRaw = builder -> {
-            BytesReference raw = BytesReference
-                    .bytes(XContentBuilder.builder(builder.contentType().xContent())
-                            .startObject()
-                                .field("content", "hello world!")
-                            .endObject());
-            return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();
+        Builder expectedRawField = builder -> {
+            builder.startObject();
+            builder.field("foo", 0);
+            builder.startObject("raw").field("content", "hello world!").endObject();
+            return builder.endObject();
         };
 
-        // Test method: rawField(String fieldName, BytesReference content)
+        Builder expectedRawFieldRemoved = builder -> {
+            builder.startObject();
+            builder.field("foo", 0);
+            return builder.endObject();
+        };
+
+        Builder expectedRawFieldIncluded = builder -> {
+            builder.startObject();
+            builder.startObject("raw").field("content", "hello world!").endObject();
+            return builder.endObject();
+        };
+
+        @SuppressWarnings("deprecation")  // Tests filtering with a deprecated method
+        Builder sampleWithRaw = builder -> {
+            BytesReference raw = BytesReference.bytes(
+                XContentBuilder.builder(builder.contentType().xContent()).startObject().field("content", "hello world!").endObject()
+            );
+            return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();
+        };
         testFilter(expectedRawField, sampleWithRaw, emptySet(), emptySet());
-        testFilter(expectedRawFieldFiltered, sampleWithRaw, singleton("f*"), emptySet());
-        testFilter(expectedRawFieldFiltered, sampleWithRaw, emptySet(), singleton("r*"));
-        testFilter(expectedRawFieldNotFiltered, sampleWithRaw, singleton("r*"), emptySet());
-        testFilter(expectedRawFieldNotFiltered, sampleWithRaw, emptySet(), singleton("f*"));
+        testFilter(expectedRawFieldRemoved, sampleWithRaw, singleton("f*"), emptySet());
+        testFilter(expectedRawFieldRemoved, sampleWithRaw, emptySet(), singleton("r*"));
+        testFilter(expectedRawFieldIncluded, sampleWithRaw, singleton("r*"), emptySet());
+        testFilter(expectedRawFieldIncluded, sampleWithRaw, emptySet(), singleton("f*"));
 
         sampleWithRaw = builder -> {
-            BytesReference raw = BytesReference
-                    .bytes(XContentBuilder.builder(builder.contentType().xContent())
-                            .startObject()
-                            .   field("content", "hello world!")
-                            .endObject());
-            return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();
+            BytesReference raw = BytesReference.bytes(
+                XContentBuilder.builder(builder.contentType().xContent()).startObject().field("content", "hello world!").endObject()
+            );
+            return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput(), builder.contentType()).endObject();
         };
-
-        // Test method: rawField(String fieldName, InputStream content)
         testFilter(expectedRawField, sampleWithRaw, emptySet(), emptySet());
-        testFilter(expectedRawFieldFiltered, sampleWithRaw, singleton("f*"), emptySet());
-        testFilter(expectedRawFieldFiltered, sampleWithRaw, emptySet(), singleton("r*"));
-        testFilter(expectedRawFieldNotFiltered, sampleWithRaw, singleton("r*"), emptySet());
-        testFilter(expectedRawFieldNotFiltered, sampleWithRaw, emptySet(), singleton("f*"));
+        testFilter(expectedRawFieldRemoved, sampleWithRaw, singleton("f*"), emptySet());
+        testFilter(expectedRawFieldRemoved, sampleWithRaw, emptySet(), singleton("r*"));
+        testFilter(expectedRawFieldIncluded, sampleWithRaw, singleton("r*"), emptySet());
+        testFilter(expectedRawFieldIncluded, sampleWithRaw, emptySet(), singleton("f*"));
     }
 
     public void testArrays() throws Exception {
         // Test: Array of values (no filtering)
-        final Builder sampleArrayOfValues = builder -> builder
-                .startObject()
-                    .startArray("tags")
-                        .value("lorem").value("ipsum").value("dolor")
-                    .endArray()
-                .endObject();
+        Builder sampleArrayOfValues = builder -> {
+            builder.startObject();
+            builder.startArray("tags").value("lorem").value("ipsum").value("dolor").endArray();
+            return builder.endObject();
+        };
         testFilter(sampleArrayOfValues, sampleArrayOfValues, singleton("t*"), emptySet());
         testFilter(sampleArrayOfValues, sampleArrayOfValues, singleton("tags"), emptySet());
         testFilter(sampleArrayOfValues, sampleArrayOfValues, emptySet(), singleton("a"));
@@ -1130,17 +248,16 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expected, sampleArrayOfValues, emptySet(), singleton("tags"));
 
         // Test: Array of objects (no filtering)
-        final Builder sampleArrayOfObjects = builder -> builder
-                .startObject()
-                    .startArray("tags")
-                        .startObject()
-                            .field("lastname", "lorem")
-                        .endObject()
-                        .startObject()
-                            .field("firstname", "ipsum")
-                        .endObject()
-                    .endArray()
-                .endObject();
+        Builder sampleArrayOfObjects = builder -> {
+            builder.startObject();
+            builder.startArray("tags");
+            {
+                builder.startObject().field("lastname", "lorem").endObject();
+                builder.startObject().field("firstname", "ipsum").endObject();
+            }
+            builder.endArray();
+            return builder.endObject();
+        };
         testFilter(sampleArrayOfObjects, sampleArrayOfObjects, singleton("t*"), emptySet());
         testFilter(sampleArrayOfObjects, sampleArrayOfObjects, singleton("tags"), emptySet());
         testFilter(sampleArrayOfObjects, sampleArrayOfObjects, emptySet(), singleton("a"));
@@ -1151,14 +268,15 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expected, sampleArrayOfObjects, emptySet(), singleton("tags"));
 
         // Test: Array of objects (with partial filtering)
-        expected = builder -> builder
-                .startObject()
-                    .startArray("tags")
-                        .startObject()
-                            .field("firstname", "ipsum")
-                        .endObject()
-                    .endArray()
-                .endObject();
+        expected = builder -> {
+            builder.startObject();
+            builder.startArray("tags");
+            {
+                builder.startObject().field("firstname", "ipsum").endObject();
+            }
+            builder.endArray();
+            return builder.endObject();
+        };
         testFilter(expected, sampleArrayOfObjects, singleton("t*.firstname"), emptySet());
         testFilter(expected, sampleArrayOfObjects, emptySet(), singleton("t*.lastname"));
     }
@@ -1178,62 +296,20 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     }
 
     public void testSingleFieldWithBothExcludesIncludes() throws IOException {
-        final Builder expected = builder -> builder
-            .startObject()
-                .field("pages", 456)
-                .field("price", 27.99)
-            .endObject();
-
+        Builder expected = builder -> builder.startObject().field("pages", 456).field("price", 27.99).endObject();
         testFilter(expected, SAMPLE, singleton("p*"), singleton("properties"));
     }
 
     public void testObjectsInArrayWithBothExcludesIncludes() throws IOException {
         Set<String> includes = Sets.newHashSet("tags", "authors");
         Set<String> excludes = singleton("authors.name");
-
-        final Builder expected = builder -> builder
-            .startObject()
-                .startArray("tags")
-                    .value("elasticsearch")
-                    .value("java")
-                .endArray()
-                .startArray("authors")
-                    .startObject()
-                        .field("lastname", "John")
-                        .field("firstname", "Doe")
-                    .endObject()
-                    .startObject()
-                        .field("lastname", "William")
-                        .field("firstname", "Smith")
-                    .endObject()
-                .endArray()
-            .endObject();
-
-        testFilter(expected, SAMPLE, includes, excludes);
+        testFilter(builderFor("sample_just_tags_authors_no_name.json"), SAMPLE, includes, excludes);
     }
 
     public void testRecursiveObjectsInArrayWithBothExcludesIncludes() throws IOException {
         Set<String> includes = Sets.newHashSet("**.language", "properties.weight");
         Set<String> excludes = singleton("**.distributors");
-
-        final Builder expected = builder -> builder
-            .startObject()
-                .startObject("properties")
-                    .field("weight", 0.8d)
-                    .startObject("language")
-                        .startObject("en")
-                            .field("lang", "English")
-                            .field("available", true)
-                        .endObject()
-                        .startObject("fr")
-                            .field("lang", "French")
-                            .field("available", false)
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-
-        testFilter(expected, SAMPLE, includes, excludes);
+        testFilter(builderFor("sample_just_properties_no_distributors.json"), SAMPLE, includes, excludes);
     }
 
     public void testRecursiveSameObjectWithBothExcludesIncludes() throws IOException {
@@ -1247,47 +323,15 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     public void testRecursiveObjectsPropertiesWithBothExcludesIncludes() throws IOException {
         Set<String> includes = singleton("**.en.*");
         Set<String> excludes = Sets.newHashSet("**.distributors.*.name", "**.street");
-
-        final Builder expected = builder -> builder
-            .startObject()
-                .startObject("properties")
-                    .startObject("language")
-                        .startObject("en")
-                            .field("lang", "English")
-                            .field("available", true)
-                            .startArray("distributors")
-                                .startObject()
-                                    .field("name", "The Book Shop")
-                                    .startArray("addresses")
-                                        .startObject()
-                                            .field("city", "London")
-                                        .endObject()
-                                        .startObject()
-                                            .field("city", "Stornoway")
-                                        .endObject()
-                                    .endArray()
-                                .endObject()
-                                .startObject()
-                                    .field("name", "Sussex Books House")
-                                .endObject()
-                            .endArray()
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-
-        testFilter(expected, SAMPLE, includes, excludes);
+        testFilter(builderFor("sample_just_properties_en_no_distributors_name_no_street.json"), SAMPLE, includes, excludes);
     }
 
     public void testWithLfAtEnd() throws IOException {
-        final Builder sample = builder -> builder
-                .startObject()
-                    .startObject("foo")
-                        .field("bar", "baz")
-                    .endObject()
-                .endObject()
-                .prettyPrint()
-                .lfAtEnd();
+        final Builder sample = builder -> {
+            builder.startObject();
+            builder.startObject("foo").field("bar", "baz").endObject();
+            return builder.endObject().prettyPrint().lfAtEnd();
+        };
 
         testFilter(sample, sample, singleton("foo"), emptySet());
         testFilter(sample, sample, emptySet(), singleton("bar"));
@@ -1300,62 +344,55 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     }
 
     public void testBasics() throws Exception {
-        final Builder sample = builder -> builder
-                .startObject()
-                    .field("test1", "value1")
-                    .field("test2", "value2")
-                    .field("something_else", "value3")
-                .endObject();
+        Builder sample = builder -> {
+            return builder.startObject().field("test1", "value1").field("test2", "value2").field("something_else", "value3").endObject();
+        };
 
-        Builder expected = builder -> builder
-                .startObject()
-                    .field("test1", "value1")
-                .endObject();
+        Builder expected = builder -> builder.startObject().field("test1", "value1").endObject();
         testFilter(expected, sample, singleton("test1"), emptySet());
 
-        expected = builder -> builder
-                .startObject()
-                    .field("test1", "value1")
-                    .field("test2", "value2")
-                .endObject();
+        expected = builder -> builder.startObject().field("test1", "value1").field("test2", "value2").endObject();
         testFilter(expected, sample, singleton("test*"), emptySet());
 
-        expected = builder -> builder
-                .startObject()
-                    .field("test2", "value2")
-                    .field("something_else", "value3")
-                .endObject();
+        expected = builder -> builder.startObject().field("test2", "value2").field("something_else", "value3").endObject();
         testFilter(expected, sample, emptySet(), singleton("test1"));
 
         // more complex object...
-        final Builder complex = builder -> builder
-                .startObject()
-                    .startObject("path1")
-                        .startArray("path2")
-                            .startObject().field("test", "value1").endObject()
-                            .startObject().field("test", "value2").endObject()
-                        .endArray()
-                    .endObject()
-                    .field("test1", "value1")
-                .endObject();
+        Builder complex = builder -> {
+            builder.startObject();
+            builder.startObject("path1");
+            {
+                builder.startArray("path2");
+                {
+                    builder.startObject().field("test", "value1").endObject();
+                    builder.startObject().field("test", "value2").endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            builder.field("test1", "value1");
+            return builder.endObject();
+        };
 
-        expected = builder -> builder
-                .startObject()
-                    .startObject("path1")
-                        .startArray("path2")
-                            .startObject().field("test", "value1").endObject()
-                            .startObject().field("test", "value2").endObject()
-                        .endArray()
-                    .endObject()
-                .endObject();
+        expected = builder -> {
+            builder.startObject();
+            builder.startObject("path1");
+            {
+                builder.startArray("path2");
+                {
+                    builder.startObject().field("test", "value1").endObject();
+                    builder.startObject().field("test", "value2").endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            return builder.endObject();
+        };
         testFilter(expected, complex, singleton("path1"), emptySet());
         testFilter(expected, complex, singleton("path1*"), emptySet());
         testFilter(expected, complex, singleton("path1.path2.*"), emptySet());
 
-        expected = builder -> builder
-                .startObject()
-                    .field("test1", "value1")
-                .endObject();
+        expected = builder -> builder.startObject().field("test1", "value1").endObject();
         testFilter(expected, complex, singleton("test1*"), emptySet());
     }
 
@@ -1363,22 +400,12 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
      * Generalization of {@link XContentMapValuesTests#testSupplementaryCharactersInPaths()}
      */
     public void testFilterSupplementaryCharactersInPaths() throws IOException {
-        final Builder sample = builder -> builder
-                .startObject()
-                    .field("搜索", 2)
-                    .field("指数", 3)
-                .endObject();
+        Builder sample = builder -> builder.startObject().field("搜索", 2).field("指数", 3).endObject();
 
-        Builder expected = builder -> builder
-                .startObject()
-                    .field("搜索", 2)
-                .endObject();
+        Builder expected = builder -> builder.startObject().field("搜索", 2).endObject();
         testFilter(expected, sample, singleton("搜索"), emptySet());
 
-        expected = builder -> builder
-                .startObject()
-                    .field("指数", 3)
-                .endObject();
+        expected = builder -> builder.startObject().field("指数", 3).endObject();
         testFilter(expected, sample, emptySet(), singleton("搜索"));
     }
 
@@ -1386,22 +413,12 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
      * Generalization of {@link XContentMapValuesTests#testSharedPrefixes()}
      */
     public void testFilterSharedPrefixes() throws IOException {
-        final Builder sample = builder -> builder
-                .startObject()
-                    .field("foobar", 2)
-                    .field("foobaz", 3)
-                .endObject();
+        Builder sample = builder -> builder.startObject().field("foobar", 2).field("foobaz", 3).endObject();
 
-        Builder expected = builder -> builder
-                .startObject()
-                    .field("foobar", 2)
-                .endObject();
+        Builder expected = builder -> builder.startObject().field("foobar", 2).endObject();
         testFilter(expected, sample, singleton("foobar"), emptySet());
 
-        expected = builder -> builder
-                .startObject()
-                    .field("foobaz", 3)
-                .endObject();
+        expected = builder -> builder.startObject().field("foobaz", 3).endObject();
         testFilter(expected, sample, emptySet(), singleton("foobar"));
     }
 
@@ -1409,16 +426,8 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
      * Generalization of {@link XContentMapValuesTests#testPrefix()}
      */
     public void testFilterPrefix() throws IOException {
-        final Builder sample = builder -> builder
-                .startObject()
-                    .array("photos", "foo", "bar")
-                    .field("photosCount", 2)
-                .endObject();
-
-        Builder expected = builder -> builder
-                .startObject()
-                    .field("photosCount", 2)
-                .endObject();
+        Builder sample = builder -> builder.startObject().array("photos", "foo", "bar").field("photosCount", 2).endObject();
+        Builder expected = builder -> builder.startObject().field("photosCount", 2).endObject();
         testFilter(expected, sample, singleton("photosCount"), emptySet());
     }
 

@@ -42,12 +42,17 @@ public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
         return bucketMap.get(key);
     }
 
-    private static final ObjectParser<ParsedAdjacencyMatrix, Void> PARSER =
-            new ObjectParser<>(ParsedAdjacencyMatrix.class.getSimpleName(), true, ParsedAdjacencyMatrix::new);
+    private static final ObjectParser<ParsedAdjacencyMatrix, Void> PARSER = new ObjectParser<>(
+        ParsedAdjacencyMatrix.class.getSimpleName(),
+        true,
+        ParsedAdjacencyMatrix::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser),
-                parser -> ParsedBucket.fromXContent(parser));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser),
+            parser -> ParsedBucket.fromXContent(parser)
+        );
     }
 
     public static ParsedAdjacencyMatrix fromXContent(XContentParser parser, String name) throws IOException {

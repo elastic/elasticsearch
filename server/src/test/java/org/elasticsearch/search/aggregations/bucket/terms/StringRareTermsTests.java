@@ -25,10 +25,12 @@ import java.util.Set;
 public class StringRareTermsTests extends InternalRareTermsTestCase {
 
     @Override
-    protected InternalRareTerms<?, ?> createTestInstance(String name,
-                                                         Map<String, Object> metadata,
-                                                         InternalAggregations aggregations,
-                                                         long maxDocCount) {
+    protected InternalRareTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        long maxDocCount
+    ) {
         BucketOrder order = BucketOrder.count(false);
         DocValueFormat format = DocValueFormat.RAW;
         List<StringRareTerms.Bucket> buckets = new ArrayList<>();
@@ -67,8 +69,14 @@ public class StringRareTermsTests extends InternalRareTermsTestCase {
                     break;
                 case 2:
                     buckets = new ArrayList<>(buckets);
-                    buckets.add(new StringRareTerms.Bucket(new BytesRef(randomAlphaOfLengthBetween(1, 10)), randomNonNegativeLong(),
-                        InternalAggregations.EMPTY, format));
+                    buckets.add(
+                        new StringRareTerms.Bucket(
+                            new BytesRef(randomAlphaOfLengthBetween(1, 10)),
+                            randomNonNegativeLong(),
+                            InternalAggregations.EMPTY,
+                            format
+                        )
+                    );
                     break;
                 case 3:
                     if (metadata == null) {

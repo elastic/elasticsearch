@@ -101,7 +101,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         NodeResponse(StreamInput in) throws IOException {
             super(in);
-            this.cacheStats = in.getVersion().onOrAfter(Version.V_8_0_0) ? new EnrichStatsAction.Response.CacheStats(in) : null;
+            this.cacheStats = in.getVersion().onOrAfter(Version.V_7_16_0) ? new EnrichStatsAction.Response.CacheStats(in) : null;
             this.coordinatorStats = new CoordinatorStats(in);
         }
 
@@ -116,7 +116,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
                 cacheStats.writeTo(out);
             }
             coordinatorStats.writeTo(out);

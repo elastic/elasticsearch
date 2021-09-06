@@ -34,6 +34,7 @@ import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -63,6 +64,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -95,6 +97,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     final String transportShardAction;
     private final String shardExecutor;
     private final XPackLicenseState licenseState;
+    private final Settings settings;
 
     @Inject
     public TransportTermsEnumAction(
@@ -106,6 +109,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         ScriptService scriptService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
+        Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new);
@@ -119,6 +123,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.licenseState = licenseState;
+        this.settings = settings;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();;
 
         transportService.registerRequestHandler(
@@ -405,7 +410,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         XPackLicenseState frozenLicenseState,
         ThreadContext threadContext
     ) throws IOException {
-        if (frozenLicenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());

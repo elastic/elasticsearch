@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -28,7 +29,12 @@ import static org.hamcrest.Matchers.is;
 public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
+        return Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform")
+            // TODO Change this to run with security enabled
+            // https://github.com/elastic/elasticsearch/issues/75940
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .build();
     }
 
     public void testPreviewTransformWithRemoteIndex() {

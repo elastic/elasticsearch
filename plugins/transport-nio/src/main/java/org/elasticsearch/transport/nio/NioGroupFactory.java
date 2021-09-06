@@ -86,11 +86,9 @@ public final class NioGroupFactory {
 
     private static class RefCountedNioGroup extends AbstractRefCounted implements NioGroup {
 
-        public static final String NAME = "ref-counted-nio-group";
         private final NioSelectorGroup nioGroup;
 
         private RefCountedNioGroup(NioSelectorGroup nioGroup) {
-            super(NAME);
             this.nioGroup = nioGroup;
         }
 

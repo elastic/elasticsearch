@@ -1,19 +1,21 @@
 [[secure-cluster]]
-= Secure the Elastic Stack
+= Secure the {stack}
 
 [partintro]
 --
 
-The Elastic Stack is comprised of many moving parts. There are the {es}
+The {stack} is comprised of many moving parts. There are the {es}
 nodes that form the cluster, plus {ls} instances, {kib} instances, {beats}
-agents, and clients all communicating with the cluster.
+agents, and clients all communicating with the cluster. To keep your cluster
+safe, adhere to the <<es-security-principles,{es} security principles>>.
 
-<<configuring-stack-security,Configure security for the Elastic Stack>> to
+<<configuring-stack-security,Start the {stack} with security enabled>> or
+<<manually-configure-security,manually configure security>> to
 secure {es} clusters and any clients that communicate with your clusters. You
 can password protect access to your data as well as enable more advanced
 security by configuring Transport Layer Security (TLS). This additional layer
 provides confidentiality and integrity protection to your communications with
-the Elastic Stack. You can also implement additional security measures, such as
+the {stack}. You can also implement additional security measures, such as
 role-based access control, IP filtering, and auditing.
 
 Enabling security protects {es} clusters by:
@@ -71,7 +73,7 @@ of your data against tampering, while also providing _confidentiality_ by
 encrypting communications to, from, and within the cluster. For even	greater
 protection, you can increase the <<ciphers,encryption strength>>.
 
-See <<configuring-stack-security,Configure security for the Elastic Stack>>.
+See <<configuring-stack-security,Configure security for the {stack}>>.
 
 [discrete]
 [[maintaining-audit-trail]]
@@ -89,6 +91,8 @@ the activity in your cluster can also help diagnose operational issues.
 See <<enable-audit-logging,Enable audit logging>>.
 
 --
+
+include::es-security-principles.asciidoc[]
 
 include::configuring-stack-security.asciidoc[]
 

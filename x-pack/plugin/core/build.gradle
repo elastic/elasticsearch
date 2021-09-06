@@ -6,7 +6,7 @@ import java.nio.file.Paths
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -77,7 +77,7 @@ tasks.named("processResources").configure {
     inputs.properties(expansions)
     filter("tokens" : expansions, ReplaceTokens.class)
   }
-  String licenseKey = System.getProperty("license.key")
+  String licenseKey = providers.systemProperty("license.key").forUseAtConfigurationTime().getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (BuildParams.isSnapshotBuild()) {

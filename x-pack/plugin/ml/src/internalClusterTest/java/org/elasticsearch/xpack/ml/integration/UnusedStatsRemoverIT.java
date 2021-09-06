@@ -85,7 +85,8 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
                         .build())
                 )
                 .validate(true)
-                .build())).actionGet();
+                .build(),
+                false)).actionGet();
 
         indexStatDocument(new DataCounts("analytics-with-stats", 1, 1, 1),
             DataCounts.documentId("analytics-with-stats"));

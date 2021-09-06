@@ -922,7 +922,7 @@ public class MetadataTests extends ESTestCase {
             "}";
 
     public void testTransientSettingsOverridePersistentSettings() {
-        final Setting setting = Setting.simpleString("key");
+        final Setting<String> setting = Setting.simpleString("key");
         final Metadata metadata = Metadata.builder()
             .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
             .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();

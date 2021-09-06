@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class SqlBaseParser extends Parser {
-  static { RuntimeMetaData.checkVersion("4.5.3", RuntimeMetaData.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.9.2", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =
@@ -57,63 +57,73 @@ class SqlBaseParser extends Parser {
     RULE_qualifiedName = 51, RULE_identifier = 52, RULE_tableIdentifier = 53, 
     RULE_quoteIdentifier = 54, RULE_unquoteIdentifier = 55, RULE_number = 56, 
     RULE_string = 57, RULE_whenClause = 58, RULE_nonReserved = 59;
-  public static final String[] ruleNames = {
-    "singleStatement", "singleExpression", "statement", "query", "queryNoWith", 
-    "limitClause", "queryTerm", "orderBy", "querySpecification", "fromClause", 
-    "groupBy", "groupingElement", "groupingExpressions", "namedQuery", "topClause", 
-    "setQuantifier", "selectItems", "selectItem", "relation", "joinRelation", 
-    "joinType", "joinCriteria", "relationPrimary", "pivotClause", "pivotArgs", 
-    "namedValueExpression", "expression", "booleanExpression", "matchQueryOptions", 
-    "predicated", "predicate", "likePattern", "pattern", "patternEscape", 
-    "valueExpression", "primaryExpression", "builtinDateTimeFunction", "castExpression", 
-    "castTemplate", "convertTemplate", "extractExpression", "extractTemplate", 
-    "functionExpression", "functionTemplate", "functionName", "constant", 
-    "comparisonOperator", "booleanValue", "interval", "intervalField", "dataType", 
-    "qualifiedName", "identifier", "tableIdentifier", "quoteIdentifier", "unquoteIdentifier", 
-    "number", "string", "whenClause", "nonReserved"
-  };
+  private static String[] makeRuleNames() {
+    return new String[] {
+      "singleStatement", "singleExpression", "statement", "query", "queryNoWith", 
+      "limitClause", "queryTerm", "orderBy", "querySpecification", "fromClause", 
+      "groupBy", "groupingElement", "groupingExpressions", "namedQuery", "topClause", 
+      "setQuantifier", "selectItems", "selectItem", "relation", "joinRelation", 
+      "joinType", "joinCriteria", "relationPrimary", "pivotClause", "pivotArgs", 
+      "namedValueExpression", "expression", "booleanExpression", "matchQueryOptions", 
+      "predicated", "predicate", "likePattern", "pattern", "patternEscape", 
+      "valueExpression", "primaryExpression", "builtinDateTimeFunction", "castExpression", 
+      "castTemplate", "convertTemplate", "extractExpression", "extractTemplate", 
+      "functionExpression", "functionTemplate", "functionName", "constant", 
+      "comparisonOperator", "booleanValue", "interval", "intervalField", "dataType", 
+      "qualifiedName", "identifier", "tableIdentifier", "quoteIdentifier", 
+      "unquoteIdentifier", "number", "string", "whenClause", "nonReserved"
+    };
+  }
+  public static final String[] ruleNames = makeRuleNames();
 
-  private static final String[] _LITERAL_NAMES = {
-    null, "'('", "')'", "','", "':'", "'ALL'", "'ANALYZE'", "'ANALYZED'", 
-    "'AND'", "'ANY'", "'AS'", "'ASC'", "'BETWEEN'", "'BY'", "'CASE'", "'CAST'", 
-    "'CATALOG'", "'CATALOGS'", "'COLUMNS'", "'CONVERT'", "'CURRENT_DATE'", 
-    "'CURRENT_TIME'", "'CURRENT_TIMESTAMP'", "'DAY'", "'DAYS'", "'DEBUG'", 
-    "'DESC'", "'DESCRIBE'", "'DISTINCT'", "'ELSE'", "'END'", "'ESCAPE'", "'EXECUTABLE'", 
-    "'EXISTS'", "'EXPLAIN'", "'EXTRACT'", "'FALSE'", "'FIRST'", "'FOR'", "'FORMAT'", 
-    "'FROM'", "'FROZEN'", "'FULL'", "'FUNCTIONS'", "'GRAPHVIZ'", "'GROUP'", 
-    "'HAVING'", "'HOUR'", "'HOURS'", "'IN'", "'INCLUDE'", "'INNER'", "'INTERVAL'", 
-    "'IS'", "'JOIN'", "'LAST'", "'LEFT'", "'LIKE'", "'LIMIT'", "'MAPPED'", 
-    "'MATCH'", "'MINUTE'", "'MINUTES'", "'MONTH'", "'MONTHS'", "'NATURAL'", 
-    "'NOT'", "'NULL'", "'NULLS'", "'ON'", "'OPTIMIZED'", "'OR'", "'ORDER'", 
-    "'OUTER'", "'PARSED'", "'PHYSICAL'", "'PIVOT'", "'PLAN'", "'RIGHT'", "'RLIKE'", 
-    "'QUERY'", "'SCHEMAS'", "'SECOND'", "'SECONDS'", "'SELECT'", "'SHOW'", 
-    "'SYS'", "'TABLE'", "'TABLES'", "'TEXT'", "'THEN'", "'TRUE'", "'TO'", 
-    "'TOP'", "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", "'WHEN'", "'WHERE'", 
-    "'WITH'", "'YEAR'", "'YEARS'", null, null, null, null, null, null, null, 
-    null, "'}'", "'='", "'<=>'", null, "'<'", "'<='", "'>'", "'>='", "'+'", 
-    "'-'", "'*'", "'/'", "'%'", "'::'", "'.'", "'?'"
-  };
-  private static final String[] _SYMBOLIC_NAMES = {
-    null, null, null, null, null, "ALL", "ANALYZE", "ANALYZED", "AND", "ANY", 
-    "AS", "ASC", "BETWEEN", "BY", "CASE", "CAST", "CATALOG", "CATALOGS", "COLUMNS", 
-    "CONVERT", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "DAY", 
-    "DAYS", "DEBUG", "DESC", "DESCRIBE", "DISTINCT", "ELSE", "END", "ESCAPE", 
-    "EXECUTABLE", "EXISTS", "EXPLAIN", "EXTRACT", "FALSE", "FIRST", "FOR", 
-    "FORMAT", "FROM", "FROZEN", "FULL", "FUNCTIONS", "GRAPHVIZ", "GROUP", 
-    "HAVING", "HOUR", "HOURS", "IN", "INCLUDE", "INNER", "INTERVAL", "IS", 
-    "JOIN", "LAST", "LEFT", "LIKE", "LIMIT", "MAPPED", "MATCH", "MINUTE", 
-    "MINUTES", "MONTH", "MONTHS", "NATURAL", "NOT", "NULL", "NULLS", "ON", 
-    "OPTIMIZED", "OR", "ORDER", "OUTER", "PARSED", "PHYSICAL", "PIVOT", "PLAN", 
-    "RIGHT", "RLIKE", "QUERY", "SCHEMAS", "SECOND", "SECONDS", "SELECT", "SHOW", 
-    "SYS", "TABLE", "TABLES", "TEXT", "THEN", "TRUE", "TO", "TOP", "TYPE", 
-    "TYPES", "USING", "VERIFY", "WHEN", "WHERE", "WITH", "YEAR", "YEARS", 
-    "ESCAPE_ESC", "FUNCTION_ESC", "LIMIT_ESC", "DATE_ESC", "TIME_ESC", "TIMESTAMP_ESC", 
-    "GUID_ESC", "ESC_START", "ESC_END", "EQ", "NULLEQ", "NEQ", "LT", "LTE", 
-    "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "CAST_OP", 
-    "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", 
-    "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", "BACKQUOTED_IDENTIFIER", 
-    "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", "UNRECOGNIZED", "DELIMITER"
-  };
+  private static String[] makeLiteralNames() {
+    return new String[] {
+      null, "'('", "')'", "','", "':'", "'ALL'", "'ANALYZE'", "'ANALYZED'", 
+      "'AND'", "'ANY'", "'AS'", "'ASC'", "'BETWEEN'", "'BY'", "'CASE'", "'CAST'", 
+      "'CATALOG'", "'CATALOGS'", "'COLUMNS'", "'CONVERT'", "'CURRENT_DATE'", 
+      "'CURRENT_TIME'", "'CURRENT_TIMESTAMP'", "'DAY'", "'DAYS'", "'DEBUG'", 
+      "'DESC'", "'DESCRIBE'", "'DISTINCT'", "'ELSE'", "'END'", "'ESCAPE'", 
+      "'EXECUTABLE'", "'EXISTS'", "'EXPLAIN'", "'EXTRACT'", "'FALSE'", "'FIRST'", 
+      "'FOR'", "'FORMAT'", "'FROM'", "'FROZEN'", "'FULL'", "'FUNCTIONS'", "'GRAPHVIZ'", 
+      "'GROUP'", "'HAVING'", "'HOUR'", "'HOURS'", "'IN'", "'INCLUDE'", "'INNER'", 
+      "'INTERVAL'", "'IS'", "'JOIN'", "'LAST'", "'LEFT'", "'LIKE'", "'LIMIT'", 
+      "'MAPPED'", "'MATCH'", "'MINUTE'", "'MINUTES'", "'MONTH'", "'MONTHS'", 
+      "'NATURAL'", "'NOT'", "'NULL'", "'NULLS'", "'ON'", "'OPTIMIZED'", "'OR'", 
+      "'ORDER'", "'OUTER'", "'PARSED'", "'PHYSICAL'", "'PIVOT'", "'PLAN'", 
+      "'RIGHT'", "'RLIKE'", "'QUERY'", "'SCHEMAS'", "'SECOND'", "'SECONDS'", 
+      "'SELECT'", "'SHOW'", "'SYS'", "'TABLE'", "'TABLES'", "'TEXT'", "'THEN'", 
+      "'TRUE'", "'TO'", "'TOP'", "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", 
+      "'WHEN'", "'WHERE'", "'WITH'", "'YEAR'", "'YEARS'", null, null, null, 
+      null, null, null, null, null, "'}'", "'='", "'<=>'", null, "'<'", "'<='", 
+      "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", "'::'", "'.'", "'?'"
+    };
+  }
+  private static final String[] _LITERAL_NAMES = makeLiteralNames();
+  private static String[] makeSymbolicNames() {
+    return new String[] {
+      null, null, null, null, null, "ALL", "ANALYZE", "ANALYZED", "AND", "ANY", 
+      "AS", "ASC", "BETWEEN", "BY", "CASE", "CAST", "CATALOG", "CATALOGS", 
+      "COLUMNS", "CONVERT", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", 
+      "DAY", "DAYS", "DEBUG", "DESC", "DESCRIBE", "DISTINCT", "ELSE", "END", 
+      "ESCAPE", "EXECUTABLE", "EXISTS", "EXPLAIN", "EXTRACT", "FALSE", "FIRST", 
+      "FOR", "FORMAT", "FROM", "FROZEN", "FULL", "FUNCTIONS", "GRAPHVIZ", "GROUP", 
+      "HAVING", "HOUR", "HOURS", "IN", "INCLUDE", "INNER", "INTERVAL", "IS", 
+      "JOIN", "LAST", "LEFT", "LIKE", "LIMIT", "MAPPED", "MATCH", "MINUTE", 
+      "MINUTES", "MONTH", "MONTHS", "NATURAL", "NOT", "NULL", "NULLS", "ON", 
+      "OPTIMIZED", "OR", "ORDER", "OUTER", "PARSED", "PHYSICAL", "PIVOT", "PLAN", 
+      "RIGHT", "RLIKE", "QUERY", "SCHEMAS", "SECOND", "SECONDS", "SELECT", 
+      "SHOW", "SYS", "TABLE", "TABLES", "TEXT", "THEN", "TRUE", "TO", "TOP", 
+      "TYPE", "TYPES", "USING", "VERIFY", "WHEN", "WHERE", "WITH", "YEAR", 
+      "YEARS", "ESCAPE_ESC", "FUNCTION_ESC", "LIMIT_ESC", "DATE_ESC", "TIME_ESC", 
+      "TIMESTAMP_ESC", "GUID_ESC", "ESC_START", "ESC_END", "EQ", "NULLEQ", 
+      "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", 
+      "PERCENT", "CAST_OP", "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", 
+      "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", 
+      "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", 
+      "UNRECOGNIZED", "DELIMITER"
+    };
+  }
+  private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
   /**
@@ -163,6 +173,7 @@ class SqlBaseParser extends Parser {
     super(input);
     _interp = new ParserATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
   }
+
   public static class SingleStatementContext extends ParserRuleContext {
     public StatementContext statement() {
       return getRuleContext(StatementContext.class,0);
@@ -639,6 +650,7 @@ class SqlBaseParser extends Parser {
           while (((((_la - 39)) & ~0x3f) == 0 && ((1L << (_la - 39)) & ((1L << (FORMAT - 39)) | (1L << (PLAN - 39)) | (1L << (VERIFY - 39)))) != 0)) {
             {
             setState(135);
+            _errHandler.sync(this);
             switch (_input.LA(1)) {
             case PLAN:
               {
@@ -649,7 +661,10 @@ class SqlBaseParser extends Parser {
               _la = _input.LA(1);
               if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ALL) | (1L << ANALYZED) | (1L << EXECUTABLE) | (1L << MAPPED))) != 0) || _la==OPTIMIZED || _la==PARSED) ) {
                 ((ExplainContext)_localctx).type = (Token)_errHandler.recoverInline(this);
-              } else {
+              }
+              else {
+                if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                _errHandler.reportMatch(this);
                 consume();
               }
               }
@@ -663,7 +678,10 @@ class SqlBaseParser extends Parser {
               _la = _input.LA(1);
               if ( !(_la==GRAPHVIZ || _la==TEXT) ) {
                 ((ExplainContext)_localctx).format = (Token)_errHandler.recoverInline(this);
-              } else {
+              }
+              else {
+                if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                _errHandler.reportMatch(this);
                 consume();
               }
               }
@@ -712,6 +730,7 @@ class SqlBaseParser extends Parser {
           while (_la==FORMAT || _la==PLAN) {
             {
             setState(150);
+            _errHandler.sync(this);
             switch (_input.LA(1)) {
             case PLAN:
               {
@@ -722,7 +741,10 @@ class SqlBaseParser extends Parser {
               _la = _input.LA(1);
               if ( !(_la==ANALYZED || _la==OPTIMIZED) ) {
                 ((DebugContext)_localctx).type = (Token)_errHandler.recoverInline(this);
-              } else {
+              }
+              else {
+                if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                _errHandler.reportMatch(this);
                 consume();
               }
               }
@@ -736,7 +758,10 @@ class SqlBaseParser extends Parser {
               _la = _input.LA(1);
               if ( !(_la==GRAPHVIZ || _la==TEXT) ) {
                 ((DebugContext)_localctx).format = (Token)_errHandler.recoverInline(this);
-              } else {
+              }
+              else {
+                if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                _errHandler.reportMatch(this);
                 consume();
               }
               }
@@ -767,6 +792,7 @@ class SqlBaseParser extends Parser {
         setState(160);
         match(TABLES);
         setState(163);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==INCLUDE) {
           {
@@ -778,6 +804,7 @@ class SqlBaseParser extends Parser {
         }
 
         setState(167);
+        _errHandler.sync(this);
         switch (_input.LA(1)) {
         case LIKE:
           {
@@ -839,7 +866,7 @@ class SqlBaseParser extends Parser {
         case EOF:
           break;
         default:
-          throw new NoViableAltException(this);
+          break;
         }
         }
         break;
@@ -852,6 +879,7 @@ class SqlBaseParser extends Parser {
         setState(170);
         match(COLUMNS);
         setState(173);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==INCLUDE) {
           {
@@ -866,10 +894,14 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==FROM || _la==IN) ) {
         _errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(178);
+        _errHandler.sync(this);
         switch (_input.LA(1)) {
         case LIKE:
           {
@@ -941,10 +973,14 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==DESC || _la==DESCRIBE) ) {
         _errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(183);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==INCLUDE) {
           {
@@ -956,6 +992,7 @@ class SqlBaseParser extends Parser {
         }
 
         setState(187);
+        _errHandler.sync(this);
         switch (_input.LA(1)) {
         case LIKE:
           {
@@ -1028,6 +1065,7 @@ class SqlBaseParser extends Parser {
         setState(190);
         match(FUNCTIONS);
         setState(192);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==LIKE) {
           {
@@ -1057,6 +1095,7 @@ class SqlBaseParser extends Parser {
         setState(197);
         match(TABLES);
         setState(200);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==CATALOG) {
           {
@@ -1084,6 +1123,7 @@ class SqlBaseParser extends Parser {
           break;
         }
         setState(215);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==TYPE) {
           {
@@ -1121,6 +1161,7 @@ class SqlBaseParser extends Parser {
         setState(218);
         match(COLUMNS);
         setState(221);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==CATALOG) {
           {
@@ -1132,6 +1173,7 @@ class SqlBaseParser extends Parser {
         }
 
         setState(226);
+        _errHandler.sync(this);
         switch (_input.LA(1)) {
         case TABLE:
           {
@@ -1196,9 +1238,10 @@ class SqlBaseParser extends Parser {
         case LIKE:
           break;
         default:
-          throw new NoViableAltException(this);
+          break;
         }
         setState(229);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==LIKE) {
           {
@@ -1218,10 +1261,12 @@ class SqlBaseParser extends Parser {
         setState(232);
         match(TYPES);
         setState(237);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (((((_la - 119)) & ~0x3f) == 0 && ((1L << (_la - 119)) & ((1L << (PLUS - 119)) | (1L << (MINUS - 119)) | (1L << (INTEGER_VALUE - 119)) | (1L << (DECIMAL_VALUE - 119)))) != 0)) {
           {
           setState(234);
+          _errHandler.sync(this);
           _la = _input.LA(1);
           if (_la==PLUS || _la==MINUS) {
             {
@@ -1229,7 +1274,10 @@ class SqlBaseParser extends Parser {
             _la = _input.LA(1);
             if ( !(_la==PLUS || _la==MINUS) ) {
             _errHandler.recoverInline(this);
-            } else {
+            }
+            else {
+              if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+              _errHandler.reportMatch(this);
               consume();
             }
             }
@@ -1293,6 +1341,7 @@ class SqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(250);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==WITH) {
         {
@@ -1378,6 +1427,7 @@ class SqlBaseParser extends Parser {
       setState(254);
       queryTerm();
       setState(265);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==ORDER) {
         {
@@ -1407,6 +1457,7 @@ class SqlBaseParser extends Parser {
       }
 
       setState(268);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==LIMIT || _la==LIMIT_ESC) {
         {
@@ -1460,6 +1511,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(275);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case LIMIT:
         enterOuterAlt(_localctx, 1);
@@ -1471,7 +1523,10 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==ALL || _la==INTEGER_VALUE) ) {
           ((LimitClauseContext)_localctx).limit = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         }
@@ -1486,7 +1541,10 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==ALL || _la==INTEGER_VALUE) ) {
           ((LimitClauseContext)_localctx).limit = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(274);
@@ -1563,6 +1621,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 12, RULE_queryTerm);
     try {
       setState(282);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case SELECT:
         _localctx = new QueryPrimaryDefaultContext(_localctx);
@@ -1639,6 +1698,7 @@ class SqlBaseParser extends Parser {
       setState(284);
       expression();
       setState(286);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==ASC || _la==DESC) {
         {
@@ -1647,13 +1707,17 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==ASC || _la==DESC) ) {
           ((OrderByContext)_localctx).ordering = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         }
       }
 
       setState(290);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==NULLS) {
         {
@@ -1664,7 +1728,10 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==FIRST || _la==LAST) ) {
           ((OrderByContext)_localctx).nullOrdering = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         }
@@ -1751,6 +1818,7 @@ class SqlBaseParser extends Parser {
         break;
       }
       setState(297);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==ALL || _la==DISTINCT) {
         {
@@ -1762,6 +1830,7 @@ class SqlBaseParser extends Parser {
       setState(299);
       selectItems();
       setState(301);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==FROM) {
         {
@@ -1771,6 +1840,7 @@ class SqlBaseParser extends Parser {
       }
 
       setState(305);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==WHERE) {
         {
@@ -1782,6 +1852,7 @@ class SqlBaseParser extends Parser {
       }
 
       setState(310);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==GROUP) {
         {
@@ -1795,6 +1866,7 @@ class SqlBaseParser extends Parser {
       }
 
       setState(314);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==HAVING) {
         {
@@ -1876,6 +1948,7 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
       }
       setState(326);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==PIVOT) {
         {
@@ -1934,6 +2007,7 @@ class SqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(329);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==ALL || _la==DISTINCT) {
         {
@@ -2066,6 +2140,7 @@ class SqlBaseParser extends Parser {
         setState(341);
         match(T__0);
         setState(350);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)) | (1L << (DECIMAL_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
           {
@@ -2250,7 +2325,10 @@ class SqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==ALL || _la==DISTINCT) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -2381,6 +2459,7 @@ class SqlBaseParser extends Parser {
       case 1:
         {
         setState(377);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==AS) {
           {
@@ -2510,6 +2589,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(400);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case FULL:
       case INNER:
@@ -2527,6 +2607,7 @@ class SqlBaseParser extends Parser {
         setState(391);
         ((JoinRelationContext)_localctx).right = relationPrimary();
         setState(393);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==ON || _la==USING) {
           {
@@ -2596,12 +2677,14 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(417);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case INNER:
       case JOIN:
         enterOuterAlt(_localctx, 1);
         {
         setState(403);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==INNER) {
           {
@@ -2618,6 +2701,7 @@ class SqlBaseParser extends Parser {
         setState(405);
         match(LEFT);
         setState(407);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==OUTER) {
           {
@@ -2634,6 +2718,7 @@ class SqlBaseParser extends Parser {
         setState(409);
         match(RIGHT);
         setState(411);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==OUTER) {
           {
@@ -2650,6 +2735,7 @@ class SqlBaseParser extends Parser {
         setState(413);
         match(FULL);
         setState(415);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==OUTER) {
           {
@@ -2712,6 +2798,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(433);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ON:
         enterOuterAlt(_localctx, 1);
@@ -2861,6 +2948,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 1);
         {
         setState(436);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==FROZEN) {
           {
@@ -2877,6 +2965,7 @@ class SqlBaseParser extends Parser {
         case 1:
           {
           setState(440);
+          _errHandler.sync(this);
           _la = _input.LA(1);
           if (_la==AS) {
             {
@@ -2908,6 +2997,7 @@ class SqlBaseParser extends Parser {
         case 1:
           {
           setState(449);
+          _errHandler.sync(this);
           _la = _input.LA(1);
           if (_la==AS) {
             {
@@ -2939,6 +3029,7 @@ class SqlBaseParser extends Parser {
         case 1:
           {
           setState(458);
+          _errHandler.sync(this);
           _la = _input.LA(1);
           if (_la==AS) {
             {
@@ -3142,10 +3233,12 @@ class SqlBaseParser extends Parser {
       setState(484);
       valueExpression(0);
       setState(489);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << AS) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)) | (1L << (QUOTED_IDENTIFIER - 70)))) != 0) || _la==BACKQUOTED_IDENTIFIER) {
         {
         setState(486);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==AS) {
           {
@@ -3744,6 +3837,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 1);
         {
         setState(549);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -3766,6 +3860,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 2);
         {
         setState(557);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -3804,6 +3899,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 3);
         {
         setState(572);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -3826,6 +3922,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 4);
         {
         setState(580);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -3844,6 +3941,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 5);
         {
         setState(585);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -3864,6 +3962,7 @@ class SqlBaseParser extends Parser {
         setState(589);
         match(IS);
         setState(591);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==NOT) {
           {
@@ -4026,6 +4125,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 66, RULE_patternEscape);
     try {
       setState(609);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ESCAPE:
         enterOuterAlt(_localctx, 1);
@@ -4189,6 +4289,7 @@ class SqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(615);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case T__0:
       case ANALYZE:
@@ -4275,7 +4376,10 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
           ((ArithmeticUnaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         setState(614);
@@ -4309,7 +4413,10 @@ class SqlBaseParser extends Parser {
             _la = _input.LA(1);
             if ( !(((((_la - 121)) & ~0x3f) == 0 && ((1L << (_la - 121)) & ((1L << (ASTERISK - 121)) | (1L << (SLASH - 121)) | (1L << (PERCENT - 121)))) != 0)) ) {
               ((ArithmeticBinaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-            } else {
+            }
+            else {
+              if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+              _errHandler.reportMatch(this);
               consume();
             }
             setState(619);
@@ -4328,7 +4435,10 @@ class SqlBaseParser extends Parser {
             _la = _input.LA(1);
             if ( !(_la==PLUS || _la==MINUS) ) {
               ((ArithmeticBinaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-            } else {
+            }
+            else {
+              if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+              _errHandler.reportMatch(this);
               consume();
             }
             setState(622);
@@ -4671,6 +4781,7 @@ class SqlBaseParser extends Parser {
         _ctx = _localctx;
         _prevctx = _localctx;
         setState(640);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)) | (1L << (QUOTED_IDENTIFIER - 70)))) != 0) || _la==BACKQUOTED_IDENTIFIER) {
           {
@@ -4737,6 +4848,7 @@ class SqlBaseParser extends Parser {
         setState(653);
         match(CASE);
         setState(655);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)) | (1L << (DECIMAL_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
           {
@@ -4760,6 +4872,7 @@ class SqlBaseParser extends Parser {
           _la = _input.LA(1);
         } while ( _la==WHEN );
         setState(664);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==ELSE) {
           {
@@ -4842,6 +4955,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 72, RULE_builtinDateTimeFunction);
     try {
       setState(681);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case CURRENT_TIMESTAMP:
         enterOuterAlt(_localctx, 1);
@@ -5110,6 +5224,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 80, RULE_extractExpression);
     try {
       setState(714);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case EXTRACT:
         enterOuterAlt(_localctx, 1);
@@ -5234,6 +5349,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 84, RULE_functionExpression);
     try {
       setState(728);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ANALYZE:
       case ANALYZED:
@@ -5358,10 +5474,12 @@ class SqlBaseParser extends Parser {
       setState(731);
       match(T__0);
       setState(743);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ALL) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << DISTINCT) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)) | (1L << (DECIMAL_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
         {
         setState(733);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if (_la==ALL || _la==DISTINCT) {
           {
@@ -5436,6 +5554,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 88, RULE_functionName);
     try {
       setState(750);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case LEFT:
         enterOuterAlt(_localctx, 1);
@@ -5730,6 +5849,7 @@ class SqlBaseParser extends Parser {
     try {
       int _alt;
       setState(778);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case NULL:
         _localctx = new NullLiteralContext(_localctx);
@@ -5900,7 +6020,10 @@ class SqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(((((_la - 112)) & ~0x3f) == 0 && ((1L << (_la - 112)) & ((1L << (EQ - 112)) | (1L << (NULLEQ - 112)) | (1L << (NEQ - 112)) | (1L << (LT - 112)) | (1L << (LTE - 112)) | (1L << (GT - 112)) | (1L << (GTE - 112)))) != 0)) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -5949,7 +6072,10 @@ class SqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==FALSE || _la==TRUE) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -6016,6 +6142,7 @@ class SqlBaseParser extends Parser {
       setState(784);
       match(INTERVAL);
       setState(786);
+      _errHandler.sync(this);
       _la = _input.LA(1);
       if (_la==PLUS || _la==MINUS) {
         {
@@ -6024,13 +6151,17 @@ class SqlBaseParser extends Parser {
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
           ((IntervalContext)_localctx).sign = (Token)_errHandler.recoverInline(this);
-        } else {
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
           consume();
         }
         }
       }
 
       setState(790);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case INTEGER_VALUE:
       case DECIMAL_VALUE:
@@ -6119,7 +6250,10 @@ class SqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << DAY) | (1L << DAYS) | (1L << HOUR) | (1L << HOURS) | (1L << MINUTE) | (1L << MINUTES) | (1L << MONTH))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (MONTHS - 64)) | (1L << (SECOND - 64)) | (1L << (SECONDS - 64)) | (1L << (YEAR - 64)) | (1L << (YEARS - 64)))) != 0)) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -6289,6 +6423,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 104, RULE_identifier);
     try {
       setState(813);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case QUOTED_IDENTIFIER:
       case BACKQUOTED_IDENTIFIER:
@@ -6403,6 +6538,7 @@ class SqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 1);
         {
         setState(818);
+        _errHandler.sync(this);
         _la = _input.LA(1);
         if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)) | (1L << (QUOTED_IDENTIFIER - 70)))) != 0) || _la==BACKQUOTED_IDENTIFIER) {
           {
@@ -6500,6 +6636,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 108, RULE_quoteIdentifier);
     try {
       setState(831);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case QUOTED_IDENTIFIER:
         _localctx = new QuotedIdentifierContext(_localctx);
@@ -6586,6 +6723,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 110, RULE_unquoteIdentifier);
     try {
       setState(836);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case IDENTIFIER:
         _localctx = new UnquotedIdentifierContext(_localctx);
@@ -6717,6 +6855,7 @@ class SqlBaseParser extends Parser {
     enterRule(_localctx, 112, RULE_number);
     try {
       setState(840);
+      _errHandler.sync(this);
       switch (_input.LA(1)) {
       case DECIMAL_VALUE:
         _localctx = new DecimalLiteralContext(_localctx);
@@ -6782,7 +6921,10 @@ class SqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !(_la==PARAM || _la==STRING) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -6927,7 +7069,10 @@ class SqlBaseParser extends Parser {
       _la = _input.LA(1);
       if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)))) != 0)) ) {
       _errHandler.recoverInline(this);
-      } else {
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
         consume();
       }
       }
@@ -6983,7 +7128,7 @@ class SqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\u008d\u0356\4\2\t"+
+    "\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\u008d\u0356\4\2\t"+
     "\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
     "\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
     "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -7050,11 +7195,11 @@ class SqlBaseParser extends Parser {
     "\2**\63\63\3\2\34\35\3\2yz\4\2\7\7\u0082\u0082\4\2\r\r\34\34\4\2\'\'9"+
     "9\4\2\7\7\36\36\3\2{}\3\2rx\4\2&&]]\7\2\31\32\61\62?BTUgh\3\2\u0080\u0081"+
     "\31\2\b\t\23\24\26\31\33\33\"\"$$\'\')),.\61\61\66\6699<=??AAHHLOQTWX"+
-    "Z[_accgg\u03b9\2z\3\2\2\2\4}\3\2\2\2\6\u00f1\3\2\2\2\b\u00fc\3\2\2\2\n"+
-    "\u0100\3\2\2\2\f\u0115\3\2\2\2\16\u011c\3\2\2\2\20\u011e\3\2\2\2\22\u0126"+
-    "\3\2\2\2\24\u013e\3\2\2\2\26\u014b\3\2\2\2\30\u0155\3\2\2\2\32\u0164\3"+
-    "\2\2\2\34\u0166\3\2\2\2\36\u016c\3\2\2\2 \u016f\3\2\2\2\"\u0171\3\2\2"+
-    "\2$\u0179\3\2\2\2&\u0180\3\2\2\2(\u0192\3\2\2\2*\u01a3\3\2\2\2,\u01b3"+
+    "Z[_accgg\2\u03b9\2z\3\2\2\2\4}\3\2\2\2\6\u00f1\3\2\2\2\b\u00fc\3\2\2\2"+
+    "\n\u0100\3\2\2\2\f\u0115\3\2\2\2\16\u011c\3\2\2\2\20\u011e\3\2\2\2\22"+
+    "\u0126\3\2\2\2\24\u013e\3\2\2\2\26\u014b\3\2\2\2\30\u0155\3\2\2\2\32\u0164"+
+    "\3\2\2\2\34\u0166\3\2\2\2\36\u016c\3\2\2\2 \u016f\3\2\2\2\"\u0171\3\2"+
+    "\2\2$\u0179\3\2\2\2&\u0180\3\2\2\2(\u0192\3\2\2\2*\u01a3\3\2\2\2,\u01b3"+
     "\3\2\2\2.\u01d1\3\2\2\2\60\u01d3\3\2\2\2\62\u01de\3\2\2\2\64\u01e6\3\2"+
     "\2\2\66\u01ed\3\2\2\28\u020e\3\2\2\2:\u021f\3\2\2\2<\u0222\3\2\2\2>\u0254"+
     "\3\2\2\2@\u0256\3\2\2\2B\u0259\3\2\2\2D\u0263\3\2\2\2F\u0269\3\2\2\2H"+

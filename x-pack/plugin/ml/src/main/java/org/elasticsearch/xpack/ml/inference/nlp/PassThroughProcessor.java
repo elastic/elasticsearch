@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+
+import java.util.List;
 
 /**
  * A NLP processor that directly returns the PyTorch result
@@ -18,28 +22,29 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
  */
 public class PassThroughProcessor implements NlpTask.Processor {
 
-    private final BertRequestBuilder bertRequestBuilder;
+    private final NlpTask.RequestBuilder requestBuilder;
 
-    PassThroughProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
+    PassThroughProcessor(NlpTokenizer tokenizer, PassThroughConfig config) {
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // nothing to validate
     }
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return bertRequestBuilder;
+        return requestBuilder;
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return this::processResult;
+        return PassThroughProcessor::processResult;
     }
 
-    private InferenceResults processResult(PyTorchResult pyTorchResult) {
-        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
+    private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
+        // TODO - process all results in the batch
+        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult()[0]);
     }
 }

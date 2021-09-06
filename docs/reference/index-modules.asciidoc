@@ -47,8 +47,10 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 `index.number_of_routing_shards`::
 +
 ====
-Number of routing shards used to <<indices-split-index,split>> an index.
+Integer value used with <<index-number-of-shards,`index.number_of_shards`>> to
+route documents to a primary shard. See <<mapping-routing-field>>.
 
+{es} uses this value when <<indices-split-index,splitting>> an index.
 For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
 2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be
 split as follows:
@@ -109,13 +111,6 @@ to incomplete history on the leader. Defaults to `12h`.
 
     Indicates whether <<query-filter-context, cached filters>> are pre-loaded for
     nested queries. Possible values are `true` (default) and `false`.
-
-[[index-hidden]] `index.hidden`::
-
-    Indicates whether the index should be hidden by default. Hidden indices are not
-    returned by default when using a wildcard expression. This behavior is controlled
-    per request through the use of the `expand_wildcards` parameter. Possible values are
-    `true` and `false` (default).
 
 [[index-shard-check-on-startup]] `index.shard.check_on_startup`::
 +
@@ -325,11 +320,14 @@ Defaults to `*`, which matches all fields eligible for
 
 [[index-final-pipeline]]
  `index.final_pipeline`::
-    The final <<ingest,ingest node>> pipeline for this index. Index requests
-    will fail if the final pipeline is set and the pipeline does not exist.
-    The final pipeline always runs after the request pipeline (if specified) and
-    the default pipeline (if it exists). The special pipeline name `_none`
-    indicates no ingest pipeline will run.
+The final <<ingest,ingest node>> pipeline for this index. Indexing requests
+will fail if the final pipeline is set and the pipeline does not exist.
+The final pipeline always runs after the request pipeline (if specified) and
+the default pipeline (if it exists). The special pipeline name `_none`
+indicates no ingest pipeline will run.
++
+NOTE: You can't use a final pipelines to change the `_index` field. If the
+pipeline attempts to change the `_index` field, the indexing request will fail.
 
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
@@ -337,6 +335,13 @@ For internal use by Elastic only. Maximum number of time series dimensions for
 the index. Defaults to `16`.
 +
 You can mark a field as a dimension using the `dimension` mapping parameter.
+
+[[index-hidden]] `index.hidden`::
+
+    Indicates whether the index should be hidden by default. Hidden indices are not
+    returned by default when using a wildcard expression. This behavior is controlled
+    per request through the use of the `expand_wildcards` parameter. Possible values are
+    `true` and `false` (default).
 
 [discrete]
 === Settings in other index modules

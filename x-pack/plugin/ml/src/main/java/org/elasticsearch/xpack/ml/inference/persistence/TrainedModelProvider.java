@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
@@ -137,16 +136,16 @@ public class TrainedModelProvider {
             return;
         }
 
+        BytesReference definition;
         try {
-            trainedModelConfig.ensureParsedDefinition(xContentRegistry);
+            definition = trainedModelConfig.getCompressedDefinition();
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.serverError(
-                "Unexpected serialization error when parsing model definition for model [" + trainedModelConfig.getModelId() + "]",
-                ex));
+                "Unexpected IOException while serializing definition for storage for model [{}]",
+                ex,
+                trainedModelConfig.getModelId()));
             return;
         }
-
-        TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
         TrainedModelLocation location = trainedModelConfig.getLocation();
         if (definition == null && location == null) {
             listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] or [{}] is required",
@@ -392,13 +391,17 @@ public class TrainedModelProvider {
      * do not.
      *
      * @param modelId The model tp get
+     * @param unsafe when true, the compressed bytes size is not checked and the circuit breaker is solely responsible for
+     *               preventing OOMs
      * @param listener The listener
      */
-    public void getTrainedModelForInference(final String modelId, final ActionListener<InferenceDefinition> listener) {
+    public void getTrainedModelForInference(final String modelId, boolean unsafe, final ActionListener<InferenceDefinition> listener) {
         // TODO Change this when we get more than just langIdent stored
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
-                TrainedModelConfig config = loadModelFromResource(modelId, false).build().ensureParsedDefinition(xContentRegistry);
+                TrainedModelConfig config = loadModelFromResource(modelId, false)
+                    .build()
+                    .ensureParsedDefinitionUnsafe(xContentRegistry);
                 assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
                 assert config.getModelType() == TrainedModelType.LANG_IDENT;
                 listener.onResponse(
@@ -425,10 +428,9 @@ public class TrainedModelProvider {
             success -> {
                 try {
                     BytesReference compressedData = getDefinitionFromDocs(docs, modelId);
-                    InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                        compressedData,
-                        InferenceDefinition::fromXContent,
-                        xContentRegistry);
+                    InferenceDefinition inferenceDefinition = unsafe ?
+                    InferenceToXContentCompressor.inflateUnsafe(compressedData, InferenceDefinition::fromXContent, xContentRegistry) :
+                    InferenceToXContentCompressor.inflate(compressedData, InferenceDefinition::fromXContent, xContentRegistry);
 
                     listener.onResponse(inferenceDefinition);
                 } catch (Exception e) {

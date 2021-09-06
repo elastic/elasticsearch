@@ -95,7 +95,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         builder.startObject();
         if (snapshotInfo != null) {
             builder.field("snapshot");
-            snapshotInfo.toXContent(builder, params);
+            snapshotInfo.toXContentExternal(builder, params);
         } else {
             builder.field("accepted", true);
         }

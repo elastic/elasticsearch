@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -257,12 +258,13 @@ public class RemovePluginActionTests extends ESTestCase {
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
         ) {
-            assertEquals(
-                "ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
-                errorReader.readLine()
+            assertThat(errorReader.readLine(), equalTo(""));
+            assertThat(
+                errorReader.readLine(),
+                equalTo("ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins")
             );
-            assertNull(reader.readLine());
-            assertNull(errorReader.readLine());
+            assertThat(reader.readLine(), nullValue());
+            assertThat(errorReader.readLine(), nullValue());
         }
     }
 

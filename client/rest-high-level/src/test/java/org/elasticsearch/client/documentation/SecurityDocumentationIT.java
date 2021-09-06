@@ -75,7 +75,6 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
-import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -84,6 +83,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.QueryApiKeyRequest;
+import org.elasticsearch.client.security.QueryApiKeyResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
 import org.elasticsearch.client.security.support.ApiKey;
@@ -101,7 +102,6 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
-import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -109,6 +109,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
@@ -132,7 +136,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -705,8 +711,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 31 system roles plus the three we created
-            assertThat(roles.size(), equalTo(31 + 3));
+            // 30 system roles plus the three we created
+            assertThat(roles.size(), equalTo(30 + 3));
         }
 
         {
@@ -1179,41 +1185,49 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(certificates.size(), Matchers.equalTo(9));
             final Iterator<CertificateInfo> it = certificates.iterator();
             CertificateInfo c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("c0ea4216e8ff0fd8"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.crt"));
             assertThat(c.getFormat(), Matchers.equalTo("PEM"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("d3850b2b1995ad5f"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
             assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
+            c = it.next();
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("b9d497f2924bbe29"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
+            assertThat(c.getAlias(), Matchers.equalTo("activedir"));
             assertThat(c.getSerialNumber(), Matchers.equalTo("580db8ad52bb168a4080e1df122a3f56"));
+            c = it.next();
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("7268203b"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
+            assertThat(c.getAlias(), Matchers.equalTo("mykey"));
             assertThat(c.getSerialNumber(), Matchers.equalTo("3151a81eec8d4e34c56a8466a8510bcfbe63cc31"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("223c736a"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("openldap"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("d3850b2b1995ad5f"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testclient"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b9d497f2924bbe29"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode-client-profile"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("c0ea4216e8ff0fd8"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode_dsa"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("223c736a"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode_ec"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("7268203b"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode_rsa"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
         }
 
         {
@@ -2557,6 +2571,131 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     }
 
+    public void testQueryApiKey() throws IOException, ExecutionException, InterruptedException, TimeoutException {
+        RestHighLevelClient client = highLevelClient();
+        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest("key-10000", List.of(),
+            randomBoolean() ? TimeValue.timeValueHours(24) : null,
+            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-production"));
+        final CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest1, RequestOptions.DEFAULT);
+        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest("key-20000", List.of(),
+            randomBoolean() ? TimeValue.timeValueHours(24) : null,
+            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-staging"));
+        final CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest2, RequestOptions.DEFAULT);
+
+        {
+            // tag::query-api-key-default-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+            // end::query-api-key-default-request
+
+            // tag::query-api-key-execute
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            // end::query-api-key-execute
+
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(2));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+        }
+
+        {
+            // tag::query-api-key-query-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest().queryBuilder(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.prefixQuery("metadata.environment", "east-"))
+                    .mustNot(QueryBuilders.termQuery("name", "key-20000")));
+            // end::query-api-key-query-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(1L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(1));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getName(), equalTo(createApiKeyResponse1.getName()));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getId(), equalTo(createApiKeyResponse1.getId()));
+        }
+
+        {
+            // tag::query-api-key-from-size-sort-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
+                .from(1)
+                .size(100)
+                .fieldSortBuilders(List.of(new FieldSortBuilder("name").order(SortOrder.DESC)));
+            // end::query-api-key-from-size-sort-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+
+            // tag::query-api-key-from-size-sort-response
+            final long total = queryApiKeyResponse.getTotal();  // <1>
+            final int count = queryApiKeyResponse.getCount();  // <2>
+            final List<ApiKey> apiKeys = queryApiKeyResponse.getApiKeys();  // <3>
+            final Object[] sortValues = apiKeys.get(apiKeys.size()-1).getSortValues();  // <4>
+            // end::query-api-key-from-size-sort-response
+
+            assertThat(total, equalTo(2L));
+            assertThat(count, equalTo(1));
+            assertThat(apiKeys.get(0).getName(), equalTo(createApiKeyResponse1.getName()));
+            assertThat(apiKeys.get(0).getId(), equalTo(createApiKeyResponse1.getId()));
+            assertThat(sortValues.length, equalTo(1));
+            assertThat(sortValues[0], equalTo(createApiKeyResponse1.getName()));
+        }
+
+        {
+            // tag::query-api-key-search-after-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
+                .fieldSortBuilders(List.of(new FieldSortBuilder("name")))
+                .searchAfterBuilder(new SearchAfterBuilder().setSortValues(new String[] {"key-10000"}));
+            // end::query-api-key-search-after-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(1));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getName(), equalTo(createApiKeyResponse2.getName()));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getId(), equalTo(createApiKeyResponse2.getId()));
+        }
+
+        {
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+
+            ActionListener<QueryApiKeyResponse> listener;
+            // tag::query-api-key-execute-listener
+            listener = new ActionListener<QueryApiKeyResponse>() {
+                @Override
+                public void onResponse(QueryApiKeyResponse queryApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::query-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::query-api-key-execute-async
+            client.security().queryApiKeyAsync(queryApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::query-api-key-execute-async
+
+            final QueryApiKeyResponse queryApiKeyResponse = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(queryApiKeyResponse);
+
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(2));
+            assertThat(queryApiKeyResponse.getApiKeys(), is(notNullValue()));
+            assertThat(queryApiKeyResponse.getApiKeys().size(), is(2));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+        }
+    }
+
     public void testGetServiceAccounts() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -2872,90 +3011,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
-    public void testNodeEnrollment() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            // tag::node-enrollment-execute
-            NodeEnrollmentResponse response = client.security().enrollNode(RequestOptions.DEFAULT);
-            // end::node-enrollment-execute
-
-            // tag::node-enrollment-response
-            String httpCaKey = response.getHttpCaKey(); // <1>
-            String httpCaCert = response.getHttpCaCert(); // <2>
-            String transportKey = response.getTransportKey(); // <3>
-            String transportCert = response.getTransportCert(); // <4>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <5>
-            // end::node-enrollment-response
-        }
-
-        {
-            // tag::node-enrollment-execute-listener
-            ActionListener<NodeEnrollmentResponse> listener =
-                new ActionListener<NodeEnrollmentResponse>() {
-                    @Override
-                    public void onResponse(NodeEnrollmentResponse response) {
-                        // <1>
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }};
-            // end::node-enrollment-execute-listener
-
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::node-enrollment-execute-async
-            client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
-            // end::node-enrollment-execute-async
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
-    public void testKibanaEnrollment() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            // tag::kibana-enrollment-execute
-            KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
-            // end::kibana-enrollment-execute
-
-            // tag::kibana-enrollment-response
-            SecureString password = response.getPassword(); // <1>
-            String httoCa = response.getHttpCa(); // <2>
-            // end::kibana-enrollment-response
-            assertThat(password.length(), equalTo(14));
-        }
-
-        {
-            // tag::kibana-enrollment-execute-listener
-            ActionListener<KibanaEnrollmentResponse> listener =
-                new ActionListener<KibanaEnrollmentResponse>() {
-                    @Override
-                    public void onResponse(KibanaEnrollmentResponse response) {
-                        // <1>
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }};
-            // end::kibana-enrollment-execute-listener
-
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::kibana-enrollment-execute-async
-            client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
-            // end::kibana-enrollment-execute-async
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

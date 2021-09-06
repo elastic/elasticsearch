@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReasonTests;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocationTests;
 
@@ -58,39 +57,18 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
         assertThat(builder.isChanged(), is(false));
 
         assertUnchanged(builder, b -> b.removeAllocation(newModel));
-        assertUnchanged(builder, b -> b.updateAllocation(newModel, "foo", RoutingStateAndReasonTests.randomInstance()));
-        assertUnchanged(builder, b -> b.removeNode(newModel, "foo"));
 
-        if (original.modelAllocations().isEmpty() == false) {
-            String randomExistingModel = randomFrom(original.modelAllocations().keySet().toArray(String[]::new));
-            assertUnchanged(builder, b -> b.addNewAllocation(randomParams(randomExistingModel)));
-        }
-
-        builder.addNewAllocation(new StartTrainedModelDeploymentAction.TaskParams(newModel, "test-index", randomNonNegativeLong()));
+        builder.addNewAllocation(newModel, TrainedModelAllocation.Builder.empty(randomParams(newModel)));
         assertThat(builder.isChanged(), is(true));
     }
 
-    public void testBuilderChanged_WhenAddingRemovingNodeFromModel() {
-        String newModel = "foo_model";
-        TrainedModelAllocationMetadata original = TrainedModelAllocationMetadata.Builder.fromMetadata(randomInstance())
-            .addNewAllocation(randomParams(newModel))
+    public void testIsAllocated() {
+        String allocatedModelId = "test_model_id";
+        TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.Builder.empty()
+            .addNewAllocation(allocatedModelId, TrainedModelAllocation.Builder.empty(randomParams(allocatedModelId)))
             .build();
-        TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.Builder.fromMetadata(original);
-        assertThat(builder.isChanged(), is(false));
-
-        String newNode = "foo";
-        if (randomBoolean()) {
-            builder.addNode(newModel, newNode);
-        } else {
-            builder.addFailedNode(newModel, newNode, "failure");
-        }
-        assertThat(builder.isChanged(), is(true));
-
-        builder = TrainedModelAllocationMetadata.Builder.fromMetadata(builder.build());
-        assertThat(builder.isChanged(), is(false));
-
-        builder.removeNode(newModel, newNode);
-        assertThat(builder.isChanged(), is(true));
+        assertThat(metadata.isAllocated(allocatedModelId), is(true));
+        assertThat(metadata.isAllocated("unknown_model_id"), is(false));
     }
 
     private static TrainedModelAllocationMetadata.Builder assertUnchanged(
@@ -103,6 +81,7 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, "test-index", randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
     }
+
 }

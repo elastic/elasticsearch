@@ -103,6 +103,7 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
+import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
@@ -133,6 +134,7 @@ public class ClusterStateChanges {
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final JoinTaskExecutor joinTaskExecutor;
 
+    @SuppressWarnings("unchecked")
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allocationService = new AllocationService(new AllocationDeciders(
@@ -157,7 +159,7 @@ public class ClusterStateChanges {
         IndicesService indicesService = mock(IndicesService.class);
         // MetadataCreateIndexService uses withTempIndexService to check mappings -> fake it here
         try {
-            when(indicesService.withTempIndexService(any(IndexMetadata.class), any(CheckedFunction.class)))
+            when(indicesService.withTempIndexService(any(IndexMetadata.class), anyCheckedFunction()))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
                     IndexMetadata indexMetadata = (IndexMetadata) invocationOnMock.getArguments()[0];
@@ -167,8 +169,7 @@ public class ClusterStateChanges {
                     when(mapperService.documentMapper()).thenReturn(null);
                     when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                     when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
-                    //noinspection unchecked
-                    return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
+                    return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
                 });
         } catch (Exception e) {
             /*

@@ -43,7 +43,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        if (requestInfo.getRequest() instanceof BulkShardRequest && licenseState.isSecurityEnabled()) {
+        if (requestInfo.getRequest() instanceof BulkShardRequest) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.search.extractor;
 
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
+
 public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     public TimestampFieldHitExtractor(FieldHitExtractor target) {
@@ -16,6 +18,6 @@ public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     @Override
     protected Object parseEpochMillisAsString(String str) {
-        return Long.parseLong(str);
+        return Timestamp.of(str);
     }
 }

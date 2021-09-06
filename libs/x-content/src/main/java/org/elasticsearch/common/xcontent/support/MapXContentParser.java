@@ -163,7 +163,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public boolean hasTextCharacters() {
-        throw new UnsupportedOperationException("use text() instead");
+        return false;
     }
 
     @Override

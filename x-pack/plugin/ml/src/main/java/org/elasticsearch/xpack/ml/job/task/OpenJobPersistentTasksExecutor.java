@@ -351,6 +351,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     request.setForce(true);
                     request.setDeleteInterveningResults(true);
                     request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, ActionListener.wrap(
                         response -> listener.onResponse(true),
                         listener::onFailure

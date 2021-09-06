@@ -38,6 +38,11 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
 
     protected abstract XContentType getXContentType();
 
+    @Override
+    protected boolean removesEmptyArrays() {
+        return true;
+    }
+
     private XContentBuilder createBuilder() throws IOException {
         return XContentBuilder.builder(getXContentType().xContent());
     }

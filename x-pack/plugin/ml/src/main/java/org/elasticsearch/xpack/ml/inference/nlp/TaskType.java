@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -36,10 +36,10 @@ public enum TaskType {
             return new FillMaskProcessor(tokenizer, (FillMaskConfig) config);
         }
     },
-    BERT_PASS_THROUGH {
+    PASS_THROUGH {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new PassThroughProcessor(tokenizer, (BertPassThroughConfig) config);
+            return new PassThroughProcessor(tokenizer, (PassThroughConfig) config);
         }
     };
 

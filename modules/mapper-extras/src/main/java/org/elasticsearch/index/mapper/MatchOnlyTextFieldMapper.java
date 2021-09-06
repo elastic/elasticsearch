@@ -86,7 +86,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> ((MatchOnlyTextFieldMapper) m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers,
+                    m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
+                    m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap);
         }
 
         @Override
@@ -268,7 +270,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private final Version indexCreatedVersion;
-    private final TextParams.Analyzers analyzers;
+    private final IndexAnalyzers indexAnalyzers;
+    private final NamedAnalyzer indexAnalyzer;
+    private final int positionIncrementGap;
     private final FieldType fieldType;
 
     private MatchOnlyTextFieldMapper(
@@ -284,12 +288,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.analyzers = builder.analyzers;
+        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
+        this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
+        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion, analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers).init(this);
     }
 
     @Override

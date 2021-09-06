@@ -63,7 +63,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             super(in);
             executingPolicies = in.readList(ExecutingPolicy::new);
             coordinatorStats = in.readList(CoordinatorStats::new);
-            cacheStats = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readList(CacheStats::new) : null;
+            cacheStats = in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readList(CacheStats::new) : null;
         }
 
         public List<ExecutingPolicy> getExecutingPolicies() {
@@ -82,7 +82,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(executingPolicies);
             out.writeList(coordinatorStats);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
                 out.writeList(cacheStats);
             }
         }

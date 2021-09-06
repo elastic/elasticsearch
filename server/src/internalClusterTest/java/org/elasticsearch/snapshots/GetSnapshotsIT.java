@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -208,6 +209,67 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testExcludePatterns() throws Exception {
+        final String repoName1 = "test-repo-1";
+        final String repoName2 = "test-repo-2";
+        final String otherRepo = "other-repo";
+        createRepository(repoName1, "fs");
+        createRepository(repoName2, "fs");
+        createRepository(otherRepo, "fs");
+
+        final List<String> namesRepo1 = createNSnapshots(repoName1, randomIntBetween(1, 5));
+        final List<String> namesRepo2 = createNSnapshots(repoName2, randomIntBetween(1, 5));
+        final List<String> namesOtherRepo = createNSnapshots(otherRepo, randomIntBetween(1, 5));
+
+        final Collection<String> allSnapshotNames = new HashSet<>(namesRepo1);
+        allSnapshotNames.addAll(namesRepo2);
+        final Collection<String> allSnapshotNamesWithoutOther = Set.copyOf(allSnapshotNames);
+        allSnapshotNames.addAll(namesOtherRepo);
+
+        final SortOrder order = SortOrder.DESC;
+        final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, "*", GetSnapshotsRequest.SortBy.REPOSITORY, order);
+        final List<SnapshotInfo> allSortedWithoutOther = allSnapshotsSorted(
+            allSnapshotNamesWithoutOther,
+            "*,-" + otherRepo,
+            GetSnapshotsRequest.SortBy.REPOSITORY,
+            order
+        );
+        assertThat(allSorted.subList(0, allSnapshotNamesWithoutOther.size()), is(allSortedWithoutOther));
+
+        final List<SnapshotInfo> allInOther = allSnapshotsSorted(
+            namesOtherRepo,
+            "*,-test-repo-*",
+            GetSnapshotsRequest.SortBy.REPOSITORY,
+            order
+        );
+        assertThat(allSorted.subList(allSnapshotNamesWithoutOther.size(), allSorted.size()), is(allInOther));
+
+        final String otherPrefixSnapshot1 = "other-prefix-snapshot-1";
+        createFullSnapshot(otherRepo, otherPrefixSnapshot1);
+        final String otherPrefixSnapshot2 = "other-prefix-snapshot-2";
+        createFullSnapshot(otherRepo, otherPrefixSnapshot2);
+
+        final String patternOtherRepo = randomBoolean() ? otherRepo : "*,-test-repo-*";
+        final List<SnapshotInfo> allInOtherWithoutOtherPrefix = allSnapshotsSorted(
+            namesOtherRepo,
+            patternOtherRepo,
+            GetSnapshotsRequest.SortBy.REPOSITORY,
+            order,
+            "-other*"
+        );
+        assertThat(allInOtherWithoutOtherPrefix, is(allInOther));
+
+        final List<SnapshotInfo> allInOtherWithoutOtherExplicit = allSnapshotsSorted(
+            namesOtherRepo,
+            patternOtherRepo,
+            GetSnapshotsRequest.SortBy.REPOSITORY,
+            order,
+            "-" + otherPrefixSnapshot1,
+            "-" + otherPrefixSnapshot2
+        );
+        assertThat(allInOtherWithoutOtherExplicit, is(allInOther));
+    }
+
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {
         final SortOrder order = randomFrom(SortOrder.values());
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order);
@@ -244,9 +306,17 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Collection<String> allSnapshotNames,
         String repoName,
         GetSnapshotsRequest.SortBy sortBy,
-        SortOrder order
+        SortOrder order,
+        String... extraPatterns
     ) {
-        final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order);
+        final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
+            repoName,
+            sortBy,
+            null,
+            GetSnapshotsRequest.NO_LIMIT,
+            order,
+            extraPatterns
+        );
         final List<SnapshotInfo> snapshotInfos = getSnapshotsResponse.getSnapshots();
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         assertEquals(getSnapshotsResponse.totalCount(), allSnapshotNames.size());
@@ -262,9 +332,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetSnapshotsRequest.SortBy sortBy,
         String after,
         int size,
-        SortOrder order
+        SortOrder order,
+        String... extraPatterns
     ) {
-        return baseGetSnapshotsRequest(repoName).setAfter(after).setSort(sortBy).setSize(size).setOrder(order).get();
+        return baseGetSnapshotsRequest(repoName).setAfter(after)
+            .setSort(sortBy)
+            .setSize(size)
+            .setOrder(order)
+            .addSnapshots(extraPatterns)
+            .get();
     }
 
     private static GetSnapshotsResponse sortedWithLimit(
@@ -277,18 +353,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return baseGetSnapshotsRequest(repoName).setOffset(offset).setSort(sortBy).setSize(size).setOrder(order).get();
     }
 
-    private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String repoName) {
-        final GetSnapshotsRequestBuilder builder = clusterAdmin().prepareGetSnapshots(repoName);
-        // exclude old version snapshot from test assertions every time and do a prefixed query in either case half the time
-        if (randomBoolean()
-            || clusterAdmin().prepareGetSnapshots(repoName)
-                .setSnapshots(AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*")
-                .setIgnoreUnavailable(true)
-                .get()
-                .getSnapshots()
-                .isEmpty() == false) {
-            builder.setSnapshots(RANDOM_SNAPSHOT_NAME_PREFIX + "*");
-        }
-        return builder;
+    private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String repoNamePattern) {
+        return clusterAdmin().prepareGetSnapshots(repoNamePattern.split(","))
+            .setSnapshots("*", "-" + AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*");
     }
 }

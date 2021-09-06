@@ -290,11 +290,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         final Set<Snapshot> toResolve = new HashSet<>();
+        final Set<Snapshot> toExclude = new HashSet<>();
+        boolean seenWildcard = false;
         if (isAllSnapshots(snapshots)) {
             toResolve.addAll(allSnapshotIds.values());
         } else {
             for (String snapshotOrPattern : snapshots) {
-                if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
+                if (seenWildcard && snapshotOrPattern.length() > 1 && snapshotOrPattern.startsWith("-")) {
+                    final String positivePattern = snapshotOrPattern.substring(1);
+                    if (Regex.isSimpleMatchPattern(positivePattern)) {
+                        for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
+                            if (Regex.simpleMatch(positivePattern, entry.getKey())) {
+                                toExclude.add(entry.getValue());
+                            }
+                        }
+                    } else {
+                        if (allSnapshotIds.containsKey(positivePattern)) {
+                            toExclude.add(allSnapshotIds.get(positivePattern));
+                        }
+                    }
+                } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
                     toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshot).collect(Collectors.toList()));
                 } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
                     if (allSnapshotIds.containsKey(snapshotOrPattern)) {
@@ -303,6 +318,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         throw new SnapshotMissingException(repo, snapshotOrPattern);
                     }
                 } else {
+                    seenWildcard = true;
                     for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
                         if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
                             toResolve.add(entry.getValue());
@@ -310,7 +326,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     }
                 }
             }
-
+            toResolve.removeAll(toExclude);
             if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly(snapshots) == false) {
                 throw new SnapshotMissingException(repo, snapshots[0]);
             }

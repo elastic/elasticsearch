@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -83,11 +84,25 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
         if (repoNames.length == 0 || (repoNames.length == 1 && ("_all".equals(repoNames[0]) || "*".equals(repoNames[0])))) {
             return repositories.repositories();
         } else {
-            Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
+            boolean seenWildcard = false;
+            final Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
+            final Set<String> repositoriesNotToGet = new HashSet<>();
             for (String repositoryOrPattern : repoNames) {
-                if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
+                if (seenWildcard && repositoryOrPattern.length() > 1 && repositoryOrPattern.startsWith("-")) {
+                    final String positivePattern = repositoryOrPattern.substring(1);
+                    if (Regex.isSimpleMatchPattern(positivePattern)) {
+                        for (RepositoryMetadata repository : repositories.repositories()) {
+                            if (Regex.simpleMatch(positivePattern, repository.name())) {
+                                repositoriesNotToGet.add(repository.name());
+                            }
+                        }
+                    } else {
+                        repositoriesNotToGet.add(positivePattern);
+                    }
+                } else if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
                     repositoriesToGet.add(repositoryOrPattern);
                 } else {
+                    seenWildcard = true;
                     for (RepositoryMetadata repository : repositories.repositories()) {
                         if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
                             repositoriesToGet.add(repository.name());
@@ -95,6 +110,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     }
                 }
             }
+            repositoriesToGet.removeAll(repositoriesNotToGet);
             List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
             for (String repository : repositoriesToGet) {
                 RepositoryMetadata repositoryMetadata = repositories.repository(repository);

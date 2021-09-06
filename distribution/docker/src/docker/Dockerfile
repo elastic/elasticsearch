@@ -277,8 +277,6 @@ RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
 
 # Add plugins infrastructure
 RUN mkdir -p /opt/plugins/archive
-COPY bin/plugin-wrapper.sh /opt/plugins
-# These are the correct permissions for both the directories and the script
 RUN chmod -R 0555 /opt/plugins
 <% } %>
 

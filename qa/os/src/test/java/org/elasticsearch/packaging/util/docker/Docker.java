@@ -432,8 +432,6 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
-
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 

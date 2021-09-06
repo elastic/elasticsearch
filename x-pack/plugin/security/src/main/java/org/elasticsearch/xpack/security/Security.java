@@ -337,6 +337,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
@@ -496,10 +497,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        GenerateInitialElasticPasswordListener generateInitialElasticPasswordListener =
-            new GenerateInitialElasticPasswordListener(nativeUsersStore, securityIndex.get());
-        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false) {
-            securityIndex.get().addStateListener(generateInitialElasticPasswordListener);
+        GenerateInitialBuiltinUsersPasswordListener generateInitialBuiltinUsersPasswordListener =
+            new GenerateInitialBuiltinUsersPasswordListener(nativeUsersStore, securityIndex.get());
+        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false && SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
+            securityIndex.get().addStateListener(generateInitialBuiltinUsersPasswordListener);
         }
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);

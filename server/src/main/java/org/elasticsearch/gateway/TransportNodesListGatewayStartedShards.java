@@ -264,6 +264,80 @@ public class TransportNodesListGatewayStartedShards extends
         }
     }
 
+    public static class CachedNodeGatewayStartedShards {
+        private final String nodeId;
+        private final String allocationId;
+        private final boolean primary;
+        private final Exception storeException;
+
+        public CachedNodeGatewayStartedShards(String allocationId, boolean primary, String nodeId) {
+            this(allocationId, primary, nodeId, null);
+        }
+
+        public CachedNodeGatewayStartedShards(String allocationId, boolean primary, String nodeId, Exception storeException) {
+            this.nodeId = nodeId;
+            this.allocationId = allocationId;
+            this.primary = primary;
+            this.storeException = storeException;
+        }
+
+        public String allocationId() {
+            return this.allocationId;
+        }
+
+        public boolean primary() {
+            return this.primary;
+        }
+
+        public Exception storeException() {
+            return this.storeException;
+        }
+
+        public String getNodeId() {
+            return nodeId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            CachedNodeGatewayStartedShards that = (CachedNodeGatewayStartedShards) o;
+
+            return primary == that.primary
+                && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(nodeId, that.nodeId)
+                && Objects.equals(storeException, that.storeException);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = (allocationId != null ? allocationId.hashCode() : 0);
+            result = 31 * result + (primary ? 1 : 0);
+            result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
+            result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder buf = new StringBuilder();
+            buf.append("CachedNodeGatewayStartedShards[")
+                .append("allocationId=").append(allocationId)
+                .append(",primary=").append(primary)
+                .append(",nodeId=").append(nodeId);
+            if (storeException != null) {
+                buf.append(",storeException=").append(storeException);
+            }
+            buf.append("]");
+            return buf.toString();
+        }
+    }
+
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private final String allocationId;

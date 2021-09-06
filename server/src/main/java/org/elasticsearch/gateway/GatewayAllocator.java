@@ -33,9 +33,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.CachedNodeStoreFilesMetadata;
 
 import java.util.Collections;
 import java.util.List;
@@ -55,9 +57,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 
-    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeGatewayStartedShards>>
+    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeGatewayStartedShards, CachedNodeGatewayStartedShards>>
         asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetadata>>
+    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetadata, CachedNodeStoreFilesMetadata>>
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
@@ -86,10 +88,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public int getNumberOfInFlightFetches() {
         int count = 0;
-        for (AsyncShardFetch<NodeGatewayStartedShards> fetch : asyncFetchStarted.values()) {
+        for (AsyncShardFetch<NodeGatewayStartedShards, CachedNodeGatewayStartedShards> fetch : asyncFetchStarted.values()) {
             count += fetch.getNumberOfInFlightFetches();
         }
-        for (AsyncShardFetch<NodeStoreFilesMetadata> fetch : asyncFetchStore.values()) {
+        for (AsyncShardFetch<NodeStoreFilesMetadata, CachedNodeStoreFilesMetadata> fetch : asyncFetchStore.values()) {
             count += fetch.getNumberOfInFlightFetches();
         }
         return count;
@@ -182,7 +184,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private static void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
+    private static void clearCacheForPrimary(AsyncShardFetch<NodeStoreFilesMetadata, CachedNodeStoreFilesMetadata> fetch,
                                              RoutingAllocation allocation) {
         ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
         if (primary != null) {
@@ -199,11 +201,16 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         return false;
     }
 
-    class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
+    class InternalAsyncFetch<Response extends BaseNodeResponse, Cached> extends AsyncShardFetch<Response, Cached> {
 
         InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath,
-                           Lister<? extends BaseNodesResponse<T>, T> action) {
+                           Lister<? extends BaseNodesResponse<Response>, Response> action) {
             super(logger, type, shardId, customDataPath, action);
+        }
+
+        @Override
+        protected Cached extract(Response value) {
+            return null;
         }
 
         @Override
@@ -225,15 +232,21 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
             Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
-            AsyncShardFetch<NodeGatewayStartedShards> fetch =
+            AsyncShardFetch<NodeGatewayStartedShards, CachedNodeGatewayStartedShards> fetch =
                 asyncFetchStarted.computeIfAbsent(shard.shardId(),
                             shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId,
                                 IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                                lister));
-            AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState =
+                                lister) {
+                                @Override
+                                protected CachedNodeGatewayStartedShards extract(NodeGatewayStartedShards value) {
+                                    return new CachedNodeGatewayStartedShards(value.allocationId(),
+                                        value.primary(), value.getNode().getId(), value.storeException());
+                                }
+                            });
+            AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
             if (shardState.hasData()) {
@@ -259,13 +272,18 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
             Lister<BaseNodesResponse<NodeStoreFilesMetadata>, NodeStoreFilesMetadata> lister = this::listStoreFilesMetadata;
-            AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(shard.shardId(),
+            AsyncShardFetch<NodeStoreFilesMetadata, CachedNodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(shard.shardId(),
                     shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(),
-                        IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()), lister));
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores =
+                        IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()), lister) {
+                        @Override
+                        protected CachedNodeStoreFilesMetadata extract(NodeStoreFilesMetadata value) {
+                            return new CachedNodeStoreFilesMetadata(value.getNode().getId(), value.storeFilesMetadata());
+                        }
+                    });
+            AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);

@@ -40,6 +40,7 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -150,11 +151,17 @@ public class TransportIndicesShardStoresAction
                 ActionListener.wrap(listener::onResponse, listener::onFailure));
         }
 
-        private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
+        private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards, CachedNodeGatewayStartedShards> {
 
             InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath,
                                Lister<? extends BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> action) {
                 super(logger, type, shardId, customDataPath, action);
+            }
+
+            @Override
+            protected CachedNodeGatewayStartedShards extract(NodeGatewayStartedShards value) {
+                return new CachedNodeGatewayStartedShards(value.allocationId(),
+                    value.primary(), value.getNode().getId(), value.storeException());
             }
 
             @Override

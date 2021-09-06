@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.CachedNodeStoreFilesMetadata;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
@@ -567,15 +568,15 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata>
+        protected AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata>
                                                                             fetchData(ShardRouting shard, RoutingAllocation allocation) {
             fetchDataCalled.set(true);
-            Map<DiscoveryNode, TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> tData = null;
+            Map<DiscoveryNode, CachedNodeStoreFilesMetadata> tData = null;
             if (data != null) {
                 tData = new HashMap<>();
                 for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> entry : data.entrySet()) {
                     tData.put(entry.getKey(),
-                        new TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata(entry.getKey(), entry.getValue()));
+                        new CachedNodeStoreFilesMetadata(entry.getKey().getId(), entry.getValue()));
                 }
             }
             return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.emptySet());

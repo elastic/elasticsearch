@@ -376,4 +376,23 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
             return "[[" + getNode() + "][" + storeFilesMetadata + "]]";
         }
     }
+
+    public static class CachedNodeStoreFilesMetadata {
+        private final String nodeId;
+        private final StoreFilesMetadata storeFilesMetadata;
+
+        public CachedNodeStoreFilesMetadata(String nodeId, StoreFilesMetadata storeFilesMetadata) {
+            this.nodeId = nodeId;
+            this.storeFilesMetadata = storeFilesMetadata;
+        }
+
+        public StoreFilesMetadata storeFilesMetadata() {
+            return storeFilesMetadata;
+        }
+
+        @Override
+        public String toString() {
+            return "[[" + nodeId + "][" + storeFilesMetadata + "]]";
+        }
+    }
 }

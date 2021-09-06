@@ -17,9 +17,9 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.CachedNodeStoreFilesMetadata;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,11 +50,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator() {
         @Override
-        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now always return immediately what we know
             final ShardId shardId = shard.shardId();
             final Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
-            Map<DiscoveryNode, NodeGatewayStartedShards> foundShards = knownAllocations.values().stream()
+            Map<DiscoveryNode, CachedNodeGatewayStartedShards> foundShards = knownAllocations.values().stream()
                 .flatMap(shardMap -> shardMap.values().stream())
                 .filter(ks -> ks.shardId().equals(shardId))
                 .filter(ks -> ignoreNodes.contains(ks.currentNodeId()) == false)
@@ -62,8 +62,8 @@ public class TestGatewayAllocator extends GatewayAllocator {
                 .collect(Collectors.toMap(
                     routing -> currentNodes.get(routing.currentNodeId()),
                     routing ->
-                        new NodeGatewayStartedShards(
-                            currentNodes.get(routing.currentNodeId()), routing.allocationId().getId(), routing.primary())));
+                        new CachedNodeGatewayStartedShards(routing.allocationId().getId(), routing.primary(),
+                            currentNodes.get(routing.currentNodeId()).getId())));
 
             return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
         }
@@ -71,7 +71,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator() {
         @Override
-        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
             return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));

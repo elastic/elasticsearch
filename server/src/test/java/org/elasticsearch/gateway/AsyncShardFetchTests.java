@@ -18,6 +18,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards;
 import org.junit.After;
 import org.junit.Before;
 
@@ -29,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends ESTestCase {
     private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -63,7 +63,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -85,7 +85,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -96,7 +96,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
     }
 
     public void testFullCircleSingleNodeFailure() throws Exception {
@@ -105,7 +105,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), failure1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -128,7 +128,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
     }
 
     public void testIgnoreResponseFromDifferentRound() throws Exception {
@@ -136,10 +136,9 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
-
         // handle a response with incorrect round id, wait on reroute incrementing
         test.processAsyncFetch(Collections.singletonList(response1), Collections.emptyList(), 0);
         assertThat(fetchData.hasData(), equalTo(false));
@@ -152,7 +151,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
     }
 
     public void testIgnoreFailureFromDifferentRound() throws Exception {
@@ -161,7 +160,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), failure1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -186,7 +185,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node2.getId(), response2);
 
         // no fetched data, 2 requests still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -204,8 +203,8 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(2));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
-        assertThat(fetchData.getData().get(node2), sameInstance(response2));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
+        assertEquals(fetchData.getData().get(node2).getNodeId(), response2.getNode().getId());
     }
 
     public void testTwoNodesOnSetupAndFailure() throws Exception {
@@ -214,7 +213,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node2.getId(), failure2);
 
         // no fetched data, 2 requests still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -231,7 +230,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
     }
 
     public void testTwoNodesAddedInBetween() throws Exception {
@@ -239,7 +238,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // no fetched data, 2 requests still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -260,8 +259,8 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(2));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
-        assertThat(fetchData.getData().get(node2), sameInstance(response2));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
+        assertEquals(fetchData.getData().get(node2).getNodeId(), response2.getNode().getId());
     }
 
     public void testClearCache() throws Exception {
@@ -272,7 +271,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.clearCacheForNode(node1.getId());
 
         // no fetched data, request still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -283,13 +282,13 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
 
         // second fetch gets same data
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1.getNode().getId());
 
         test.clearCacheForNode(node1.getId());
 
@@ -307,7 +306,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1_2.getNode().getId());
     }
 
     public void testConcurrentRequestAndClearCache() throws Exception {
@@ -315,7 +314,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // no fetched data, request still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<CachedNodeGatewayStartedShards> fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -339,11 +338,11 @@ public class AsyncShardFetchTests extends ESTestCase {
         fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
-        assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
+        assertEquals(fetchData.getData().get(node1).getNodeId(), response1_2.getNode().getId());
 
     }
 
-    static class TestFetch extends AsyncShardFetch<Response> {
+    static class TestFetch extends AsyncShardFetch<BaseNodeResponse, CachedNodeGatewayStartedShards> {
 
         static class Entry {
             public final Response response;
@@ -378,6 +377,12 @@ public class AsyncShardFetchTests extends ESTestCase {
             simulations.get(nodeId).executeLatch.countDown();
             simulations.get(nodeId).waitLatch.await();
             simulations.remove(nodeId);
+        }
+
+        @Override
+        protected CachedNodeGatewayStartedShards extract(BaseNodeResponse value) {
+            return new CachedNodeGatewayStartedShards(null,
+                true, value.getNode().getId());
         }
 
         @Override

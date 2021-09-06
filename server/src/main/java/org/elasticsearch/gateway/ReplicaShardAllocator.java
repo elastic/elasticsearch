@@ -30,7 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.CachedNodeStoreFilesMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,7 +69,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     continue;
                 }
 
-                AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(shard, allocation);
+                AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> shardStores = fetchData(shard, allocation);
                 if (shardStores.hasData() == false) {
                     logger.trace("{}: fetching new stores for initializing shard", shard);
                     continue; // still fetching
@@ -150,7 +150,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 result.v2() != null ? new ArrayList<>(result.v2().values()) : null);
         }
 
-        AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
+        AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
         if (shardStores.hasData() == false) {
             logger.trace("{}: ignoring allocation, still fetching shard stores", unassignedShard);
             allocation.setHasPendingAsyncFetch();
@@ -288,8 +288,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * Finds the store for the assigned shard in the fetched data, returns null if none is found.
      */
     private static TransportNodesListShardStoreMetadata.StoreFilesMetadata findStore(DiscoveryNode node,
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data) {
-        NodeStoreFilesMetadata nodeFilesStore = data.getData().get(node);
+            AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> data) {
+        CachedNodeStoreFilesMetadata nodeFilesStore = data.getData().get(node);
         if (nodeFilesStore == null) {
             return null;
         }
@@ -298,11 +298,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean noMatchFailedNodes,
                                             DiscoveryNode primaryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-                                            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data,
+                                            AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> data,
                                             boolean explain) {
         Map<DiscoveryNode, MatchingNode> matchingNodes = new HashMap<>();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
-        for (Map.Entry<DiscoveryNode, NodeStoreFilesMetadata> nodeStoreEntry : data.getData().entrySet()) {
+        for (Map.Entry<DiscoveryNode, CachedNodeStoreFilesMetadata> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             if (noMatchFailedNodes && shard.unassignedInfo() != null &&
                 shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
@@ -384,9 +384,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     }
 
     private static boolean canPerformOperationBasedRecovery(TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-                                                            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores,
+                                                            AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> shardStores,
                                                             DiscoveryNode targetNode) {
-        final NodeStoreFilesMetadata targetNodeStore = shardStores.getData().get(targetNode);
+        final CachedNodeStoreFilesMetadata targetNodeStore = shardStores.getData().get(targetNode);
         if (targetNodeStore == null || targetNodeStore.storeFilesMetadata().isEmpty()) {
             return false;
         }
@@ -396,7 +396,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;
     }
 
-    protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation);
+    protected abstract AsyncShardFetch.FetchResult<CachedNodeStoreFilesMetadata> fetchData(ShardRouting shard,
+                                                                                           RoutingAllocation allocation);
 
     /**
      * Returns a boolean indicating whether fetching shard data has been triggered at any point for the given shard.

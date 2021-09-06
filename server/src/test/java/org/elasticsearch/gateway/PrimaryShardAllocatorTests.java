@@ -490,7 +490,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     class TestAllocator extends PrimaryShardAllocator {
 
-        private Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data;
+        private Map<DiscoveryNode, TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards> data;
 
         public TestAllocator clear() {
             data = null;
@@ -506,12 +506,13 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 data = new HashMap<>();
             }
             data.put(node,
-                new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node, allocationId, primary, storeException));
+                new TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards(
+                    allocationId, primary, node.getId(), storeException));
             return this;
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
+        protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.CachedNodeGatewayStartedShards>
                                                                         fetchData(ShardRouting shard, RoutingAllocation allocation) {
             return new AsyncShardFetch.FetchResult<>(shardId, data, Collections.<String>emptySet());
         }

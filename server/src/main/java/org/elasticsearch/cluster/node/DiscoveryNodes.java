@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -378,7 +378,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 // the role is not a data role, we require an exact match (e.g., ingest)
                                 predicate = s -> s.contains(role);
                             }
-                            final Function<String, Boolean> mutation;
+                            final Consumer<String> mutation;
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 mutation = resolvedNodesIds::add;
                             } else {
@@ -386,7 +386,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             }
                             for (final DiscoveryNode node : this) {
                                 if (predicate.test(node.getRoles())) {
-                                    mutation.apply(node.getId());
+                                    mutation.accept(node.getId());
                                 }
                             }
                         } else if(DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {

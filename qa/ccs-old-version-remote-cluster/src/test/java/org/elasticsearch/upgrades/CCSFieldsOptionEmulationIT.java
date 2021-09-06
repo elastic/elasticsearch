@@ -72,7 +72,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
     static int indexDocs(RestHighLevelClient client, String index, int numDocs, boolean expectWarnings) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             Request indexDoc = new Request("PUT", index + "/type/" + i);
-            indexDoc.setJsonEntity("{\"f\":" + i + "}");
+            indexDoc.setJsonEntity("{\"field\":" + i + ", \"array\": [1, 2, 3] , \"obj\": { \"innerObj\" : \"foo\" } }");
             if (expectWarnings) {
                 indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             }
@@ -137,7 +137,13 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                         assertFalse("No source in hit expected but was: " + hit.toString(), hit.hasSource());
                         Map<String, DocumentField> fields = hit.getFields();
                         assertNotNull(fields);
-                        assertNotNull("Field `f` not found, hit was: " + hit.toString(), fields.get("f"));
+                        assertNotNull("Field `field` not found, hit was: " + hit.toString(), fields.get("field"));
+                        DocumentField arrayField = fields.get("array");
+                        assertNotNull("Field `array` not found, hit was: " + hit.toString(), arrayField);
+                        assertEquals(3, ((List<?>) arrayField.getValues()).size());
+                        assertNull("Object fields should be flattened by the fields API", fields.get("obj"));
+                        assertEquals(1, fields.get("obj.innerObj").getValues().size());
+                        assertEquals("foo", fields.get("obj.innerObj").getValue());
                     }
                 }
             }

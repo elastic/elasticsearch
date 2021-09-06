@@ -70,7 +70,7 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
         } else if (options.nonOptionArguments().contains("--kibana_system")) {
             providedUsername = "kibana_system";
         } else {
-            throw new UserException(ExitCodes.NO_INPUT, "Invalid invocation");
+            throw new UserException(ExitCodes.USAGE, "Invalid invocation");
         }
         final SecureString builtinUserPassword;
         if (options.has(interactive)) {

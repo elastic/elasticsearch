@@ -225,6 +225,16 @@ public class ResetBuiltinPasswordToolTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
 
+    public void testInvalidInvocation() throws Exception {
+        UserException e = expectThrows(
+            UserException.class,
+            () -> execute(randomFrom("-i", "--interactive"))
+        );
+        assertThat(e.exitCode, equalTo(ExitCodes.USAGE));
+        assertThat(e.getMessage(), equalTo("Invalid invocation"));
+        assertThat(terminal.getOutput(), is(emptyString()));
+    }
+
     private URL changePasswordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
         return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
     }

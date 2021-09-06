@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -109,7 +108,7 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    static final int FORMAT_VERSION = 5;
+    static final int FORMAT_VERSION = 4;
 
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
@@ -235,10 +234,10 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         Directory directory = new NIOFSDirectory(configDir);
-        try (ChecksumIndexInput checksumInput = directory.openChecksumInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
+        try (ChecksumIndexInput input = EndiannessReverserUtil.openChecksumInput(directory, KEYSTORE_FILENAME, IOContext.READONCE)) {
             final int formatVersion;
             try {
-                formatVersion = CodecUtil.checkHeader(checksumInput, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+                formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
             } catch (IndexFormatTooOldException e) {
                 throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too old. " +
                     "You should delete and recreate it in order to upgrade.", e);
@@ -246,7 +245,6 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too new. " +
                     "Are you trying to downgrade? You should delete and recreate it in order to downgrade.", e);
             }
-            DataInput input = formatVersion < 5 ? checksumInput : EndiannessReverserUtil.wrapDataInput(checksumInput);
             byte hasPasswordByte = input.readByte();
             boolean hasPassword = hasPasswordByte == 1;
             if (hasPassword == false && hasPasswordByte != 0) {
@@ -298,7 +296,7 @@ public class KeyStoreWrapper implements SecureSettings {
                 input.readBytes(dataBytes, 0, dataBytesLen);
             }
 
-            CodecUtil.checkFooter(checksumInput);
+            CodecUtil.checkFooter(input);
             return new KeyStoreWrapper(formatVersion, hasPassword, dataBytes);
         }
     }
@@ -515,7 +513,7 @@ public class KeyStoreWrapper implements SecureSettings {
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
         Path keystoreTempFile = configDir.resolve(tmpFile);
-        try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
 

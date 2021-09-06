@@ -15,13 +15,13 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
@@ -58,7 +57,7 @@ public abstract class MetadataStateFormat<T> {
 
     private static final String STATE_FILE_CODEC = "state";
     private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 1;
-    private static final int STATE_FILE_VERSION = 2;
+    private static final int STATE_FILE_VERSION = 1;
     private final String prefix;
     private final Pattern stateFilePattern;
 
@@ -93,7 +92,7 @@ public abstract class MetadataStateFormat<T> {
             throws WriteStateException {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
-            try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
+            try (IndexOutput out = EndiannessReverserUtil.createOutput(stateDir, tmpFileName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
@@ -269,12 +268,11 @@ public abstract class MetadataStateFormat<T> {
      */
     public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
-            try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = EndiannessReverserUtil.openInput(dir, file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                int fileVersion
-                    = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
-                final XContentType xContentType = readXContentType(indexInput, fileVersion);
+                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
+                final XContentType xContentType = XContentType.values()[indexInput.readInt()];
                 if (xContentType != FORMAT) {
                     throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
                 }
@@ -292,13 +290,6 @@ public abstract class MetadataStateFormat<T> {
                 throw new CorruptStateException(ex);
             }
         }
-    }
-
-    private static XContentType readXContentType(DataInput input, int fileVersion) throws IOException {
-        if (fileVersion == 1) {
-            input = EndiannessReverserUtil.wrapDataInput(input);
-        }
-        return XContentType.values()[input.readInt()];
     }
 
     protected Directory newDirectory(Path dir) throws IOException {

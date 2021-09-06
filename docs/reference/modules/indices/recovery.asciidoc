@@ -84,7 +84,7 @@ When `indices.recovery.use_snapshots` is `false` {es} will construct this new
 copy by transferring the index data from the current primary. When this setting
 is `true` {es} will attempt to copy the index data from a recent snapshot
 first, and will only copy data from the primary if it cannot identify a
-suitable snapshot. Defaults to `true`. 
+suitable snapshot. Defaults to `true`.
 +
 Setting this option to `true` reduces your operating costs if your cluster runs
 in an environment where the node-to-node data transfer costs are higher than

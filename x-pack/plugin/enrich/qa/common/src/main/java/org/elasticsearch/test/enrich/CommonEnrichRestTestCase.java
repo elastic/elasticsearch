@@ -38,9 +38,11 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         List<Map<?, ?>> policies = (List<Map<?, ?>>) responseMap.get("policies");
 
         for (Map<?, ?> entry : policies) {
-            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("config.match.name", entry)));
+            Map<String, ?> config = ((Map<?, Map<String, ?>>) entry.get("config")).values().iterator().next();
+            String endpoint = "/_enrich/policy/" + config.get("name");
+            assertOK(client().performRequest(new Request("DELETE", endpoint)));
 
-            List<?> sourceIndices = (List<?>) XContentMapValues.extractValue("config.match.indices", entry);
+            List<?> sourceIndices = (List<?>) config.get("indices");
             for (Object sourceIndex : sourceIndices) {
                 try {
                     client().performRequest(new Request("DELETE", "/" + sourceIndex));
@@ -51,12 +53,12 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
+    private void setupGenericLifecycleTest(boolean deletePipeilne, String field, String type) throws Exception {
         // Create source index:
         createSourceIndex("my-source-index");
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
+        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index", field, type));
         assertOK(client().performRequest(putPolicyRequest));
 
         // Add entry to source index and then refresh:
@@ -99,8 +101,38 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    public void testBasicFlow() throws Exception {
-        setupGenericLifecycleTest(true);
+    public void testBasicFlowKeyword() throws Exception {
+        setupGenericLifecycleTest(true, "host", "match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowDate() throws Exception {
+        setupGenericLifecycleTest(true, "date", "date_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowInteger() throws Exception {
+        setupGenericLifecycleTest(true, "integer", "integer_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowLong() throws Exception {
+        setupGenericLifecycleTest(true, "long", "long_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowDouble() throws Exception {
+        setupGenericLifecycleTest(true, "double", "double_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowFloat() throws Exception {
+        setupGenericLifecycleTest(true, "float", "float_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowIp() throws Exception {
+        setupGenericLifecycleTest(true, "ip", "ip_range_match");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
@@ -129,7 +161,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testDeleteExistingPipeline() throws Exception {
         // lets not delete the pipeline at first, to test the failure
-        setupGenericLifecycleTest(false);
+        setupGenericLifecycleTest(false, "host", "match");
 
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/another_pipeline");
         putPipelineRequest.setJsonEntity(
@@ -156,14 +188,18 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public static String generatePolicySource(String index) throws IOException {
-        XContentBuilder source = jsonBuilder().startObject().startObject("match");
+        return generatePolicySource(index, "host", "match");
+    }
+
+    public static String generatePolicySource(String index, String field, String type) throws IOException {
+        XContentBuilder source = jsonBuilder().startObject().startObject(type);
         {
             source.field("indices", index);
             if (randomBoolean()) {
                 source.field("query", QueryBuilders.matchAllQuery());
             }
-            source.field("match_field", "host");
-            source.field("enrich_fields", new String[] { "globalRank", "tldRank", "tld" });
+            source.field("match_field", field);
+            source.field("enrich_fields", new String[]{"globalRank", "tldRank", "tld"});
         }
         source.endObject().endObject();
         return Strings.toString(source);
@@ -179,7 +215,13 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             + "{\"host\": {\"type\":\"keyword\"},"
             + "\"globalRank\":{\"type\":\"keyword\"},"
             + "\"tldRank\":{\"type\":\"keyword\"},"
-            + "\"tld\":{\"type\":\"keyword\"}"
+            + "\"tld\":{\"type\":\"keyword\"},"
+            + "\"date\":{\"type\":\"date_range\"},"
+            + "\"integer\":{\"type\":\"integer_range\"},"
+            + "\"long\":{\"type\":\"long_range\"},"
+            + "\"double\":{\"type\":\"double_range\"},"
+            + "\"float\":{\"type\":\"float_range\"},"
+            + "\"ip\":{\"type\":\"ip_range\"}"
             + "}";
     }
 

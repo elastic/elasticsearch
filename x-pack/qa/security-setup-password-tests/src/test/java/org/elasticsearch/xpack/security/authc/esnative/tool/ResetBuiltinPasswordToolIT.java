@@ -21,21 +21,22 @@ public class ResetBuiltinPasswordToolIT extends AbstractPasswordToolTestCase {
 
     @SuppressWarnings("unchecked")
     public void testResetElasticPasswordTool() throws Exception {
-        final String user = randomFrom("elastic", "kibana_system");
+        final String userParameter = randomFrom("--elastic", "--kibana_system");
+        final String user = userParameter.substring(2);
         MockTerminal mockTerminal = new MockTerminal();
         ResetBuiltinPasswordTool resetBuiltinPasswordTool = new ResetBuiltinPasswordTool();
         final int status;
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetBuiltinPasswordTool.main(new String[] { "-a", "-b", "--built-in-user", user }, mockTerminal);
+            status = resetBuiltinPasswordTool.main(new String[] { "-a", "-b", userParameter }, mockTerminal);
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetBuiltinPasswordTool.main(new String[] { "-i", "-b", "--built-in-user", user }, mockTerminal);
+            status = resetBuiltinPasswordTool.main(new String[] { "-i", "-b", userParameter }, mockTerminal);
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);

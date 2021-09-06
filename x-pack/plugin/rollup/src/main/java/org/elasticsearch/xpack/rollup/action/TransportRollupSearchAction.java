@@ -84,9 +84,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
-    public TransportRollupSearchAction(TransportService transportService,
-                                 ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
-                                 ScriptService scriptService, ClusterService clusterService, IndexNameExpressionResolver resolver) {
+    public TransportRollupSearchAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        NamedWriteableRegistry registry,
+        BigArrays bigArrays,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        IndexNameExpressionResolver resolver
+    ) {
         super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
@@ -95,8 +102,14 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         this.clusterService = clusterService;
         this.resolver = resolver;
 
-        transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, true, SearchRequest::new,
-                new TransportRollupSearchAction.TransportHandler());
+        transportService.registerRequestHandler(
+            actionName,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            SearchRequest::new,
+            new TransportRollupSearchAction.TransportHandler()
+        );
     }
 
     @Override
@@ -108,13 +121,19 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays, scriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
+                bigArrays,
+                scriptService,
+                () -> PipelineAggregator.PipelineTree.EMPTY
+            );
             listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
         }, listener::onFailure));
     }
 
-    static SearchResponse processResponses(RollupSearchContext rollupContext, MultiSearchResponse msearchResponse,
-                                           InternalAggregation.ReduceContext reduceContext) throws Exception {
+    static SearchResponse processResponses(
+        RollupSearchContext rollupContext,
+        MultiSearchResponse msearchResponse,
+        InternalAggregation.ReduceContext reduceContext
+    ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
             return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContext);
@@ -157,12 +176,12 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         AggregatorFactories.Builder sourceAgg = request.source().aggregations();
 
         // If there are no aggs in the request, our translation won't create any msearch.
-        // So just add an dummy request to the msearch and return.  This is a bit silly
+        // So just add an dummy request to the msearch and return. This is a bit silly
         // but maintains how the regular search API behaves
         if (sourceAgg == null || sourceAgg.count() == 0) {
 
             // Note: we can't apply any query rewriting or filtering on the query because there
-            // are no validated caps, so we have no idea what job is intended here.  The only thing
+            // are no validated caps, so we have no idea what job is intended here. The only thing
             // this affects is doc count, since hits and aggs will both be empty it doesn't really matter.
             msearch.add(new SearchRequest(context.getRollupIndices(), request.source()));
             return msearch;
@@ -171,7 +190,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         // Find our list of "best" job caps
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
-                .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
+            .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
         List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).collect(Collectors.toList());
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
@@ -185,8 +204,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             filterConditions.forEach(boolQuery::must);
-            FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(RollupField.FILTER + "_" + agg.getName(),
-                    boolQuery);
+            FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(RollupField.FILTER + "_" + agg.getName(), boolQuery);
             translatedAgg.forEach(filterAgg::subAggregation);
             rolledSearchSource.aggregation(filterAgg);
         }
@@ -203,12 +221,17 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             }
 
             // filter the rewritten query by JobID
-            copiedSource.query(new BoolQueryBuilder()
-                    .must(rewritten)
+            copiedSource.query(
+                new BoolQueryBuilder().must(rewritten)
                     .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), id))
                     // Both versions are acceptable right now since they are compatible at search time
-                    .filter(new TermsQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD),
-                        new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2})));
+                    .filter(
+                        new TermsQueryBuilder(
+                            RollupField.formatMetaField(RollupField.VERSION_FIELD),
+                            new long[] { Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2 }
+                        )
+                    )
+            );
 
             // And add a new msearch per JobID
             msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource));
@@ -224,8 +247,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
      * reading it in again using a {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
      * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too
      */
-    private static SearchSourceBuilder copyWriteable(SearchSourceBuilder original, NamedWriteableRegistry namedWriteableRegistry,
-                                                        Writeable.Reader<SearchSourceBuilder> reader) throws IOException {
+    private static SearchSourceBuilder copyWriteable(
+        SearchSourceBuilder original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Writeable.Reader<SearchSourceBuilder> reader
+    ) throws IOException {
         Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.CURRENT);
@@ -240,8 +266,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     static void validateSearchRequest(SearchRequest request) {
         // Rollup does not support hits at the moment
         if (request.source().size() != 0) {
-            throw new IllegalArgumentException("Rollup does not support returning search hits, please try again " +
-                    "with [size: 0].");
+            throw new IllegalArgumentException("Rollup does not support returning search hits, please try again " + "with [size: 0].");
         }
 
         if (request.source().postFilter() != null) {
@@ -271,16 +296,18 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
         if (builder.getWriteableName().equals(BoolQueryBuilder.NAME)) {
             BoolQueryBuilder rewrittenBool = new BoolQueryBuilder();
-            ((BoolQueryBuilder)builder).must().forEach(query -> rewrittenBool.must(rewriteQuery(query, jobCaps)));
-            ((BoolQueryBuilder)builder).mustNot().forEach(query -> rewrittenBool.mustNot(rewriteQuery(query, jobCaps)));
-            ((BoolQueryBuilder)builder).should().forEach(query -> rewrittenBool.should(rewriteQuery(query, jobCaps)));
-            ((BoolQueryBuilder)builder).filter().forEach(query -> rewrittenBool.filter(rewriteQuery(query, jobCaps)));
+            ((BoolQueryBuilder) builder).must().forEach(query -> rewrittenBool.must(rewriteQuery(query, jobCaps)));
+            ((BoolQueryBuilder) builder).mustNot().forEach(query -> rewrittenBool.mustNot(rewriteQuery(query, jobCaps)));
+            ((BoolQueryBuilder) builder).should().forEach(query -> rewrittenBool.should(rewriteQuery(query, jobCaps)));
+            ((BoolQueryBuilder) builder).filter().forEach(query -> rewrittenBool.filter(rewriteQuery(query, jobCaps)));
             return rewrittenBool;
         } else if (builder.getWriteableName().equals(ConstantScoreQueryBuilder.NAME)) {
-            return new ConstantScoreQueryBuilder(rewriteQuery(((ConstantScoreQueryBuilder)builder).innerQuery(), jobCaps));
+            return new ConstantScoreQueryBuilder(rewriteQuery(((ConstantScoreQueryBuilder) builder).innerQuery(), jobCaps));
         } else if (builder.getWriteableName().equals(BoostingQueryBuilder.NAME)) {
-            return new BoostingQueryBuilder(rewriteQuery(((BoostingQueryBuilder)builder).negativeQuery(), jobCaps),
-                    rewriteQuery(((BoostingQueryBuilder)builder).positiveQuery(), jobCaps));
+            return new BoostingQueryBuilder(
+                rewriteQuery(((BoostingQueryBuilder) builder).negativeQuery(), jobCaps),
+                rewriteQuery(((BoostingQueryBuilder) builder).positiveQuery(), jobCaps)
+            );
         } else if (builder.getWriteableName().equals(DisMaxQueryBuilder.NAME)) {
             DisMaxQueryBuilder rewritten = new DisMaxQueryBuilder();
             ((DisMaxQueryBuilder) builder).innerQueries().forEach(query -> rewritten.add(rewriteQuery(query, jobCaps)));
@@ -290,8 +317,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             String fieldName = range.fieldName();
 
             String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName);
-            RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName)
-                .from(range.from())
+            RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName).from(range.from())
                 .to(range.to())
                 .includeLower(range.includeLower())
                 .includeUpper(range.includeUpper());
@@ -305,12 +331,12 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         } else if (builder.getWriteableName().equals(TermQueryBuilder.NAME)) {
             TermQueryBuilder term = (TermQueryBuilder) builder;
             String fieldName = term.fieldName();
-            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
+            String rewrittenFieldName = rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
             return new TermQueryBuilder(rewrittenFieldName, term.value());
         } else if (builder.getWriteableName().equals(TermsQueryBuilder.NAME)) {
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
-            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
+            String rewrittenFieldName = rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
             return new TermsQueryBuilder(rewrittenFieldName, terms.getValues());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
@@ -326,10 +352,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             .filter(caps -> caps.getFieldCaps().keySet().contains(fieldName))
             .map(caps -> {
                 RollupJobCaps.RollupFieldCaps fieldCaps = caps.getFieldCaps().get(fieldName);
-                return fieldCaps.getAggs().stream()
+                return fieldCaps.getAggs()
+                    .stream()
                     // For now, we only allow filtering on grouping fields
                     .filter(agg -> {
-                        String type = (String)agg.get(RollupField.AGG);
+                        String type = (String) agg.get(RollupField.AGG);
                         // make sure it's one of the three groups
                         return type.equals(TermsAggregationBuilder.NAME)
                             || type.equals(DateHistogramAggregationBuilder.NAME)
@@ -338,9 +365,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     // Rewrite the field name to our convention (e.g. "foo" -> "date_histogram.foo.timestamp")
                     .map(agg -> {
                         if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                            return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.TIMESTAMP);
+                            return RollupField.formatFieldName(fieldName, (String) agg.get(RollupField.AGG), RollupField.TIMESTAMP);
                         } else {
-                            return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.VALUE);
+                            return RollupField.formatFieldName(fieldName, (String) agg.get(RollupField.AGG), RollupField.VALUE);
                         }
                     })
                     .collect(Collectors.toList());
@@ -348,11 +375,17 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             .distinct()
             .collect(ArrayList::new, List::addAll, List::addAll);
         if (rewrittenFieldNames.isEmpty()) {
-            throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
-                    + "] query is not available in selected rollup indices, cannot query.");
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] in [" + builderName + "] query is not available in selected rollup indices, cannot query."
+            );
         } else if (rewrittenFieldNames.size() > 1) {
-            throw new IllegalArgumentException("Ambiguous field name resolution when mapping to rolled fields.  Field name [" +
-                fieldName + "] was mapped to: [" + Strings.collectionToDelimitedString(rewrittenFieldNames, ",") + "].");
+            throw new IllegalArgumentException(
+                "Ambiguous field name resolution when mapping to rolled fields.  Field name ["
+                    + fieldName
+                    + "] was mapped to: ["
+                    + Strings.collectionToDelimitedString(rewrittenFieldNames, ",")
+                    + "]."
+            );
         } else {
             return rewrittenFieldNames.get(0);
         }
@@ -366,7 +399,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         List<String> rollup = new ArrayList<>();
         List<String> normal = new ArrayList<>();
-        Set<RollupJobCaps>  jobCaps = new HashSet<>();
+        Set<RollupJobCaps> jobCaps = new HashSet<>();
         Arrays.stream(indices).forEach(i -> {
             if (i.equals(Metadata.ALL)) {
                 throw new IllegalArgumentException("Searching _all via RollupSearch endpoint is not supported at this time.");
@@ -381,8 +414,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         });
         assert normal.size() + rollup.size() > 0;
         if (rollup.size() > 1) {
-            throw new IllegalArgumentException("RollupSearch currently only supports searching one rollup index at a time. " +
-                "Found the following rollup indices: " + rollup);
+            throw new IllegalArgumentException(
+                "RollupSearch currently only supports searching one rollup index at a time. "
+                    + "Found the following rollup indices: "
+                    + rollup
+            );
         }
         return new RollupSearchContext(normal.toArray(new String[0]), rollup.toArray(new String[0]), jobCaps);
     }
@@ -408,12 +444,13 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(e);
                     } catch (Exception e1) {
                         logger.warn(
-                                (org.apache.logging.log4j.util.Supplier<?>)
-                                        () -> new ParameterizedMessage(
-                                                "Failed to send error response for action [{}] and request [{}]",
-                                                actionName,
-                                                request),
-                                e1);
+                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                "Failed to send error response for action [{}] and request [{}]",
+                                actionName,
+                                request
+                            ),
+                            e1
+                        );
                     }
                 }
             });
@@ -453,4 +490,3 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     }
 }
-

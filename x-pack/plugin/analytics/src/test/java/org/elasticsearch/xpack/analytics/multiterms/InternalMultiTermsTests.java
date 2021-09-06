@@ -7,27 +7,12 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.UNSIGNED_LONG;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
@@ -41,6 +26,21 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.UNSIGNED_LONG;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class InternalMultiTermsTests extends InternalAggregationTestCase<InternalMultiTerms> {
 

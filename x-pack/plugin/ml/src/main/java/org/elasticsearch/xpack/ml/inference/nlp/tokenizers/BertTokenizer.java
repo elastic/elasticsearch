@@ -13,10 +13,9 @@ import org.elasticsearch.xpack.ml.inference.nlp.BertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -42,7 +41,7 @@ public class BertTokenizer implements NlpTokenizer {
 
     public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
 
-    private final Set<String> NEVER_SPLIT = new HashSet<>(Arrays.asList(MASK_TOKEN));
+    private final Set<String> NEVER_SPLIT =  Set.of(MASK_TOKEN);
 
     private final WordPieceTokenizer wordPieceTokenizer;
     private final List<String> originalVocab;
@@ -78,16 +77,28 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     /**
-     * Tokenize the input according to the basic tokenization options
-     * then perform Word Piece tokenization with the given vocabulary.
+     * Tokenize the list of inputs according to the basic tokenization
+     * options then perform Word Piece tokenization with the given vocabulary.
      *
      * The result is the Word Piece tokens, a map of the Word Piece
-     * token position to the position of the token in the source
+     * token position to the position of the token in the source for
+     * each input string grouped into a {@link Tokenization}.
+     *
      * @param text Text to tokenize
-     * @return Tokenized text, token Ids and map
+     * @return A {@link Tokenization}
      */
     @Override
-    public TokenizationResult tokenize(String text) {
+    public TokenizationResult tokenize(List<String> text) {
+        TokenizationResult tokenization = new TokenizationResult(originalVocab);
+
+        for (String input: text) {
+            addTokenization(tokenization, input);
+        }
+        return tokenization;
+    }
+
+
+    private void addTokenization(TokenizationResult tokenization, String text) {
         BasicTokenizer basicTokenizer = new BasicTokenizer(doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
 
         List<String> delineatedTokens = basicTokenizer.tokenize(text);
@@ -145,7 +156,17 @@ public class BertTokenizer implements NlpTokenizer {
             );
         }
 
-        return new TokenizationResult(text, originalVocab, tokens, tokenIds, tokenMap);
+        tokenization.addTokenization(text, tokens, tokenIds, tokenMap);
+    }
+
+    @Override
+    public OptionalInt getPadToken() {
+        Integer pad = vocab.get(PAD_TOKEN);
+        if (pad != null) {
+            return OptionalInt.of(pad);
+        } else {
+            return OptionalInt.empty();
+        }
     }
 
     @Override

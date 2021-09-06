@@ -9,16 +9,24 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ComponentTemplateTests extends AbstractDiffableSerializationTestCase<ComponentTemplate> {
     @Override
@@ -152,6 +160,54 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                     randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta));
             default:
                 throw new IllegalStateException("illegal randomization branch");
+        }
+    }
+
+    public void testMappingsEquals() throws IOException {
+        {
+            CompressedXContent mappings = randomMappings();
+            assertThat(Template.mappingsEquals(mappings, mappings), equalTo(true));
+        }
+
+        {
+            assertThat(Template.mappingsEquals(null, null), equalTo(true));
+        }
+
+        {
+            CompressedXContent mappings = randomMappings();
+            assertThat(Template.mappingsEquals(mappings, null), equalTo(false));
+            assertThat(Template.mappingsEquals(null, mappings), equalTo(false));
+        }
+
+        {
+            String randomString = randomAlphaOfLength(10);
+            CompressedXContent m1 = new CompressedXContent("{\"properties\":{\"" + randomString + "\":{\"type\":\"keyword\"}}}");
+            CompressedXContent m2 = new CompressedXContent("{\"properties\":{\"" + randomString + "\":{\"type\":\"keyword\"}}}");
+            assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
+        }
+
+        {
+            CompressedXContent m1 = randomMappings();
+            CompressedXContent m2 = new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}}");
+            assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
+        }
+
+        {
+            Map<String, Object> map = XContentHelper.convertToMap(
+                new BytesArray(
+                    "{\""
+                        + MapperService.SINGLE_MAPPING_NAME
+                        + "\":{\"properties\":{\""
+                        + randomAlphaOfLength(10)
+                        + "\":{\"type\":\"keyword\"}}}}"
+                ),
+                true,
+                XContentType.JSON
+            ).v2();
+            Map<String, Object> reduceMap = Template.reduceMapping(map);
+            CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
+            CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));
+            assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
     }
 }

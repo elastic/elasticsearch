@@ -181,7 +181,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             // to give a chance to this request to be executed without returning an error.
             // This is particularly useful when a relocating job is calling revert.
             getTaskRequest.setWaitForCompletion(request.isForce());
-            getTaskRequest.setTimeout(request.masterNodeTimeout());
+            getTaskRequest.setTimeout(request.timeout());
 
             executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(
                 r -> listener.onResponse(r.getTask().isCompleted() == false),

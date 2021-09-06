@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
 

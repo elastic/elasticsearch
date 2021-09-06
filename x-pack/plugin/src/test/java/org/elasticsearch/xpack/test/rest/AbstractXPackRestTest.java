@@ -221,7 +221,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
      */
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
-            new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+            new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         }
     }
 

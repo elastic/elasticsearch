@@ -392,9 +392,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 The loss function used during {regression}. Available options are `mse` (mean
 squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber
 loss). Defaults to `mse`.
-// Refer to
-// {ml-docs}/dfa-regression-lossfunction.html[Loss functions for {regression} analyses]
-// to learn more.
+Refer to
+{ml-docs}/dfa-regression-lossfunction.html[Loss functions for {regression} analyses]
+to learn more.
 
 `loss_function_parameter`::::
 (Optional, double)

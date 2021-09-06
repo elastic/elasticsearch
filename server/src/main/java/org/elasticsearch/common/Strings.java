@@ -628,6 +628,45 @@ public class Strings {
     }
 
     /**
+     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, String, String, StringBuilder)}
+     * except that it stops if the string gets too long and just indicates how many items were omitted.
+     *
+     * @param coll        the collection of items to display
+     * @param delim       the delimiter to write between the items (usually {@code ","})
+     * @param prefix      a string to write before each item (usually {@code ""} or {@code "["})
+     * @param suffix      a string to write after each item (usually {@code ""} or {@code "]"})
+     * @param appendLimit if this many characters have been appended to the string and there are still items to display then the remaining
+     *                    items are omitted
+     */
+    public static void collectionToDelimitedStringWithLimit(
+        Iterable<?> coll,
+        String delim,
+        String prefix,
+        String suffix,
+        int appendLimit,
+        StringBuilder sb
+    ) {
+        final Iterator<?> it = coll.iterator();
+        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
+        int count = 0;
+        while (it.hasNext()) {
+            sb.append(prefix).append(it.next()).append(suffix);
+            count += 1;
+            if (it.hasNext()) {
+                sb.append(delim);
+                if (sb.length() > lengthLimit) {
+                    int omitted = 0;
+                    while (it.hasNext()) {
+                        it.next();
+                        omitted += 1;
+                    }
+                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
+                }
+            }
+        }
+    }
+
+    /**
      * Convenience method to return a Collection as a delimited (e.g. CSV)
      * String. E.g. useful for <code>toString()</code> implementations.
      *

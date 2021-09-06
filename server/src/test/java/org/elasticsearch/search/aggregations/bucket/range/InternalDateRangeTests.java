@@ -33,9 +33,14 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         super.setUp();
         format = randomNumericDocValueFormat();
 
-        Function<DateTime, DateTime> interval = randomFrom(dateTime -> dateTime.plusSeconds(1), dateTime -> dateTime.plusMinutes(1),
-                dateTime -> dateTime.plusHours(1), dateTime -> dateTime.plusDays(1), dateTime -> dateTime.plusMonths(1), dateTime ->
-                        dateTime.plusYears(1));
+        Function<DateTime, DateTime> interval = randomFrom(
+            dateTime -> dateTime.plusSeconds(1),
+            dateTime -> dateTime.plusMinutes(1),
+            dateTime -> dateTime.plusHours(1),
+            dateTime -> dateTime.plusDays(1),
+            dateTime -> dateTime.plusMonths(1),
+            dateTime -> dateTime.plusYears(1)
+        );
 
         final int numRanges = randomNumberOfBuckets();
         final List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
@@ -63,10 +68,12 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     }
 
     @Override
-    protected InternalDateRange createTestInstance(String name,
-                                                   Map<String, Object> metadata,
-                                                   InternalAggregations aggregations,
-                                                   boolean keyed) {
+    protected InternalDateRange createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean keyed
+    ) {
         final List<InternalDateRange.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < dateRanges.size(); ++i) {
             Tuple<Double, Double> range = dateRanges.get(i);
@@ -101,28 +108,37 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         List<InternalDateRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            keyed = keyed == false;
-            break;
-        case 2:
-            buckets = new ArrayList<>(buckets);
-            double from = randomDouble();
-            buckets.add(new InternalDateRange.Bucket("range_a", from, from + randomDouble(), randomNonNegativeLong(),
-                    InternalAggregations.EMPTY, false, format));
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                keyed = keyed == false;
+                break;
+            case 2:
+                buckets = new ArrayList<>(buckets);
+                double from = randomDouble();
+                buckets.add(
+                    new InternalDateRange.Bucket(
+                        "range_a",
+                        from,
+                        from + randomDouble(),
+                        randomNonNegativeLong(),
+                        InternalAggregations.EMPTY,
+                        false,
+                        format
+                    )
+                );
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateRange(name, buckets, format, keyed, metadata);
     }

@@ -216,7 +216,6 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         private final Releasable releasable;
 
         RefCountedReleasable(Releasable releasable) {
-            super("bytes-reference");
             this.releasable = releasable;
         }
 

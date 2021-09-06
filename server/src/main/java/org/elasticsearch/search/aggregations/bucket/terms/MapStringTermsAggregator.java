@@ -12,9 +12,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -161,6 +161,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             CollectConsumer consumer
         ) throws IOException;
     }
+
     @FunctionalInterface
     public interface CollectConsumer {
         void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
@@ -444,9 +445,20 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             } else {
                 reduceOrder = order;
             }
-            return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(topBuckets), null);
+            return new StringTerms(
+                name,
+                reduceOrder,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                Arrays.asList(topBuckets),
+                null
+            );
         }
 
         @Override
@@ -568,7 +580,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(0, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(0, supersetSize, significanceHeuristic);
         }
 
         @Override
@@ -577,4 +589,3 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         }
     }
 }
-

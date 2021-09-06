@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -90,6 +91,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final XPackLicenseState licenseState;
 
     private volatile ClusterState clusterState;
 
@@ -99,13 +101,15 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                           DatafeedConfigProvider datafeedConfigProvider,
                                           MlMemoryTracker memoryTracker,
                                           Client client,
-                                          IndexNameExpressionResolver expressionResolver) {
+                                          IndexNameExpressionResolver expressionResolver,
+                                          XPackLicenseState licenseState) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -217,7 +221,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
                     logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
-                    jobTask.markAsFailed(e);
+                    failTask(jobTask, "failed to update results mapping");
                 }
             }
         );
@@ -266,7 +270,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         response -> openJob(jobTask),
                         e -> {
                             if (autodetectProcessManager.isNodeDying() == false) {
-                                jobTask.markAsFailed(e);
+                                logger.error(new ParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
+                                failTask(jobTask, "failed to revert to current snapshot");
                             }
                         }
                     ));
@@ -276,12 +281,25 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             },
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    jobTask.markAsFailed(e);
+                    logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobTask.getJobId()), e);
+                    failTask(jobTask, "failed to search for associated datafeed");
                 }
             }
         );
 
         hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
+    }
+
+    private void failTask(JobTask jobTask, String reason) {
+        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
+        jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(
+            r -> logger.debug(() -> new ParameterizedMessage("[{}] updated task state to failed", jobTask.getJobId())),
+            e -> {
+                logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed",
+                    jobTask.getJobId()), e);
+                jobTask.markAsFailed(e);
+            }
+        ));
     }
 
     private boolean isMasterNodeVersionOnOrAfter(Version version) {
@@ -378,6 +396,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                     jobTask.markAsCompleted();
                                 } else if (autodetectProcessManager.isNodeDying() == false) {
+                                    // In this case we prefer to mark the task as failed, which means the job
+                                    // will appear closed. The reason is that the job closed successfully and
+                                    // we just failed to update some fields like the finish time. It is preferable
+                                    // to let the job close than setting it to failed.
                                     jobTask.markAsFailed(e);
                                 }
                             }
@@ -386,7 +408,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobTask.markAsCompleted();
                 }
             } else if (autodetectProcessManager.isNodeDying() == false) {
-                jobTask.markAsFailed(e2);
+                logger.error(new ParameterizedMessage("[{}] failed to open job", jobTask.getJobId()), e2);
+                failTask(jobTask, "failed to open job");
             }
         });
     }
@@ -395,7 +418,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                  Map<String, String> headers) {
-        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers, licenseState);
     }
 
     public static Optional<ElasticsearchException> checkAssignmentState(PersistentTasksCustomMetadata.Assignment assignment,

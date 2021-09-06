@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Arrays;
@@ -83,7 +82,7 @@ public class SpatialPluginTests extends ESTestCase {
         return new SpatialPlugin() {
             protected XPackLicenseState getLicenseState() {
                 TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-                licenseState.update(operationMode, true, Long.MAX_VALUE, VersionUtils.randomVersion(random()));
+                licenseState.update(operationMode, true, Long.MAX_VALUE);
                 return licenseState;
             }
         };

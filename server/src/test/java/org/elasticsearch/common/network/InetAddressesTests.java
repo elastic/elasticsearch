@@ -25,6 +25,8 @@ import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class InetAddressesTests extends ESTestCase {
     public void testForStringBogusInput() {
         String[] bogusInputs = {
@@ -110,6 +112,11 @@ public class InetAddressesTests extends ESTestCase {
             // expected behavior
         }
         assertFalse(InetAddresses.isInetAddress("016.016.016.016"));
+    }
+
+    public void testIpv6WithZeroScopeIdIsEqualToIpv6AddressWithOptionalScopeId() {
+        assertThat(InetAddresses.forString("fdbd:dc00:111:222:0:0:0:333"),
+            equalTo(InetAddresses.forString("fdbd:dc00:111:222::333")));
     }
 
     public void testForStringIPv4Input() throws UnknownHostException {

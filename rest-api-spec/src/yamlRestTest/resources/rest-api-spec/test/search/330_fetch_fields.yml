@@ -897,8 +897,8 @@ Test token_count inside nested field doesn't fail:
 ---
 error includes field name:
   - skip:
-      version: ' - 7.99.99'
-      reason:  'error changed in 8.0.0 to be backported to 7.15'
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
 
   - do:
       indices.create:
@@ -934,8 +934,8 @@ error includes field name:
 ---
 error includes glob pattern:
   - skip:
-      version: ' - 7.99.99'
-      reason:  'error changed in 8.0.0 to be backported to 7.15'
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
 
   - do:
       indices.create:
@@ -972,8 +972,8 @@ error includes glob pattern:
 ---
 error for flattened includes whole path:
   - skip:
-      version: ' - 7.99.99'
-      reason:  'error changed in 8.0.0 to be backported to 7.15'
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
 
   - do:
       indices.create:

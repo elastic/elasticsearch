@@ -112,32 +112,32 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public void testBasicFlowDate() throws Exception {
-        setupGenericLifecycleTest(true, "date", "date_range_match");
+        setupGenericLifecycleTest(true, "date", "range");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowInteger() throws Exception {
-        setupGenericLifecycleTest(true, "integer", "integer_range_match");
+        setupGenericLifecycleTest(true, "integer", "range");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowLong() throws Exception {
-        setupGenericLifecycleTest(true, "long", "long_range_match");
+        setupGenericLifecycleTest(true, "long", "range");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowDouble() throws Exception {
-        setupGenericLifecycleTest(true, "double", "double_range_match");
+        setupGenericLifecycleTest(true, "double", "range");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowFloat() throws Exception {
-        setupGenericLifecycleTest(true, "float", "float_range_match");
+        setupGenericLifecycleTest(true, "float", "range");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowIp() throws Exception {
-        setupGenericLifecycleTest(true, "ip", "ip_range_match");
+        setupGenericLifecycleTest(true, "ip", "range");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 

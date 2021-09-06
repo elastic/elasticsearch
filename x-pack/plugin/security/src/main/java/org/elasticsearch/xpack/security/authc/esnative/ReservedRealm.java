@@ -85,11 +85,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
         final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+        char[] hash;
         autoconfigured =
             AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.exists(settings) && BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false;
-        final char[] hash = autoconfigured == false ? (BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0]
-            : reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings))) :
-            AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.get(settings).getChars();
+        if (autoconfigured) {
+            hash = AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.get(settings).getChars();
+        } else {
+            hash = reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+        }
         bootstrapUserInfo = new ReservedUserInfo(hash, true);
     }
 
@@ -236,7 +239,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 }
             }, (e) -> {
                 logger.error((Supplier<?>) () ->
-                        new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
+                    new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
                 listener.onResponse(null);
             }));
         }

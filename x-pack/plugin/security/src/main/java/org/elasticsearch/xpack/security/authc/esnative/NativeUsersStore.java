@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -63,6 +64,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
+import static org.elasticsearch.action.DocWriteRequest.OpType.UPDATE;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -256,7 +259,8 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (isIndexNotFoundOrDocumentMissing(e)) {
                                 if (docType.equals(RESERVED_USER_TYPE)) {
-                                    createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
+                                    createOrUpdateReservedUser(username, request.passwordHash(), request.getRefreshPolicy(),
+                                        UPDATE, listener::onFailure, listener);
                                 } else {
                                     logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
                                             new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
@@ -276,29 +280,30 @@ public class NativeUsersStore {
      * Asynchronous method to create a reserved user with the given password hash. The cache for the user will be cleared after the document
      * has been indexed
      */
-    private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+    protected void createOrUpdateReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, DocWriteRequest.OpType opType,
+                                            Consumer<Exception> consumer, ActionListener<Void> listener) {
+        securityIndex.prepareIndexIfNeededThenExecute(consumer, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForUser(RESERVED_USER_TYPE, username))
+                    client.prepareIndex(SECURITY_MAIN_ALIAS).setOpType(opType)
+                            .setId(getIdForUser(RESERVED_USER_TYPE, username))
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
                                     true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
-                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
+                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> {
+                        if (opType.equals(CREATE) == false) {
+                            clearRealmCache(username, l, null);
+                        } else {
+                            l.onResponse(null);
+                        }
+                    }), client::index);
         });
     }
 
     void storeAutoconfiguredElasticUser(ReservedUserInfo elasticUserInfo, ActionListener<ReservedUserInfo> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute((e) -> { listener.onFailure(new ElasticsearchStatusException(e.getMessage(),
-            INTERNAL_SERVER_ERROR, e.getCause())); },
-            () -> { executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_MAIN_ALIAS).setOpType(DocWriteRequest.OpType.CREATE)
-                    .setId(getIdForUser(RESERVED_USER_TYPE, ElasticUser.NAME))
-                    .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(elasticUserInfo.passwordHash),
-                        Fields.ENABLED.getPreferredName(), true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE).request(),
-                listener.<IndexResponse>delegateFailure((l, indexResponse) -> getReservedUserInfo(ElasticUser.NAME, l)),
-                client::index);
-        });
+        createOrUpdateReservedUser(ElasticUser.NAME, elasticUserInfo.passwordHash, WriteRequest.RefreshPolicy.IMMEDIATE,
+            DocWriteRequest.OpType.CREATE, (e) -> {
+            listener.onFailure(new ElasticsearchStatusException(e.getMessage(), INTERNAL_SERVER_ERROR, e.getCause()));
+            }, listener.delegateFailure((l, v) -> l.onResponse(elasticUserInfo.deepClone())));
     }
 
     /**

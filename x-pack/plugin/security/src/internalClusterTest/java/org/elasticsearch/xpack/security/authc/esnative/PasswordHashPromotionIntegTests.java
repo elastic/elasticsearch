@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -31,13 +32,14 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
     @Override
     public Settings nodeSettings() {
         Settings customSettings = customSecuritySettingsSource.nodeSettings(0, Settings.EMPTY);
-        Settings.Builder builder = Settings.builder().put(customSettings, false); // handle secure settings separately
+        MockSecureSettings mockSecuritySettings = new MockSecureSettings();
+        mockSecuritySettings.setString("autoconfiguration.password_hash",
+            "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
+        Settings.Builder builder = Settings.builder().put(customSettings, false); // don't bring in bootstrap.password
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");
         builder.put("path.home", customSecuritySettingsSource.nodePath(0));
-        builder.setSecureSettings(new MockSecureSettings());
-        ((MockSecureSettings) builder.getSecureSettings()).setString("autoconfiguration.password_hash",
-            "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
+        builder.setSecureSettings(mockSecuritySettings);
         return builder.build();
     }
 
@@ -46,13 +48,16 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
         return false;
     }
 
+    @Override
+    protected boolean transportSSLEnabled() { return false; }
+
     public void testAuthenticate() {
         ClusterHealthResponse response = client()
             .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME,
                 new SecureString("password1".toCharArray()))))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
             .get();
 
         assertThat(response, notNullValue());
@@ -87,17 +92,17 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
                 new SecureString("x-pack-test-password".toCharArray()))))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
             .get();
 
-        boolean securityIndexNotCreated = true;
+        boolean securityIndexCreated = false;
         for (Map.Entry<String, ClusterIndexHealth>  indexEntry: response.getIndices().entrySet()) {
             if (indexEntry.getKey().startsWith(".security")) {
-                securityIndexNotCreated = false;
+                securityIndexCreated = true;
                 break;
             }
         }
-        assertTrue(securityIndexNotCreated);
+        assertFalse(securityIndexCreated);
     }
 
     public void securityIndexExistsAuthenticate() {

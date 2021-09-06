@@ -28,7 +28,8 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.internalS
 /**
  * The default implementation of a {@link AuthenticationFailureHandler}. This
  * handler will return an exception with a RestStatus of 401 and default failure
- * response headers like 'WWW-Authenticate'
+ * response headers like 'WWW-Authenticate' or an ElasticSecurityException with a
+ * RestStatus of 500 (INTERNAL_SERVER_ERROR)
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
     private volatile Map<String, List<String>> defaultFailureResponseHeaders;
@@ -129,7 +130,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     /**
      * Creates an instance of {@link ElasticsearchSecurityException} with
-     * {@link RestStatus#UNAUTHORIZED} status.
+     * {@link RestStatus#UNAUTHORIZED} or {@link RestStatus#INTERNAL_SERVER_ERROR}status.
      * <p>
      * Also adds default failure response headers as configured for this
      * {@link DefaultAuthenticationFailureHandler}
@@ -140,7 +141,10 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * @param message error message
      * @param t cause, if it is an instance of
      *            {@link ElasticsearchSecurityException} asserts status is
-     *            RestStatus.UNAUTHORIZED and adds headers to it, else it will
+     *            RestStatus.UNAUTHORIZED and adds headers to it,
+     *            if it is an instance of {@link ElasticsearchStatusException}
+     *            with status code 500 (INTERNAL_SERVER_ERROR) asserts status is
+     *            RestStatus.UNAUTHORIZED, else it will
      *            create a new instance of {@link ElasticsearchSecurityException}
      * @param args error message args
      * @return instance of {@link ElasticsearchSecurityException}

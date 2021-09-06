@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -208,10 +209,15 @@ public class TrainedModelStatsService {
         if (shouldStop()) {
             return;
         }
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest,
-            stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
-            () -> shouldStop() == false,
-            (msg) -> {});
+        String jobPattern = stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(","));
+        try {
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest,
+                jobPattern,
+                () -> shouldStop() == false,
+                (msg) -> {});
+        } catch (ElasticsearchException ex) {
+            logger.warn(() -> new ParameterizedMessage("failed to store stats for [{}]", jobPattern), ex);
+        }
     }
 
     static boolean verifyIndicesExistAndPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/77297")
     public void testJobsVacateShuttingDownNode() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -74,14 +75,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         });
 
         // Call the shutdown API for the chosen node.
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(
                 nodeIdToShutdown.get(),
                 randomFrom(SingleNodeShutdownMetadata.Type.values()),
                 "just testing",
-                null
-            )
+                null,
+                targetNodeName)
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
@@ -144,14 +147,15 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         });
 
         // Call the shutdown API for the chosen node.
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(
-                nodeIdToShutdown.get(),
-                randomFrom(SingleNodeShutdownMetadata.Type.values()),
+                nodeIdToShutdown.get(), type,
                 "just testing",
-                null
-            )
+                null,
+                targetNodeName)
         )
             .actionGet();
 

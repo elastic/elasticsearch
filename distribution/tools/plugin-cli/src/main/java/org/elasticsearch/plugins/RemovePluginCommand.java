@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
@@ -39,10 +40,17 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
     protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
         final Path pluginsDescriptor = env.configFile().resolve("elasticsearch-plugins.yml");
         if (Files.exists(pluginsDescriptor)) {
-            throw new UserException(
-                1,
-                "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead"
-            );
+            // Check for any lines of actual configuration in the file before bailing.
+            boolean hasActualConfig = Files.readAllLines(pluginsDescriptor)
+                .stream()
+                .anyMatch(line -> line.isEmpty() == false && line.matches("^\\w*#.*") == false);
+
+            if (hasActualConfig) {
+                throw new UserException(
+                    ExitCodes.USAGE,
+                    "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead"
+                );
+            }
         }
 
         final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());

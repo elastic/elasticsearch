@@ -77,7 +77,6 @@ public class SyncPluginsCommandTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-//        pluginDir = createPluginDir(temp);
         terminal = new MockTerminal();
         env = createEnv(temp);
         skipJarHellAction = new InstallPluginAction(terminal, null) {
@@ -232,7 +231,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     public void testSync_withPluginAlreadyInstalled_succeeds() throws Exception {
         final String pluginId = "example-plugin";
 
-        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+        writePluginDescriptor(pluginId);
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
@@ -253,7 +252,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     public void testSync_withDryRunAndPluginAlreadyInstalled_printsCorrectSummary() throws Exception {
         final String pluginId = "example-plugin";
 
-        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+        writePluginDescriptor(pluginId);
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
@@ -273,7 +272,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     public void testSync_withRemovePlugin_succeeds() throws Exception {
         final String pluginId = "example-plugin";
 
-        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+        writePluginDescriptor(pluginId);
 
         Files.writeString(pluginsFile, "plugins:");
 
@@ -290,7 +289,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     public void testSync_withDryRunRemovePlugin_printsCorrectSummary() throws Exception {
         final String pluginId = "example-plugin";
 
-        writePluginDescriptor(pluginId, env.v2().pluginsFile().resolve(pluginId));
+        writePluginDescriptor(pluginId);
 
         Files.writeString(pluginsFile, "plugins:");
 
@@ -317,10 +316,10 @@ public class SyncPluginsCommandTests extends ESTestCase {
      */
     public void testSync_withPluginsToAddAndRemove_succeeds() throws Exception {
         // Remove 2 plugins...
-        writePluginDescriptor("plugin-to-remove1", env.v2().pluginsFile().resolve("plugin-to-remove1"));
-        writePluginDescriptor("plugin-to-remove2", env.v2().pluginsFile().resolve("plugin-to-remove2"));
+        writePluginDescriptor("plugin-to-remove1");
+        writePluginDescriptor("plugin-to-remove2");
         // ...And keep 1
-        writePluginDescriptor("plugin-to-keep", env.v2().pluginsFile().resolve("plugin-to-keep"));
+        writePluginDescriptor("plugin-to-keep");
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
@@ -341,10 +340,10 @@ public class SyncPluginsCommandTests extends ESTestCase {
      */
     public void testSync_withDryRunPluginsToAddAndRemove_printsCorrectSummary() throws Exception {
         // Remove 2 plugins...
-        writePluginDescriptor("plugin-to-remove1", env.v2().pluginsFile().resolve("plugin-to-remove1"));
-        writePluginDescriptor("plugin-to-remove2", env.v2().pluginsFile().resolve("plugin-to-remove2"));
+        writePluginDescriptor("plugin-to-remove1");
+        writePluginDescriptor("plugin-to-remove2");
         // ...And keep 1
-        writePluginDescriptor("plugin-to-keep", env.v2().pluginsFile().resolve("plugin-to-keep"));
+        writePluginDescriptor("plugin-to-keep");
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
@@ -404,6 +403,24 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
+     * Check that the sync tool will fail gracefully when an invalid proxy is specified for a specific plugin
+     */
+    public void testSync_withInvalidPluginProxy_fails() throws Exception {
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+        yaml.add("    proxy: ftp://example.com");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        final SyncPluginsCommand command = new SyncPluginsCommand();
+        final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
+
+        assertThat(exception.getMessage(), startsWith("Malformed [proxy] for plugin [example-plugin], expected [host:port] in"));
+        assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
+    }
+
+    /**
      * Check that the sync tool will run successfully with an unofficial plugin.
      */
     public void testSync_withUnofficialPlugin_succeeds() throws Exception {
@@ -442,7 +459,9 @@ public class SyncPluginsCommandTests extends ESTestCase {
         );
     }
 
-    private static void writePluginDescriptor(String name, Path pluginPath) throws IOException {
+    private void writePluginDescriptor(String name) throws IOException {
+        final Path pluginPath = env.v2().pluginsFile().resolve(name);
+
         final Properties props = new Properties();
         props.put("description", "fake desc");
         props.put("name", name);

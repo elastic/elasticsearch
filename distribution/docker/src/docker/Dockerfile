@@ -262,9 +262,9 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "cloud") { %>
-# Preinstall common plugins
+# Preinstall common plugins. Note that these are installed as root, meaning the `elasticsearch` user cannot delete them.
 COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch \\
+RUN bin/elasticsearch-plugin install --batch --verbose \\
     file:/tmp/repository-s3-${version}.zip \\
     file:/tmp/repository-gcs-${version}.zip \\
     file:/tmp/repository-azure-${version}.zip

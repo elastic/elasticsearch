@@ -40,6 +40,7 @@ import org.elasticsearch.jdk.JarHell;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -57,6 +58,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -277,7 +279,28 @@ class InstallPluginAction implements Closeable {
 
         Proxy proxy = getProxy(plugin.getProxy());
 
-        if (OFFICIAL_PLUGINS.contains(pluginId) && plugin.getUrl() == null) {
+        // See `InstallPluginCommand` it has to use a string argument for both the ID and the URL
+        if (OFFICIAL_PLUGINS.contains(pluginId) && (plugin.getUrl() == null || plugin.getUrl().equals(pluginId))) {
+            final String pluginArchiveDir = System.getenv("ELASTICSEARCH_PLUGIN_ARCHIVE_DIR");
+            if (pluginArchiveDir != null && pluginArchiveDir.isEmpty() == false) {
+                File file = Paths.get(pluginArchiveDir).toFile();
+                if (file.exists() == false) {
+                    throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR does not exist");
+                }
+                if (file.isDirectory() == false) {
+                    throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR is not a directory");
+                }
+                final Path pluginPath = Paths.get(
+                    pluginArchiveDir,
+                    pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip"
+                );
+                if (Files.exists(pluginPath)) {
+                    terminal.println("-> Downloading " + pluginId + " from local archive: " + pluginArchiveDir);
+                    return downloadZip("file:" + pluginPath, null, tmpDir);
+                }
+                // else carry on to regular download
+            }
+
             final String url = getElasticUrl(getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadAndValidate(url, proxy, tmpDir, true);

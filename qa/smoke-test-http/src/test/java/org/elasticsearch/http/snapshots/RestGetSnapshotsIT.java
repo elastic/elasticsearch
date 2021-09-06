@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
 import static org.hamcrest.Matchers.in;
@@ -182,6 +184,34 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
     }
+
+    public void testFilterBySLMPolicy() throws Exception {
+        final String repoName = "test-repo";
+        AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
+        AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(1, 5));
+        final List<SnapshotInfo> snapshotsWithoutPolicy =
+            clusterAdmin().prepareGetSnapshots("*").setSnapshots("*").get().getSnapshots();
+        final String snapshotWithPolicy = "snapshot-with-policy";
+        final String policyName = "some-policy";
+        final SnapshotInfo withPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
+            logger,
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+
+        final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
+        requestWithPolicy.addParameter("slm_policy", policyName);
+        final List<SnapshotInfo> snapshotsWithPolicy = readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
+        assertThat(snapshotsWithPolicy, is(List.of(withPolicy)));
+        final Request requestWithoutPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
+        requestWithoutPolicy.addParameter("slm_policy", "*,-" + policyName);
+        final List<SnapshotInfo> snapshotsNoPolicy =
+            readSnapshotInfos(getRestClient().performRequest(requestWithoutPolicy)).getSnapshots();
+        assertThat(snapshotsNoPolicy, is(snapshotsWithoutPolicy));
+    }
+
 
     private void createIndexWithContent(String indexName) {
         logger.info("--> creating index [{}]", indexName);

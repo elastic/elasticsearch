@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
@@ -120,6 +121,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.offset(),
             request.size(),
             request.order(),
+            request.policies(),
             listener
         );
     }
@@ -137,6 +139,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int offset,
         int size,
         SortOrder order,
+        String[] slmPolicies,
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -156,7 +159,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                final SnapshotsInRepo snInfos = sortSnapshots(allSnapshots, sortBy, after, offset, size, order);
+                final SnapshotsInRepo snInfos = sortSnapshots(allSnapshots, sortBy, after, offset, size, order, slmPolicies);
                 final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
                 final int remaining = snInfos.remaining + responses.stream()
                     .map(Tuple::v2)
@@ -186,6 +189,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
+                slmPolicies,
                 groupedActionListener.delegateResponse((groupedListener, e) -> {
                     if (isMultiRepoRequest && e instanceof ElasticsearchException) {
                         groupedListener.onResponse(Tuple.tuple(Tuple.tuple(repoName, (ElasticsearchException) e), null));
@@ -207,6 +211,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
         SortOrder order,
+        String[] slmPolicies,
         ActionListener<SnapshotsInRepo> listener
     ) {
         final Map<String, Snapshot> allSnapshotIds = new HashMap<>();
@@ -238,6 +243,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
+                slmPolicies,
                 listener
             ),
             listener::onFailure
@@ -277,6 +283,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
         SortOrder order,
+        String[] slmPolicies,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
@@ -326,6 +333,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
+                slmPolicies,
                 listener
             );
         } else {
@@ -341,7 +349,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     after,
                     0,
                     GetSnapshotsRequest.NO_LIMIT,
-                    order
+                    order,
+                    slmPolicies
                 );
             }
             listener.onResponse(snapshotInfos);
@@ -364,6 +373,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable GetSnapshotsRequest.After after,
         SortOrder order,
+        String[] slmPolicies,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
@@ -392,7 +402,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order));
+            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, slmPolicies));
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);
@@ -471,7 +481,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 )
             );
         }
-        return sortSnapshots(snapshotInfos, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order);
+        return sortSnapshots(snapshotInfos, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, Strings.EMPTY_ARRAY);
     }
 
     private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparingLong(SnapshotInfo::startTime)
@@ -501,8 +511,47 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final @Nullable GetSnapshotsRequest.After after,
         final int offset,
         final int size,
-        final SortOrder order
+        final SortOrder order,
+        final String[] slmPolicies
     ) {
+        final List<SnapshotInfo> filteredSnapshotInfos;
+        if (slmPolicies.length == 0) {
+            filteredSnapshotInfos = snapshotInfos;
+        } else {
+            final List<String> includePatterns = new ArrayList<>();
+            final List<String> excludePatterns = new ArrayList<>();
+            boolean seenWildcard = false;
+            for (String slmPolicy : slmPolicies) {
+                if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
+                    excludePatterns.add(slmPolicy.substring(1));
+                } else {
+                    if (Regex.isSimpleMatchPattern(slmPolicy)) {
+                        seenWildcard = true;
+                    }
+                    includePatterns.add(slmPolicy);
+                }
+            }
+            final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
+            final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
+            filteredSnapshotInfos = snapshotInfos.stream().filter(snapshotInfo -> {
+                final Map<String, Object> metadata = snapshotInfo.userMetadata();
+                final String policy;
+                if (metadata == null) {
+                    policy = "";
+                } else {
+                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                    if (policyFound instanceof String) {
+                        policy = (String) policyFound;
+                    } else {
+                        policy = "";
+                    }
+                }
+                if (Regex.simpleMatch(includes, policy) == false) {
+                    return false;
+                }
+                return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
+            }).collect(Collectors.toUnmodifiableList());
+        }
         final Comparator<SnapshotInfo> comparator;
         switch (sortBy) {
             case START_TIME:
@@ -530,7 +579,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
 
-        Stream<SnapshotInfo> infos = snapshotInfos.stream();
+        Stream<SnapshotInfo> infos = filteredSnapshotInfos.stream();
 
         if (after != null) {
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
@@ -597,7 +646,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
             ? snapshots.subList(0, size)
             : snapshots;
-        return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
+        return new SnapshotsInRepo(resultSet, filteredSnapshotInfos.size(), allSnapshots.size() - resultSet.size());
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(

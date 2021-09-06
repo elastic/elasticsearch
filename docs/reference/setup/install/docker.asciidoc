@@ -435,8 +435,8 @@ Versus a working example keystore mounting with update example would be
 
 [source,sh]
 --------------------------------------------
-docker run -it --rm -v /amex/elasticsearch/config:/usr/share/elasticsearch/config dockerproxy.aexp.com/elasticsearch:6.8.3 bin/elasticsearch-keystore create
-docker run -it --rm -v /amex/elasticsearch/config:/usr/share/elasticsearch/config dockerproxy.aexp.com/elasticsearch:6.8.3 bin/elasticsearch-keystore add xpack.ssl.key_passphrase
+docker run -it --rm -v /Users/me/elasticsearch/config:/usr/share/elasticsearch/config docker.elastic.co/elasticsearch/elasticsearch:7.14.0 bin/elasticsearch-keystore create
+docker run -it --rm -v /Users/me/elasticsearch/config:/usr/share/elasticsearch/config docker.elastic.co/elasticsearch/elasticsearch:7.14.0 bin/elasticsearch-keystore add test_keystore_setting
 --------------------------------------------
 
 [[_c_customized_image]]

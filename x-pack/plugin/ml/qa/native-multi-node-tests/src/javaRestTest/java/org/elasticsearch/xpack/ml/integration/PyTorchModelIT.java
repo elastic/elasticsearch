@@ -365,7 +365,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    \"description\": \"simple model for testing\",\n" +
             "    \"model_type\": \"pytorch\",\n" +
             "    \"inference_config\": {\n" +
-            "        \"bert_pass_through\": {\n" +
+            "        \"pass_through\": {\n" +
             "            \"vocabulary\": {\n" +
             "              \"index\": \"" + InferenceIndexConstants.nativeDefinitionStore() + "\",\n" +
             "              \"id\": \"test_vocab\"\n" +

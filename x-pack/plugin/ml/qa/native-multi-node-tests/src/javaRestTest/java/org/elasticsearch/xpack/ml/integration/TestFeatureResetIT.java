@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -197,7 +197,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
-                        new BertPassThroughConfig(
+                        new PassThroughConfig(
                             new VocabularyConfig(
                                 InferenceIndexConstants.nativeDefinitionStore(),
                                 TRAINED_MODEL_ID + "_vocab"
@@ -223,7 +223,6 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                     "}",
                 XContentType.JSON
             ).get();
-
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
             new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID)

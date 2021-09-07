@@ -26,6 +26,7 @@ tasks.named("yamlRestTest").configure {
     'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
+    'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',

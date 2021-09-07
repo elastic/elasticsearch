@@ -121,7 +121,7 @@ POST my-index/_close
 ----
 // TEST[setup:setup-snapshots]
 
-To restore this closed index, the index in the snapshot must have the same
+To restore the closed index, the index in the snapshot must have the same
 number of primary shards. You can check the primary shard counts using the
 <<cat-indices,cat indices>> and <<get-snapshot-api,get snapshot>> APIs.
 
@@ -152,12 +152,9 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[rename-on-restore]]
 ==== Rename on restore
 
-You can rename indices and data streams you restore. This lets you restore data
-from a snapshot without deleting data.
-
-You can use this method to compare a cluster's existing data to historical data
-from a snapshot. For example, you could review changes made to a document after
-an accidental update.
+You can rename indices and data streams you restore. Use this method if you want
+to avoid deleting existing data. This lets you compare existing data to
+historical data from a snapshot.
 
 Before you start, ensure the cluster has enough capacity for both the existing
 and restored data.
@@ -355,6 +352,6 @@ exists in the cluster. To avoid this error, use one of the following methods:
 [discrete]
 ==== Cannot restore index [<index>] with [x] shards from a snapshot of index [<snapshot-index>] with [y] shards
 
-If you restore an existing closed index, the index in the snapshot must have the
+To restore an existing closed index, the index in the snapshot must have the
 same number of primary shards. Try <<delete-restore,deleting the existing
 index>> or <<rename-on-restore,renaming the restored index>>.

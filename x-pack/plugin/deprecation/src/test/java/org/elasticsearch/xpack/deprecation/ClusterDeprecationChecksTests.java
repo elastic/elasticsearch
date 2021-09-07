@@ -496,7 +496,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates contain deprecated sparse_vector fields that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
-                "mappings in component template my-template contains deprecated sparse_vector fields: [my_sparse_vector]", false, null)
+                "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]", false, null)
         ));
 
         // Third, trying a component template and an index template:
@@ -511,7 +511,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates and index templates contain deprecated sparse_vector fields that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
-                "mappings in component template my-template contains deprecated sparse_vector fields: [my_sparse_vector]; " +
+                "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]; " +
                     "mappings in index template single-type contains deprecated sparse_vector fields: " +
                     "[my_sparse_vector], [my_nested_sparse_vector]", false, null)
         ));

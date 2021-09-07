@@ -318,7 +318,7 @@ public class ClusterDeprecationChecks {
                             ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
                     if (messages.isEmpty() == false) {
                         String messageForMapping =
-                            "mappings in component template " + templateName + " contains deprecated sparse_vector fields: " +
+                            "mappings in component template [" + templateName + "] contains deprecated sparse_vector fields: " +
                                 messages.stream().collect(Collectors.joining(", "));
                         return messageForMapping;
                     }

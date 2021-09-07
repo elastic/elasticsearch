@@ -308,12 +308,12 @@ public final class DatabaseRegistry implements Closeable {
 
     void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
         try {
-            LOGGER.info("database file changed [{}], reload database...", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
             }
+            LOGGER.info("reloaded changed database file [{}]", file);
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }

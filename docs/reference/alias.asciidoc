@@ -1,5 +1,5 @@
 [chapter]
-[[alias]]
+[[aliases]]
 = Aliases
 
 An alias is a secondary name for a group of data streams or indices. Most {es}

@@ -1546,7 +1546,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         private final Set<DelegatingByteArray> trackedArrays = new HashSet<>();
 
-        public DelegatingBigArrays(BigArrays delegate) {
+        DelegatingBigArrays(BigArrays delegate) {
             super(null, null, null);
             this.delegate = delegate;
         }
@@ -1569,7 +1569,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return wrapped;
         }
 
-        public void releaseAll() {
+        void releaseAll() {
             for (DelegatingByteArray trackedArray : List.copyOf(trackedArrays)) {
                 trackedArray.close();
             }
@@ -1580,7 +1580,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             private final ByteArray delegate;
 
-            public DelegatingByteArray(ByteArray delegate) {
+            DelegatingByteArray(ByteArray delegate) {
                 this.delegate = delegate;
             }
 

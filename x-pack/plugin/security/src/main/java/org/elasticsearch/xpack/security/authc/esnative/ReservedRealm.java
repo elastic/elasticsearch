@@ -91,7 +91,11 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (autoconfigured) {
             hash = AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.get(settings).getChars();
         } else {
-            hash = reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+            if (BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0) {
+                hash = new char[0];
+            } else{
+                hash = reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+            }
         }
         bootstrapUserInfo = new ReservedUserInfo(hash, true);
     }

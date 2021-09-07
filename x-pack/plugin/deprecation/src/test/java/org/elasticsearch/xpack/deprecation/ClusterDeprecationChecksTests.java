@@ -439,4 +439,81 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                     "[strategy]]", false, null)
         ));
     }
+
+    public void testSparseVectorMappings() throws Exception {
+        // First, testing only an index template:
+        IndexTemplateMetadata indexTemplateMetadata = IndexTemplateMetadata.builder("single-type")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("_doc", "{\n" +
+                "   \"_doc\":{\n" +
+                "      \"properties\":{\n" +
+                "         \"my_sparse_vector\":{\n" +
+                "            \"type\":\"sparse_vector\"\n" +
+                "         },\n" +
+                "         \"nested_field\":{\n" +
+                "            \"type\":\"nested\",\n" +
+                "            \"properties\":{\n" +
+                "               \"my_nested_sparse_vector\":{\n" +
+                "                  \"type\":\"sparse_vector\"\n" +
+                "               }\n" +
+                "            }\n" +
+                "         }\n" +
+                "      }\n" +
+                "   }\n" +
+                "}")
+            .build();
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
+            .fPut("single-type", indexTemplateMetadata)
+            .build();
+        Metadata badMetadata = Metadata.builder()
+            .templates(templates)
+            .build();
+        ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        DeprecationIssue issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
+
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "index templates contain deprecated sparse_vector fields that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
+                "mappings in index template single-type contains deprecated sparse_vector fields: [my_sparse_vector], " +
+                    "[my_nested_sparse_vector]", false, null)
+        ));
+
+        // Second, testing only a component template:
+        String templateName = "my-template";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"my_sparse_vector\":{\"type\":\"sparse_vector\"}}}");
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
+        Template template = new Template(settings, mappings, Collections.singletonMap("alias", alias));
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        badMetadata = Metadata.builder()
+            .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
+            .build();
+        badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
+
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "component templates contain deprecated sparse_vector fields that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
+                "mappings in component template my-template contains deprecated sparse_vector fields: [my_sparse_vector]", false, null)
+        ));
+
+        // Third, trying a component template and an index template:
+        badMetadata = Metadata.builder()
+            .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
+            .templates(templates)
+            .build();
+        badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
+
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "component templates and index templates contain deprecated sparse_vector fields that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
+                "mappings in component template my-template contains deprecated sparse_vector fields: [my_sparse_vector]; " +
+                    "mappings in index template single-type contains deprecated sparse_vector fields: " +
+                    "[my_sparse_vector], [my_nested_sparse_vector]", false, null)
+        ));
+    }
 }

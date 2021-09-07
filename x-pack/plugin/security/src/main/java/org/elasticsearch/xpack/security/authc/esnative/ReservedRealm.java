@@ -221,11 +221,11 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private void getUserInfo(final String username, @Nullable SecureString credentials, ActionListener<ReservedUserInfo> listener) {
         if (securityIndex.indexExists() == false) {
-            getAutoconfiguredUser(username, credentials, listener);
+            getAutoconfiguredOrDefaultUser(username, credentials, listener);
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
                 if (userInfo == null) {
-                    getAutoconfiguredUser(username, credentials, listener);
+                    getAutoconfiguredOrDefaultUser(username, credentials, listener);
                 } else {
                     listener.onResponse(userInfo);
                 }
@@ -237,7 +237,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private void getAutoconfiguredUser(final String username, SecureString credentials, ActionListener<ReservedUserInfo> listener) {
+    private void getAutoconfiguredOrDefaultUser(final String username, SecureString credentials, ActionListener<ReservedUserInfo> listener) {
         if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
             nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
         } else {

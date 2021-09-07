@@ -65,7 +65,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType.UPDATE;
+import static org.elasticsearch.action.DocWriteRequest.OpType.INDEX;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -260,7 +260,7 @@ public class NativeUsersStore {
                             if (isIndexNotFoundOrDocumentMissing(e)) {
                                 if (docType.equals(RESERVED_USER_TYPE)) {
                                     createOrUpdateReservedUser(username, request.passwordHash(), request.getRefreshPolicy(),
-                                        UPDATE, listener::onFailure, listener);
+                                        INDEX, listener::onFailure, listener);
                                 } else {
                                     logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
                                             new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);

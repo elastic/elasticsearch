@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class PasswordHashAndBootstrapPwdInterTests extends SecuritySingleNodeTestCase {
+public class PasswordHashAndBootstrapPasswordIntegTests extends SecuritySingleNodeTestCase {
 
     @Override
     public Settings nodeSettings() {

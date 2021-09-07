@@ -102,7 +102,7 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
 
     public void testSecurityIndexExistsButElasticuserNot() throws Exception {
         // Create a user to create the Index
-        createUser();
+        createUser("user", SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray(), Strings.EMPTY_ARRAY);
         assertTrue(securityIndexExists());
 
         ClusterHealthResponse response = client()
@@ -117,11 +117,14 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
         assertThat(response.status(), equalTo(RestStatus.OK));
     }
 
-    private void createUser() throws ExecutionException, InterruptedException {
+    // TODO: Add a test a test where we index the document for the elastic user manually and then we try to authenticate with the
+    // autoconfigured password hash and it fails
+
+    private void createUser(String username, char[] password, String[] roles) throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();
-        putUserRequest.username("user");
-        putUserRequest.roles(Strings.EMPTY_ARRAY);
-        putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
+        putUserRequest.username(username);
+        putUserRequest.roles(roles);
+        putUserRequest.passwordHash(password);
         PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
         final Client client = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password"

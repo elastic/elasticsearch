@@ -189,3 +189,23 @@ selectTwoOrderByWithWhere
 SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) WHERE salary > 10000 ORDER BY languages NULLS FIRST;
 selectThreeDerivedOrderBy
 SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY DAY(hire_date)) ORDER BY emp_no + 100) ORDER BY salary / 10;
+
+//
+// ORDER BY derived fields
+//
+orderByDerivedNumericFieldNullsFirst
+SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedNumericFieldNullsLast
+SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedNumericFieldDescNullsFirst
+SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+orderByDerivedNumericFieldDescNullsLast
+SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+orderByDerivedKeywordFieldNullsFirst
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedKeywordFieldNullsLast
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedKeywordFieldDescNullsFirst
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+orderByDerivedKeywordFieldDescNullsLast
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS LAST;

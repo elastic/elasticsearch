@@ -133,8 +133,8 @@ public abstract class SourceGenerator {
                 }
             } else if (sortable instanceof ScriptSort) {
                 ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
-                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+                sortBuilder = scriptSort(ss.valueSortScript().toPainless(),
+                        ss.valueSortScript().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
             }
 
             if (sortBuilder != null) {

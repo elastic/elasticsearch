@@ -39,7 +39,7 @@ SELECT COUNT(*) count FROM test_emp_copy WHERE wildcard_name IS NULL;
 ;
 
 functionOverAlias
-SELECT BIT_LENGTH(wildcard_name) bit, wildcard_name, length(wildcard_name) l FROM test_emp_copy ORDER BY bit DESC LIMIT 10;
+SELECT BIT_LENGTH(wildcard_name) bit, wildcard_name, length(wildcard_name) l FROM test_emp_copy ORDER BY bit DESC NULLS LAST LIMIT 10;
 
       bit      |    wildcard_name     |       l       
 ---------------+----------------------+---------------

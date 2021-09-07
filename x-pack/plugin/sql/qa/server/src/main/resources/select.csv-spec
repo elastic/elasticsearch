@@ -242,3 +242,55 @@ Vishv          |VISHV
 Valter         |VALTER         
 Valdiodio      |VALDIODIO
 ;
+
+//
+// SELECT with ORDER BY numeric field
+// (only queries with implicit NULLS FIRST/LAST in CSV specs as H2 uses different defaults)
+//
+orderByDerivedNumericField
+SELECT IFNULL(languages - 2, -99) l FROM test_emp WHERE salary > 73000 ORDER BY languages - 2;
+ l
+----
+ -1
+  0
+  1
+  2
+-99
+-99
+;
+
+orderByDerivedNumericFieldDesc
+SELECT IFNULL(languages - 2, -99) l FROM test_emp WHERE salary > 73000 ORDER BY languages - 2 DESC;
+ l
+----
+-99
+-99
+  2
+  1
+  0
+ -1
+;
+
+orderByDerivedKeywordericField
+SELECT IFNULL(LCASE(gender), '-') l FROM test_emp WHERE salary > 73000 ORDER BY LCASE(gender);
+       l
+---------------
+f
+f
+f
+m
+m
+-
+;
+
+orderByDerivedKeywordFieldDesc
+SELECT IFNULL(LCASE(gender), '-') l FROM test_emp WHERE salary > 73000 ORDER BY LCASE(gender) DESC;
+       l
+---------------
+-
+m
+m
+f
+f
+f
+;

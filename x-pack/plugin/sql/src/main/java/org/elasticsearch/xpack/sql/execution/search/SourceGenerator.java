@@ -15,12 +15,14 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 
@@ -146,8 +148,11 @@ public abstract class SourceGenerator {
                 }
             } else if (sortable instanceof ScriptSort) {
                 ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
-                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+                source.sort(
+                    scriptSort(ss.nullsSortScript().toPainless(), scriptSortType(ss.nullsSortScript().outputType())).order(SortOrder.ASC)
+                );
+
+                sortBuilder = scriptSort(ss.valueSortScript().toPainless(), scriptSortType(ss.valueSortScript().outputType()));
             } else if (sortable instanceof ScoreSort) {
                 sortBuilder = scoreSort();
             }
@@ -157,6 +162,10 @@ public abstract class SourceGenerator {
                 source.sort(sortBuilder);
             }
         }
+    }
+
+    private static ScriptSortType scriptSortType(DataType type){
+        return type.isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
     }
 
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {

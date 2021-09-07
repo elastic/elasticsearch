@@ -277,11 +277,14 @@ public class EnrichPolicyRunner implements Runnable {
                 case "date_range":
                     Set<String> formatEntries = matchFieldMappings.stream().map(map -> map.get("format")).collect(Collectors.toSet());
                     if (formatEntries.size() == 1) {
-                        return createEnrichMappingBuilder(
-                            (builder) -> builder.field("type", type)
-                                .field("doc_values", false)
-                                .field("format", formatEntries.iterator().next())
-                        );
+                        return createEnrichMappingBuilder((builder) -> {
+                            builder.field("type", type).field("doc_values", false);
+                            String format = formatEntries.iterator().next();
+                            if (format != null) {
+                                builder.field("format", format);
+                            }
+                            return builder;
+                        });
                     }
                     if (formatEntries.isEmpty()) {
                         // no format specify rely on default
@@ -291,7 +294,7 @@ public class EnrichPolicyRunner implements Runnable {
                         "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
                         policy.getMatchField(),
                         Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                        Strings.collectionToCommaDelimitedString(formatEntries)
+                        (formatEntries.contains(null) ? "(DEFAULT), " : "") + Strings.collectionToCommaDelimitedString(formatEntries)
                     );
 
                 default:

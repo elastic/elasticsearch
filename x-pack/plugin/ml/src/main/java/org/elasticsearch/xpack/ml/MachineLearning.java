@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
@@ -198,6 +199,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAc
 import org.elasticsearch.xpack.ml.action.TransportGetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.ml.action.TransportGetDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportInferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
@@ -370,6 +372,7 @@ import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
@@ -1064,6 +1067,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestStartTrainedModelDeploymentAction(),
             new RestStopTrainedModelDeploymentAction(),
             new RestInferTrainedModelDeploymentAction(),
+            new RestPutTrainedModelDefinitionPartAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1159,6 +1163,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
                 new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
                 new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),
+                new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class),
                 new ActionHandler<>(
                     UpdateTrainedModelAllocationStateAction.INSTANCE,
                     TransportUpdateTrainedModelAllocationStateAction.class
@@ -1508,7 +1513,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 );
             }
         }, unsetResetModeListener::onFailure);
-
 
         ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
             // Handle the response

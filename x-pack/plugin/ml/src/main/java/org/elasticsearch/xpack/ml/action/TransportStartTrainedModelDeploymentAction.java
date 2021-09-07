@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -54,6 +55,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+
 public class TransportStartTrainedModelDeploymentAction
     extends TransportMasterNodeAction<StartTrainedModelDeploymentAction.Request, CreateTrainedModelAllocationAction.Response> {
 
@@ -75,7 +78,7 @@ public class TransportStartTrainedModelDeploymentAction
             StartTrainedModelDeploymentAction.Request::new, indexNameExpressionResolver, CreateTrainedModelAllocationAction.Response::new,
             ThreadPool.Names.SAME);
         this.licenseState = Objects.requireNonNull(licenseState);
-        this.client = Objects.requireNonNull(client);
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAllocationService = Objects.requireNonNull(trainedModelAllocationService);

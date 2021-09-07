@@ -43,6 +43,7 @@ public class GenerateInitialPasswordTests extends PackagingTestCase {
     }
 
     public void test20NoAutoGenerationWhenBootstrapPassword() throws Exception {
+        installation.executables().keystoreTool.run("create");
         installation.executables().keystoreTool.run("add --stdin bootstrap.password", "some-password-here");
         Shell.Result result = runElasticsearchStartCommand(null, false, true);
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);

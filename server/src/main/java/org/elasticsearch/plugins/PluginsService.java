@@ -529,9 +529,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (mt.parameterType(0) != plugin.getClass()) {
             throw new IllegalStateException("expected param type:" + plugin.getClass() + ", in: " + mt);
         }
-        MethodHandle mh = provider.creatorHandle();
+        mt = mt.changeParameterType(0, Plugin.class).changeReturnType(Object.class);
+        MethodHandle mh = provider.creatorHandle().asType(mt);
         try {
-            return (T)mh.invoke(plugin);
+            return (T)mh.invokeExact(plugin);
         } catch (Throwable t) {
             throw new IllegalStateException(
                 "provider [" + provider +" ] failed to create extension type [" + extensionPointType.getName() + "]", t);

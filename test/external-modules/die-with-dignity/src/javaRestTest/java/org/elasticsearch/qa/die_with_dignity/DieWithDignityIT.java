@@ -8,7 +8,6 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -22,44 +21,18 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77282")
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
         // there should be an Elasticsearch process running with the die.with.dignity.test system property
-        {
-            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
-
-            boolean found = false;
-            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-                String line;
-                while ((line = in.readLine()) != null) {
-                    if (line.contains("-Ddie.with.dignity.test=true")) {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            assertTrue(found);
-        }
+        String esPid = System.getProperty("es.pid");
+        assertTrue(javaPidExists(esPid));
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
-            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
-
-            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-                String line;
-                while ((line = in.readLine()) != null) {
-                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test=true")));
-                }
-            }
+            assertFalse(javaPidExists(esPid));
         });
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
@@ -93,6 +66,22 @@ public class DieWithDignityIT extends ESRestTestCase {
             debugLogs(path);
             throw ae;
         }
+    }
+
+    private boolean javaPidExists(String expectedPid) throws IOException {
+        final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
+        final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
+
+        try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+            String line;
+            while ((line = in.readLine()) != null) {
+                String foundPid = line.split(" ")[0];
+                if (expectedPid.equals(foundPid)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean containsAll(String line, String... subStrings) {

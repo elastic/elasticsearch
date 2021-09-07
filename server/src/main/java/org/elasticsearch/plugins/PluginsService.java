@@ -538,41 +538,41 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    // REMOVE - no longer needed
-//    // package-private for test visibility
-//    static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
-//        @SuppressWarnings("unchecked")
-//        Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
-//        if (constructors.length == 0) {
-//            throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
-//        }
-//
-//        if (constructors.length > 1) {
-//            throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
-//        }
-//
-//        final Constructor<T> constructor = constructors[0];
-//        if (constructor.getParameterCount() > 1) {
-//            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
-//        }
-//
-//        if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
-//            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin) +
-//                ", not (" + constructor.getParameterTypes()[0].getName() + ")");
-//        }
-//
-//        try {
-//            if (constructor.getParameterCount() == 0) {
-//                return constructor.newInstance();
-//            } else {
-//                return constructor.newInstance(plugin);
-//            }
-//        } catch (ReflectiveOperationException e) {
-//            throw new IllegalStateException(
-//                "failed to create extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
-//            );
-//        }
-//    }
+    // REMOVE - no longer needed - retain for now until tests are updated
+    // package-private for test visibility
+    static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
+        @SuppressWarnings("unchecked")
+        Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
+        if (constructors.length == 0) {
+            throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
+        }
+
+        if (constructors.length > 1) {
+            throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
+        }
+
+        final Constructor<T> constructor = constructors[0];
+        if (constructor.getParameterCount() > 1) {
+            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
+        }
+
+        if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin) +
+                ", not (" + constructor.getParameterTypes()[0].getName() + ")");
+        }
+
+        try {
+            if (constructor.getParameterCount() == 0) {
+                return constructor.newInstance();
+            } else {
+                return constructor.newInstance(plugin);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                "failed to create extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
+            );
+        }
+    }
 
     private static <T> String extensionSignatureMessage(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
         return "signature of " + extensionConstructorMessage(extensionClass, extensionPointType) +

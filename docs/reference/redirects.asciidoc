@@ -3,6 +3,13 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="alias"]
+=== Aliases
+
+For field aliases, refer to <<field-alias>>.
+
+For index and data stream aliases, refer to <<aliases>>.
+
 [role="exclude",id="modules-scripting-other-layers"]
 === Other security layers
 
@@ -416,7 +423,7 @@ See <<getting-started-index>>.
 See <<indices-delete-index>>.
 
 [role="exclude", id="getting-started-modify-data"]
-== Modifying your data
+=== Modifying your data
 See <<docs-update>>.
 
 [role="exclude", id="indexing-replacing-documents"]

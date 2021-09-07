@@ -22,7 +22,7 @@ tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+<<aliases,index alias>>, or `_all` value targets only missing or closed indices.
 This behavior applies even if the request targets other open indices. For
 example, a request targeting `foo*,bar*` returns an error if an index starts
 with `foo` but no index starts with `bar`.
@@ -588,13 +588,13 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<alias,index alias>>. Defaults to
+If `true`, the action must target an <<aliases,index alias>>. Defaults to
 `false`.
 end::bulk-require-alias[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+(Optional, Boolean) If `true`, the destination must be an <<aliases,index alias>>.
 Defaults to `false`.
 end::require-alias[]
 

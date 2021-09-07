@@ -28,7 +28,7 @@ Each data stream requires an <<index-templates,index template>> that contains:
 Data streams are designed for append-only data, where the data stream name
 can be used as the operations (read, write, rollover, shrink etc.) target.
 If your use case requires data to be updated in place, you can instead manage
-your time series data using <<alias,index aliases>>. However, there are a few
+your time series data using <<aliases,index aliases>>. However, there are a few
 more configuration steps and concepts:
 
 * An _index template_ that specifies the settings for each new index in the series.

@@ -98,6 +98,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkFractionalByteValueSettings,
                     NodeDeprecationChecks::checkFrozenCacheLeniency,
                     NodeDeprecationChecks::checkSslServerEnabled,
                     NodeDeprecationChecks::checkSslCertConfiguration,

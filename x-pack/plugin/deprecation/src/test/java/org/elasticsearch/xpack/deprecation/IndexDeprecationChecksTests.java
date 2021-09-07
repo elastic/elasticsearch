@@ -608,8 +608,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
-                "The following geo_shape parameters must be removed from test: [[parameter [geo_shape] in field [points_only]; parameter " +
-                    "[geo_shape] in field [strategy]]]", false, null)
+                "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
+                    "[strategy] in field [location]]]", false, null)
         ));
 
         Map<String, Object> nestedProperties = Stream.of(new Object[][] {
@@ -627,8 +627,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
-                "The following geo_shape parameters must be removed from test: [[parameter [geo_shape] in field [points_only]; parameter " +
-                    "[geo_shape] in field [strategy]]]", false, null)
+                "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
+                    "[strategy] in field [location]]]", false, null)
         ));
     }
 }

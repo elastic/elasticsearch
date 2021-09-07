@@ -3,7 +3,7 @@
 
 This guide shows you how to restore a snapshot. Snapshots are a convenient way
 to transfer data between clusters. You can also restore a snapshot to recover
-indices after deletion or a hardware failure.
+indices and data streams after deletion or a hardware failure.
 
 In this guide, you'll learn how to:
 
@@ -152,7 +152,9 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[rename-on-restore]]
 ==== Rename on restore
 
-You can rename indices and data streams you restore. Use this method if you want to avoid deleting existing data or if you want to compare existing data to historical data from a snapshot.
+You can rename indices and data streams you restore. You typically use this
+method to compare existing data to historical data from a snapshot. This method
+doesn't require the deletion or overwrite of existing data.
 
 Before you start, ensure the cluster has enough capacity for both the existing
 and restored data.

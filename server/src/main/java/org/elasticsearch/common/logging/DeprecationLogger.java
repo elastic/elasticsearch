@@ -31,7 +31,7 @@ public class DeprecationLogger {
     /**
      * Deprecation messages are logged at this level.
      */
-    public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1); // corresponding to
+    public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1); // More serious that WARN by 1, but less serious than ERROR
 
     private final Logger logger;
 

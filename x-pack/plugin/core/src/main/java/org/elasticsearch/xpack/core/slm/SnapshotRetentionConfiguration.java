@@ -151,14 +151,14 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 boolean found = false;
                 int successfulSeen = 0;
                 for (SnapshotInfo s : sortedSnapshots) {
-                    if (s.equals(si)) {
-                        found = true;
-                        break;
-                    }
                     if (s.state() == SnapshotState.SUCCESS) {
                         successfulSeen++;
                     }
                     if (successfulSeen > successfulSnapsToDelete) {
+                        break;
+                    }
+                    if (s.equals(si)) {
+                        found = true;
                         break;
                     }
                 }

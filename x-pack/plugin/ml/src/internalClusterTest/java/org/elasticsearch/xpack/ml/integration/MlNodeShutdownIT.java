@@ -80,7 +80,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(
                 nodeIdToShutdown.get(),
-                randomFrom(SingleNodeShutdownMetadata.Type.values()),
+                type,
                 "just testing",
                 null,
                 targetNodeName)

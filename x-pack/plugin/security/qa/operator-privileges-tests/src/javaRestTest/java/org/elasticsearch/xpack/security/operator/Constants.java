@@ -162,6 +162,7 @@ public class Constants {
         "cluster:admin/xpack/ml/job/validate/detector",
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
+        "cluster:admin/xpack/ml/trained_models/part/put",
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",

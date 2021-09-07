@@ -984,7 +984,7 @@ public class IndicesService extends AbstractLifecycleComponent
             path -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, path));
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
-        if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
+        if (canDeleteIndexContents(shardId.getIndex())) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
@@ -1004,17 +1004,13 @@ public class IndicesService extends AbstractLifecycleComponent
      * This is the case if the index is deleted in the metadata or there is no allocation
      * on the local node and the index isn't on a shared file system.
      * @param index {@code Index} to check whether deletion is allowed
-     * @param indexSettings {@code IndexSettings} for the given index
      * @return true if the index can be deleted on this node
      */
-    public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings) {
+    public boolean canDeleteIndexContents(Index index) {
         // index contents can be deleted if its an already closed index (so all its resources have
         // already been relinquished)
         final IndexService indexService = indexService(index);
-        if (indexService == null && nodeEnv.hasNodeFile()) {
-            return true;
-        }
-        return false;
+        return indexService == null && nodeEnv.hasNodeFile();
     }
 
     /**
@@ -1520,7 +1516,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private final IndexDeletionAllowedPredicate DEFAULT_INDEX_DELETION_PREDICATE =
-        (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index, indexSettings);
+        (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {

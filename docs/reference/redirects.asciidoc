@@ -6,7 +6,7 @@ The following pages have moved or been deleted.
 [role="exclude",id="alias"]
 === Aliases
 
-For field aliases, refer to <<field-alias>>.
+For field aliases, refer to the <<field-alias,alias field type>>.
 
 For index and data stream aliases, refer to <<aliases>>.
 

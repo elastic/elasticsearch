@@ -13,7 +13,7 @@ In this guide, you'll learn how to:
 * Cancel an ongoing restore
 
 The guide also provides tips for <<restore-different-cluster,restoring to
-another cluster>> and <<troubleshoot-snapshot-restore,troubleshooting common
+another cluster>> and <<troubleshoot-restore,troubleshooting common
 restore errors>>.
 
 [discrete]
@@ -122,7 +122,7 @@ POST my-index/_close
 ----
 // TEST[setup:setup-snapshots]
 
-To restore the closed index, the index in the snapshot must have the same
+To restore a closed index, the index in the snapshot must have the same
 number of primary shards. You can check the primary shard counts using the
 <<cat-indices,cat indices>> and <<get-snapshot-api,get snapshot>> APIs.
 
@@ -156,7 +156,8 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 
 If you want to avoid deleting or overwriting existing data, you can instead
 rename the indices and data streams you restore. You typically use this method
-to compare existing data to historical data from a snapshot.
+to compare existing data to historical data from a snapshot. For example, you
+can use this method to review documents after an accidental update or deletion.
 
 Before you start, ensure the cluster has enough capacity for both the existing
 and restored data.
@@ -217,8 +218,8 @@ POST _reindex
 [[monitor-restore]]
 === Monitor a restore
 
-The restore operation uses the <<indices-recovery,recovery process>> to restore
-an index's primary shards from a snapshot. While the restore operation
+The restore operation uses the <<indices-recovery,shard recovery process>> to
+restore an index's primary shards from a snapshot. While the restore operation
 recovers primary shards, the cluster will have a `yellow`
 <<cluster-health,health status>>.
 
@@ -301,13 +302,12 @@ snapshot in one cluster and restore it in another cluster with a
 <<snapshot-restore-version-compatibility,compatible version>>. The topology of
 the clusters don't need to match.
 
-If the new cluster has a smaller capacity, consider the following changes:
+You should ensure the new cluster has enough capacity for any data streams or
+indices you want to restore from the snapshot. If the new cluster has a smaller
+capacity, consider:
 
-* Ensure the new cluster has enough capacity to store any restored data streams
-and
-  indices.
-* Restore fewer indices and data streams from the snapshot.
-* Change the index settings during the restore operation to reduce the
+* Restoring fewer indices and data streams.
+* Changing the index settings during the restore operation to reduce the
 <<dynamic-index-number-of-replicas,number of replicas>>.
 +
 For example, the following restore snapshot API request uses the
@@ -336,8 +336,8 @@ restoring incompatible settings. If you need to restore a snapshot with incompat
 the <<restore-snapshot-api-include-global-state,global cluster state>>.
 
 [discrete]
-[[troubleshoot-snapshot-restore]]
-=== Troubleshoot snapshot restore errors
+[[troubleshoot-restore]]
+=== Troubleshoot restore errors
 
 Here's how to resolve common errors returned by restore requests.
 

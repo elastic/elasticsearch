@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -27,16 +29,34 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.plugins.ProxyUtils.validateProxy;
 
+/**
+ * This class models the contents of the {@code elasticsearch-plugins.yml} file. This file specifies all the plugins
+ * that ought to be installed in an Elasticsearch instance, and where to find them if they are not an official
+ * Elasticsearch plugin.
+ */
 public class PluginsManifest {
-    private List<PluginDescriptor> plugins = List.of();
-    private String proxy = null;
+    private final List<PluginDescriptor> plugins;
+    private final String proxy;
 
+    @JsonCreator
+    public PluginsManifest(@JsonProperty("plugins") List<PluginDescriptor> plugins, @JsonProperty("proxy") String proxy) {
+        this.plugins = plugins == null ? List.of() : plugins;
+        this.proxy = proxy;
+    }
+
+    /**
+     * Validate this instance. For example:
+     * <ul>
+     *     <li>All {@link PluginDescriptor}s must have IDs</li>
+     *     <li>Proxies must be well-formed.</li>
+     *     <li>Unofficial plugins must have URLs</li>
+     * </ul>
+     *
+     * @param manifestPath the path to the file used to create this instance. Used to construct error messages.
+     * @throws UserException if validation problems are found
+     */
     public void validate(Path manifestPath) throws UserException {
-        if (this.plugins == null) {
-            this.plugins = List.of();
-        }
-
-        if (this.getPlugins().stream().anyMatch(each -> each == null || each.getId() == null || each.getId().isBlank())) {
+        if (this.plugins.stream().anyMatch(each -> each == null || each.getId() == null || each.getId().isBlank())) {
             throw new RuntimeException("Cannot have null or empty plugin IDs in: " + manifestPath);
         }
 
@@ -65,7 +85,7 @@ public class PluginsManifest {
             validateProxy(this.proxy, null, manifestPath);
         }
 
-        for (PluginDescriptor p : this.getPlugins()) {
+        for (PluginDescriptor p : plugins) {
             if (p.getUrl() != null) {
                 try {
                     new URL(p.getUrl());
@@ -79,9 +99,14 @@ public class PluginsManifest {
                 validateProxy(proxy, p.getId(), manifestPath);
             }
         }
-
     }
 
+    /**
+     * Constructs a {@link PluginsManifest} instance from the specified YAML file, and validates the contents.
+     * @param env the environment to use in order to locate the config file.
+     * @return a validated manifest
+     * @throws UserException if problems are found finding, parsing or validating the file
+     */
     public static PluginsManifest parseManifest(Environment env) throws UserException {
         final Path manifestPath = env.configFile().resolve("elasticsearch-plugins.yml");
         if (Files.exists(manifestPath) == false) {
@@ -108,16 +133,8 @@ public class PluginsManifest {
         return plugins;
     }
 
-    public void setPlugins(List<PluginDescriptor> plugins) {
-        this.plugins = plugins;
-    }
-
     public String getProxy() {
         return proxy;
-    }
-
-    public void setProxy(String proxy) {
-        this.proxy = proxy;
     }
 
     @Override
@@ -129,8 +146,7 @@ public class PluginsManifest {
             return false;
         }
         PluginsManifest that = (PluginsManifest) o;
-        return plugins.equals(that.plugins)
-            && Objects.equals(proxy, that.proxy);
+        return plugins.equals(that.plugins) && Objects.equals(proxy, that.proxy);
     }
 
     @Override

@@ -13,14 +13,24 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
 
+/**
+ * Models a single plugin that can be installed.
+ */
 public class PluginDescriptor {
     private String id;
-    private String url;
-    private String proxy;
+    private final String url;
+    private final String proxy;
 
+    /**
+     * Creates a new descriptor instance.
+     *
+     * @param id the name of the plugin. Cannot be null.
+     * @param url the URL from which to fetch the plugin. Can be null for official plugins
+     * @param proxy an optional proxy to use when fetching this plugin
+     */
     @JsonCreator
     public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String url, @JsonProperty("proxy") String proxy) {
-        this.id = id;
+        this.id = Objects.requireNonNull(id, "id cannot be null");
         this.url = url;
         this.proxy = proxy;
     }
@@ -45,16 +55,8 @@ public class PluginDescriptor {
         return url;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
     public String getProxy() {
         return proxy;
-    }
-
-    public void setProxy(String proxy) {
-        this.proxy = proxy;
     }
 
     @Override

@@ -80,17 +80,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final Path pluginsDescriptor = env.configFile().resolve("elasticsearch-plugins.yml");
         if (Files.exists(pluginsDescriptor)) {
-            // Check for any lines of actual configuration in the file before bailing.
-            boolean hasActualConfig = Files.readAllLines(pluginsDescriptor)
-                .stream()
-                .anyMatch(line -> line.isEmpty() == false && line.matches("^\\w*#.*") == false);
-
-            if (hasActualConfig) {
-                throw new UserException(
-                    ExitCodes.USAGE,
-                    "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead"
-                );
-            }
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead"
+            );
         }
 
         List<PluginDescriptor> plugins = arguments.values(options)

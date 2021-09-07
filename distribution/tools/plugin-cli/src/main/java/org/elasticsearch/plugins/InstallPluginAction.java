@@ -469,7 +469,6 @@ class InstallPluginAction implements Closeable {
         this.batch = batch;
     }
 
-    // for testing only
     void setProxy(Proxy proxy) {
         this.proxy = proxy;
     }
@@ -1048,6 +1047,6 @@ class InstallPluginAction implements Closeable {
     }
 
     private Proxy getProxy(String proxyUrl) throws UserException {
-        return proxy == null ? this.proxy : buildProxy(proxyUrl);
+        return proxyUrl != null ? buildProxy(proxyUrl) : this.proxy;
     }
 }

@@ -237,7 +237,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private void getAutoconfiguredOrDefaultUser(final String username, SecureString credentials, ActionListener<ReservedUserInfo> listener) {
+    private void getAutoconfiguredOrDefaultUser(final String username, SecureString credentials,
+                                                ActionListener<ReservedUserInfo> listener) {
         if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
             nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
         } else {

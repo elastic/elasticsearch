@@ -37,6 +37,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -56,8 +57,11 @@ import java.io.UncheckedIOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -123,8 +127,15 @@ public class EnrichPolicyRunner implements Runnable {
                 l.onFailure(e);
                 return;
             }
-            prepareAndCreateEnrichIndex();
+            prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
         }));
+    }
+
+    private List<Map<String, Object>> toMappings(GetIndexResponse response) {
+        return StreamSupport.stream(response.mappings().values().spliterator(), false)
+            .map(cursor -> cursor.value)
+            .map(MappingMetadata::getSourceAsMap)
+            .collect(Collectors.toList());
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
@@ -232,19 +243,84 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
-        // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
-        final String keyType;
-        final CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping;
+    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy, final List<Map<String, Object>> mappings) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);
-            // No need to also configure index_options, because keyword type defaults to 'docs'.
+            return createEnrichMappingBuilder((builder) -> builder.field("type", "keyword").field("doc_values", false));
+        } else if (EnrichPolicy.RANGE_TYPE.equals(policy.getType())) {
+            return createRangeEnrichMappingBuilder(policy, mappings);
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "geo_shape");
+            return createEnrichMappingBuilder((builder) -> builder.field("type", "geo_shape"));
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
         }
+    }
 
+    private XContentBuilder createRangeEnrichMappingBuilder(EnrichPolicy policy, List<Map<String, Object>> mappings) {
+        String matchFieldPath = "properties." + policy.getMatchField().replace(".", ".properties.");
+        List<Map<String, String>> matchFieldMappings = mappings.stream()
+            .map(map -> ObjectPath.<Map<String, String>>eval(matchFieldPath, map))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+
+        Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());
+        if (types.size() == 1) {
+            String type = types.iterator().next();
+            switch (type) {
+                case "integer_range":
+                case "float_range":
+                case "long_range":
+                case "double_range":
+                case "ip_range":
+                    return createEnrichMappingBuilder((builder) -> builder.field("type", type).field("doc_values", false));
+
+                // date_range types mappings allow for the format to be specified, should be preserved in the created index
+                case "date_range":
+                    Set<String> formatEntries = matchFieldMappings.stream().map(map -> map.get("format")).collect(Collectors.toSet());
+                    if (formatEntries.size() == 1) {
+                        return createEnrichMappingBuilder((builder) -> {
+                            builder.field("type", type).field("doc_values", false);
+                            String format = formatEntries.iterator().next();
+                            if (format != null) {
+                                builder.field("format", format);
+                            }
+                            return builder;
+                        });
+                    }
+                    if (formatEntries.isEmpty()) {
+                        // no format specify rely on default
+                        return createEnrichMappingBuilder((builder) -> builder.field("type", type).field("doc_values", false));
+                    }
+                    throw new ElasticsearchException(
+                        "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
+                        policy.getMatchField(),
+                        Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                        (formatEntries.contains(null) ? "(DEFAULT), " : "") + Strings.collectionToCommaDelimitedString(formatEntries)
+                    );
+
+                default:
+                    throw new ElasticsearchException(
+                        "Field '{}' has type [{}] which doesn't appear to be a range type",
+                        policy.getMatchField(),
+                        type
+                    );
+            }
+        }
+        if (types.isEmpty()) {
+            throw new ElasticsearchException(
+                "No mapping type found for match field '{}' - indices({})",
+                policy.getMatchField(),
+                Strings.collectionToCommaDelimitedString(policy.getIndices())
+            );
+        }
+        throw new ElasticsearchException(
+            "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
+            policy.getMatchField(),
+            Strings.collectionToCommaDelimitedString(policy.getIndices()),
+            Strings.collectionToCommaDelimitedString(types)
+        );
+    }
+
+    private XContentBuilder createEnrichMappingBuilder(CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping) {
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -283,7 +359,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void prepareAndCreateEnrichIndex() {
+    private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
@@ -295,7 +371,7 @@ public class EnrichPolicyRunner implements Runnable {
             .put("index.warmer.enabled", false)
             .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy));
+        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy, mappings));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         enrichOriginClient().admin()
             .indices()

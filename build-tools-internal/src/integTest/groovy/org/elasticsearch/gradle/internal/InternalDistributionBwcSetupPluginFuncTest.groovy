@@ -17,6 +17,7 @@ import spock.lang.Unroll
 /*
  * Test is ignored on ARM since this test case tests the ability to build certain older BWC branches that we don't support on ARM
  */
+
 @IgnoreIf({ Architecture.current() == Architecture.AARCH64 })
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
@@ -138,9 +139,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "assemble task triggered"
         result.output.contains("[7.10.1] > Task :distribution:archives:darwin-tar:assemble")
-        normalized(result.output)
-                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
-                        "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
+        result.output.contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
+                "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
@@ -177,11 +177,9 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
         result.output.contains("[7.12.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        normalized(result.output)
-                .contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install")
-        normalized(result.output)
-                .contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-7.12.0-SNAPSHOT")
     }
 }

@@ -86,7 +86,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers,
+                    m -> builder(m).analyzers.getIndexAnalyzer(),
+                    m -> builder(m).analyzers.positionIncrementGap.getValue());
         }
 
         @Override

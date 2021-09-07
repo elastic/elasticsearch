@@ -172,6 +172,33 @@ setup:
                     source: "doc['ul'].value.doubleValue() > 9E18"
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "field('ul').as(Field.BigInteger).as(Field.UnsignedLong).getDouble(-2.2d) > 9E18"
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.3._id: "5" }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "field('ul').as(Field.BigInteger).as(Field.UnsignedLong).getLong(-2L) > 9E18"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
 
   - do:
       search:

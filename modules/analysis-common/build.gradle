@@ -25,7 +25,7 @@ dependencies {
   compileOnly project(':modules:lang-painless')
 }
 
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
        //marked as not needing compatible api
        'indices.analyze/10_analyze/htmlStrip_deprecated', // Cleanup versioned deprecations in analysis #41560

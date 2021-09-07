@@ -68,7 +68,8 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
-    public static final String DEPRECATED_WARN_USAGE = "[deprecated_warn_settings] usage is deprecated but won't be breaking in next version";
+    public static final String DEPRECATED_WARN_USAGE =
+        "[deprecated_warn_settings] usage is deprecated but won't be breaking in next version";
     public static final String COMPATIBLE_API_USAGE = "You are using a compatible API for this request";
 
     private final Settings settings;
@@ -112,7 +113,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             } else if (source.containsKey("deprecation_warning")) {
                 deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);
                 settings = (List<String>) source.get("deprecation_warning");
-            }else {
+            } else {
                 settings = (List<String>) source.get("settings");
             }
         }

@@ -306,7 +306,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final RequestOptions options = getRequest.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();
         getRequest.setOptions(options);
         getRequest.setEntity(
-            buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings")
+            buildSettingsRequest(
+                Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
+                "deprecated_settings"
+            )
         );
         return getRequest;
     }
@@ -322,7 +325,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
             final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();
             request.setOptions(options);
             request.setEntity(
-                buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings")
+                buildSettingsRequest(
+                    Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
+                    "deprecated_settings"
+                )
             );
             assertOK(client().performRequest(request));
 
@@ -406,6 +412,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             client().performRequest(new Request("DELETE", "_data_stream/" + DATA_STREAM_NAME));
         }
     }
+
     /**
      * Check that deprecation messages with WARN level can be recorded to an index
      */
@@ -417,7 +424,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
             final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();
             request.setOptions(options);
             request.setEntity(
-                buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), "deprecation_warning")
+                buildSettingsRequest(
+                    Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
+                    "deprecation_warning"
+                )
             );
             assertOK(client().performRequest(request));
 
@@ -518,7 +528,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 .build();
             compatibleRequest.setOptions(compatibleOptions);
             compatibleRequest.setEntity(
-                buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings")
+                buildSettingsRequest(
+                    Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
+                    "deprecated_settings"
+                )
             );
             Response deprecatedApiResponse = client().performRequest(compatibleRequest);
             assertOK(deprecatedApiResponse);

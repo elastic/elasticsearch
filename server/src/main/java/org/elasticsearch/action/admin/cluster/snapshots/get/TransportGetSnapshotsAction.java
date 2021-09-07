@@ -159,7 +159,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                final SnapshotsInRepo snInfos = sortSnapshots(allSnapshots, sortBy, after, offset, size, order, slmPolicies);
+                final SnapshotsInRepo snInfos = sortAndFilterSnapshots(allSnapshots, sortBy, after, offset, size, order, slmPolicies);
                 final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
                 final int remaining = snInfos.remaining + responses.stream()
                     .map(Tuple::v2)
@@ -183,13 +183,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 snapshotsInProgress,
                 repoName,
                 snapshots,
+                slmPolicies,
                 ignoreUnavailable,
                 verbose,
                 cancellableTask,
                 sortBy,
                 after,
                 order,
-                slmPolicies,
                 groupedActionListener.delegateResponse((groupedListener, e) -> {
                     if (isMultiRepoRequest && e instanceof ElasticsearchException) {
                         groupedListener.onResponse(Tuple.tuple(Tuple.tuple(repoName, (ElasticsearchException) e), null));
@@ -205,13 +205,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         SnapshotsInProgress snapshotsInProgress,
         String repo,
         String[] snapshots,
+        String[] slmPolicies,
         boolean ignoreUnavailable,
         boolean verbose,
         CancellableTask task,
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
         SortOrder order,
-        String[] slmPolicies,
         ActionListener<SnapshotsInRepo> listener
     ) {
         final Map<String, Snapshot> allSnapshotIds = new HashMap<>();
@@ -337,6 +337,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 listener
             );
         } else {
+            assert slmPolicies.length == 0
+                : "slm policy filtering not support for non-verbose request but saw ["
+                    + Strings.arrayToCommaDelimitedString(slmPolicies)
+                    + "]";
             final SnapshotsInRepo snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
@@ -349,8 +353,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     after,
                     0,
                     GetSnapshotsRequest.NO_LIMIT,
-                    order,
-                    slmPolicies
+                    order
                 );
             }
             listener.onResponse(snapshotInfos);
@@ -402,7 +405,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, slmPolicies));
+            listener.onResponse(sortAndFilterSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, slmPolicies));
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);
@@ -481,7 +484,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 )
             );
         }
-        return sortSnapshots(snapshotInfos, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, Strings.EMPTY_ARRAY);
+        return sortSnapshots(snapshotInfos, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order);
     }
 
     private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparingLong(SnapshotInfo::startTime)
@@ -505,7 +508,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
         .thenComparing(SnapshotInfo::snapshotId);
 
-    private static SnapshotsInRepo sortSnapshots(
+    private static SnapshotsInRepo sortAndFilterSnapshots(
         final List<SnapshotInfo> snapshotInfos,
         final GetSnapshotsRequest.SortBy sortBy,
         final @Nullable GetSnapshotsRequest.After after,
@@ -518,40 +521,19 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         if (slmPolicies.length == 0) {
             filteredSnapshotInfos = snapshotInfos;
         } else {
-            final List<String> includePatterns = new ArrayList<>();
-            final List<String> excludePatterns = new ArrayList<>();
-            boolean seenWildcard = false;
-            for (String slmPolicy : slmPolicies) {
-                if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
-                    excludePatterns.add(slmPolicy.substring(1));
-                } else {
-                    if (Regex.isSimpleMatchPattern(slmPolicy)) {
-                        seenWildcard = true;
-                    }
-                    includePatterns.add(slmPolicy);
-                }
-            }
-            final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
-            final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
-            filteredSnapshotInfos = snapshotInfos.stream().filter(snapshotInfo -> {
-                final Map<String, Object> metadata = snapshotInfo.userMetadata();
-                final String policy;
-                if (metadata == null) {
-                    policy = "";
-                } else {
-                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                    if (policyFound instanceof String) {
-                        policy = (String) policyFound;
-                    } else {
-                        policy = "";
-                    }
-                }
-                if (Regex.simpleMatch(includes, policy) == false) {
-                    return false;
-                }
-                return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
-            }).collect(Collectors.toUnmodifiableList());
+            filteredSnapshotInfos = filterBySLMPolicies(snapshotInfos, slmPolicies);
         }
+        return sortSnapshots(filteredSnapshotInfos, sortBy, after, offset, size, order);
+    }
+
+    private static SnapshotsInRepo sortSnapshots(
+        List<SnapshotInfo> snapshotInfos,
+        GetSnapshotsRequest.SortBy sortBy,
+        @Nullable GetSnapshotsRequest.After after,
+        int offset,
+        int size,
+        SortOrder order
+    ) {
         final Comparator<SnapshotInfo> comparator;
         switch (sortBy) {
             case START_TIME:
@@ -579,7 +561,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
 
-        Stream<SnapshotInfo> infos = filteredSnapshotInfos.stream();
+        Stream<SnapshotInfo> infos = snapshotInfos.stream();
 
         if (after != null) {
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
@@ -646,7 +628,43 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
             ? snapshots.subList(0, size)
             : snapshots;
-        return new SnapshotsInRepo(resultSet, filteredSnapshotInfos.size(), allSnapshots.size() - resultSet.size());
+        return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
+    }
+
+    private static List<SnapshotInfo> filterBySLMPolicies(List<SnapshotInfo> snapshotInfos, String[] slmPolicies) {
+        final List<String> includePatterns = new ArrayList<>();
+        final List<String> excludePatterns = new ArrayList<>();
+        boolean seenWildcard = false;
+        for (String slmPolicy : slmPolicies) {
+            if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
+                excludePatterns.add(slmPolicy.substring(1));
+            } else {
+                if (Regex.isSimpleMatchPattern(slmPolicy)) {
+                    seenWildcard = true;
+                }
+                includePatterns.add(slmPolicy);
+            }
+        }
+        final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
+        final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
+        return snapshotInfos.stream().filter(snapshotInfo -> {
+            final Map<String, Object> metadata = snapshotInfo.userMetadata();
+            final String policy;
+            if (metadata == null) {
+                policy = "";
+            } else {
+                final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                if (policyFound instanceof String) {
+                    policy = (String) policyFound;
+                } else {
+                    policy = "";
+                }
+            }
+            if (Regex.simpleMatch(includes, policy) == false) {
+                return false;
+            }
+            return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
+        }).collect(Collectors.toUnmodifiableList());
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(

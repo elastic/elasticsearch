@@ -198,6 +198,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (order != SortOrder.ASC) {
                 validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
             }
+            if (policies.length != 0) {
+                validationException = addValidationError("can't use slm policy filter with verbose=false", validationException);
+            }
         } else if (after != null && offset > 0) {
             validationException = addValidationError("can't use after and offset simultaneously", validationException);
         }
@@ -241,7 +244,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @return policy patterns
      */
     public String[] policies() {
-        return this.policies;
+        return policies;
     }
 
     public boolean isSingleRepositoryRequest() {

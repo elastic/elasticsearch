@@ -202,11 +202,11 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         );
 
         final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
-        requestWithPolicy.addParameter("slm_policy", policyName);
+        requestWithPolicy.addParameter("slm_policy_filter", policyName);
         final List<SnapshotInfo> snapshotsWithPolicy = readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
         assertThat(snapshotsWithPolicy, is(List.of(withPolicy)));
         final Request requestWithoutPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
-        requestWithoutPolicy.addParameter("slm_policy", "*,-" + policyName);
+        requestWithoutPolicy.addParameter("slm_policy_filter", "*,-" + policyName);
         final List<SnapshotInfo> snapshotsNoPolicy =
             readSnapshotInfos(getRestClient().performRequest(requestWithoutPolicy)).getSnapshots();
         assertThat(snapshotsNoPolicy, is(snapshotsWithoutPolicy));

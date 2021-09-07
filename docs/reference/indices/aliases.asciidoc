@@ -131,8 +131,16 @@ Only the `add` action supports this parameter.
 
 // tag::alias-options[]
 `is_write_index`::
-(Optional, Boolean) If `true`, sets the <<write-index,write index or data
-stream>> for the alias. Defaults to `false`.
+(Optional, Boolean) If `true`, sets the write index or data stream for the
+alias.
++
+// tag::write-index-defaults[]
+If an alias points to multiple indices or data streams and `is_write_index`
+isn't set, the alias rejects write requests. If an index alias points to one
+index and `is_write_index` isn't set, the index automatically acts as the write
+index. Data stream aliases don't automatically set a write data stream, even if
+the alias points to one data stream.
+// end::write-index-defaults[]
 // end::alias-options[]
 +
 Only the `add` action supports this parameter.

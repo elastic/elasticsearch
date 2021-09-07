@@ -31,9 +31,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
-        assertBusy(() -> {
-            assertFalse(javaPidExists(esPid));
-        });
+        assertBusy(() -> { assertFalse(javaPidExists(esPid)); });
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
         final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));

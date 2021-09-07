@@ -53,7 +53,7 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
     ) {
-        super(clientFunction, keyStoreFunction, "Resets the password of the elastic built-in user");
+        super(clientFunction, keyStoreFunction, "Resets the password of a built-in user");
         parser.allowsUnrecognizedOptions();
         interactive = parser.acceptsAll(List.of("i", "interactive"));
         auto = parser.acceptsAll(List.of("a", "auto")); // default

@@ -29,6 +29,7 @@ testClusters {
     }
     setting 'cluster.remote.connections_per_cluster', "1"
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.autoconfiguration.enabled', 'false'
 
     user username: "test_user", password: "x-pack-test-password"
   }

@@ -13,7 +13,8 @@ In this guide, you'll learn how to:
 * Cancel an ongoing restore
 
 The guide also provides tips for <<restore-different-cluster,restoring to
-another cluster>>.
+another cluster>> and <<troubleshoot-snapshot-restore,troubleshooting common
+restore errors>>.
 
 [discrete]
 [[restore-snapshot-prereqs]]
@@ -152,9 +153,9 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[rename-on-restore]]
 ==== Rename on restore
 
-You can rename indices and data streams you restore. This method doesn't require
-the deletion or overwrite of any existing data. You typically use this method to
-compare existing data to historical data from a snapshot.
+If you want to avoid deleting or overwriting existing data, you can instead
+rename the indices and data streams you restore. You typically use this method
+to compare existing data to historical data from a snapshot.
 
 Before you start, ensure the cluster has enough capacity for both the existing
 and restored data.

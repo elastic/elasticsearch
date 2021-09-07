@@ -62,6 +62,11 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
+        {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").policies("some-policy").verbose(false);
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("can't use slm policy filter with verbose=false"));
+        }
     }
 
     public void testGetDescription() {

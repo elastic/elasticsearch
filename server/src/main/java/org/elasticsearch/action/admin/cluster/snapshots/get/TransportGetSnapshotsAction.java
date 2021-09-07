@@ -67,8 +67,6 @@ import java.util.stream.Stream;
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
 
-    public static final String NO_POLICY_PATTERN = "_none";
-
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -644,7 +642,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } else {
                 if (Regex.isSimpleMatchPattern(slmPolicy)) {
                     seenWildcard = true;
-                } else if (NO_POLICY_PATTERN.equals(slmPolicy)) {
+                } else if (GetSnapshotsRequest.NO_POLICY_PATTERN.equals(slmPolicy)) {
                     matchNoPolicy = true;
                 }
                 includePatterns.add(slmPolicy);

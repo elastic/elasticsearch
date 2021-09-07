@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -207,11 +206,11 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(getAllSnapshotsForPolicies(policyName), is(List.of(withPolicy)));
         assertThat(getAllSnapshotsForPolicies("some-*"), is(List.of(withPolicy)));
         assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), empty());
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
         assertThat(
-                getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
+                getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
         assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
         assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
 
@@ -224,6 +223,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 .setWaitForCompletion(true)
                 .execute()
         );
+        assertThat(getAllSnapshotsForPolicies("*"), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
         final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots("*")
@@ -232,11 +232,11 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 .get()
                 .getSnapshots();
         assertThat(
-                getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, policyName, otherPolicyName),
+                getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName),
                 is(allSnapshots)
         );
         assertThat(
-                getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, "*"),
+                getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"),
                 is(allSnapshots)
         );
     }

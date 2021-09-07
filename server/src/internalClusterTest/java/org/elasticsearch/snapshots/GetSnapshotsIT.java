@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -232,10 +231,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAllSnapshotsForPolicies(policyName), is(List.of(withPolicy)));
         assertThat(getAllSnapshotsForPolicies("some-*"), is(List.of(withPolicy)));
         assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), empty());
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
         assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
         assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
 
@@ -247,6 +246,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute()
         );
+        assertThat(getAllSnapshotsForPolicies("*"), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
 
@@ -255,11 +255,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setSort(GetSnapshotsRequest.SortBy.NAME)
             .get()
             .getSnapshots();
-        assertThat(
-            getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, policyName, otherPolicyName),
-            is(allSnapshots)
-        );
-        assertThat(getAllSnapshotsForPolicies(TransportGetSnapshotsAction.NO_POLICY_PATTERN, "*"), is(allSnapshots));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName), is(allSnapshots));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"), is(allSnapshots));
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {

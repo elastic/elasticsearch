@@ -236,15 +236,18 @@ infrastructure and ensure that such a failure would not affect too many of your
 nodes. It is common practice to group all the nodes sharing some infrastructure
 into _zones_ and to plan for the failure of any whole zone at once.
 
-{es} expects its node-to-node connections to be reliable and have low latency
-and good bandwidth. Many of the tasks that {es} performs require multiple
-round-trips between nodes. This means that a slow or unreliable interconnect
-may have a significant effect on the performance and stability of your cluster.
-A few milliseconds of latency added to each round-trip can quickly accumulate
-into a noticeable performance penalty. {es} will automatically recover from a
-network partition as quickly as it can but your cluster may be partly
-unavailable during a partition and will need to spend time and resources to
-resynchronize any missing data and rebalance itself once a partition heals.
+{es} expects its node-to-node connections to be reliable and to have low
+latency and adequate bandwidth. Many of the tasks that {es} performs require
+multiple round-trips between nodes. This means that a slow or unreliable
+interconnect may have a significant effect on the performance and stability of
+your cluster. A few milliseconds of latency added to each round-trip can
+quickly accumulate into a noticeable performance penalty. {es} will
+automatically recover from a network partition as quickly as it can but your
+cluster may be partly unavailable during a partition and will need to spend
+time and resources to resynchronize any missing data and rebalance itself once
+the partition heals. Recovering from a failure may involve copying a large
+amount of data between nodes so the recovery time is often determined by the
+available bandwidth.
 
 If you have divided your cluster into zones then typically the network
 connections within each zone are of higher quality than the connections between

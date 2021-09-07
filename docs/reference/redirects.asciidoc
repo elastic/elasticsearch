@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="alias"]
+=== Field aliases
+
+Refer to <<field-alias>>.
+
 // [START] Security redirects
 
 [role="exclude",id="get-started-users"]
@@ -395,7 +400,7 @@ See <<getting-started-index>>.
 See <<indices-delete-index>>.
 
 [role="exclude", id="getting-started-modify-data"]
-== Modifying your data
+=== Modifying your data
 See <<docs-update>>.
 
 [role="exclude", id="indexing-replacing-documents"]

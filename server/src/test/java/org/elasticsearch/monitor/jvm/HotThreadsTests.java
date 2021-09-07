@@ -191,36 +191,39 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(2, HotThreads.getStackTrace(threadOne).length);
     }
 
+    private ThreadInfo makeThreadInfoMocksHelper(ThreadMXBean mockedMXBean, long threadId) {
+        when(mockedMXBean.getThreadCpuTime(threadId)).thenReturn(0L).thenReturn(threadId);
+        ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
+        when(mockedMXBean.getThreadInfo(eq(threadId), anyInt())).thenReturn(mockedThreadInfo);
+        when(mockedThreadInfo.getThreadName()).thenReturn(String.format(Locale.ROOT, "Thread %d", threadId));
+
+        // We create some variability for the blocked and waited times. Odd and even.
+        when(mockedThreadInfo.getBlockedCount()).thenReturn(0L).thenReturn(threadId % 2);
+        long blockedTime = ((threadId % 2) == 0) ? 0L : threadId;
+        when(mockedThreadInfo.getBlockedTime()).thenReturn(0L).thenReturn(blockedTime);
+
+        when(mockedThreadInfo.getWaitedCount()).thenReturn(0L).thenReturn((threadId + 1) % 2);
+        long waitTime = (((threadId + 1) % 2) == 0) ? 0L : threadId;
+        when(mockedThreadInfo.getWaitedTime()).thenReturn(0L).thenReturn(waitTime);
+
+        when(mockedThreadInfo.getThreadId()).thenReturn(threadId);
+
+        StackTraceElement[] stack = makeThreadStackHelper(
+            List.of(
+                new String[]{"org.elasticsearch.monitor.test", String.format(Locale.ROOT, "method_%d", (threadId) % 2)},
+                new String[]{"org.elasticsearch.monitor.testOther", "methodFinal"}
+            )).toArray(new StackTraceElement[0]);
+        when(mockedThreadInfo.getStackTrace()).thenReturn(stack);
+
+        return mockedThreadInfo;
+    }
+
     // We call this helper for each different mode to reset the before and after timings.
     private List<ThreadInfo> makeThreadInfoMocksHelper(ThreadMXBean mockedMXBean, long[] threadIds) {
         List<ThreadInfo> allInfos = new ArrayList<>(threadIds.length);
 
         for (long threadId : threadIds) {
-            // We first return 0 for all timings, then a true value to create the reporting deltas.
-            when(mockedMXBean.getThreadCpuTime(threadId)).thenReturn(0L).thenReturn(threadId);
-            ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
-            when(mockedMXBean.getThreadInfo(eq(threadId), anyInt())).thenReturn(mockedThreadInfo);
-            when(mockedThreadInfo.getThreadName()).thenReturn(String.format(Locale.ROOT, "Thread %d", threadId));
-
-            // We create some variability for the blocked and waited times. Odd and even.
-            when(mockedThreadInfo.getBlockedCount()).thenReturn(0L).thenReturn(threadId % 2);
-            long blockedTime = ((threadId % 2) == 0) ? 0L : threadId;
-            when(mockedThreadInfo.getBlockedTime()).thenReturn(0L).thenReturn(blockedTime);
-
-            when(mockedThreadInfo.getWaitedCount()).thenReturn(0L).thenReturn((threadId + 1) % 2);
-            long waitTime = (((threadId + 1) % 2) == 0) ? 0L : threadId;
-            when(mockedThreadInfo.getWaitedTime()).thenReturn(0L).thenReturn(waitTime);
-
-            when(mockedThreadInfo.getThreadId()).thenReturn(threadId);
-
-            StackTraceElement[] stack = makeThreadStackHelper(
-                List.of(
-                    new String[]{"org.elasticsearch.monitor.test", String.format(Locale.ROOT, "method_%d", (threadId) % 2)},
-                    new String[]{"org.elasticsearch.monitor.testOther", "methodFinal"}
-                )).toArray(new StackTraceElement[0]);
-            when(mockedThreadInfo.getStackTrace()).thenReturn(stack);
-
-            allInfos.add(mockedThreadInfo);
+            allInfos.add(makeThreadInfoMocksHelper(mockedMXBean, threadId));
         }
 
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
@@ -367,6 +370,11 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(1L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.CPU).applyAsLong(info));
         assertEquals(3L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
         assertEquals(2L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info));
+
+        //Ensure all enum types have a report type getter
+        for (HotThreads.ReportType type : HotThreads.ReportType.values()) {
+            assertNotNull(HotThreads.ThreadTimeAccumulator.valueGetterForReportType(type));
+        }
     }
 
     public void testGetAllValidThreadInfos() {
@@ -393,9 +401,9 @@ public class HotThreadsTests extends ESTestCase {
         for (long threadId : threadIds) {
             HotThreads.ThreadTimeAccumulator accumulator = validInfos.get(threadId);
             assertNotNull(accumulator);
-            assertEquals(0, accumulator.cpuTime);
-            assertEquals(0, accumulator.blockedTime);
-            assertEquals(0, accumulator.waitedTime);
+            assertEquals(0, accumulator.getCpuTime());
+            assertEquals(0, accumulator.getBlockedTime());
+            assertEquals(0, accumulator.getWaitedTime());
         }
 
         // Fake sleep, e.g don't sleep call the mock again
@@ -407,9 +415,9 @@ public class HotThreadsTests extends ESTestCase {
             assertNotNull(accumulator);
             boolean evenThreadId = ((threadId % 2) == 0);
 
-            assertEquals(threadId, accumulator.cpuTime);
-            assertEquals((evenThreadId) ? 0 : threadId, accumulator.blockedTime);
-            assertEquals((evenThreadId) ? threadId : 0, accumulator.waitedTime);
+            assertEquals(threadId, accumulator.getCpuTime());
+            assertEquals((evenThreadId) ? 0 : threadId, accumulator.getBlockedTime());
+            assertEquals((evenThreadId) ? threadId : 0, accumulator.getWaitedTime());
         }
 
         // Test when a thread has terminated during sleep, we don't report that thread
@@ -434,9 +442,9 @@ public class HotThreadsTests extends ESTestCase {
             assertNotNull(accumulator);
             boolean evenThreadId = ((threadId % 2) == 0);
 
-            assertEquals(threadId, accumulator.cpuTime);
-            assertEquals((evenThreadId) ? 0 : threadId, accumulator.blockedTime);
-            assertEquals((evenThreadId) ? threadId : 0, accumulator.waitedTime);
+            assertEquals(threadId, accumulator.getCpuTime());
+            assertEquals((evenThreadId) ? 0 : threadId, accumulator.getBlockedTime());
+            assertEquals((evenThreadId) ? threadId : 0, accumulator.getWaitedTime());
         }
 
         // Test capturing timings for thread that launched while we were sleeping
@@ -451,9 +459,9 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(threadIds.length, afterValidInfos.size());
 
         HotThreads.ThreadTimeAccumulator firstAccumulator = afterValidInfos.get(removedInfo.getThreadId());
-        assertEquals(1, firstAccumulator.cpuTime);
-        assertEquals(0, firstAccumulator.waitedTime);
-        assertEquals(1, firstAccumulator.blockedTime);
+        assertEquals(1, firstAccumulator.getCpuTime());
+        assertEquals(0, firstAccumulator.getWaitedTime());
+        assertEquals(1, firstAccumulator.getBlockedTime());
 
         // Test skipping of current thread
         validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, threadIds[threadIds.length - 1]);
@@ -505,5 +513,35 @@ public class HotThreadsTests extends ESTestCase {
             assertEquals(threadIds[threadIds.length - 1], infos[0].getThreadId());
             assertEquals(threadIds[threadIds.length - 2], infos[1].getThreadId());
         }
+    }
+
+    public void testThreadInfoAccumulator() {
+        ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
+        when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
+
+        ThreadInfo threadOne = makeThreadInfoMocksHelper(mockedMXBean, 1L);
+        ThreadInfo threadTwo = makeThreadInfoMocksHelper(mockedMXBean, 2L);
+
+        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(threadOne, 100L);
+        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
+        accNext.subtractPrevious(acc);
+
+        assertEquals(150, accNext.getCpuTime());
+        assertEquals(0, accNext.getWaitedTime());
+        assertEquals(1, accNext.getBlockedTime());
+
+        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
+        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
+
+        accNotMovingNext.subtractPrevious(accNotMoving);
+
+        assertEquals(0, accNotMovingNext.getCpuTime());
+        assertEquals(0, accNotMovingNext.getWaitedTime());
+        assertEquals(0, accNotMovingNext.getBlockedTime());
+
+        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
+        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(threadTwo, 350L);
+
+        expectThrows(IllegalArgumentException.class, () -> accTwo.subtractPrevious(accOne));
     }
 }

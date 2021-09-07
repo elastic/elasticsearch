@@ -16,6 +16,8 @@ import org.elasticsearch.core.TimeValue;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -34,6 +36,7 @@ public class HotThreads {
 
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time");
     private static final StackTraceElement[] EMPTY_STACK = new StackTraceElement[0];
+    private static final long INVALID_TIMING = -1L;
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
@@ -82,52 +85,57 @@ public class HotThreads {
     }
 
     static class ThreadTimeAccumulator {
-        long cpuTime;
-        long blockedCount;
-        long blockedTime;
-        long waitedCount;
-        long waitedTime;
-        long threadId;
+        private final long threadId;
+
+        private long cpuTime;
+        private long blockedTime;
+        private long waitedTime;
 
         ThreadTimeAccumulator(ThreadInfo info, long cpuTime) {
-            this.blockedCount = info.getBlockedCount();
             this.blockedTime = info.getBlockedTime();
-            this.waitedCount = info.getWaitedCount();
             this.waitedTime = info.getWaitedTime();
             this.cpuTime = cpuTime;
             this.threadId = info.getThreadId();
         }
 
-        void applyDelta(ThreadTimeAccumulator previous) {
+        void subtractPrevious(ThreadTimeAccumulator previous) {
             if (previous != null) {
-                this.blockedCount -= previous.blockedCount;
+                if (previous.getThreadId() != getThreadId()) {
+                    throw new IllegalArgumentException("Thread timing accumulation must be done on the same thread");
+                }
                 this.blockedTime -= previous.blockedTime;
-                this.waitedCount -= previous.waitedCount;
                 this.waitedTime -= previous.waitedTime;
                 this.cpuTime -= previous.cpuTime;
             }
         }
 
+        // In theory, a thread can die and a new thread can get started with the same thread id.
+        // In that scenario, the timings will be invalid and negative, so we should ensure the
+        // timings remain positive or 0.
+        public long getCpuTime() {
+            return Math.max(cpuTime, 0);
+        }
+
+        public long getBlockedTime() {
+            return Math.max(blockedTime, 0);
+        }
+
+        public long getWaitedTime() {
+            return Math.max(waitedTime, 0);
+        }
+
+        public long getThreadId() {
+            return threadId;
+        }
+
         static ToLongFunction<ThreadTimeAccumulator> valueGetterForReportType(ReportType type) {
             switch (type) {
                 case CPU:
-                    return o -> {
-                        assert o.cpuTime >=
-                            -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread id: " + o.threadId;
-                        return o.cpuTime;
-                    };
+                    return ThreadTimeAccumulator::getCpuTime;
                 case WAIT:
-                    return o -> {
-                        assert o.waitedTime >=
-                            -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread id: " + o.threadId;
-                        return o.waitedTime;
-                    };
+                    return ThreadTimeAccumulator::getWaitedTime;
                 case BLOCK:
-                    return o -> {
-                        assert o.blockedTime >=
-                            -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread id: " + o.threadId;
-                        return o.blockedTime;
-                    };
+                    return ThreadTimeAccumulator::getBlockedTime;
             }
             throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         }
@@ -203,7 +211,7 @@ public class HotThreads {
                 continue;
             }
             long cpuTime = threadBean.getThreadCpuTime(threadIds[i]);
-            if (cpuTime == -1L) {
+            if (cpuTime == INVALID_TIMING) {
                 continue;
             }
             result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], cpuTime));
@@ -225,6 +233,15 @@ public class HotThreads {
         return result;
     }
 
+    private void setThreadWaitBlockTimeMonitoringEnabled(ThreadMXBean threadBean, boolean enabled) {
+        if (threadBean.isThreadContentionMonitoringSupported()) {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                threadBean.setThreadContentionMonitoringEnabled(enabled);
+                return null;
+            });
+        }
+    }
+
     String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws InterruptedException {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
@@ -242,9 +259,7 @@ public class HotThreads {
             .append(":\n");
 
         // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times
-        if (threadBean.isThreadContentionMonitoringSupported()) {
-            threadBean.setThreadContentionMonitoringEnabled(true);
-        }
+        setThreadWaitBlockTimeMonitoringEnabled(threadBean, true);
 
         try {
             // Capture before and after thread state with timings
@@ -252,7 +267,7 @@ public class HotThreads {
             Thread.sleep(interval.millis());
             Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
 
-            latestThreadInfos.forEach((threadId, accumulator) -> accumulator.applyDelta(previousThreadInfos.get(threadId)));
+            latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
 
             // Sort by delta CPU time on thread.
             List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
@@ -328,9 +343,7 @@ public class HotThreads {
             }
             return sb.toString();
         } finally {
-            if (threadBean.isThreadContentionMonitoringSupported()) {
-                threadBean.setThreadContentionMonitoringEnabled(false);
-            }
+            setThreadWaitBlockTimeMonitoringEnabled(threadBean, false);
         }
     }
 

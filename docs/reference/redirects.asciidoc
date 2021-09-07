@@ -20,9 +20,20 @@ Refer to <<remote-clusters,Remote clusters>>.
 
 Refer to <<remote-clusters-connect,Connect remote clusters>>.
 
-
-
 // [END] Remote clusters
+
+[role="exclude",id="alias"]
+=== Aliases
+
+For field aliases, refer to the <<field-alias,alias field type>>.
+
+For index and data stream aliases, refer to <<aliases>>.
+
+[role="exclude",id="modules-scripting-other-layers"]
+
+=== Other security layers
+
+Refer to <<modules-scripting-security>>.
 
 [role="exclude",id="grok-basics"]
 === Grok basics
@@ -432,7 +443,7 @@ See <<getting-started-index>>.
 See <<indices-delete-index>>.
 
 [role="exclude", id="getting-started-modify-data"]
-== Modifying your data
+=== Modifying your data
 See <<docs-update>>.
 
 [role="exclude", id="indexing-replacing-documents"]

@@ -23,7 +23,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.ArrayList;

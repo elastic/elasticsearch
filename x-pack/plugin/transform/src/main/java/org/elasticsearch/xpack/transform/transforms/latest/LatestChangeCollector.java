@@ -54,7 +54,8 @@ class LatestChangeCollector implements Function.ChangeCollector {
     @Override
     public Collection<String> getIndicesToQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
         // we can shortcut here, only the changed indices are of interest
-        return TransformCheckpoint.getChangedIndices(lastCheckpoint, nextCheckpoint);
+        // gh#77329 optimization turned off
+        return TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, nextCheckpoint);
     }
 
     @Override

@@ -79,7 +79,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
         X509Certificate caCert = CertParsingUtils.readX509Certificate(caCertPath);
         CommandLineHttpClient client = new CommandLineHttpClient(
             (TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build())),
-            SslUtil.calculateFingerprint(caCert, "SHA256")
+            SslUtil.calculateFingerprint(caCert, "SHA-256")
         );
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
             new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));

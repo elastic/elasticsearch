@@ -12,13 +12,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Vocabulary implements Writeable {
+public class Vocabulary implements Writeable, ToXContentObject {
 
     private static final ParseField VOCAB = new ParseField("vocab");
 
@@ -61,5 +63,13 @@ public class Vocabulary implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(vocab);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(VOCAB.getPreferredName(), vocab);
+        builder.endObject();
+        return builder;
     }
 }

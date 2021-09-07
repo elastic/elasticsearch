@@ -46,7 +46,7 @@ public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThro
 
     public static PassThroughConfig createRandom() {
         return new PassThroughConfig(
-            VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :
                 randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom())

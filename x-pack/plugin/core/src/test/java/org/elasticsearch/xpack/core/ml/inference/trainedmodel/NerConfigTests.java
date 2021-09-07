@@ -46,7 +46,7 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
     public static NerConfig createRandom() {
         return new NerConfig(
-            VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :
                 randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),

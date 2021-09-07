@@ -4,7 +4,7 @@
 <titleabbrev>Aliases</titleabbrev>
 ++++
 
-Performs one or more <<alias,alias>> actions in a single atomic operation.
+Performs one or more <<aliases,alias>> actions in a single atomic operation.
 
 [source,console]
 ----

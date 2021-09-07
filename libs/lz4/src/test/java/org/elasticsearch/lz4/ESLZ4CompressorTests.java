@@ -32,9 +32,10 @@ public class ESLZ4CompressorTests extends ESTestCase {
             byte[] compressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
             byte[] unForkedCompressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
             LZ4Compressor compressor = ESLZ4Compressor.INSTANCE;
-            compressor.compress(uncompressed, compressed);
+            int forkedCompressedSize = compressor.compress(uncompressed, compressed);
             LZ4Compressor unForkedCompressor = LZ4Factory.safeInstance().fastCompressor();
-            unForkedCompressor.compress(uncompressed, unForkedCompressed);
+            int unForkedCompressedSize = unForkedCompressor.compress(uncompressed, unForkedCompressed);
+            assertEquals(unForkedCompressedSize, forkedCompressedSize);
             assertArrayEquals(compressed, unForkedCompressed);
 
             LZ4FastDecompressor decompressor = LZ4Factory.safeInstance().fastDecompressor();
@@ -59,10 +60,11 @@ public class ESLZ4CompressorTests extends ESTestCase {
             byte[] compressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
             byte[] unForkedCompressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
             LZ4Compressor compressor = ESLZ4Compressor.INSTANCE;
-            compressor.compress(uncompressed, compressed);
+            int forkedCompressedSize = compressor.compress(uncompressed, compressed);
             LZ4Compressor unForkedCompressor = LZ4Factory.safeInstance().fastCompressor();
-            int compressedSize = unForkedCompressor.compress(uncompressed, unForkedCompressed);
-            assertArrayEquals(compressed, unForkedCompressed);
+            int unForkedCompressedSize = unForkedCompressor.compress(uncompressed, unForkedCompressed);
+            assertEquals(unForkedCompressedSize, forkedCompressedSize);
+            assertArrayEquals(unForkedCompressed, compressed);
 
             LZ4FastDecompressor decompressor = LZ4Factory.safeInstance().fastDecompressor();
             byte[] output = new byte[uncompressed.length];

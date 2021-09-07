@@ -40,6 +40,8 @@ import java.util.Arrays;
  *
  * It modifies the test case to remove unneeded tests (safe decompressor, native libs, etc). Additionally,
  * we only test our compressor/decompressor and the pure java "safe" lz4-java compressor/decompressor.
+ * Finally, on any "round-trip" tests we compress data using the safe lz4-java instance and compare that the
+ * compression is the same as the compressor instance we are testing.
  */
 public class ESLZ4Tests extends AbstractLZ4TestCase {
 
@@ -139,6 +141,16 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
         final int compressedLen = tester.compress(compressor,
             tester.copyOf(data), off, len,
             compressed, 0, maxCompressedLength);
+
+        // Modified to compress using an unforked lz4-java compressor and verify that the results are same.
+        T expectedCompressed = tester.allocate(maxCompressedLength + 1);
+        LZ4Compressor unForkedCompressor = LZ4Factory.safeInstance().fastCompressor();
+        final int expectedCompressedLen = tester.compress(unForkedCompressor,
+            tester.copyOf(data), off, len,
+            expectedCompressed, 0, maxCompressedLength);
+        assertEquals(expectedCompressedLen, compressedLen);
+        assertArrayEquals(tester.copyOf(expectedCompressed, 0, expectedCompressedLen), tester.copyOf(compressed, 0, compressedLen));
+
 
         // test decompression
         final T restored = tester.allocate(len);

@@ -29,12 +29,13 @@ public class ESLZ4DecompressorTests extends ESTestCase {
 
             byte[] compressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
             LZ4Compressor compressor = LZ4Factory.safeInstance().fastCompressor();
-            compressor.compress(uncompressed, compressed);
+            int unForkedDestinationBytes = compressor.compress(uncompressed, compressed);
 
             LZ4FastDecompressor decompressor = ESLZ4Decompressor.INSTANCE;
             byte[] output = new byte[uncompressed.length];
-            decompressor.decompress(compressed, output);
+            int forkedDestinationBytes = decompressor.decompress(compressed, output);
 
+            assertEquals(unForkedDestinationBytes, forkedDestinationBytes);
             assertArrayEquals(uncompressed, output);
         }
     }
@@ -52,12 +53,13 @@ public class ESLZ4DecompressorTests extends ESTestCase {
 
             byte[] compressed = new byte[uncompressed.length + uncompressed.length / 255 + 16];
             LZ4Compressor compressor = LZ4Factory.safeInstance().fastCompressor();
-            compressor.compress(uncompressed, compressed);
+            int unForkedDestinationBytes = compressor.compress(uncompressed, compressed);
 
             LZ4FastDecompressor decompressor = ESLZ4Decompressor.INSTANCE;
             byte[] output = new byte[uncompressed.length];
-            decompressor.decompress(compressed, output);
+            int forkedDestinationBytes = decompressor.decompress(compressed, output);
 
+            assertEquals(unForkedDestinationBytes, forkedDestinationBytes);
             assertArrayEquals(uncompressed, output);
         }
     }

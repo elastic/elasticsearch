@@ -250,7 +250,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 nodeStats = in.readList(NodeStats::new);
                 state = in.readOptionalEnum(AllocationState.class);
                 reason = in.readOptionalString();
-                health = in.readOptionalEnum(AllocationHealth.class);
+                health = in.readOptionalWriteable(AllocationHealth::new);
             }
 
             public String getModelId() {
@@ -320,7 +320,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 out.writeList(nodeStats);
                 out.writeOptionalEnum(state);
                 out.writeOptionalString(reason);
-                out.writeOptionalEnum(health);
+                out.writeOptionalWriteable(health);
             }
 
             @Override

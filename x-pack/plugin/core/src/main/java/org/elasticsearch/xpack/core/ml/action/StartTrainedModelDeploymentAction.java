@@ -49,17 +49,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
-        private static final AllocationHealth[] VALID_WAIT_STATES = new AllocationHealth[] {
-            AllocationHealth.STARTED,
-            AllocationHealth.STARTING,
-            AllocationHealth.FULLY_ALLOCATED };
+        private static final AllocationHealth.State[] VALID_WAIT_STATES = new AllocationHealth.State[] {
+            AllocationHealth.State.STARTED,
+            AllocationHealth.State.STARTING,
+            AllocationHealth.State.FULLY_ALLOCATED };
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField WAIT_FOR = new ParseField("wait_for");
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
-        private AllocationHealth waitForState = AllocationHealth.STARTED;
+        private AllocationHealth.State waitForState = AllocationHealth.State.STARTED;
 
         public Request(String modelId) {
             setModelId(modelId);
@@ -69,7 +69,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             super(in);
             modelId = in.readString();
             timeout = in.readTimeValue();
-            waitForState = in.readEnum(AllocationHealth.class);
+            waitForState = in.readEnum(AllocationHealth.State.class);
         }
 
         public final void setModelId(String modelId) {
@@ -88,11 +88,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return timeout;
         }
 
-        public AllocationHealth getWaitForState() {
+        public AllocationHealth.State getWaitForState() {
             return waitForState;
         }
 
-        public Request setWaitForState(AllocationHealth waitForState) {
+        public Request setWaitForState(AllocationHealth.State waitForState) {
             this.waitForState = ExceptionsHelper.requireNonNull(waitForState, WAIT_FOR);
             return this;
         }

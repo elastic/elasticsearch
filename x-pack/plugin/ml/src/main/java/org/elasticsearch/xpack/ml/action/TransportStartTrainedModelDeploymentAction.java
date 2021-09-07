@@ -192,7 +192,8 @@ public class TransportStartTrainedModelDeploymentAction
     private void waitForDeploymentState(
         String modelId,
         TimeValue timeout,
-        AllocationHealth state,
+        AllocationHealth.State
+            state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
         DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
@@ -250,9 +251,9 @@ public class TransportStartTrainedModelDeploymentAction
 
         // for logging
         private final String modelId;
-        private final AllocationHealth waitForState;
+        private final AllocationHealth.State waitForState;
 
-        DeploymentStartedPredicate(String modelId, AllocationHealth waitForState) {
+        DeploymentStartedPredicate(String modelId, AllocationHealth.State waitForState) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.waitForState = waitForState;
         }
@@ -313,7 +314,8 @@ public class TransportStartTrainedModelDeploymentAction
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAllocateToNode)
                 .collect(Collectors.toList());
-            if (trainedModelAllocation.calculateAllocationHealth(nodes).compareTo(waitForState) >= 0) {
+            AllocationHealth health = trainedModelAllocation.calculateAllocationHealth(nodes).orElse(null);
+            if (health == null || health.calculateState().compareTo(waitForState) >= 0) {
                 return true;
             }
 

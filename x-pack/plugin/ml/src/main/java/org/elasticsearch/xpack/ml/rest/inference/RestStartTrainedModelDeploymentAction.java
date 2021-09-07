@@ -46,8 +46,11 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                 StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
             request.setTimeout(openTimeout);
         }
-        request.setWaitForState(AllocationHealth.fromString(
-            restRequest.param(StartTrainedModelDeploymentAction.Request.WAIT_FOR.getPreferredName(), AllocationHealth.STARTED.toString())
+        request.setWaitForState(AllocationHealth.State.fromString(
+            restRequest.param(
+                StartTrainedModelDeploymentAction.Request.WAIT_FOR.getPreferredName(),
+                AllocationHealth.State.STARTED.toString()
+            )
         ));
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

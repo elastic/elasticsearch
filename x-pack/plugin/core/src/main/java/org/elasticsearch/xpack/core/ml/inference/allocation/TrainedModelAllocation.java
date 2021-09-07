@@ -164,12 +164,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         out.writeOptionalString(reason);
     }
 
-    public AllocationHealth calculateAllocationHealth(List<DiscoveryNode> allocatableNodes) {
+    public Optional<AllocationHealth> calculateAllocationHealth(List<DiscoveryNode> allocatableNodes) {
         if (allocationState.equals(AllocationState.STOPPING)) {
-            return AllocationHealth.STARTING;
-        }
-        if (nodeRoutingTable.isEmpty()) {
-            return AllocationHealth.STARTING;
+            return Optional.empty();
         }
         int numAllocatableNodes = 0;
         int numStarted = 0;
@@ -184,14 +181,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
                 }
             }
         }
-        if (numStarted == 0) {
-            return AllocationHealth.STARTING;
-        }
-        // TODO: Update once we don't allocate to all possible nodes
-        if (numStarted < numAllocatableNodes) {
-            return AllocationHealth.STARTED;
-        }
-        return AllocationHealth.FULLY_ALLOCATED;
+        return Optional.of(new AllocationHealth(numStarted, numAllocatableNodes));
     }
 
 

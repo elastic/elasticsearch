@@ -147,7 +147,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
                         stats.setState(trainedModelAllocation.getAllocationState())
                             .setReason(trainedModelAllocation.getReason().orElse(null));
                         if (trainedModelAllocation.getAllocationState().isAnyOf(AllocationState.STARTED, AllocationState.STARTING)) {
-                            stats.setHealth(trainedModelAllocation.calculateAllocationHealth(nodes));
+                            stats.setHealth(trainedModelAllocation.calculateAllocationHealth(nodes).orElse(null));
                         }
                     }
                 }

@@ -142,15 +142,19 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
     public void testCalculateAllocationHealth() {
         List<DiscoveryNode> nodes = Stream.generate(TrainedModelAllocationTests::buildNode).limit(5).collect(Collectors.toList());
         assertThat(
-            TrainedModelAllocation.Builder.empty(randomParams()).build().calculateAllocationHealth(randomBoolean() ? List.of() : nodes),
-            equalTo(AllocationHealth.STARTING)
+            TrainedModelAllocation.Builder.empty(randomParams())
+                .build()
+                .calculateAllocationHealth(randomBoolean() ? List.of() : nodes)
+                .orElseThrow(),
+            equalTo(new AllocationHealth(0, 5))
         );
         assertThat(
             TrainedModelAllocation.Builder.empty(randomParams())
                 .stopAllocation("test")
                 .build()
-                .calculateAllocationHealth(randomBoolean() ? List.of() : nodes),
-            equalTo(AllocationHealth.STARTING)
+                .calculateAllocationHealth(randomBoolean() ? List.of() : nodes)
+                .isPresent(),
+            is(false)
         );
 
         {
@@ -159,7 +163,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
             for (int i = 0; i < count; i++) {
                 builder.addRoutingEntry(nodes.get(i).getId(), RoutingState.STARTED);
             }
-            assertThat(builder.build().calculateAllocationHealth(nodes), equalTo(AllocationHealth.STARTED));
+            assertThat(builder.build().calculateAllocationHealth(nodes).orElseThrow(), equalTo(new AllocationHealth(count, 5)));
         }
         {
             TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(randomParams());
@@ -173,14 +177,14 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
             for (int i = 0; i < count; i++) {
                 builder.addRoutingEntry(nodes.get(i).getId(), RoutingState.STARTED);
             }
-            assertThat(builder.build().calculateAllocationHealth(nodes), equalTo(AllocationHealth.STARTED));
+            assertThat(builder.build().calculateAllocationHealth(nodes).orElseThrow(), equalTo(new AllocationHealth(count, 5)));
         }
         {
             TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(randomParams());
             for (DiscoveryNode node : nodes) {
                 builder.addRoutingEntry(node.getId(), RoutingState.STARTED);
             }
-            assertThat(builder.build().calculateAllocationHealth(nodes), equalTo(AllocationHealth.FULLY_ALLOCATED));
+            assertThat(builder.build().calculateAllocationHealth(nodes).orElseThrow(), equalTo(new AllocationHealth(5, 5)));
         }
     }
 

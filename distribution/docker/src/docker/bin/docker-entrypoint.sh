@@ -74,8 +74,11 @@ if [[ -n "$ES_LOG_STYLE" ]]; then
 fi
 
 if [[ -e /usr/share/elasticsearch/config/elasticsearch-plugins.yml ]]; then
-  # Sync installed plugins with descriptor file
-  /usr/share/elasticsearch/bin/elasticsearch-plugin sync --batch
+  # Look for active configuration
+  if grep -q ^plugins: /usr/share/elasticsearch/config/elasticsearch-plugins.yml; then
+    # Sync installed plugins with descriptor file
+    /usr/share/elasticsearch/bin/elasticsearch-plugin sync --batch
+  fi
 fi
 
 # Signal forwarding and child reaping is handled by `tini`, which is the

@@ -29,9 +29,10 @@ import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
-import javax.inject.Inject;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
+import javax.inject.Inject;
 
 public class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
@@ -182,9 +183,9 @@ public class DockerBuildTask extends DefaultTask {
             });
 
             try {
-                parameters.getMarkerFile().getAsFile().get().createNewFile();
+                Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), String.valueOf(System.currentTimeMillis()));
             } catch (IOException e) {
-                throw new RuntimeException("Failed to create marker file", e);
+                throw new RuntimeException("Failed to write marker file", e);
             }
         }
     }

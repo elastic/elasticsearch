@@ -43,6 +43,11 @@ public class DockerRun {
         return this;
     }
 
+    public DockerRun envVars(String key, String value) {
+        this.envVars.put(Objects.requireNonNull(key), value);
+        return this;
+    }
+
     public DockerRun envVars(Map<String, String> envVars) {
         if (envVars != null) {
             this.envVars.putAll(envVars);

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,6 +67,7 @@ import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -193,7 +195,45 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the JDK's cacerts file is a symlink to the copy provided by the operating system.
+     * Checks that ESS images can manage plugins using the `sync` subcommand.
+     */
+    public void test023InstallPluginsUsingConfigFile() {
+        assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
+        // are owned by `root` and can't be removed.
+        final String[] plugins = { "repository-s3", "repository-azure", "repository-gcs", "analysis-icu", "analysis-phonetic" };
+
+        final StringJoiner pluginsDescriptor = new StringJoiner("\n", "", "\n");
+        pluginsDescriptor.add("plugins:");
+        for (String plugin : plugins) {
+            pluginsDescriptor.add("  - id: " + plugin);
+        }
+
+        final String filename = "elasticsearch-plugins.yml";
+        append(tempDir.resolve(filename), pluginsDescriptor.toString());
+
+        // Restart the container. This will run the `sync` plugins subcommand automatically. Also
+        // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
+        // command should instead use the bundled plugin archive.
+        final Map<Path, Path> volumes = Map.of(tempDir.resolve(filename), installation.config.resolve(filename));
+        runContainer(
+            distribution(),
+            builder().volumes(volumes)
+                .envVars(
+                    "ES_JAVA_OPTS",
+                    "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+                )
+        );
+
+        final List<String> actualPlugins = sh.run(installation.executables().pluginTool + " list").stdout.lines()
+            .collect(Collectors.toList());
+
+        assertThat("List of installed plugins is incorrect", actualPlugins, containsInAnyOrder(plugins));
+    }
+
+    /**
+     * Check that the JDK's `cacerts` file is a symlink to the copy provided by the operating system.
      */
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;

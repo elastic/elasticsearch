@@ -384,8 +384,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
     tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
 
       TaskProvider<DockerBuildTask> buildCloudTask = tasks.named(taskName("build", architecture, DockerBase.CLOUD, "DockerImage"))
-      dependsOn(buildCloudTask)
-      dependsOn(buildContextTask)
+      inputs.file(buildCloudTask.map({ it.markerFile }))
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 

@@ -229,13 +229,13 @@ public class SyncPluginsCommandTests extends ESTestCase {
      * Check that the sync tool will do nothing when a plugin is already installed.
      */
     public void testSync_withPluginAlreadyInstalled_succeeds() throws Exception {
-        final String pluginId = "example-plugin";
+        final String pluginId = "analysis-icu";
 
         writePluginDescriptor(pluginId);
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
-        yaml.add("  - id: example-plugin");
+        yaml.add("  - id: " + pluginId);
 
         Files.writeString(pluginsFile, yaml.toString());
 
@@ -250,7 +250,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
      * Check that the sync tool will print the correct summary when a required plugin is already installed.
      */
     public void testSync_withDryRunAndPluginAlreadyInstalled_printsCorrectSummary() throws Exception {
-        final String pluginId = "example-plugin";
+        final String pluginId = "analysis-icu";
 
         writePluginDescriptor(pluginId);
 
@@ -270,7 +270,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
      * Check that the sync tool will run successfully when removing a plugin
      */
     public void testSync_withRemovePlugin_succeeds() throws Exception {
-        final String pluginId = "example-plugin";
+        final String pluginId = "analysis-icu";
 
         writePluginDescriptor(pluginId);
 
@@ -287,7 +287,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
      * Check that the sync tool will print the correct summary in dry run mode for removing a plugin
      */
     public void testSync_withDryRunRemovePlugin_printsCorrectSummary() throws Exception {
-        final String pluginId = "example-plugin";
+        final String pluginId = "analysis-icu";
 
         writePluginDescriptor(pluginId);
 
@@ -316,23 +316,23 @@ public class SyncPluginsCommandTests extends ESTestCase {
      */
     public void testSync_withPluginsToAddAndRemove_succeeds() throws Exception {
         // Remove 2 plugins...
-        writePluginDescriptor("plugin-to-remove1");
-        writePluginDescriptor("plugin-to-remove2");
+        writePluginDescriptor("analysis-icu");
+        writePluginDescriptor("analysis-kuromoji");
         // ...And keep 1
-        writePluginDescriptor("plugin-to-keep");
+        writePluginDescriptor("analysis-nori");
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
-        yaml.add("  - id: plugin-to-keep");
-        yaml.add("  - id: plugin-to-add1");
-        yaml.add("  - id: plugin-to-add2");
+        yaml.add("  - id: analysis-nori");
+        yaml.add("  - id: analysis-phonetic");
+        yaml.add("  - id: analysis-smartcn");
         Files.writeString(pluginsFile, yaml.toString());
 
         SyncPluginsCommand command = new SyncPluginsCommand();
         command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
 
-        verify(removePluginAction).execute(List.of(new PluginDescriptor("plugin-to-remove1"), new PluginDescriptor("plugin-to-remove2")));
-        verify(installPluginAction).execute(List.of(new PluginDescriptor("plugin-to-add1"), new PluginDescriptor("plugin-to-add2")));
+        verify(removePluginAction).execute(List.of(new PluginDescriptor("analysis-icu"), new PluginDescriptor("analysis-kuromoji")));
+        verify(installPluginAction).execute(List.of(new PluginDescriptor("analysis-phonetic"), new PluginDescriptor("analysis-smartcn")));
     }
 
     /**
@@ -340,16 +340,16 @@ public class SyncPluginsCommandTests extends ESTestCase {
      */
     public void testSync_withDryRunPluginsToAddAndRemove_printsCorrectSummary() throws Exception {
         // Remove 2 plugins...
-        writePluginDescriptor("plugin-to-remove1");
-        writePluginDescriptor("plugin-to-remove2");
+        writePluginDescriptor("analysis-icu");
+        writePluginDescriptor("analysis-kuromoji");
         // ...And keep 1
-        writePluginDescriptor("plugin-to-keep");
+        writePluginDescriptor("analysis-nori");
 
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
-        yaml.add("  - id: plugin-to-keep");
-        yaml.add("  - id: plugin-to-add1");
-        yaml.add("  - id: plugin-to-add2");
+        yaml.add("  - id: analysis-nori");
+        yaml.add("  - id: analysis-phonetic");
+        yaml.add("  - id: analysis-smartcn");
         Files.writeString(pluginsFile, yaml.toString());
 
         SyncPluginsCommand command = new SyncPluginsCommand();
@@ -362,13 +362,13 @@ public class SyncPluginsCommandTests extends ESTestCase {
             "\n",
             "The following plugins need to be removed:",
             "",
-            "    plugin-to-remove1",
-            "    plugin-to-remove2",
+            "    analysis-icu",
+            "    analysis-kuromoji",
             "",
             "The following plugins need to be installed:",
             "",
-            "    plugin-to-add1",
-            "    plugin-to-add2"
+            "    analysis-phonetic",
+            "    analysis-smartcn"
         );
 
         assertThat(terminal.getOutput().trim(), equalTo(expected));
@@ -408,7 +408,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     public void testSync_withInvalidPluginProxy_fails() throws Exception {
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
-        yaml.add("  - id: example-plugin");
+        yaml.add("  - id: analysis-icu");
         yaml.add("    proxy: ftp://example.com");
 
         Files.writeString(pluginsFile, yaml.toString());
@@ -416,7 +416,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
         final SyncPluginsCommand command = new SyncPluginsCommand();
         final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
 
-        assertThat(exception.getMessage(), startsWith("Malformed [proxy] for plugin [example-plugin], expected [host:port] in"));
+        assertThat(exception.getMessage(), startsWith("Malformed [proxy] for plugin [analysis-icu], expected [host:port] in"));
         assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
     }
 
@@ -457,6 +457,23 @@ public class SyncPluginsCommandTests extends ESTestCase {
         verify(installPluginAction).execute(
             List.of(new PluginDescriptor("example-plugin", "https://example.com/example-plugin.zip", "example-proxy.com:8080"))
         );
+    }
+
+    /**
+     * Check that the sync tool will fail gracefully when an unofficial plugin is specified without a url.
+     */
+    public void testSync_withUnofficialPluginWithoutUrl_fails() throws Exception {
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        final SyncPluginsCommand command = new SyncPluginsCommand();
+        final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
+
+        assertThat(exception.getMessage(), startsWith("Must specify URL for non-official plugin [example-plugin]"));
+        assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
     }
 
     private void writePluginDescriptor(String name) throws IOException {

@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.plugins.ProxyUtils.buildProxy;
 import static org.elasticsearch.plugins.ProxyUtils.validateProxy;
 
 public class PluginsManifest {
@@ -54,6 +53,12 @@ public class PluginsManifest {
 
         if (duplicatePluginNames.isEmpty() == false) {
             throw new RuntimeException("Duplicate plugin names " + duplicatePluginNames + " found in: " + manifestPath);
+        }
+
+        for (PluginDescriptor plugin : this.plugins) {
+            if (InstallPluginAction.OFFICIAL_PLUGINS.contains(plugin.getId()) == false && plugin.getUrl() == null) {
+                throw new UserException(ExitCodes.CONFIG, "Must specify URL for non-official plugin [" + plugin.getId() + "]");
+            }
         }
 
         if (this.proxy != null) {

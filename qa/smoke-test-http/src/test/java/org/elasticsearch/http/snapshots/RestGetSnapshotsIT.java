@@ -191,8 +191,8 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
         AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(1, 5));
-        final List<SnapshotInfo> snapshotsWithoutPolicy =
-            clusterAdmin().prepareGetSnapshots("*").setSnapshots("*").get().getSnapshots();
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*").setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME).get().getSnapshots();
         final String snapshotWithPolicy = "snapshot-with-policy";
         final String policyName = "some-policy";
         final SnapshotInfo withPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
@@ -218,13 +218,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 .setWaitForCompletion(true)
                 .execute()
         );
-        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withPolicy, withOtherPolicy)));
-        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withPolicy, withOtherPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) throws IOException {
         final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
         requestWithPolicy.addParameter("slm_policy_filter", Strings.arrayToCommaDelimitedString(policies));
+        requestWithPolicy.addParameter("sort", GetSnapshotsRequest.SortBy.NAME.toString());
         return readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
     }
 

@@ -214,7 +214,11 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
         createNSnapshots(repoName, randomIntBetween(1, 5));
-        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*").setSnapshots("*").get().getSnapshots();
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
         final String snapshotWithPolicy = "snapshot-with-policy";
         final String policyName = "some-policy";
         final SnapshotInfo withPolicy = assertSuccessful(
@@ -238,12 +242,17 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute()
         );
-        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withPolicy, withOtherPolicy)));
-        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withPolicy, withOtherPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {
-        return clusterAdmin().prepareGetSnapshots("*").setSnapshots("*").setPolicies(policies).get().getSnapshots();
+        return clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setPolicies(policies)
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
     }
 
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {

@@ -158,8 +158,8 @@ NOTE: The `after` parameter and `next` field allow for iterating through snapsho
 creation or deletion of snapshots. It is guaranteed that  any snapshot that exists at the beginning of the iteration and not concurrently
 deleted will be seen during the iteration. Snapshots concurrently created may be seen during an iteration.
 
-NOTE: The pagination parameters `size`, `order`, `after`, `offset`, `slm_policy_filter` and `sort` are not supported when using
-`verbose=false` and the sort order for requests with `verbose=false` is undefined.
+NOTE: The parameters `size`, `order`, `after`, `offset`, `slm_policy_filter` and `sort` are not supported when using `verbose=false` and
+the sort order for requests with `verbose=false` is undefined.
 
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]

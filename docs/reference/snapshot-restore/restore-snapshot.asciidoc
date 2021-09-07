@@ -152,9 +152,7 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[rename-on-restore]]
 ==== Rename on restore
 
-You can rename indices and data streams you restore. Use this method if you want
-to avoid deleting existing data. This lets you compare existing data to
-historical data from a snapshot.
+You can rename indices and data streams you restore. Use this method if you want to avoid deleting existing data or if you want to compare existing data to historical data from a snapshot.
 
 Before you start, ensure the cluster has enough capacity for both the existing
 and restored data.

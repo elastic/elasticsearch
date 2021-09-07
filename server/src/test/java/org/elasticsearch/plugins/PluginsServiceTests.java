@@ -824,9 +824,11 @@ public class PluginsServiceTests extends ESTestCase {
 
         assertThat(extensiblePlugin.extensions, notNullValue());
         assertThat(extensiblePlugin.extensions, hasSize(2));
-        assertThat(extensiblePlugin.extensions.get(0), instanceOf(TestExtension1.class));
-        assertThat(extensiblePlugin.extensions.get(1), instanceOf(TestExtension2.class));
-        assertThat(((TestExtension2) extensiblePlugin.extensions.get(1)).plugin, sameInstance(testPlugin));
+        // TODO: Q assume the ordering of the extensions list is not significant
+        assertThat(extensiblePlugin.extensions, containsInAnyOrder(instanceOf(TestExtension1.class), instanceOf(TestExtension2.class)));
+        assertThat(extensiblePlugin.extensions.stream().filter(TestExtension2.class::isInstance)
+                        .map(TestExtension2.class::cast).findFirst().orElseThrow().plugin,
+                   sameInstance(testPlugin));
     }
 
     public void testNoExtensionConstructors() {
@@ -842,6 +844,8 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString("no public constructor for extension [" + TestExtension.class.getName() +
             "] of type [" + TestExtensionPoint.class.getName() + "]")));
     }
+
+    // TODO: there are many things to be updated in this test
 
     public void testMultipleExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
@@ -897,8 +901,18 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
     }
 
+    public abstract static class TestExtensiblePluginProvider extends AbstractPluginExtensionProvider {
+        protected TestExtensiblePluginProvider(Class<?> extensionType, Class<?> argType) {
+            super(extensionType, argType);
+        }
+    }
+
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
         private List<TestExtensionPoint> extensions;
+
+        public Class<? extends AbstractPluginExtensionProvider> providerType() {
+            return TestExtensiblePluginProvider.class;
+        }
 
         @Override
         public void loadExtensions(ExtensionLoader loader) {
@@ -916,6 +930,12 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public static class TestExtension1 implements TestExtensionPoint {
+    }
+
+    public static class TestExtension2Provider extends TestExtensiblePluginProvider {
+        public TestExtension2Provider() {
+            super(TestExtension2.class, TestPlugin.class);
+        }
     }
 
     public static class TestExtension2 implements TestExtensionPoint {

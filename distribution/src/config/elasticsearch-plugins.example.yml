@@ -8,7 +8,7 @@ plugins:
   # Each plugin must have an ID. Plugins with only an ID are official plugins and will be downloaded from Elastic.
   - id: example-id
 
-  # Plugins can be specified by URL:
+  # Plugins can be specified by URL (it doesn't have to be HTTP, you could use e.g. `file:`)
   - id: example-with-url
     url: https://some.domain/path/example4.zip
 
@@ -21,5 +21,6 @@ plugins:
     url: https://some.domain/path/example.zip
     proxy: https://some.domain:1234
 
-# Configures a proxy for all network access
+# Configures a proxy for all network access. Remove this if you don't need
+# to use a proxy.
 proxy: https://some.domain:1234

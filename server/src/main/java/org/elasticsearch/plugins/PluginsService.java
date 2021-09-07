@@ -494,18 +494,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private static <T> List<? extends T> createExtensions(ExtensiblePlugin extensiblePlugin, Class<T> extensionPointType, Plugin plugin) {
+        final ClassLoader pluginClassLoader = plugin.getClass().getClassLoader();
         List<T> extensions = new ArrayList<>();
 
         // First locate any explicit extension providers
         Class<? extends AbstractPluginExtensionProvider> extensionPointProvider = extensiblePlugin.providerType();
         if (extensionPointProvider != null) {
-            ServiceLoader<? extends AbstractPluginExtensionProvider> loader = ServiceLoader.load(extensionPointProvider, plugin.getClass().getClassLoader());
+            ServiceLoader<? extends AbstractPluginExtensionProvider> loader = ServiceLoader.load(extensionPointProvider, pluginClassLoader);
             List<T> l = loader.stream().map(p -> createExtensionFromProvider(p, extensionPointType, plugin)).collect(Collectors.toList());
             extensions.addAll(l);
         }
 
         // Second, locate "direct" extensions - without an explicit provider
-        List<T> l = ServiceLoader.load(extensionPointType, plugin.getClass().getClassLoader())
+        List<T> l = ServiceLoader.load(extensionPointType, pluginClassLoader)
             .stream()
             .map(ServiceLoader.Provider::get)
             .collect(Collectors.toList());
@@ -518,8 +519,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                                              Class<T> extensionPointType,
                                              Plugin plugin) {
         AbstractPluginExtensionProvider provider = providerClass.get();
-        if (!extensionPointType.isAssignableFrom(provider.extensionType())) {
-            throw new IllegalStateException("mismatch, expected extensionPointType=" + extensionPointType + ", got=" + provider.extensionType());
+        if (extensionPointType.isAssignableFrom(provider.extensionType()) == false) {
+            throw new IllegalStateException("expected extensionPointType=" + extensionPointType + ", got=" + provider.extensionType());
         }
         MethodType mt = provider.methodType();
         if (mt.parameterCount() != 1 && mt.returnType() == void.class) {

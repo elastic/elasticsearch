@@ -112,17 +112,20 @@ public class HotThreads {
             switch (type) {
                 case CPU:
                     return o -> {
-                        assert o.cpuTime >= -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread id: " + o.threadId;
+                        assert o.cpuTime >=
+                            -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread id: " + o.threadId;
                         return o.cpuTime;
                     };
                 case WAIT:
                     return o -> {
-                        assert o.waitedTime >= -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread id: " + o.threadId;
+                        assert o.waitedTime >=
+                            -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread id: " + o.threadId;
                         return o.waitedTime;
                     };
                 case BLOCK:
                     return o -> {
-                        assert o.blockedTime >= -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread id: " + o.threadId;
+                        assert o.blockedTime >=
+                            -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread id: " + o.threadId;
                         return o.blockedTime;
                     };
             }
@@ -310,8 +313,8 @@ public class HotThreads {
                         final StackTraceElement[] show = allInfos[i][t].getStackTrace();
                         if (count == 1) {
                             sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
-                            for (int l = 0; l < show.length; l++) {
-                                sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            for (StackTraceElement frame : show) {
+                                sb.append(String.format(Locale.ROOT, "    %s%n", frame));
                             }
                         } else {
                             sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",

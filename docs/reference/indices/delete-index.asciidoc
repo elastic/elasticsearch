@@ -31,7 +31,7 @@ or `manage` <<privileges-list-indices,index privilege>> for the target index.
 +
 --
 (Required, string) Comma-separated list of indices to delete. You cannot specify
-<<alias,index aliases>>.
+<<aliases,index aliases>>.
 
 By default, this parameter does not support wildcards (`*`) or `_all`. To use
 wildcards or `_all`, change the `action.destructive_requires_name` setting to

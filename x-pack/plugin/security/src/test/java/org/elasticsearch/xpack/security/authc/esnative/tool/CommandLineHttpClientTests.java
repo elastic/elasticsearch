@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettingsTests;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
-import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.junit.After;
 import org.junit.Before;
 
@@ -28,6 +30,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.cert.X509Certificate;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -40,11 +43,13 @@ public class CommandLineHttpClientTests extends ESTestCase {
     private MockWebServer webServer;
     private Path certPath;
     private Path keyPath;
+    private Path caCertPath;
 
     @Before
     public void setup() throws Exception {
-        certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        certPath = getDataPath("/org/elasticsearch/xpack/security/authc/esnative/tool/http.crt");
+        keyPath = getDataPath("/org/elasticsearch/xpack/security/authc/esnative/tool/http.key");
+        caCertPath = getDataPath("/org/elasticsearch/xpack/security/authc/esnative/tool/ca.crt");
 
         webServer = createMockWebServer();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{\"test\": \"complete\"}"));
@@ -58,12 +63,26 @@ public class CommandLineHttpClientTests extends ESTestCase {
 
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
         Settings settings = getHttpSslSettings()
-            .put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
+            .put("xpack.security.http.ssl.certificate_authorities", caCertPath.toString())
             .put("xpack.security.http.ssl.verification_mode", SslVerificationMode.CERTIFICATE)
             .build();
         CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
                 new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));
+
+        assertNotNull("Should have http response", httpResponse);
+        assertEquals("Http status code does not match", 200, httpResponse.getHttpStatus());
+        assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
+    }
+
+    public void testCommandLineClientCanTrustPinnedCaCertificateFingerprint() throws Exception {
+        X509Certificate caCert = CertParsingUtils.readX509Certificate(caCertPath);
+        CommandLineHttpClient client = new CommandLineHttpClient(
+            (TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build())),
+            SslUtil.calculateFingerprint(caCert, "SHA-256")
+        );
+        HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
+            new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));
 
         assertNotNull("Should have http response", httpResponse);
         assertEquals("Http status code does not match", 200, httpResponse.getHttpStatus());

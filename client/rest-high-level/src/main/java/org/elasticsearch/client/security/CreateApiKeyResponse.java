@@ -15,7 +15,9 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -53,6 +55,10 @@ public final class CreateApiKeyResponse {
         return key;
     }
 
+    public SecureString getEncoded() {
+        return new SecureString(Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)).toCharArray());
+    }
+
     @Nullable
     public Instant getExpiration() {
         return expiration;
@@ -79,13 +85,22 @@ public final class CreateApiKeyResponse {
     }
 
     static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
-            args -> new CreateApiKeyResponse((String) args[0], (String) args[1], new SecureString((String) args[2]),
-                    (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3])));
+        args -> {
+            final String id = (String) args[1];
+            final String key = (String) args[2];
+            if (args[4] != null
+                && false == args[4].equals(Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)))) {
+                throw new IllegalArgumentException("the encoded value does not match id and api_key");
+            }
+            return new CreateApiKeyResponse((String) args[0], id, new SecureString(key.toCharArray()),
+                    (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]));
+    });
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("api_key"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("encoded"));
     }
 
     public static CreateApiKeyResponse fromXContent(XContentParser parser) throws IOException {

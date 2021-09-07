@@ -305,6 +305,8 @@ public class QueryPhase {
         return topDocsFactory.shouldRescore();
     }
 
+
+    // TODO: remove this after Lucene 9.0, as sort optimization is enabled by default there
     private static void optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
         if (searchContext.sort() == null) return;
         // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher

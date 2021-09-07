@@ -90,7 +90,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class QueryPhaseTests extends IndexShardTestCase {
@@ -683,8 +682,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         writer.close();
 
         final IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext searchContext = spy(new TestSearchContext(
-            searchExecutionContext, indexShard, newContextSearcher(reader)));
 
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
         final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
@@ -706,6 +703,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 1. Test sort optimization on long field
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -718,6 +717,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 2. Test sort optimization on long field with after
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             int afterDoc = (int) randomLongBetween(0, 30);
             long afterValue = startLongValue + afterDoc;
             FieldDoc after = new FieldDoc(afterDoc, Float.NaN, new Long[] {afterValue});
@@ -737,6 +738,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 3. Test sort optimization on long field + date field
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             searchContext.sort(formatsLongDate);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -749,6 +752,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 4. Test sort optimization on date field
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             searchContext.sort(formatsDate);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -761,6 +766,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 5. Test sort optimization on date field + long field
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             searchContext.sort(formatsDateLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -773,6 +780,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 6. Test sort optimization on when from > 0 and size = 0
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
@@ -786,6 +795,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 7. Test that sort optimization doesn't break a case where from = 0 and size= 0
         {
+            TestSearchContext searchContext = new TestSearchContext(
+                searchExecutionContext, indexShard, newContextSearcher(reader));
             searchContext.sort(formatsLong);
             searchContext.parsedQuery(query);
             searchContext.setTask(task);

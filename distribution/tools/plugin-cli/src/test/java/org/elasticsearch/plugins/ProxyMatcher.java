@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cli.SuppressForbidden;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -30,6 +31,7 @@ class ProxyMatcher extends TypeSafeMatcher<Proxy> {
     }
 
     @Override
+    @SuppressForbidden(reason = "Proxy constructor uses InetSocketAddress")
     protected boolean matchesSafely(Proxy proxy) {
         if (proxy.type() != this.type) {
             return false;

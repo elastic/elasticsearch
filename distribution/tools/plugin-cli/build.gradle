@@ -69,8 +69,11 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.plugins.InstallPluginCommand',
     'org.elasticsearch.plugins.ListPluginsCommand',
     'org.elasticsearch.plugins.PluginCli',
+    'org.elasticsearch.plugins.PluginDescriptor',
+    'org.elasticsearch.plugins.PluginsManifest',
     'org.elasticsearch.plugins.ProgressInputStream',
+    'org.elasticsearch.plugins.ProxyUtils',
     'org.elasticsearch.plugins.RemovePluginAction',
     'org.elasticsearch.plugins.RemovePluginCommand',
-    'org.elasticsearch.plugins.PluginDescriptor'
+    'org.elasticsearch.plugins.SyncPluginsCommand'
 }

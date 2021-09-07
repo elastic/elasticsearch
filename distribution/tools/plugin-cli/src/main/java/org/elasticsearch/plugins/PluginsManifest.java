@@ -93,11 +93,6 @@ public class PluginsManifest {
                     throw new UserException(ExitCodes.CONFIG, "Malformed URL for plugin [" + p.getId() + "]");
                 }
             }
-
-            String proxy = p.getProxy();
-            if (proxy != null) {
-                validateProxy(proxy, p.getId(), manifestPath);
-            }
         }
     }
 

@@ -840,19 +840,9 @@ public class InstallPluginActionTests extends ESTestCase {
         skipJarHellAction.execute(List.of(pluginZip));
     }
 
-    private void assertInstallPluginFromUrl(
-        final String pluginId,
-        final String url,
-        final String stagingHash,
-        boolean isSnapshot
-    ) throws Exception {
-        assertInstallPluginFromUrl(
-            pluginId,
-            null,
-            url,
-            stagingHash,
-            isSnapshot
-        );
+    private void assertInstallPluginFromUrl(final String pluginId, final String url, final String stagingHash, boolean isSnapshot)
+        throws Exception {
+        assertInstallPluginFromUrl(pluginId, null, url, stagingHash, isSnapshot);
     }
 
     private void assertInstallPluginFromUrl(
@@ -919,6 +909,8 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
+            @SuppressForbidden(reason = "We need to open a stream")
+            // Overrides super to ignore the proxy
             InputStream urlOpenStream(URL url, Proxy proxy) throws IOException {
                 return url.openStream();
             }
@@ -1004,10 +996,7 @@ public class InstallPluginActionTests extends ESTestCase {
             Build.CURRENT.getQualifiedVersion()
         );
         // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
-        final UserException e = expectThrows(
-            UserException.class,
-            () -> assertInstallPluginFromUrl("analysis-icu", url, null, true)
-        );
+        final UserException e = expectThrows(UserException.class, () -> assertInstallPluginFromUrl("analysis-icu", url, null, true));
         assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
         assertThat(
             e,
@@ -1095,17 +1084,7 @@ public class InstallPluginActionTests extends ESTestCase {
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "analysis-icu",
-                null,
-                url,
-                null,
-                false,
-                ".sha512",
-                checksum(digest),
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("analysis-icu", null, url, null, false, ".sha512", checksum(digest), null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertThat(e.getMessage(), startsWith("Invalid checksum file"));
@@ -1118,17 +1097,7 @@ public class InstallPluginActionTests extends ESTestCase {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "analysis-icu",
-                null,
-                url,
-                null,
-                false,
-                ".sha1",
-                checksum(digest),
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("analysis-icu", null, url, null, false, ".sha1", checksum(digest), null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha512", e.getMessage());
@@ -1161,17 +1130,7 @@ public class InstallPluginActionTests extends ESTestCase {
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
             UserException.class,
-            () -> assertInstallPluginFromUrl(
-                "analysis-icu",
-                null,
-                url,
-                null,
-                false,
-                ".sha512",
-                checksum(digest),
-                null,
-                (b, p) -> null
-            )
+            () -> assertInstallPluginFromUrl("analysis-icu", null, url, null, false, ".sha512", checksum(digest), null, (b, p) -> null)
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));

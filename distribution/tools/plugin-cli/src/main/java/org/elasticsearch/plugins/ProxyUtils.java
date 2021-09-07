@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 
@@ -63,27 +64,16 @@ public class ProxyUtils {
      * {@link #validateProxy(String, String, Path)}. If {@code null} is passed, then either a proxy will
      * be returned using the system proxy settings, or {@link Proxy#NO_PROXY} will be returned.
      *
-     * @param proxy the string to use, which must either be a well-formed URL or have the form "host:port"
+     * @param proxy the string to use, which must either be a well-formed HTTP or SOCKS URL, or have the form "host:port"
      * @return a proxy
      */
+    @SuppressForbidden(reason = "Proxy constructor uses InetSocketAddress")
     static Proxy buildProxy(String proxy) throws UserException {
-        String proxyUrl;
-
         if (proxy == null) {
-            String proxyHost = System.getProperty("http.proxyHost");
-            String proxyPort = System.getProperty("http.proxyPort");
-            if (Strings.isNullOrEmpty(proxyHost) == false && Strings.isNullOrEmpty(proxyPort) == false) {
-                proxy = "http://" + proxyHost + ":" + proxyPort;
-            } else {
-                return Proxy.NO_PROXY;
-            }
+            return getSystemProxy();
         }
 
-        if (proxy.matches("^(?:https?|socks[45]?)://.*")) {
-            proxyUrl = proxy;
-        } else {
-            proxyUrl = "http://" + proxy;
-        }
+        final String proxyUrl = proxy.matches("^(?:https?|socks[45]?)://.*") ? proxy : "http://" + proxy;
 
         try {
             URL url = new URL(proxyUrl);
@@ -94,5 +84,22 @@ public class ProxyUtils {
         } catch (MalformedURLException e) {
             throw new UserException(ExitCodes.CONFIG, "Malformed proxy value : [" + proxy + "]");
         }
+    }
+
+    @SuppressForbidden(reason = "Proxy constructor uses InetSocketAddress")
+    private static Proxy getSystemProxy() {
+        String proxyHost = System.getProperty("http.proxyHost");
+        String proxyPort = System.getProperty("http.proxyPort");
+        if (Strings.isNullOrEmpty(proxyHost) == false && Strings.isNullOrEmpty(proxyPort) == false) {
+            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
+        }
+
+        proxyHost = System.getProperty("socks.proxyHost");
+        proxyPort = System.getProperty("socks.proxyPort");
+        if (Strings.isNullOrEmpty(proxyHost) == false && Strings.isNullOrEmpty(proxyPort) == false) {
+            return new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
+        }
+
+        return Proxy.NO_PROXY;
     }
 }

@@ -19,28 +19,21 @@ import java.util.Objects;
 public class PluginDescriptor {
     private String id;
     private final String url;
-    private final String proxy;
 
     /**
      * Creates a new descriptor instance.
      *
      * @param id the name of the plugin. Cannot be null.
      * @param url the URL from which to fetch the plugin. Can be null for official plugins
-     * @param proxy an optional proxy to use when fetching this plugin
      */
     @JsonCreator
-    public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String url, @JsonProperty("proxy") String proxy) {
+    public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String url) {
         this.id = Objects.requireNonNull(id, "id cannot be null");
         this.url = url;
-        this.proxy = proxy;
-    }
-
-    public PluginDescriptor(String id, String url) {
-        this(id, url, null);
     }
 
     public PluginDescriptor(String id) {
-        this(id, null, null);
+        this(id, null);
     }
 
     public String getId() {
@@ -55,25 +48,21 @@ public class PluginDescriptor {
         return url;
     }
 
-    public String getProxy() {
-        return proxy;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PluginDescriptor that = (PluginDescriptor) o;
-        return id.equals(that.id) && Objects.equals(url, that.url) && Objects.equals(proxy, that.proxy);
+        return id.equals(that.id) && Objects.equals(url, that.url);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, url, proxy);
+        return Objects.hash(id, url);
     }
 
     @Override
     public String toString() {
-        return String.format("PluginDescriptor{id='%s', url='%s', proxy='%s'}", id, url, proxy);
+        return "PluginDescriptor{id='" + id + "', url='" + url + "'}";
     }
 }

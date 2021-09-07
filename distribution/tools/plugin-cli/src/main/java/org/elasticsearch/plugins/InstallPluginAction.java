@@ -32,6 +32,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -40,7 +41,6 @@ import org.elasticsearch.jdk.JarHell;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -58,7 +58,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -83,7 +82,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
-import static org.elasticsearch.plugins.ProxyUtils.buildProxy;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.
@@ -277,23 +275,13 @@ class InstallPluginAction implements Closeable {
     private Path download(PluginDescriptor plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
-        Proxy proxy = getProxy(plugin.getProxy());
+        final Proxy proxy = this.proxy;
 
         // See `InstallPluginCommand` it has to use a string argument for both the ID and the URL
         if (OFFICIAL_PLUGINS.contains(pluginId) && (plugin.getUrl() == null || plugin.getUrl().equals(pluginId))) {
             final String pluginArchiveDir = System.getenv("ELASTICSEARCH_PLUGIN_ARCHIVE_DIR");
             if (pluginArchiveDir != null && pluginArchiveDir.isEmpty() == false) {
-                File file = Paths.get(pluginArchiveDir).toFile();
-                if (file.exists() == false) {
-                    throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR does not exist");
-                }
-                if (file.isDirectory() == false) {
-                    throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR is not a directory");
-                }
-                final Path pluginPath = Paths.get(
-                    pluginArchiveDir,
-                    pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip"
-                );
+                final Path pluginPath = getPluginArchivePath(pluginId, pluginArchiveDir);
                 if (Files.exists(pluginPath)) {
                     terminal.println("-> Downloading " + pluginId + " from local archive: " + pluginArchiveDir);
                     return downloadZip("file:" + pluginPath, null, tmpDir);
@@ -328,6 +316,18 @@ class InstallPluginAction implements Closeable {
         }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginUrl, StandardCharsets.UTF_8));
         return downloadZip(pluginUrl, proxy, tmpDir);
+    }
+
+    @SuppressForbidden(reason = "Need to use PathUtils#get")
+    private Path getPluginArchivePath(String pluginId, String pluginArchiveDir) throws UserException {
+        final Path path = PathUtils.get(pluginArchiveDir);
+        if (Files.exists(path) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR does not exist");
+        }
+        if (Files.isDirectory(path) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR is not a directory");
+        }
+        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
     }
 
     // pkg private so tests can override
@@ -1046,7 +1046,4 @@ class InstallPluginAction implements Closeable {
         throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }
 
-    private Proxy getProxy(String proxyUrl) throws UserException {
-        return proxyUrl != null ? buildProxy(proxyUrl) : this.proxy;
-    }
 }

@@ -12,6 +12,23 @@ contain shapes other than just points.
 You can query documents using this type using
 a <<query-dsl-geo-shape-query,`geo_shape` query>>.
 
+[IMPORTANT]
+====
+{es} encodes `geo_shape` values as <<geoshape-indexing-approach,BKD trees>> by
+default. To use BKD encoding, do not specify the following
+<<geo-shape-mapping-options,mapping options>>:
+
+* `distance_error_pct`
+* `points_only` 
+* `precision`
+* `strategy`
+* `tree_levels`
+* `tree`
+
+If you specify one or more of these options, the field will use prefix tree
+encoding instead. Prefix tree encoding is deprecated.
+====
+
 [[geo-shape-mapping-options]]
 [discrete]
 ==== Mapping Options

@@ -118,7 +118,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private SetOnce<Function<IndexService,
+    private final SetOnce<Function<IndexService,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();

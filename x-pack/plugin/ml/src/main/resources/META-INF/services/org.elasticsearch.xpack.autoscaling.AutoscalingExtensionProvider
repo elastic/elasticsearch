@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingExtension
+org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingExtensionProvider

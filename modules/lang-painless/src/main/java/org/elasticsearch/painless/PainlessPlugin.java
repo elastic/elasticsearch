@@ -28,9 +28,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.PainlessExtensionProvider;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+import org.elasticsearch.plugins.AbstractPluginExtensionProvider;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -145,6 +147,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(CompilerSettings.REGEX_ENABLED, CompilerSettings.REGEX_LIMIT_FACTOR);
+    }
+
+    @Override
+    public Class<? extends AbstractPluginExtensionProvider> providerType() {
+        return PainlessExtensionProvider.class;
     }
 
     @Override

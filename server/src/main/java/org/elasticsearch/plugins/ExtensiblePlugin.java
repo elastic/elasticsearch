@@ -30,6 +30,15 @@ public interface ExtensiblePlugin {
     }
 
     /**
+     * The type of the plugin extension provider.
+     *
+     * @return the type of the plugin extension provider, or null if none
+     */
+    default Class<? extends AbstractPluginExtensionProvider> providerType() {
+        return null;  // null allows things to operate without a provider, when there is a no-args ctr
+    }
+
+    /**
      * Allow this plugin to load extensions from other plugins.
      *
      * This method is called once only, after initializing this plugin and all plugins extending this plugin. It is called before

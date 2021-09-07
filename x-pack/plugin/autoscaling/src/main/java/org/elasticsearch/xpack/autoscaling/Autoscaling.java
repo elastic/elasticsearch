@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.plugins.AbstractPluginExtensionProvider;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -191,6 +192,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         return List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
         );
+    }
+
+    @Override
+    public Class<? extends AbstractPluginExtensionProvider> providerType() {
+        return AutoscalingExtensionProvider.class;
     }
 
     @Override

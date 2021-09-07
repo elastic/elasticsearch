@@ -16,7 +16,6 @@ import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -33,6 +32,8 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -469,8 +471,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
             if (pluginTuple.v2() instanceof ExtensiblePlugin) {
-                loadExtensionsForPlugin((ExtensiblePlugin) pluginTuple.v2(),
-                    extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), List.of()));
+                List<Plugin> extendingPlugins = extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), List.of());
+                ExtensiblePlugin extensiblePlugin = (ExtensiblePlugin)pluginTuple.v2();
+                loadExtensionsForPlugin(extensiblePlugin, extendingPlugins);
             }
         }
     }
@@ -481,7 +484,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             public <T> List<T> loadExtensions(Class<T> extensionPointType) {
                 List<T> result = new ArrayList<>();
                 for (Plugin extendingPlugin : extendingPlugins) {
-                    result.addAll(createExtensions(extensionPointType, extendingPlugin));
+                    result.addAll(createExtensions(extensiblePlugin, extensionPointType, extendingPlugin));
                 }
                 return Collections.unmodifiableList(result);
             }
@@ -490,50 +493,85 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         extensiblePlugin.loadExtensions(extensionLoader);
     }
 
-    private static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
-        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+    private static <T> List<? extends T> createExtensions(ExtensiblePlugin extensiblePlugin, Class<T> extensionPointType, Plugin plugin) {
         List<T> extensions = new ArrayList<>();
-        while (classIterator.hasNext()) {
-            Class<? extends T> extensionClass = classIterator.next();
-            extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+
+        // First locate any explicit extension providers
+        Class<? extends AbstractPluginExtensionProvider> extensionPointProvider = extensiblePlugin.providerType();
+        if (extensionPointProvider != null) {
+            ServiceLoader<? extends AbstractPluginExtensionProvider> loader = ServiceLoader.load(extensionPointProvider, plugin.getClass().getClassLoader());
+            List<T> l = loader.stream().map(p -> createExtensionFromProvider(p, extensionPointType, plugin)).collect(Collectors.toList());
+            extensions.addAll(l);
         }
+
+        // Second, locate "direct" extensions - without an explicit provider
+        List<T> l = ServiceLoader.load(extensionPointType, plugin.getClass().getClassLoader())
+            .stream()
+            .map(ServiceLoader.Provider::get)
+            .collect(Collectors.toList());
+
+        extensions.addAll(l);
         return extensions;
     }
 
-    // package-private for test visibility
-    static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
-        @SuppressWarnings("unchecked")
-        Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
-        if (constructors.length == 0) {
-            throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
+    static <T> T createExtensionFromProvider(ServiceLoader.Provider<? extends AbstractPluginExtensionProvider> providerClass,
+                                             Class<T> extensionPointType,
+                                             Plugin plugin) {
+        AbstractPluginExtensionProvider provider = providerClass.get();
+        if (!extensionPointType.isAssignableFrom(provider.extensionType())) {
+            throw new IllegalStateException("mismatch, expected extensionPointType=" + extensionPointType + ", got=" + provider.extensionType());
         }
-
-        if (constructors.length > 1) {
-            throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
+        MethodType mt = provider.methodType();
+        if (mt.parameterCount() != 1 && mt.returnType() == void.class) {
+            throw new IllegalStateException("expected single arg constructor, got:" + mt);
         }
-
-        final Constructor<T> constructor = constructors[0];
-        if (constructor.getParameterCount() > 1) {
-            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
+        if (mt.parameterType(0) != plugin.getClass()) {
+            throw new IllegalStateException("expected param type:" + plugin.getClass() + ", in: " + mt);
         }
-
-        if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
-            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin) +
-                ", not (" + constructor.getParameterTypes()[0].getName() + ")");
-        }
-
+        MethodHandle mh = provider.creatorHandle();
         try {
-            if (constructor.getParameterCount() == 0) {
-                return constructor.newInstance();
-            } else {
-                return constructor.newInstance(plugin);
-            }
-        } catch (ReflectiveOperationException e) {
+            return (T)mh.invoke(plugin);
+        } catch (Throwable t) {
             throw new IllegalStateException(
-                "failed to create extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
-            );
+                "provider [" + provider +" ] failed to create extension type [" + extensionPointType.getName() + "]", t);
         }
     }
+
+    // REMOVE - no longer needed
+//    // package-private for test visibility
+//    static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
+//        @SuppressWarnings("unchecked")
+//        Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
+//        if (constructors.length == 0) {
+//            throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
+//        }
+//
+//        if (constructors.length > 1) {
+//            throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
+//        }
+//
+//        final Constructor<T> constructor = constructors[0];
+//        if (constructor.getParameterCount() > 1) {
+//            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
+//        }
+//
+//        if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+//            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin) +
+//                ", not (" + constructor.getParameterTypes()[0].getName() + ")");
+//        }
+//
+//        try {
+//            if (constructor.getParameterCount() == 0) {
+//                return constructor.newInstance();
+//            } else {
+//                return constructor.newInstance(plugin);
+//            }
+//        } catch (ReflectiveOperationException e) {
+//            throw new IllegalStateException(
+//                "failed to create extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
+//            );
+//        }
+//    }
 
     private static <T> String extensionSignatureMessage(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
         return "signature of " + extensionConstructorMessage(extensionClass, extensionPointType) +

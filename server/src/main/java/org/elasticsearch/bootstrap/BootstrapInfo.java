@@ -19,6 +19,8 @@ import java.util.Enumeration;
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
+    private static boolean terminalAvailable;
+
     /** no instantiation */
     private BootstrapInfo() {}
 
@@ -44,6 +46,13 @@ public final class BootstrapInfo {
      */
     public static boolean isSystemCallFilterInstalled() {
         return Natives.isSystemCallFilterInstalled();
+    }
+
+    /**
+     * Returns true if terminal (non logging) output is available
+     */
+    public static boolean isTerminalOutputAvailable() {
+        return terminalAvailable;
     }
 
     /**
@@ -110,7 +119,7 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init() {
+    public static void init(boolean isTerminalAvailable) {
+        BootstrapInfo.terminalAvailable = isTerminalAvailable;
     }
-
 }

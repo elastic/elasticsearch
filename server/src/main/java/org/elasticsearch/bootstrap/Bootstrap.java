@@ -314,9 +314,11 @@ final class Bootstrap {
             final Path pidFile,
             final boolean quiet,
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
-        // force the class initializer for BootstrapInfo to run before
-        // the security manager is installed
-        BootstrapInfo.init();
+        // If this is true, we allow output to be written to the console user (not the logs) for exceptional cases
+        var hasConsole = foreground && (quiet == false);
+
+        // force the class initializer for BootstrapInfo to run before the security manager is installed
+        BootstrapInfo.init(hasConsole);
 
         INSTANCE = new Bootstrap();
 
@@ -328,10 +330,9 @@ final class Bootstrap {
         final Runnable sysOutCloser = getSysOutCloser();
         final Runnable sysErrorCloser = getSysErrorCloser();
 
-        // If this is true, we retain access to the original stdout stream for exceptional cases that need to write to the console
-        final boolean hasConsole = foreground && (quiet == false);
         if (hasConsole) {
-            ElasticsearchConsole.init();
+            // Load the default terminal now, so that it references the original stdout stream rather than the logging stream
+            var ignore = Terminal.DEFAULT;
         }
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));

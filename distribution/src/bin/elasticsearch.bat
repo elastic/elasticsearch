@@ -89,9 +89,6 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
 
-rem Sync installed plugins with descriptor file
-call "%~dp0elasticsearch-plugin.bat" sync --batch || goto exit
-
 rem windows batch pipe will choke on special characters in strings
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!

@@ -9,18 +9,25 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -36,9 +43,6 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
         mockSecuritySettings.setString("autoconfiguration.password_hash",
             "{PBKDF2_STRETCH}1000$JnmgicthPZkczB8MaQeJiV6IX43h7mSfPSzESqnYYSA=$OZKH5XFNK+M65mcKal6zgugWRcpl6wUXmSQZ6hPy+iw=");
         Settings.Builder builder = Settings.builder().put(customSettings, false); // don't bring in bootstrap.password
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        builder.put("transport.type", "security4");
-        builder.put("path.home", customSecuritySettingsSource.nodePath(0));
         builder.setSecureSettings(mockSecuritySettings);
         return builder.build();
     }
@@ -57,22 +61,29 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
                 new SecureString("password1".toCharArray()))))
             .admin()
             .cluster()
-            .prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(1))
+            .setWaitForGreenStatus()
             .get();
 
         assertThat(response, notNullValue());
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        boolean securityIndexCreated = false;
-        for (Map.Entry<String, ClusterIndexHealth>  indexEntry: response.getIndices().entrySet()) {
-            if (indexEntry.getKey().startsWith(".security")) {
-                securityIndexCreated = true;
-                break;
-            }
-        }
-        assertTrue(securityIndexCreated);
-        securityIndexExistsAuthenticate();
+        assertTrue(securityIndexExists());
+
+        // Now as the document exists let's try to authenticate again
+        response = client()
+            .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME,
+                new SecureString("password1".toCharArray()))))
+            .admin()
+            .cluster()
+            .prepareHealth()
+            .get();
+
+        assertThat(response, notNullValue());
+        assertThat(response.status(), equalTo(RestStatus.OK));
     }
 
     public void testInvalidPasswordHashNoSecurityIndex() {
@@ -86,7 +97,41 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
             .get() );
 
         assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+        assertFalse(securityIndexExists());
+    }
 
+    public void testSecurityIndexExistsButElasticuserNot() throws Exception {
+        // Create a user to create the Index
+        createUser();
+        assertTrue(securityIndexExists());
+
+        ClusterHealthResponse response = client()
+            .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME,
+                new SecureString("password1".toCharArray()))))
+            .admin()
+            .cluster()
+            .prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
+            .get();
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+    }
+
+    private void createUser() throws ExecutionException, InterruptedException {
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username("user");
+        putUserRequest.roles(Strings.EMPTY_ARRAY);
+        putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
+        PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
+        final Client client = client().filterWithHeader(
+            Map.of("Authorization", basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password"
+                .toCharArray()))));
+        client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
+        final PutUserResponse putUserResponse = listener.get();
+        assertTrue(putUserResponse.created());
+    }
+
+    private boolean securityIndexExists () {
         ClusterHealthResponse response = client()
             .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue("test_user",
                 new SecureString("x-pack-test-password".toCharArray()))))
@@ -95,36 +140,13 @@ public class PasswordHashPromotionIntegTests extends SecuritySingleNodeTestCase 
             .prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
             .get();
 
-        boolean securityIndexCreated = false;
+        boolean securityIndexExists = false;
         for (Map.Entry<String, ClusterIndexHealth>  indexEntry: response.getIndices().entrySet()) {
             if (indexEntry.getKey().startsWith(".security")) {
-                securityIndexCreated = true;
+                securityIndexExists = true;
                 break;
             }
         }
-        assertFalse(securityIndexCreated);
-    }
-
-    public void securityIndexExistsAuthenticate() {
-        ClusterHealthResponse response = client()
-            .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME,
-                new SecureString("password1".toCharArray()))))
-            .admin()
-            .cluster()
-            .prepareHealth()
-            .get();
-
-        assertThat(response, notNullValue());
-        assertThat(response.isTimedOut(), equalTo(false));
-        assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        boolean securityIndexCreated = false;
-        for (Map.Entry<String, ClusterIndexHealth>  indexEntry: response.getIndices().entrySet()) {
-            if (indexEntry.getKey().startsWith(".security")) {
-                securityIndexCreated = true;
-                break;
-            }
-        }
-        assertTrue(securityIndexCreated);
+        return securityIndexExists;
     }
 }

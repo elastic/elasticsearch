@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -64,7 +65,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.action.DocWriteRequest.OpType.UPDATE;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -289,20 +289,19 @@ public class NativeUsersStore {
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
                                     true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
-                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> {
-                        if (opType.equals(CREATE) == false) {
-                            clearRealmCache(username, l, null);
-                        } else {
-                            l.onResponse(null);
-                        }
-                    }), client::index);
+                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> { clearRealmCache(username, l, null); }),
+                client::index);
         });
     }
 
     void storeAutoconfiguredElasticUser(ReservedUserInfo elasticUserInfo, ActionListener<ReservedUserInfo> listener) {
         createOrUpdateReservedUser(ElasticUser.NAME, elasticUserInfo.passwordHash, WriteRequest.RefreshPolicy.IMMEDIATE,
             DocWriteRequest.OpType.CREATE, (e) -> {
-            listener.onFailure(new ElasticsearchStatusException(e.getMessage(), INTERNAL_SERVER_ERROR, e.getCause()));
+            if (e instanceof VersionConflictEngineException) {
+                listener.onFailure(e);
+            } else {
+                listener.onFailure(new ElasticsearchStatusException(e.getMessage(), INTERNAL_SERVER_ERROR, e.getCause()));
+            }
             }, listener.delegateFailure((l, v) -> l.onResponse(elasticUserInfo.deepClone())));
     }
 

@@ -221,19 +221,11 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private void getUserInfo(final String username, @Nullable SecureString credentials, ActionListener<ReservedUserInfo> listener) {
         if (securityIndex.indexExists() == false) {
-            if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
-                nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
-            } else {
-                listener.onResponse(getDefaultUserInfo(username));
-            }
+            getAutoconfiguredUser(username, credentials, listener);
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
                 if (userInfo == null) {
-                    if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
-                        nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
-                    } else {
-                        listener.onResponse(getDefaultUserInfo(username));
-                    }
+                    getAutoconfiguredUser(username, credentials, listener);
                 } else {
                     listener.onResponse(userInfo);
                 }
@@ -242,6 +234,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
                 listener.onResponse(null);
             }));
+        }
+    }
+
+    private void getAutoconfiguredUser(final String username, SecureString credentials, ActionListener<ReservedUserInfo> listener) {
+        if (autoconfigured && username.equals(ElasticUser.NAME) && bootstrapUserInfo.verifyPassword(credentials)) {
+            nativeUsersStore.storeAutoconfiguredElasticUser(bootstrapUserInfo, listener);
+        } else {
+            listener.onResponse(getDefaultUserInfo(username));
         }
     }
 

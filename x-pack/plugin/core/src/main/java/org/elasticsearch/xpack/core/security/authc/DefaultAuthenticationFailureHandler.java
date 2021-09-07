@@ -143,8 +143,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      *            {@link ElasticsearchSecurityException} asserts status is
      *            RestStatus.UNAUTHORIZED and adds headers to it,
      *            if it is an instance of {@link ElasticsearchStatusException}
-     *            with status code 500 (INTERNAL_SERVER_ERROR) asserts status is
-     *            RestStatus.UNAUTHORIZED, else it will
+     *            with status code 500 (INTERNAL_SERVER_ERROR) set status to
+     *            RestStatus.INTERNAL_SERVER_ERROR, else it will
      *            create a new instance of {@link ElasticsearchSecurityException}
      * @param args error message args
      * @return instance of {@link ElasticsearchSecurityException}

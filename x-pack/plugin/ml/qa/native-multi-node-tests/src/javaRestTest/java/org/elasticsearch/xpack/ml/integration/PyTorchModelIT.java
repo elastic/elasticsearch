@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -67,8 +69,6 @@ public class PyTorchModelIT extends ESRestTestCase {
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
         UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
-    private static final String MODEL_INDEX = "model_store";
-    private static final String VOCAB_INDEX = "vocab_store";
     static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp" +
             "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA" +
@@ -92,7 +92,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "EsBAgAAAAAICAAAAAAAANGeZ1UCAAAAAgAAABMAAAAAAAAAAAAAAAAAFAQAAHNpbXBsZW1vZGVsL3ZlcnNpb25QSwYGLAAAAAAAAAAe" +
             "Ay0AAAAAAAAAAAAFAAAAAAAAAAUAAAAAAAAAagEAAAAAAACSBAAAAAAAAFBLBgcAAAAA/AUAAAAAAAABAAAAUEsFBgAAAAAFAAUAagE" +
             "AAJIEAAAAAA==";
-    static final int RAW_MODEL_SIZE; // size of the model before base64 encoding
+    static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
@@ -139,11 +139,9 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
-        createModelStoreIndex();
-        putVocabulary(List.of("these", "are", "my", "words"));
-        putModelDefinition(modelId);
-        refreshModelStoreAndVocabIndex();
         createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
         CountDownLatch latch = new CountDownLatch(10);
         Queue<String> failures = new ConcurrentLinkedQueue<>();
@@ -174,11 +172,9 @@ public class PyTorchModelIT extends ESRestTestCase {
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";
 
-        createModelStoreIndex();
-        putVocabulary(List.of("once", "twice"));
-        putModelDefinition(modelA);
-        refreshModelStoreAndVocabIndex();
         createTrainedModel(modelA);
+        putVocabulary(List.of("once", "twice"), modelA);
+        putModelDefinition(modelA);
         startDeployment(modelA);
         infer("once", modelA);
         infer("twice", modelA);
@@ -203,19 +199,15 @@ public class PyTorchModelIT extends ESRestTestCase {
             getDeploymentStats("*", true);
         }
 
-        createModelStoreIndex();
-
         String modelFoo = "foo";
-        putVocabulary(List.of("once", "twice"));
-        putModelDefinition(modelFoo);
         createTrainedModel(modelFoo);
+        putVocabulary(List.of("once", "twice"), modelFoo);
+        putModelDefinition(modelFoo);
 
         String modelBar = "bar";
-        putVocabulary(List.of("once", "twice"));
-        putModelDefinition(modelBar);
         createTrainedModel(modelBar);
-
-        refreshModelStoreAndVocabIndex();
+        putVocabulary(List.of("once", "twice"), modelBar);
+        putModelDefinition(modelBar);
 
         startDeployment(modelFoo);
         startDeployment(modelBar);
@@ -264,16 +256,15 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
-        putVocabulary(List.of("once", "twice"));
         String modelFoo = "foo";
-        putModelDefinition(modelFoo);
-        createTrainedModel(modelFoo);
-
         String modelBar = "bar";
-        putModelDefinition(modelBar);
-        createTrainedModel(modelBar);
+        createTrainedModel(modelFoo);
+        putVocabulary(List.of("once", "twice"), modelFoo);
+        putModelDefinition(modelFoo);
 
-        refreshModelStoreAndVocabIndex();
+        createTrainedModel(modelBar);
+        putVocabulary(List.of("once", "twice"), modelBar);
+        putModelDefinition(modelBar);
 
         startDeployment(modelFoo);
         startDeployment(modelBar);
@@ -330,53 +321,42 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void putModelDefinition(String modelId) throws IOException {
-        Request request = new Request("PUT", "/" + MODEL_INDEX + "/_doc/trained_model_definition_doc-" + modelId + "-0");
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
         request.setJsonEntity("{  " +
-            "\"doc_type\": \"trained_model_definition_doc\"," +
-            "\"model_id\": \"" + modelId +"\"," +
-            "\"doc_num\": 0," +
-            "\"definition_length\":" + RAW_MODEL_SIZE + "," +
             "\"total_definition_length\":" + RAW_MODEL_SIZE + "," +
-            "\"compression_version\": 1," +
             "\"definition\": \""  + BASE_64_ENCODED_MODEL + "\"," +
-            "\"eos\": true" +
+            "\"total_parts\": 1" +
             "}");
         client().performRequest(request);
     }
 
-    private void createModelStoreIndex() throws IOException {
-        Request request = new Request("PUT", "/" + MODEL_INDEX);
-        request.setJsonEntity("{  " +
-            "\"mappings\": {\n" +
-            "    \"properties\": {\n" +
-            "        \"doc_type\":    { \"type\": \"keyword\"  },\n" +
-            "        \"model_id\":    { \"type\": \"keyword\"  },\n" +
-            "        \"definition_length\":     { \"type\": \"long\"  },\n" +
-            "        \"total_definition_length\":     { \"type\": \"long\"  },\n" +
-            "        \"compression_version\":     { \"type\": \"long\"  },\n" +
-            "        \"definition\":     { \"type\": \"binary\"  },\n" +
-            "        \"eos\":      { \"type\": \"boolean\" },\n" +
-            "        \"task_type\":      { \"type\": \"keyword\" },\n" +
-            "        \"vocab\":      { \"type\": \"keyword\" },\n" +
-            "        \"with_special_tokens\":      { \"type\": \"boolean\" },\n" +
-            "        \"do_lower_case\":      { \"type\": \"boolean\" }\n" +
-            "      }\n" +
-            "    }" +
-            "}");
-        client().performRequest(request);
-    }
-
-    private void putVocabulary(List<String> vocabulary) throws IOException {
+    private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
         List<String> vocabularyWithPad = new ArrayList<>();
         vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
         vocabularyWithPad.addAll(vocabulary);
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
-        Request request = new Request("PUT", "/" + VOCAB_INDEX + "/_doc/test_vocab");
+        Request request = new Request(
+            "PUT",
+            "/" + InferenceIndexConstants.nativeDefinitionStore() + "/_doc/test_vocab?refresh=true"
+        );
         request.setJsonEntity("{  " +
                 "\"vocab\": [" + quotedWords + "]\n" +
             "}");
+        request.setOptions(expectInferenceIndexWarning());
         client().performRequest(request);
+    }
+
+    static RequestOptions expectInferenceIndexWarning() {
+        return RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(
+                w -> w.contains(
+                    "this request accesses system indices: ["
+                        + InferenceIndexConstants.nativeDefinitionStore()
+                        + "], but in a future major version, direct access to system indices will be prevented by default"
+                ) == false || w.size() != 1
+            )
+            .build();
     }
 
     private void createTrainedModel(String modelId) throws IOException {
@@ -387,25 +367,15 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    \"inference_config\": {\n" +
             "        \"pass_through\": {\n" +
             "            \"vocabulary\": {\n" +
-            "              \"index\": \"" + VOCAB_INDEX + "\",\n" +
+            "              \"index\": \"" + InferenceIndexConstants.nativeDefinitionStore() + "\",\n" +
             "              \"id\": \"test_vocab\"\n" +
             "            },\n" +
             "            \"tokenization\": {" +
             "              \"bert\": {\"with_special_tokens\": false}\n" +
             "            }\n" +
             "        }\n" +
-            "    },\n" +
-            "    \"location\": {\n" +
-            "        \"index\": {\n" +
-            "            \"name\": \"" + MODEL_INDEX + "\"\n" +
-            "        }\n" +
-            "    }" +
+            "    }\n" +
             "}");
-        client().performRequest(request);
-    }
-
-    private void refreshModelStoreAndVocabIndex() throws IOException {
-        Request request = new Request("POST", "/" + MODEL_INDEX + "," + VOCAB_INDEX + "/_refresh");
         client().performRequest(request);
     }
 

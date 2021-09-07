@@ -73,7 +73,9 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a message at the {@link Level#WARN} level. The message is also sent to the header warning logger,
+     * Logs a message at the {@link DeprecationLogger#CRITICAL} level.
+     * This log will indicate that a change will break in next version.
+     * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
     public DeprecationLogger critical(
@@ -85,7 +87,7 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a message at the {@link Level#INFO} level for less critical deprecations
+     * Logs a message at the {@link Level#WARN} level for less critical deprecations
      * that likely won't break in next version.
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
@@ -106,6 +108,13 @@ public class DeprecationLogger {
         return this;
     }
 
+    /**
+     * Used for handling previous version RestApiCompatible logic.
+     * Logs a message at the {@link DeprecationLogger#CRITICAL} level for critical deprecations
+     * that have been broken in previous version.
+     * The message is also sent to the header warning logger,
+     * so that it can be returned to the client.
+     */
     public DeprecationLogger compatibleCritical(
         final String key,
         final String msg,

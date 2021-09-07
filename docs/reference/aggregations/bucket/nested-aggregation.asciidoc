@@ -64,7 +64,7 @@ GET /products/_search?size=0
 {
   "query": {
     "match": {
-      "name": "led tv"
+      "name": "LED TV"
     }
   },
   "aggs": {

@@ -64,6 +64,8 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         if (afterString != null) {
             getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
         }
+        final String[] policies = request.paramAsStringArray("slm_policy_filter", Strings.EMPTY_ARRAY);
+        getSnapshotsRequest.policies(policies);
 
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);

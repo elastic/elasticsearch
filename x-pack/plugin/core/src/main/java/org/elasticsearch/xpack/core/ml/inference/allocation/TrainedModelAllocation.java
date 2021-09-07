@@ -164,7 +164,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         out.writeOptionalString(reason);
     }
 
-    public Optional<AllocationHealth> calculateAllocationHealth(List<DiscoveryNode> allocatableNodes) {
+    public Optional<AllocationStatus> calculateAllocationStatus(List<DiscoveryNode> allocatableNodes) {
         if (allocationState.equals(AllocationState.STOPPING)) {
             return Optional.empty();
         }
@@ -181,7 +181,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
                 }
             }
         }
-        return Optional.of(new AllocationHealth(numStarted, numAllocatableNodes));
+        return Optional.of(new AllocationStatus(numStarted, numAllocatableNodes));
     }
 
 

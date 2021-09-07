@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
@@ -227,7 +227,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
             private final String modelId;
             private AllocationState state;
-            private AllocationHealth health;
+            private AllocationStatus allocationStatus;
             private String reason;
             private final ByteSizeValue modelSize;
             private final List<NodeStats> nodeStats;
@@ -250,7 +250,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 nodeStats = in.readList(NodeStats::new);
                 state = in.readOptionalEnum(AllocationState.class);
                 reason = in.readOptionalString();
-                health = in.readOptionalWriteable(AllocationHealth::new);
+                allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
             }
 
             public String getModelId() {
@@ -274,8 +274,8 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 return this;
             }
 
-            public AllocationStats setHealth(AllocationHealth health) {
-                this.health = health;
+            public AllocationStats setAllocationStatus(AllocationStatus allocationStatus) {
+                this.allocationStatus = allocationStatus;
                 return this;
             }
 
@@ -301,8 +301,8 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 if (reason != null) {
                     builder.field("reason", reason);
                 }
-                if (health != null) {
-                    builder.field("health", health);
+                if (allocationStatus != null) {
+                    builder.field("allocation_status", allocationStatus);
                 }
                 builder.startArray("nodes");
                 for (NodeStats nodeStat : nodeStats){
@@ -320,7 +320,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 out.writeList(nodeStats);
                 out.writeOptionalEnum(state);
                 out.writeOptionalString(reason);
-                out.writeOptionalWriteable(health);
+                out.writeOptionalWriteable(allocationStatus);
             }
 
             @Override
@@ -332,13 +332,13 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     Objects.equals(modelSize, that.modelSize) &&
                     Objects.equals(state, that.state) &&
                     Objects.equals(reason, that.reason) &&
-                    Objects.equals(health, that.health) &&
+                    Objects.equals(allocationStatus, that.allocationStatus) &&
                     Objects.equals(nodeStats, that.nodeStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, modelSize, nodeStats, state, reason, health);
+                return Objects.hash(modelId, modelSize, nodeStats, state, reason, allocationStatus);
             }
         }
 

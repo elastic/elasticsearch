@@ -39,7 +39,7 @@ to 20 seconds.
 
 `wait_for`::
 (Optional, string)
-Which state to wait for before returning. Defaults to "started".
+Which allocation status to wait for before returning. Defaults to "started".
 Valid values are: "starting", "started", and "fully_allocated". Each
 indicating, respectively, deployment is starting but not yet on any
 node, the model has started on at least one node, the deployment has

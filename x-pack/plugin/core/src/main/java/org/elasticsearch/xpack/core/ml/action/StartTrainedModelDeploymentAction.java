@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -49,17 +49,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
-        private static final AllocationHealth.State[] VALID_WAIT_STATES = new AllocationHealth.State[] {
-            AllocationHealth.State.STARTED,
-            AllocationHealth.State.STARTING,
-            AllocationHealth.State.FULLY_ALLOCATED };
+        private static final AllocationStatus.State[] VALID_WAIT_STATES = new AllocationStatus.State[] {
+            AllocationStatus.State.STARTED,
+            AllocationStatus.State.STARTING,
+            AllocationStatus.State.FULLY_ALLOCATED };
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField WAIT_FOR = new ParseField("wait_for");
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
-        private AllocationHealth.State waitForState = AllocationHealth.State.STARTED;
+        private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
 
         public Request(String modelId) {
             setModelId(modelId);
@@ -69,7 +69,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             super(in);
             modelId = in.readString();
             timeout = in.readTimeValue();
-            waitForState = in.readEnum(AllocationHealth.State.class);
+            waitForState = in.readEnum(AllocationStatus.State.class);
         }
 
         public final void setModelId(String modelId) {
@@ -88,11 +88,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return timeout;
         }
 
-        public AllocationHealth.State getWaitForState() {
+        public AllocationStatus.State getWaitForState() {
             return waitForState;
         }
 
-        public Request setWaitForState(AllocationHealth.State waitForState) {
+        public Request setWaitForState(AllocationStatus.State waitForState) {
             this.waitForState = ExceptionsHelper.requireNonNull(waitForState, WAIT_FOR);
             return this;
         }

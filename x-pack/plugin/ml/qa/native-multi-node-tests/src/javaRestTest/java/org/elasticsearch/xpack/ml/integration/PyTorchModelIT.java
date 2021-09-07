@@ -14,9 +14,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -42,6 +43,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This test uses a tiny hardcoded base64 encoded PyTorch TorchScript model.
@@ -189,18 +193,20 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(modelPartial);
         createTrainedModel(modelStarted);
 
-        CheckedBiConsumer<String, AllocationHealth.State, IOException> assertAtLeast = (modelId, state) -> {
+        CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
             startDeployment(modelId, state.toString());
             Response response = getDeploymentStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
             assertThat(stats, hasSize(1));
-            assertThat(AllocationHealth.State.fromString(stats.get(0).get("health").toString()), greaterThanOrEqualTo(state));
+            String statusState = (String)XContentMapValues.extractValue("allocation_status.state", stats.get(0));
+            assertThat(stats.toString(), statusState, is(not(nullValue())));
+            assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
             stopDeployment(model);
         };
 
-        assertAtLeast.accept(model, AllocationHealth.State.STARTING);
-        assertAtLeast.accept(modelPartial, AllocationHealth.State.STARTED);
-        assertAtLeast.accept(modelStarted, AllocationHealth.State.FULLY_ALLOCATED);
+        assertAtLeast.accept(model, AllocationStatus.State.STARTING);
+        assertAtLeast.accept(modelPartial, AllocationStatus.State.STARTED);
+        assertAtLeast.accept(modelStarted, AllocationStatus.State.FULLY_ALLOCATED);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
@@ -444,7 +450,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, AllocationHealth.State.STARTED.toString());
+        return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {

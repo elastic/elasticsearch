@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 
-public class AllocationHealth implements Writeable, ToXContentObject {
+public class AllocationStatus implements Writeable, ToXContentObject {
 
     public enum State {
         STARTING,
@@ -46,9 +46,9 @@ public class AllocationHealth implements Writeable, ToXContentObject {
     public static ParseField TARGET_ALLOCATION_COUNT = new ParseField("target_allocation_count");
     public static ParseField STATE = new ParseField("state");
 
-    private static final ConstructingObjectParser<AllocationHealth, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AllocationStatus, Void> PARSER = new ConstructingObjectParser<>(
         "allocation_health",
-        a -> new AllocationHealth((int)a[0], (int)a[1])
+        a -> new AllocationStatus((int)a[0], (int)a[1])
     );
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), ALLOCATION_COUNT);
@@ -57,14 +57,14 @@ public class AllocationHealth implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STATE);
     }
 
-    public static AllocationHealth fromXContent(XContentParser parser) {
+    public static AllocationStatus fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     private final int allocationCount;
     private final int targetAllocationCount;
 
-    public AllocationHealth(int allocationCount, int targetAllocationCount) {
+    public AllocationStatus(int allocationCount, int targetAllocationCount) {
         this.allocationCount = allocationCount;
         this.targetAllocationCount = targetAllocationCount;
         if (allocationCount < 0) {
@@ -75,7 +75,7 @@ public class AllocationHealth implements Writeable, ToXContentObject {
         }
     }
 
-    public AllocationHealth(StreamInput in) throws IOException {
+    public AllocationStatus(StreamInput in) throws IOException {
         this.allocationCount = in.readVInt();
         this.targetAllocationCount = in.readVInt();
     }
@@ -110,7 +110,7 @@ public class AllocationHealth implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AllocationHealth that = (AllocationHealth) o;
+        AllocationStatus that = (AllocationStatus) o;
         return allocationCount == that.allocationCount && targetAllocationCount == that.targetAllocationCount;
     }
 

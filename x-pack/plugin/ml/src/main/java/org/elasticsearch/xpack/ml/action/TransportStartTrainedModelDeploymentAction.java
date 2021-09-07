@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationHealth;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
@@ -192,8 +192,7 @@ public class TransportStartTrainedModelDeploymentAction
     private void waitForDeploymentState(
         String modelId,
         TimeValue timeout,
-        AllocationHealth.State
-            state,
+        AllocationStatus.State state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
         DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
@@ -251,9 +250,9 @@ public class TransportStartTrainedModelDeploymentAction
 
         // for logging
         private final String modelId;
-        private final AllocationHealth.State waitForState;
+        private final AllocationStatus.State waitForState;
 
-        DeploymentStartedPredicate(String modelId, AllocationHealth.State waitForState) {
+        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.waitForState = waitForState;
         }
@@ -314,8 +313,8 @@ public class TransportStartTrainedModelDeploymentAction
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAllocateToNode)
                 .collect(Collectors.toList());
-            AllocationHealth health = trainedModelAllocation.calculateAllocationHealth(nodes).orElse(null);
-            if (health == null || health.calculateState().compareTo(waitForState) >= 0) {
+            AllocationStatus allocationStatus = trainedModelAllocation.calculateAllocationStatus(nodes).orElse(null);
+            if (allocationStatus == null || allocationStatus.calculateState().compareTo(waitForState) >= 0) {
                 return true;
             }
 

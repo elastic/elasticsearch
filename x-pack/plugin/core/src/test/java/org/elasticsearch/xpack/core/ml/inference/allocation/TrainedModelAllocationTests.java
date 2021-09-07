@@ -139,20 +139,21 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
         assertThat(allocation.getStartedNodes(), arrayContainingInAnyOrder(startedNode1, startedNode2));
     }
 
-    public void testCalculateAllocationHealth() {
+    public void testCalculateAllocationStatus() {
         List<DiscoveryNode> nodes = Stream.generate(TrainedModelAllocationTests::buildNode).limit(5).collect(Collectors.toList());
+        final boolean includeNodes = randomBoolean();
         assertThat(
             TrainedModelAllocation.Builder.empty(randomParams())
                 .build()
-                .calculateAllocationHealth(randomBoolean() ? List.of() : nodes)
+                .calculateAllocationStatus(includeNodes ? nodes : List.of())
                 .orElseThrow(),
-            equalTo(new AllocationHealth(0, 5))
+            equalTo(new AllocationStatus(0, includeNodes ? 5 : 0))
         );
         assertThat(
             TrainedModelAllocation.Builder.empty(randomParams())
                 .stopAllocation("test")
                 .build()
-                .calculateAllocationHealth(randomBoolean() ? List.of() : nodes)
+                .calculateAllocationStatus(includeNodes ? nodes : List.of())
                 .isPresent(),
             is(false)
         );
@@ -163,7 +164,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
             for (int i = 0; i < count; i++) {
                 builder.addRoutingEntry(nodes.get(i).getId(), RoutingState.STARTED);
             }
-            assertThat(builder.build().calculateAllocationHealth(nodes).orElseThrow(), equalTo(new AllocationHealth(count, 5)));
+            assertThat(builder.build().calculateAllocationStatus(nodes).orElseThrow(), equalTo(new AllocationStatus(count, 5)));
         }
         {
             TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(randomParams());
@@ -177,14 +178,14 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
             for (int i = 0; i < count; i++) {
                 builder.addRoutingEntry(nodes.get(i).getId(), RoutingState.STARTED);
             }
-            assertThat(builder.build().calculateAllocationHealth(nodes).orElseThrow(), equalTo(new AllocationHealth(count, 5)));
+            assertThat(builder.build().calculateAllocationStatus(nodes).orElseThrow(), equalTo(new AllocationStatus(count, 5)));
         }
         {
             TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(randomParams());
             for (DiscoveryNode node : nodes) {
                 builder.addRoutingEntry(node.getId(), RoutingState.STARTED);
             }
-            assertThat(builder.build().calculateAllocationHealth(nodes).orElseThrow(), equalTo(new AllocationHealth(5, 5)));
+            assertThat(builder.build().calculateAllocationStatus(nodes).orElseThrow(), equalTo(new AllocationStatus(5, 5)));
         }
     }
 

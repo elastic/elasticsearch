@@ -48,7 +48,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
                     elasticPassword.getChars(),
                     DocWriteRequest.OpType.CREATE,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
-                    ActionListener.wrap(() -> {
+                    ActionListener.wrap(result -> {
                         nativeUsersStore
                             .updateReservedUser(
                                 KibanaSystemUser.NAME,
@@ -57,60 +57,64 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
                                 WriteRequest.RefreshPolicy.IMMEDIATE,
                                 ActionListener.wrap(
                                     r -> {
-                                        LOGGER.info("");
-                                        LOGGER.info("-----------------------------------------------------------------");
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("Password for the elastic user is: " + elasticPassword);
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("Password for the kibana user is: " + kibanaSystemPassword);
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("Please note these down as they will not be shown again.");
-                                        LOGGER.info("");
-                                        LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
-                                        LOGGER.info("in order to reset the password for the elastic user.");
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password' at any time");
-                                        LOGGER.info("in order to reset the password for the kibana-system user.");
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("");
-                                        LOGGER.info("-----------------------------------------------------------------");
-                                        LOGGER.info("");
-                                    },
-                                    e -> {
-                                        if (e instanceof VersionConflictEngineException == false) {
-                                            LOGGER.info("");
-                                            LOGGER.info("-----------------------------------------------------------------");
-                                            LOGGER.info("");
-                                            LOGGER.info("");
-                                            LOGGER.info("");
-                                            LOGGER.info("Failed to set the password for the elastic and kibana-system users ");
-                                            LOGGER.info("automatically");
-                                            LOGGER.info("");
-                                            LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password'");
-                                            LOGGER.info("in order to set the password for the elastic user.");
-                                            LOGGER.info("");
-                                            LOGGER.info("");
-                                            LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password'");
-                                            LOGGER.info("in order to set the password for the kibana-system user.");
-                                            LOGGER.info("");
-                                            LOGGER.info("");
-                                            LOGGER.info("");
-                                            LOGGER.info("-----------------------------------------------------------------");
-                                            LOGGER.info("");
-                                        }
-                                        LOGGER.warn(e);
-                                    }
+                                        outputOnSuccess(elasticPassword, kibanaSystemPassword);
+                                    }, this::outputOnError
                                 )
                             );
-                    }));
+                    }, this::outputOnError));
             securityIndexManager.removeStateListener(this);
+        }
+    }
+
+    private void outputOnSuccess(SecureString elasticPassword, SecureString kibanaSystemPassword) {
+        LOGGER.info("");
+        LOGGER.info("-----------------------------------------------------------------");
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("Password for the elastic user is: " + elasticPassword);
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("Password for the kibana user is: " + kibanaSystemPassword);
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("Please note these down as they will not be shown again.");
+        LOGGER.info("");
+        LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
+        LOGGER.info("in order to reset the password for the elastic user.");
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password' at any time");
+        LOGGER.info("in order to reset the password for the kibana-system user.");
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("");
+        LOGGER.info("-----------------------------------------------------------------");
+        LOGGER.info("");
+    }
+
+    private void outputOnError(Exception e) {
+        if (e instanceof VersionConflictEngineException == false) {
+            LOGGER.info("");
+            LOGGER.info("-----------------------------------------------------------------");
+            LOGGER.info("");
+            LOGGER.info("");
+            LOGGER.info("");
+            LOGGER.info("Failed to set the password for the elastic and kibana-system users ");
+            LOGGER.info("automatically");
+            LOGGER.info("");
+            LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password'");
+            LOGGER.info("in order to set the password for the elastic user.");
+            LOGGER.info("");
+            LOGGER.info("");
+            LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password'");
+            LOGGER.info("in order to set the password for the kibana-system user.");
+            LOGGER.info("");
+            LOGGER.info("");
+            LOGGER.info("");
+            LOGGER.info("-----------------------------------------------------------------");
+            LOGGER.info("");
         }
     }
 }

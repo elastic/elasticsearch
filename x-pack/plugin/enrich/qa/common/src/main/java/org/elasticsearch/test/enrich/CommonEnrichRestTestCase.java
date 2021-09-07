@@ -251,7 +251,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             + "\"globalRank\":{\"type\":\"keyword\"},"
             + "\"tldRank\":{\"type\":\"keyword\"},"
             + "\"tld\":{\"type\":\"keyword\"},"
-            + "\"date\":{\"type\":\"date_range\", \"format\": \"yyyy-MM-dd\"},"
+            + "\"date\":{\"type\":\"date_range\"" + (randomBoolean() ? "" : ", \"format\": \"yyyy-MM-dd\"") + "},"
             + "\"integer\":{\"type\":\"integer_range\"},"
             + "\"long\":{\"type\":\"long_range\"},"
             + "\"double\":{\"type\":\"double_range\"},"

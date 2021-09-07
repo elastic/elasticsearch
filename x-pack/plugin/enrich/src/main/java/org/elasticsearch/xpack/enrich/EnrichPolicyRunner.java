@@ -57,6 +57,7 @@ import java.io.UncheckedIOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -263,9 +264,10 @@ public class EnrichPolicyRunner implements Runnable {
         List<Map<String, Object>> mappings,
         ActionListener<XContentBuilder> resultListener
     ) {
-        String matchFieldPath = "properties." + policy.getMatchField().replace("\\.", ".properties.");
+        String matchFieldPath = "properties." + policy.getMatchField().replace(".", ".properties.");
         List<Map<String, String>> matchFieldMappings = mappings.stream()
             .map(map -> ObjectPath.<Map<String, String>>eval(matchFieldPath, map))
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
         Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());

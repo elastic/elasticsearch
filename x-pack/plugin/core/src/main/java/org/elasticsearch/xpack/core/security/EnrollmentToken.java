@@ -86,7 +86,7 @@ public class EnrollmentToken {
     }
 
     /**
-     * Decodes and parses an enrollment token from it's serialized form (created with {@link EnrollmentToken#getEncoded()}
+     * Decodes and parses an enrollment token from its serialized form (created with {@link EnrollmentToken#getEncoded()}
      * @param encoded The Base64 encoded JSON representation of the enrollment token
      * @return the parsed EnrollmentToken
      * @throws IOException when failing to decode the serialized token

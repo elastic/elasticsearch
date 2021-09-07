@@ -333,7 +333,7 @@ public class CommandLineHttpClient {
             }
 
             public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-                final Certificate caCertFromChain = chain[chain.length-1];
+                final Certificate caCertFromChain = chain[1];
                 MessageDigest sha256 = MessageDigests.sha256();
                 sha256.update(caCertFromChain.getEncoded());
                 if (MessageDigests.toHexString(sha256.digest()).equals(pinnedCaCertFingerprint) == false ) {

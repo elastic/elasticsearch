@@ -36,6 +36,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 
 	IF "!current!" == "--enrollment-token" (
         SHIFT
+        SET enrolltocluster=Y
         SET enrollmenttoken=%~1
 	)
 
@@ -74,12 +75,13 @@ IF "%checkpassword%"=="Y" (
   )
 )
 
-set ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster
-set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
-set ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
-call "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
-  || goto exit
-
+IF "%enrolltocluster%"=="Y" ()
+  SET ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster
+  SET ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
+  SET ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
+  CALL "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
+  || GOTO EXIT
+)
 
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a

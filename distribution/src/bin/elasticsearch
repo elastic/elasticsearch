@@ -24,6 +24,7 @@ while [ $# -gt 0 ]; do
    if [[ $1 == "--enrollment-token" ]]; then
      ENROLL_TO_CLUSTER=true
      ENROLLMENT_TOKEN="$2"
+     shift
    elif [[ $1 == "-h" || $1 == "--help" || $1 == "-V" || $1 == "--version" ]]; then
      CHECK_KEYSTORE=false
    elif [[ $1 == "-d" || $1 == "--daemonize" ]]; then

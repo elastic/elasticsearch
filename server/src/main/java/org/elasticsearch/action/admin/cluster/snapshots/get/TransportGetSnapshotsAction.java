@@ -67,6 +67,8 @@ import java.util.stream.Stream;
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
 
+    public static final String NO_POLICY_PATTERN = "_none";
+
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -635,30 +637,33 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<String> includePatterns = new ArrayList<>();
         final List<String> excludePatterns = new ArrayList<>();
         boolean seenWildcard = false;
+        boolean matchNoPolicy = false;
         for (String slmPolicy : slmPolicies) {
             if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
                 excludePatterns.add(slmPolicy.substring(1));
             } else {
                 if (Regex.isSimpleMatchPattern(slmPolicy)) {
                     seenWildcard = true;
+                } else if (NO_POLICY_PATTERN.equals(slmPolicy)) {
+                    matchNoPolicy = true;
                 }
                 includePatterns.add(slmPolicy);
             }
         }
         final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
         final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
+        final boolean matchWithoutPolicy = matchNoPolicy;
         return snapshotInfos.stream().filter(snapshotInfo -> {
             final Map<String, Object> metadata = snapshotInfo.userMetadata();
             final String policy;
             if (metadata == null) {
-                policy = "";
+                policy = null;
             } else {
                 final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                if (policyFound instanceof String) {
-                    policy = (String) policyFound;
-                } else {
-                    policy = "";
-                }
+                policy = policyFound instanceof String ? (String) policyFound : null;
+            }
+            if (policy == null) {
+                return matchWithoutPolicy;
             }
             if (Regex.simpleMatch(includes, policy) == false) {
                 return false;

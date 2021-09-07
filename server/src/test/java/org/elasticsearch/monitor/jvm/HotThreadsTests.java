@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -253,6 +254,7 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("Hot threads at "));
         assertThat(innerResult, containsString("interval=10nanos, busiestThreads=4, ignoreIdleThreads=false:"));
         assertThat(innerResult, containsString("11/11 snapshots sharing following 2 elements"));
+        assertEquals(5, innerResult.split(" 11/11 snapshots sharing following 2 elements").length);
         assertThat(innerResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
         assertThat(innerResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
         assertThat(innerResult, containsString("20.0% (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
@@ -304,6 +306,31 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(blockInnerResult, containsString("10.0% (1nanos out of 10nanos) block usage by thread 'Thread 1'"));
         assertThat(blockInnerResult, containsString("0.0% (0s out of 10nanos) block usage by thread 'Thread 2'"));
         assertThat(blockInnerResult, containsString("0.0% (0s out of 10nanos) block usage by thread 'Thread 4'"));
+
+        // Test with only one stack to trigger the different print in innerDetect
+
+        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+
+        hotThreads = new HotThreads()
+            .busiestThreads(4)
+            .type(HotThreads.ReportType.CPU)
+            .interval(TimeValue.timeValueNanos(10))
+            .threadElementsSnapshotCount(1)
+            .ignoreIdleThreads(false);
+
+        String singleResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+
+        assertThat(singleResult, containsString("  unique snapshot"));
+        assertEquals(5, singleResult.split(" unique snapshot").length);
+        assertThat(singleResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
+        assertThat(singleResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
+        assertThat(singleResult, containsString("20.0% (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
+        assertThat(singleResult, containsString("10.0% (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
+        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
+        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
+        assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
     }
 
     public void testEnsureInnerDetectSkipsCurrentThread() throws Exception {

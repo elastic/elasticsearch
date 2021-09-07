@@ -208,9 +208,9 @@ GET _alias/logs
 [[write-index]]
 === Write index
 
-If an alias points to multiple indices, you can use `is_write_index` to specify
-a write index or data stream. {es} routes any write requests for the alias to
-this index or data stream.
+You can use `is_write_index` to specify a write index or data stream for an
+alias. {es} routes any write requests for the alias to this index or data
+stream.
 
 [source,console]
 ----
@@ -235,11 +235,7 @@ POST _aliases
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT _data_stream\/logs-my_app-default\n/]
 
-If an alias points to multiple indices or data streams and `is_write_index`
-isn't set, the alias rejects write requests. If an index alias points to one
-index and `is_write_index` isn't set, the index automatically acts as the write
-index. Data stream aliases don't automatically set a write data stream, even if
-the alias points to one data stream.
+include::{es-repo-dir}/indices/aliases.asciidoc[tag=write-index-defaults]
 
 TIP: We recommend using data streams to store append-only time series data. If
 you frequently update or delete existing time series data, use an index alias

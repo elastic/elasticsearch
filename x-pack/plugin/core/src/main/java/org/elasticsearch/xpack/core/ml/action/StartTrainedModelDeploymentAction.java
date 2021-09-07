@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -48,11 +49,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
+        private static final AllocationStatus.State[] VALID_WAIT_STATES = new AllocationStatus.State[] {
+            AllocationStatus.State.STARTED,
+            AllocationStatus.State.STARTING,
+            AllocationStatus.State.FULLY_ALLOCATED };
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField WAIT_FOR = new ParseField("wait_for");
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
+        private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
 
         public Request(String modelId) {
             setModelId(modelId);
@@ -62,6 +69,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             super(in);
             modelId = in.readString();
             timeout = in.readTimeValue();
+            waitForState = in.readEnum(AllocationStatus.State.class);
         }
 
         public final void setModelId(String modelId) {
@@ -80,23 +88,44 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return timeout;
         }
 
+        public AllocationStatus.State getWaitForState() {
+            return waitForState;
+        }
+
+        public Request setWaitForState(AllocationStatus.State waitForState) {
+            this.waitForState = ExceptionsHelper.requireNonNull(waitForState, WAIT_FOR);
+            return this;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
             out.writeTimeValue(timeout);
+            out.writeEnum(waitForState);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MODEL_ID.getPreferredName(), modelId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            builder.field(WAIT_FOR.getPreferredName(), waitForState);
             return builder;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            if (waitForState.isAnyOf(VALID_WAIT_STATES)) {
+                return null;
+            }
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            validationException.addValidationError(
+                "invalid [wait_for] state ["
+                    + waitForState
+                    + "]; must be one of ["
+                    + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
+            );
+            return validationException;
         }
 
         @Override

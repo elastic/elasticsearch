@@ -81,7 +81,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testDeprecationWarnMessage() throws IOException {
         final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
 
-        testLogger.deprecateAtWarnLevel(DeprecationCategory.OTHER, "a key", "deprecated warn message1");
+        testLogger.warn(DeprecationCategory.OTHER, "a key", "deprecated warn message1");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -106,7 +106,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
 
-        testLogger.deprecate(DeprecationCategory.OTHER, "a key", "deprecated message1");
+        testLogger.critical(DeprecationCategory.OTHER, "a key", "deprecated message1");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -142,8 +142,8 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
-            testLogger.deprecate(DeprecationCategory.OTHER,"someKey", "deprecated message1")
-                .compatibleApiWarning("compatibleKey","compatible API message");
+            testLogger.critical(DeprecationCategory.OTHER,"someKey", "deprecated message1")
+                .compatibleCritical("compatibleKey","compatible API message");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -289,7 +289,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
-            testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
+            testLogger.critical(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -500,8 +500,8 @@ public class JsonLoggerTests extends ESTestCase {
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -529,8 +529,8 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(

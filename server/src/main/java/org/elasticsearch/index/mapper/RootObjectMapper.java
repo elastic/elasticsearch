@@ -431,7 +431,7 @@ public class RootObjectMapper extends ObjectMapper {
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template",
+                DEPRECATION_LOGGER.critical(DeprecationCategory.TEMPLATES, "invalid_dynamic_template",
                     "{}, last error: [{}]", message, lastError.getMessage());
             }
         }

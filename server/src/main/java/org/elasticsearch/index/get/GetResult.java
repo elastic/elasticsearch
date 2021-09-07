@@ -327,7 +327,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
                 } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
-                    deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {

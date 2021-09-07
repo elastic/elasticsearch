@@ -189,7 +189,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             // support first line with \n
             if (restApiVersion == RestApiVersion.V_7 && nextMarker == 0) {
-                deprecationLogger.compatibleApiWarning("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
+                deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
                 from = nextMarker + 1;
                 continue;
             }
@@ -250,7 +250,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             ignoreThrottled = value;
                         } else if(restApiVersion == RestApiVersion.V_7 &&
                             ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                            deprecationLogger.compatibleApiWarning("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                            deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }

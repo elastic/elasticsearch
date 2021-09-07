@@ -53,9 +53,9 @@ GET _snapshot/my_repository/*?verbose=false
 You can restore an index or data stream from a snapshot using {kib}'s *Snapshot
 and Restore* feature or the <<restore-snapshot-api,restore snapshot API>>.
 
-You can only restore an existing index if it's closed. You can't restore an
-existing data stream. Use one of the following methods to avoid conflicts with
-existing indices or data streams:
+You can't restore an existing open index or an existing data stream. To avoid
+conflicts with existing indices and data streams, use one of the following
+methods:
 
 * <<delete-restore>>
 * <<close-restore>>
@@ -74,7 +74,7 @@ operation is complete.
 // In 7.x, `action.destructive_requires_name` defaults to false.
 ifeval::[ "{major-version}" == "7.x" ]
 WARNING: Don't use the <<indices-delete-index,delete index API>> to target the
-`*` or `.*` wildcard expressions. If you use {es}'s security features, this will
+`*` or `.*` wildcard expression. If you use {es}'s security features, this will
 delete system indices required for authentication. To delete all regular
 indices, use `*,-.*`.
 endif::[]
@@ -100,39 +100,67 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[close-restore]]
 ==== Close and restore
 
-You can restore an existing index if it's closed. However, the index in the
-snapshot must have the same number of primary shards. You can't close a data
-stream.
+You can only restore an existing index if it's closed. Typically, you'd only use
+this method if you've already closed an index for other reasons. Otherwise, the
+results are the same as the <<delete-restore,delete and restore>> method.
+
+You can close an index using the <<indices-close,close index API>>.
+You can't close a data stream.
 
 // Only display warning in 7.x.
 // In 7.x, `action.destructive_requires_name` defaults to false.
 ifeval::["{major-version}" == "7.x"]
-WARNING: Don't use the <<indices-close,close index API>> to target the `*` or
-`.*` wildcard expressions. If you use {es}'s security features, this will close
-system indices required for authentication. To close all regular indices, use
-`*,-.*`.
+WARNING: Don't use the close index API to target the `*` or `.*` wildcard
+expression. If you use {es}'s security features, this will close system indices
+required for authentication. To close all regular indices, use `*,-.*`.
 endif::[]
 
 [source,console]
 ----
-# Close an index
 POST my-index/_close
+----
+// TEST[setup:setup-snapshots]
 
-# Restore the index from a snapshot
+To restore this closed index, the index in the snapshot must have the same
+number of primary shards. You can check the primary shard counts using the
+<<cat-indices,cat indices>> and <<get-snapshot-api,get snapshot>> APIs.
+
+[source,console]
+----
+# Get the primary shard count for the closed index
+GET /_cat/indices/my-index?v=true&h=index,pri,status,health
+
+# Get the primary shard count for the index in the snapshot
+GET _snapshot/my_repository/my_snapshot_2099.05.06?index_details=true&filter_path=*.index_details.my-index.shard_count
+----
+// TEST[continued]
+
+If the primary shard counts match, you can restore the closed index. Restoring
+the index deletes its existing data and automatically opens it.
+
+[source,console]
+----
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index"
 }
 ----
-// TEST[setup:setup-snapshots]
+// TEST[continued]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 
 [discrete]
 [[rename-on-restore]]
 ==== Rename on restore
 
-You can rename indices and data streams you restore. Before you start, ensure
-the cluster has enough capacity to store both the existing and restored data.
+You can rename indices and data streams you restore. This lets you restore data
+from a snapshot without deleting data.
+
+You can use this method to compare a cluster's existing data to historical data
+from a snapshot. For example, you could review changes made to a document after
+an accidental update.
+
+Before you start, ensure the cluster has enough capacity for both the existing
+and restored data.
 
 The following restore snapshot API request prepends `restored-` to the name of
 any restored index or data stream.
@@ -149,9 +177,9 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 // TEST[setup:setup-snapshots]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 
-When the restore operation is complete, you can delete the original indices and
-data streams. You can then use a <<docs-reindex,reindex>> to rename the restored
-indices and data streams.
+When the restore operation is complete, you can compare the original and
+restored data. If you no longer need an original index or data stream, you can
+delete it and use a <<docs-reindex,reindex>> to rename the restored one.
 
 [source,console]
 ----
@@ -248,7 +276,8 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 [[cancel-restore]]
 === Cancel a restore
 
-You can delete an index or data stream to cancel its ongoing restore.
+You can delete an index or data stream to cancel its ongoing restore. This also
+deletes any existing data for the index or data stream.
 
 [source,console]
 ----
@@ -264,10 +293,16 @@ DELETE _data_stream/logs-my_app-default
 [[restore-different-cluster]]
 === Restore to a different cluster
 
+TIP: {ess} can help you restore snapshots from other deployment. See
+{cloud}/ec-restoring-snapshots.html#ec-restore-across-clusters[Restore across
+clusters].
+
 The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore, it's possible to
 restore a snapshot created from one cluster into another cluster by registering the repository that contains the snapshot in the new cluster and starting the restore process.
 
-The topology of the new cluster does not have to match the cluster where the snapshot was created. However, the version of the new cluster must be the same or only one major version newer than the cluster that was used to create the snapshot. For example, you can restore a 5.x snapshot to a 6.x cluster, but not a 5.x snapshot to a 7.x cluster.
+The topology of the new cluster does not have to match the cluster where the
+snapshot was created. However, the versions must be
+<<snapshot-restore-version-compatibility,compatible>>.
 
 If the new cluster has a smaller capacity, consider the following changes:
 
@@ -300,3 +335,26 @@ index will not be successfully restored unless these index allocation settings a
 The restore operation also checks that restored persistent settings are compatible with the current cluster to avoid accidentally
 restoring incompatible settings. If you need to restore a snapshot with incompatible persistent settings, try restoring it without
 the <<restore-snapshot-api-include-global-state,global cluster state>>.
+
+[discrete]
+[[troubleshoot-snapshot-restore]]
+=== Troubleshoot snapshot restore errors
+
+Here's how to resolve common errors returned by restore requests.
+
+[discrete]
+==== Cannot restore index [<index>] because an open index with same name already exists in the cluster
+
+The request is trying to restore an open index or data stream that already
+exists in the cluster. To avoid this error, use one of the following methods:
+
+* <<delete-restore>>
+* <<close-restore>>
+* <<rename-on-restore>>
+
+[discrete]
+==== Cannot restore index [<index>] with [x] shards from a snapshot of index [<snapshot-index>] with [y] shards
+
+If you restore an existing closed index, the index in the snapshot must have the
+same number of primary shards. Try <<delete-restore,deleting the existing
+index>> or <<rename-on-restore,renaming the restored index>>.

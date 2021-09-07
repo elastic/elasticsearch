@@ -46,8 +46,8 @@ GET /_remote/info
 ----
 // TEST[continued]
 
-The API will respond by showing that the local cluster is connected to the
-remote cluster.
+The API response indicates that the local cluster is connected to the remote
+cluster with cluster alias `leader`.
 
 [source,console-result]
 ----
@@ -56,8 +56,8 @@ remote cluster.
     "seeds" : [
       "127.0.0.1:9300"
     ],
-    "connected" : true, <1>
-    "num_nodes_connected" : 1, <2>
+    "connected" : true,
+    "num_nodes_connected" : 1, <1>
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
     "skip_unavailable" : false,
@@ -68,9 +68,7 @@ remote cluster.
 // TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
-<1> This shows the local cluster is connected to the remote cluster with cluster
-    alias `leader`
-<2> This shows the number of nodes in the remote cluster the local cluster is
+<1> The number of nodes in the remote cluster the local cluster is
     connected to.
 
 You can configure remote clusters settings
@@ -81,7 +79,8 @@ settings <<configure-remote-clusters-static,on individual nodes>> in the
 [[configure-remote-clusters-dynamic]]
 ==== Dynamically configure remote clusters
 Use the <<cluster-update-settings,cluster update settings API>> to dynamically
-configure remote settings on every node in the cluster. For example:
+configure remote settings on every node in the cluster. The following request
+adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`:
 
 [source,console]
 ----

@@ -3,6 +3,8 @@
 
 The following pages have moved or been deleted.
 
+// [START] Remote clusters
+
 [role="exclude",id="ccr-getting-started-remote-cluster"]
 === Connect a remote cluster
 
@@ -17,6 +19,10 @@ Refer to <<remote-clusters,Remote clusters>>.
 === Configuring remote clusters
 
 Refer to <<remote-clusters-connect,Connect remote clusters>>.
+
+
+
+// [END] Remote clusters
 
 [role="exclude",id="grok-basics"]
 === Grok basics

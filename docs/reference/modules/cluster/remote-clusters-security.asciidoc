@@ -1,5 +1,5 @@
 [[remote-clusters-security]]
-=== Remote clusters and security
+=== Configure remote clusters with security
 To use remote clusters with {ccr} or {ccs}, all clusters must have the {es} 
 security features enabled.
 
@@ -12,12 +12,12 @@ roles are passed to the remote clusters. A remote cluster checks the user’s
 roles against its local role definitions to determine which indices the user is 
 allowed to access.
 
-[discrete]
-==== Prerequisites
 Before using {ccr} or {ccs} with secure {es} clusters, complete the following 
 configuration tasks:
 
 . Connect <<remote-clusters-connect,remote clusters>> to a local cluster.
+
+. Configure <<remote-clusters-privileges,remote cluster privileges>>.
 
 . Enable the {es} {security-features} on every node in each connected cluster by
 setting `xpack.security.enabled` to `true`. Refer to the
@@ -31,3 +31,10 @@ steps to configure security.
 NOTE: This procedure uses the same CA to generate certificates for all nodes.
 Alternatively, you can add the CA certificates from the local cluster as a
 trusted CA in each remote cluster. 
+
+[[remote-clusters-security-ccr]]
+==== {ccr-cap} and security
+After enabling and configuring security, connecting a remote cluster, and
+configuring privileges, you need to
+<<ccr-getting-started-follower-index,configure a follower index>> on your local
+cluster to replicate on a remote cluster.

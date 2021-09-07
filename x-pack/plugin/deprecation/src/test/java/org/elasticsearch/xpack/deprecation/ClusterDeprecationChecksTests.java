@@ -395,8 +395,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index templates contain deprecated geo_shape properties that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
-                "mappings in index template single-type contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
-                    "[points_only]; parameter [geo_shape] in field [strategy]]", false, null)
+                "mappings in index template single-type contains deprecated geo_shape properties. [parameter [points_only] in field " +
+                    "[location]; parameter [strategy] in field [location]]", false, null)
         ));
 
         // Second, testing only a component template:
@@ -417,8 +417,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates contain deprecated geo_shape properties that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
-                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
-                    "[points_only]; parameter [geo_shape] in field [strategy]]", false, null)
+                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
+                    "[location]; parameter [strategy] in field [location]]", false, null)
         ));
 
         // Third, trying a component template and an index template:
@@ -433,10 +433,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates and index templates contain deprecated geo_shape properties that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
-                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
-                    "[points_only]; parameter [geo_shape] in field [strategy]]; mappings in index template single-type contains " +
-                    "deprecated geo_shape properties. [parameter [geo_shape] in field [points_only]; parameter [geo_shape] in field " +
-                    "[strategy]]", false, null)
+                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
+                    "[location]; parameter [strategy] in field [location]]; mappings in index template single-type contains " +
+                    "deprecated geo_shape properties. [parameter [points_only] in field [location]; parameter [strategy] in field " +
+                    "[location]]", false, null)
         ));
     }
 }

@@ -25,13 +25,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeTrue;
 
-public class GenerateInitialPasswordTests extends PackagingTestCase {
+public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
 
     private static final Pattern PASSWORD_REGEX = Pattern.compile("Password for the (\\w+) user is: (.+)$", Pattern.MULTILINE);
 
     @BeforeClass
     public static void filterDistros() {
-        assumeTrue("archives and docker only", distribution.isArchive() || distribution.isDocker());
+        assumeTrue("archives only", distribution.isArchive());
     }
 
     public void test10Install() throws Exception {
@@ -39,7 +39,6 @@ public class GenerateInitialPasswordTests extends PackagingTestCase {
         // Enable security for these tests only where it is necessary, until we can enable it for all
         ServerUtils.enableSecurityFeatures(installation);
         verifyArchiveInstallation(installation, distribution());
-
     }
 
     public void test20NoAutoGenerationWhenBootstrapPassword() throws Exception {

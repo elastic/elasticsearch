@@ -280,16 +280,7 @@ public class EnrichPolicyRunner implements Runnable {
                     Strings.collectionToCommaDelimitedString(policy.getIndices())
                 )
             );
-        } else if (types.size() > 1) {
-            resultListener.onFailure(
-                new ElasticsearchException(
-                    "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
-                    policy.getMatchField(),
-                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                    Strings.collectionToCommaDelimitedString(types)
-                )
-            );
-        } else {
+        } else if (types.size() == 1) {
             String type = types.iterator().next();
             switch (type) {
                 case "integer_range":
@@ -306,7 +297,14 @@ public class EnrichPolicyRunner implements Runnable {
 
                     if (formatEntries.isEmpty()) {
                         createEnrichMappingBuilder((builder) -> builder.field("type", type).field("doc_values", false), resultListener);
-                    } else if (formatEntries.size() > 1) {
+                    } else if (formatEntries.size() == 1) {
+                        createEnrichMappingBuilder(
+                            (builder) -> builder.field("type", type)
+                                .field("doc_values", false)
+                                .field("format", formatEntries.iterator().next()),
+                            resultListener
+                        );
+                    } else {
                         resultListener.onFailure(
                             new ElasticsearchException(
                                 "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
@@ -314,13 +312,6 @@ public class EnrichPolicyRunner implements Runnable {
                                 Strings.collectionToCommaDelimitedString(policy.getIndices()),
                                 Strings.collectionToCommaDelimitedString(formatEntries)
                             )
-                        );
-                    } else {
-                        createEnrichMappingBuilder(
-                            (builder) -> builder.field("type", type)
-                                .field("doc_values", false)
-                                .field("format", formatEntries.iterator().next()),
-                            resultListener
                         );
                     }
                     break;
@@ -334,6 +325,15 @@ public class EnrichPolicyRunner implements Runnable {
                         )
                     );
             }
+        } else {
+            resultListener.onFailure(
+                new ElasticsearchException(
+                    "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
+                    policy.getMatchField(),
+                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                    Strings.collectionToCommaDelimitedString(types)
+                )
+            );
         }
     }
 

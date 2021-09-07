@@ -214,7 +214,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(modelA);
         putVocabulary(List.of("once", "twice"), modelA);
         putModelDefinition(modelA);
-        startDeployment(modelA);
+        startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
         infer("once", modelA);
         infer("twice", modelA);
         Response response = getDeploymentStats(modelA);
@@ -248,8 +248,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo);
-        startDeployment(modelBar);
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
         infer("once", modelFoo);
         infer("once", modelBar);
         {
@@ -305,8 +305,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo);
-        startDeployment(modelBar);
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
         infer("once", modelFoo);
         infer("once", modelBar);
 

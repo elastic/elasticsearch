@@ -87,11 +87,13 @@ public class TextClassificationProcessor implements NlpTask.Processor {
             return new WarningInferenceResults("Text classification result has no data");
         }
 
-        if (pyTorchResult.getInferenceResult()[0].length != classLabels.length) {
+        // TODO only the first entry in the batch result is verified and
+        // checked. Implement for all in batch
+        if (pyTorchResult.getInferenceResult()[0][0].length != classLabels.length) {
             return new WarningInferenceResults(
                 "Expected exactly [{}] values in text classification result; got [{}]",
                 classLabels.length,
-                pyTorchResult.getInferenceResult()[0].length
+                pyTorchResult.getInferenceResult()[0][0].length
             );
         }
 

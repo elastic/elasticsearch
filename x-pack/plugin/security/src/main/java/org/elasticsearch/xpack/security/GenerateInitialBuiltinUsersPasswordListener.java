@@ -76,7 +76,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
         LOGGER.info("");
         LOGGER.info("");
         LOGGER.info("");
-        LOGGER.info("Password for the kibana user is: " + kibanaSystemPassword);
+        LOGGER.info("Password for the kibana_system user is: " + kibanaSystemPassword);
         LOGGER.info("");
         LOGGER.info("");
         LOGGER.info("Please note these down as they will not be shown again.");
@@ -86,7 +86,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
         LOGGER.info("");
         LOGGER.info("");
         LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password' at any time");
-        LOGGER.info("in order to reset the password for the kibana-system user.");
+        LOGGER.info("in order to reset the password for the kibana_system user.");
         LOGGER.info("");
         LOGGER.info("");
         LOGGER.info("");
@@ -109,7 +109,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
             LOGGER.info("");
             LOGGER.info("");
             LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password'");
-            LOGGER.info("in order to set the password for the kibana-system user.");
+            LOGGER.info("in order to set the password for the kibana_system user.");
             LOGGER.info("");
             LOGGER.info("");
             LOGGER.info("");

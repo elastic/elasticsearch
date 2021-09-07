@@ -27,7 +27,7 @@ import static org.junit.Assume.assumeTrue;
 
 public class GenerateInitialPasswordTests extends PackagingTestCase {
 
-    private static final Pattern PASSWORD_REGEX = Pattern.compile("Password for the (\\w+) user is: (.+)$");
+    private static final Pattern PASSWORD_REGEX = Pattern.compile("Password for the (\\w+) user is: (.+)$", Pattern.MULTILINE);
 
     @BeforeClass
     public static void filterDistros() {
@@ -85,10 +85,10 @@ public class GenerateInitialPasswordTests extends PackagingTestCase {
     private Map<String, String> parseUsersAndPasswords(String output) {
         Matcher matcher = PASSWORD_REGEX.matcher(output);
         assertNotNull(matcher);
-        Map<String, String> userpases = new HashMap<>();
+        Map<String, String> usersAndPasswords = new HashMap<>();
         while (matcher.find()) {
-            userpases.put(matcher.group(1), matcher.group(2));
+            usersAndPasswords.put(matcher.group(1), matcher.group(2));
         }
-        return userpases;
+        return usersAndPasswords;
     }
 }

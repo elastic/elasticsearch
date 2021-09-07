@@ -253,13 +253,13 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (isIndexNotFoundOrDocumentMissing(e)) {
                                 if (docType.equals(RESERVED_USER_TYPE)) {
-                                updateReservedUser(
-                                    username,
-                                    request.passwordHash(),
-                                    DocWriteRequest.OpType.INDEX,
-                                    request.getRefreshPolicy(),
-                                    listener
-                                );
+                                    updateReservedUser(
+                                        username,
+                                        request.passwordHash(),
+                                        DocWriteRequest.OpType.INDEX,
+                                        request.getRefreshPolicy(),
+                                        listener
+                                    );
                                 } else {
                                     logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
                                             new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);

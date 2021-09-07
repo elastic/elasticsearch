@@ -392,7 +392,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
-    private final SetOnce<NativeUsersStore> nativeUsersStoreReference = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());

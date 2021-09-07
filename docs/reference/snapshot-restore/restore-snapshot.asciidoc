@@ -101,12 +101,12 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[close-restore]]
 ==== Close and restore
 
-You can only restore an existing index if it's closed. Typically, you'd only use
-this method if you've already closed an index for other reasons. Otherwise, the
+You can only restore an existing index if it's closed. Typically, you'd use this
+method if you've already closed the index for other reasons. Otherwise, the
 results are the same as the <<delete-restore,delete and restore>> method.
 
-You can close an index using the <<indices-close,close index API>>.
-You can't close a data stream.
+You can close an index using the <<indices-close,close index API>>. You can't
+close a data stream.
 
 // Only display warning in 7.x.
 // In 7.x, `action.destructive_requires_name` defaults to false.
@@ -136,8 +136,9 @@ GET _snapshot/my_repository/my_snapshot_2099.05.06?index_details=true&filter_pat
 ----
 // TEST[continued]
 
-If the primary shard counts match, you can restore the closed index. Restoring
-the index deletes its existing data and automatically opens it.
+If the primary shard counts match, you can restore the closed index. Restoring a
+closed index deletes its existing data. The restore operation also automatically
+opens the index.
 
 [source,console]
 ----
@@ -291,20 +292,20 @@ DELETE _data_stream/logs-my_app-default
 [[restore-different-cluster]]
 === Restore to a different cluster
 
-TIP: {ess} can help you restore snapshots from other deployment. See
+TIP: {ess} can help you restore snapshots from other deployments. See
 {cloud}/ec-restoring-snapshots.html#ec-restore-across-clusters[Restore across
 clusters].
 
-The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore, it's possible to
-restore a snapshot created from one cluster into another cluster by registering the repository that contains the snapshot in the new cluster and starting the restore process.
-
-The topology of the new cluster does not have to match the cluster where the
-snapshot was created. However, the versions must be
-<<snapshot-restore-version-compatibility,compatible>>.
+Snapshot aren't tied to a particular cluster or a cluster name. You can create a
+snapshot in one cluster and restore it in another cluster with a
+<<snapshot-restore-version-compatibility,compatible version>>. The topology of
+the clusters don't need to match.
 
 If the new cluster has a smaller capacity, consider the following changes:
 
-* Ensure that the new cluster has enough capacity to store all data streams and indices in the snapshot.
+* Ensure the new cluster has enough capacity to store any restored data streams
+and
+  indices.
 * Restore fewer indices and data streams from the snapshot.
 * Change the index settings during the restore operation to reduce the
 <<dynamic-index-number-of-replicas,number of replicas>>.

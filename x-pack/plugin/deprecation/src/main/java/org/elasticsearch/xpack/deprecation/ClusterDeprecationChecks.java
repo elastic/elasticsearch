@@ -210,7 +210,7 @@ public class ClusterDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    private static String getDetailsMessageForComponentTemplates(Map<String, ComponentTemplate> componentTemplates) {
+    private static String getDetailsMessageForGeoShapeComponentTemplates(Map<String, ComponentTemplate> componentTemplates) {
         String detailsForComponentTemplates =
             componentTemplates.entrySet().stream().map((templateCursor) -> {
                 String templateName = templateCursor.getKey();
@@ -238,7 +238,7 @@ public class ClusterDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    private static String getDetailsMessageForIndexTemplates(ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
+    private static String getDetailsMessageForGeoShapeIndexTemplates(ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
         String detailsForIndexTemplates =
             StreamSupport.stream(indexTemplates.spliterator(), false).map((templateCursor) -> {
                 String templateName = templateCursor.key;
@@ -269,8 +269,8 @@ public class ClusterDeprecationChecks {
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
         String detailsForComponentTemplates =
-            getDetailsMessageForComponentTemplates(clusterState.getMetadata().componentTemplates());
-        String detailsForIndexTemplates = getDetailsMessageForIndexTemplates(clusterState.getMetadata().getTemplates());
+            getDetailsMessageForGeoShapeComponentTemplates(clusterState.getMetadata().componentTemplates());
+        String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
         String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";

@@ -291,7 +291,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             context.decRef();
             assertTrue(responsesLatch.await(10, TimeUnit.SECONDS));
         } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            assertTrue(ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         }
     }
 

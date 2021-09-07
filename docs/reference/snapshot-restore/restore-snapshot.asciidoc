@@ -298,8 +298,8 @@ TIP: {ess} can help you restore snapshots from other deployments. See
 clusters].
 
 Snapshots aren't tied to a particular cluster or a cluster name. You can create
-a snapshot in one cluster and restore it in another cluster with a
-<<snapshot-restore-version-compatibility,compatible version>>. The topology of
+a snapshot in one cluster and restore it in another
+<<snapshot-restore-version-compatibility,compatible cluster>>. The topology of
 the clusters doesn't need to match.
 
 You should ensure the new cluster has enough capacity for any data streams or

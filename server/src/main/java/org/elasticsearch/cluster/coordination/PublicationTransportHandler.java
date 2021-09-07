@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -202,7 +202,8 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
+    private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
+        final Version nodeVersion = node.getVersion();
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
@@ -212,14 +213,15 @@ public class PublicationTransportHandler {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
             }
-            final BytesReference serializedState = bytesStream.bytes();
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
             logger.trace(
                 "serialized full cluster state version [{}] for node version [{}] with size [{}]",
                 clusterState.version(),
                 nodeVersion,
-                serializedState.length());
-            final ReleasableBytesReference result = new ReleasableBytesReference(serializedState, bytesStream::close);
+                result.length());
             success = true;
             return result;
         } finally {
@@ -229,23 +231,31 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeDiffClusterState(Diff<ClusterState> diff, Version nodeVersion) throws IOException {
-        final BytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+    private ReleasableBytesReference serializeDiffClusterState(long clusterStateVersion, Diff<ClusterState> diff, DiscoveryNode node) {
+        final Version nodeVersion = node.getVersion();
+        final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
             try (StreamOutput stream = new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bStream)))
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
             ) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bStream.bytes(), bStream::close);
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            logger.trace(
+                "serialized cluster state diff for version [{}] for node version [{}] with size [{}]",
+                clusterStateVersion,
+                nodeVersion,
+                result.length());
             success = true;
             return result;
         } finally {
             if (success == false) {
-                bStream.close();
+                bytesStream.close();
             }
         }
     }
@@ -277,27 +287,17 @@ public class PublicationTransportHandler {
 
         void buildDiffAndSerializeStates() {
             assert refCount() > 0;
-            Diff<ClusterState> diff = null;
+            final LazyInitializable<Diff<ClusterState>, RuntimeException> diffSupplier
+                = new LazyInitializable<>(() -> newState.diff(previousState));
             for (DiscoveryNode node : discoveryNodes) {
-                try {
-                    if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
-                        if (serializedStates.containsKey(node.getVersion()) == false) {
-                            serializedStates.put(node.getVersion(), serializeFullClusterState(newState, node.getVersion()));
-                        }
-                    } else {
-                        // will send a diff
-                        if (diff == null) {
-                            diff = newState.diff(previousState);
-                        }
-                        if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                            final ReleasableBytesReference serializedDiff = serializeDiffClusterState(diff, node.getVersion());
-                            serializedDiffs.put(node.getVersion(), serializedDiff);
-                            logger.trace("serialized cluster state diff for version [{}] in for node version [{}] with size [{}]",
-                                newState.version(), node.getVersion(), serializedDiff.length());
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
+                if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
+                    serializedStates.computeIfAbsent(
+                        node.getVersion(),
+                        v -> serializeFullClusterState(newState, node));
+                } else {
+                    serializedDiffs.computeIfAbsent(
+                        node.getVersion(),
+                        v -> serializeDiffClusterState(newState.version(), diffSupplier.getOrCompute(), node));
                 }
             }
         }
@@ -355,13 +355,9 @@ public class PublicationTransportHandler {
             ReleasableBytesReference bytes = serializedStates.get(destination.getVersion());
             if (bytes == null) {
                 try {
-                    bytes = serializeFullClusterState(newState, destination.getVersion());
-                    final ReleasableBytesReference existingBytes = serializedStates.putIfAbsent(destination.getVersion(), bytes);
-                    if (existingBytes != null) {
-                        assert existingBytes.refCount() > 0;
-                        bytes.decRef();
-                        bytes = existingBytes;
-                    }
+                    bytes = serializedStates.computeIfAbsent(
+                        destination.getVersion(),
+                        v -> serializeFullClusterState(newState, destination));
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage(
                         "failed to serialize cluster state before publishing it to node {}", destination), e);

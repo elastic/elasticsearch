@@ -25,7 +25,6 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,7 +37,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public final class SimilarityService extends AbstractIndexComponent {
+public final class SimilarityService {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
@@ -79,9 +78,8 @@ public final class SimilarityService extends AbstractIndexComponent {
 
     public SimilarityService(IndexSettings indexSettings, ScriptService scriptService,
                              Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities) {
-        super(indexSettings);
         Map<String, Supplier<Similarity>> providers = new HashMap<>(similarities.size());
-        Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
+        Map<String, Settings> similaritySettings = indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
 
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();

@@ -16,6 +16,7 @@ testClusters {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.autoconfiguration.enabled', 'false'
 
     user username: "test_user", password: "x-pack-test-password"
   }

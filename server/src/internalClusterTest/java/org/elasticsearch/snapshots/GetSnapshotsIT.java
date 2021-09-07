@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
@@ -223,18 +224,26 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .execute()
         );
 
-        final List<SnapshotInfo> snapshotsWithPolicy = clusterAdmin().prepareGetSnapshots("*")
-            .setSnapshots("*")
-            .setPolicies(policyName)
-            .get()
-            .getSnapshots();
-        assertThat(snapshotsWithPolicy, is(List.of(withPolicy)));
-        final List<SnapshotInfo> snapshotsNoPolicy = clusterAdmin().prepareGetSnapshots("*")
-            .setSnapshots("*")
-            .setPolicies("*", "-" + policyName)
-            .get()
-            .getSnapshots();
-        assertThat(snapshotsNoPolicy, is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(policyName), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("some-*"), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
+        assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
+
+        final String snapshotWithOtherPolicy = "snapshot-with-other-policy";
+        final String otherPolicyName = "other-policy";
+        final SnapshotInfo withOtherPolicy = assertSuccessful(
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withPolicy, withOtherPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withPolicy, withOtherPolicy)));
+    }
+
+    private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {
+        return clusterAdmin().prepareGetSnapshots("*").setSnapshots("*").setPolicies(policies).get().getSnapshots();
     }
 
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {

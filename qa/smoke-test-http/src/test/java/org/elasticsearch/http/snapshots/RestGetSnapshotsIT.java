@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
@@ -201,17 +203,30 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 .execute()
         );
 
-        final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
-        requestWithPolicy.addParameter("slm_policy_filter", policyName);
-        final List<SnapshotInfo> snapshotsWithPolicy = readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
-        assertThat(snapshotsWithPolicy, is(List.of(withPolicy)));
-        final Request requestWithoutPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
-        requestWithoutPolicy.addParameter("slm_policy_filter", "*,-" + policyName);
-        final List<SnapshotInfo> snapshotsNoPolicy =
-            readSnapshotInfos(getRestClient().performRequest(requestWithoutPolicy)).getSnapshots();
-        assertThat(snapshotsNoPolicy, is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(policyName), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("some-*"), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
+        assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
+
+        final String snapshotWithOtherPolicy = "snapshot-with-other-policy";
+        final String otherPolicyName = "other-policy";
+        final SnapshotInfo withOtherPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
+            logger,
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withPolicy, withOtherPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withPolicy, withOtherPolicy)));
     }
 
+    private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) throws IOException {
+        final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
+        requestWithPolicy.addParameter("slm_policy_filter", Strings.arrayToCommaDelimitedString(policies));
+        return readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
+    }
 
     private void createIndexWithContent(String indexName) {
         logger.info("--> creating index [{}]", indexName);

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -17,11 +17,16 @@ restResources {
 
 tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    // Remove this test because it doesn't call an ML endpoint and we don't want
+    // Remove these tests because they don't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
     'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
+    'ml/ml_standard_analyze/Test analyze API with the standard 7.14 ML analyzer',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with blank lines',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with multiple multiline messages',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
+    'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
@@ -154,6 +159,8 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test update model alias where alias exists but reassign is false',
     'ml/inference_crud/Test delete model alias with missing alias',
     'ml/inference_crud/Test delete model alias where alias points to different model',
+    'ml/inference_crud/Test put with defer_definition_decompression with invalid compression definition and no memory estimate',
+    'ml/inference_crud/Test put with defer_definition_decompression with invalid definition and no memory estimate',
     'ml/inference_processor/Test create processor with missing mandatory fields',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
@@ -192,6 +199,9 @@ tasks.named("yamlRestTest").configure {
     'ml/preview_datafeed/Test preview missing datafeed',
     'ml/preview_datafeed/Test preview with datafeed_id and job config',
     'ml/preview_datafeed/Test preview with datafeed id and config',
+    'ml/preview_datafeed/Test preview with datafeed config and job config with datafeed config',
+    'ml/reset_job/Test reset given job is open',
+    'ml/reset_job/Test reset given unknown job id',
     'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
     'ml/start_data_frame_analytics/Test start given missing source index',
     'ml/start_data_frame_analytics/Test start outlier_detection given source index has no fields',

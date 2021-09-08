@@ -11,7 +11,7 @@ package org.elasticsearch.monitor.jvm;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -76,11 +76,11 @@ public class HotThreads {
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect();
+            return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
         }
     }
 
-    private static boolean isIdleThread(ThreadInfo threadInfo) {
+    static boolean isIdleThread(ThreadInfo threadInfo) {
         String threadName = threadInfo.getThreadName();
 
         // NOTE: these are likely JVM dependent
@@ -118,8 +118,7 @@ public class HotThreads {
         return false;
     }
 
-    private String innerDetect() throws Exception {
-        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -138,7 +137,7 @@ public class HotThreads {
         Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -154,7 +153,7 @@ public class HotThreads {
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -180,11 +179,20 @@ public class HotThreads {
         // skip that for now
         final ToLongFunction<MyThreadInfo> getter;
         if ("cpu".equals(type)) {
-            getter = o -> o.cpuTime;
+            getter = o -> {
+                assert o.cpuTime >= -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread info: " + o.info;
+                return o.cpuTime;
+            };
         } else if ("wait".equals(type)) {
-            getter = o -> o.waitedTime;
+            getter = o -> {
+                assert o.waitedTime >= -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread info: " + o.info;
+                return o.waitedTime;
+            };
         } else if ("block".equals(type)) {
-            getter = o -> o.blockedTime;
+            getter = o -> {
+                assert o.blockedTime >= -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread info: " + o.info;
+                return o.blockedTime;
+            };
         } else {
             throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         }
@@ -270,7 +278,7 @@ public class HotThreads {
 
     private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
 
-    private int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
+    int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
         StackTraceElement[] s1 = threadInfo == null ? EMPTY : threadInfo.getStackTrace();
         StackTraceElement[] s2 = threadInfo0 == null ? EMPTY : threadInfo0.getStackTrace();
         int i = s1.length - 1;

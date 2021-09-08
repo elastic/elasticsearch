@@ -29,7 +29,7 @@ type: `boolean`.
                         express amounts.
 Dates::                 Date types, including <<date,`date`>> and
                         <<date_nanos,`date_nanos`>>.
-<<alias,`alias`>>::     Defines an alias for an existing field.
+<<field-alias,`alias`>>::     Defines an alias for an existing field.
 
 
 [discrete]

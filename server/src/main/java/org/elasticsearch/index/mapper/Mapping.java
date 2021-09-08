@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,7 +22,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,9 +35,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()),
-        new MetadataFieldMapper[0],
-        Collections.emptyMap());
+        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null);
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
@@ -105,7 +101,7 @@ public final class Mapping implements ToXContentFragment {
 
     /** Get the metadata mapper with the given class. */
     @SuppressWarnings("unchecked")
-    <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
+    public <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
         return (T) metadataMappersMap.get(clazz);
     }
 

@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.is;
 public class BlobPathTests extends ESTestCase {
 
     public void testBuildAsString() {
-        BlobPath path = new BlobPath();
+        BlobPath path = BlobPath.EMPTY;
         assertThat(path.buildAsString(), is(""));
 
         path = path.add("a");

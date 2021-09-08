@@ -12,9 +12,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
@@ -156,16 +156,31 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return dateNanosComparatorSource(missingValue, sortMode, nested);
         default:
             assert targetNumericType.isFloatingPoint() == false;
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+            return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
         }
     }
 
-    protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+    protected XFieldComparatorSource dateComparatorSource(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
     }
 
-    protected XFieldComparatorSource dateNanosComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
+    protected XFieldComparatorSource dateNanosComparatorSource(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
+        return new LongValuesComparatorSource(
+            this,
+            missingValue,
+            sortMode,
+            nested,
+            dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
+            NumericType.DATE_NANOSECONDS
+        );
     }
 
     /**

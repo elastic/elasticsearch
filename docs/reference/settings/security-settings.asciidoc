@@ -63,7 +63,9 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 `xpack.security.authc.password_hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for secure user credential storage.
-See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+See <<password-hashing-algorithms>>.
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`. 
+In all other cases, defaults to `bcrypt`.
 
 [discrete]
 [[anonymous-access-settings]]
@@ -598,7 +600,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-p
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -901,7 +903,7 @@ You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)

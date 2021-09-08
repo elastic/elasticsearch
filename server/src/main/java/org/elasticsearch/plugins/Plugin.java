@@ -113,15 +113,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Returns parsers with compatible logic for named objects this plugin will parse from
-     * {@link XContentParser#namedObject(Class, String, Object)}.
-     * @see NamedWriteableRegistry
-     */
-    public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Called before a new index is created on a node. The given module can be used to register index-level
      * extensions.
      */

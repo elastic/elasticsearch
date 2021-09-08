@@ -19,8 +19,9 @@ experimental[]
 [[rollup-get-rollup-index-caps-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the `read` index
-privilege on the index that stores the rollup results. For more information, see
+* If the {es} {security-features} are enabled, you must have any of the `read`,
+`view_index_metadata`, or `manage` <<privileges-list-indices,index privilege>>
+on the index that stores the rollup results. For more information, see
 <<security-privileges>>.
 
 [[rollup-get-rollup-index-caps-desc]]
@@ -46,7 +47,7 @@ Wildcard (`*`) expressions are supported.
 ==== {api-examples-title}
 
 Imagine we have an index named `sensor-1` full of raw data. We know that the
-data will grow over time, so there will be a `sensor-2`, `sensor-3`, etc. 
+data will grow over time, so there will be a `sensor-2`, `sensor-3`, etc.
 Let's create a {rollup-job} that stores its data in `sensor_rollup`:
 
 [source,console]
@@ -145,7 +146,7 @@ original rollup configuration, but formatted differently. First, there are some
 house-keeping details: the {rollup-job} ID, the index that holds the rolled data,
 the index pattern that the job was targeting.
 
-Next it shows a list of fields that contain data eligible for rollup searches. 
+Next it shows a list of fields that contain data eligible for rollup searches.
 Here we see four fields: `node`, `temperature`, `timestamp` and `voltage`. Each
 of these fields list the aggregations that are possible. For example, you can
 use a min, max, or sum aggregation on the `temperature` field, but only a
@@ -164,4 +165,3 @@ instead of explicit indices:
 GET /*_rollup/_rollup/data
 --------------------------------------------------
 // TEST[continued]
-

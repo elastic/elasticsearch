@@ -89,7 +89,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -107,6 +107,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.client.IndicesClientIT.FROZEN_INDICES_DEPRECATION_WARNING;
 import static org.elasticsearch.client.IndicesClientIT.LEGACY_TEMPLATE_OPTIONS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -2885,8 +2886,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
             // end::freeze-index-request-indicesOptions
 
+            final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+
             // tag::freeze-index-execute
-            ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, RequestOptions.DEFAULT);
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, freezeIndexOptions);
             // end::freeze-index-execute
 
             // tag::freeze-index-response
@@ -2964,7 +2968,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::unfreeze-index-request-indicesOptions
 
             // tag::unfreeze-index-execute
-            ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, RequestOptions.DEFAULT);
+            final RequestOptions unfreezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, unfreezeIndexOptions);
             // end::unfreeze-index-execute
 
             // tag::unfreeze-index-response

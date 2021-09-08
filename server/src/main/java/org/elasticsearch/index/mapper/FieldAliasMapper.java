@@ -110,7 +110,7 @@ public final class FieldAliasMapper extends Mapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             FieldAliasMapper.Builder builder = new FieldAliasMapper.Builder(name);
             Object pathField = node.remove(Names.PATH);

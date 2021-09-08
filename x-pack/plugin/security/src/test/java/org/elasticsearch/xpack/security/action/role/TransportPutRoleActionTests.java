@@ -10,12 +10,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -30,14 +30,13 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -110,16 +109,14 @@ public class TransportPutRoleActionTests extends ESTestCase {
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
 
-        doAnswer(new Answer() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                assert args.length == 3;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[2];
-                listener.onResponse(created);
-                return null;
-            }
-        }).when(rolesStore).putRole(eq(request), any(RoleDescriptor.class), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 3;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[2];
+            listener.onResponse(created);
+            return null;
+        }).when(rolesStore).putRole(eq(request), any(RoleDescriptor.class), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
@@ -138,7 +135,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().isCreated(), is(created));
         assertThat(throwableRef.get(), is(nullValue()));
-        verify(rolesStore, times(1)).putRole(eq(request), any(RoleDescriptor.class), any(ActionListener.class));
+        verify(rolesStore, times(1)).putRole(eq(request), any(RoleDescriptor.class), anyActionListener());
     }
 
     public void testException() {
@@ -153,16 +150,14 @@ public class TransportPutRoleActionTests extends ESTestCase {
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
 
-        doAnswer(new Answer() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                assert args.length == 3;
-                ActionListener<Boolean> listener = (ActionListener<Boolean>) args[2];
-                listener.onFailure(e);
-                return null;
-            }
-        }).when(rolesStore).putRole(eq(request), any(RoleDescriptor.class), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 3;
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[2];
+            listener.onFailure(e);
+            return null;
+        }).when(rolesStore).putRole(eq(request), any(RoleDescriptor.class), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
@@ -181,7 +176,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), is(sameInstance(e)));
-        verify(rolesStore, times(1)).putRole(eq(request), any(RoleDescriptor.class), any(ActionListener.class));
+        verify(rolesStore, times(1)).putRole(eq(request), any(RoleDescriptor.class), anyActionListener());
     }
 
     public void testCreationOfRoleWithMalformedQueryJsonFails() {

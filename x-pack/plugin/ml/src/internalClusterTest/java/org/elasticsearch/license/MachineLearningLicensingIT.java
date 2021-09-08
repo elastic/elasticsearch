@@ -21,7 +21,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -53,7 +54,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -699,12 +700,13 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         termsAgg.subAggregation(avgAgg);
 
         XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
+        Settings settings = internalCluster().getInstance(Settings.class);
         ModelLoadingService modelLoading = internalCluster().getInstance(ModelLoadingService.class);
 
         Map<String, String> bucketPaths = new HashMap<>();
         bucketPaths.put("feature1", "avg_feature1");
         InferencePipelineAggregationBuilder inferenceAgg =
-            new InferencePipelineAggregationBuilder("infer_agg", new SetOnce<>(modelLoading), licenseState, bucketPaths);
+            new InferencePipelineAggregationBuilder("infer_agg", new SetOnce<>(modelLoading), licenseState, settings, bucketPaths);
         inferenceAgg.setModelId(modelId);
 
         termsAgg.subAggregation(inferenceAgg);
@@ -745,7 +747,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .setInput(new TrainedModelInput(Collections.singletonList("feature1")))
             .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
-        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config, false)).actionGet();
     }
 
     private static OperationMode randomInvalidLicenseType() {
@@ -772,7 +774,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, Long.MAX_VALUE, null);
+            licenseState.update(operationMode, false, Long.MAX_VALUE);
         }
     }
 
@@ -782,7 +784,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, Long.MAX_VALUE, null);
+            licenseState.update(operationMode, true, Long.MAX_VALUE);
         }
     }
 }

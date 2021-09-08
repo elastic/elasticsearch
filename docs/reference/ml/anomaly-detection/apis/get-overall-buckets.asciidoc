@@ -69,23 +69,27 @@ value.
 
 `end`::
 (Optional, string) Returns overall buckets with timestamps earlier than this
-time.
+time. Defaults to `-1`, which means it is unset and results are not limited to 
+specific timestamps.
 
 `exclude_interim`::
 (Optional, Boolean) If `true`, the output excludes interim overall buckets.
 Overall buckets are interim if any of the job buckets within the overall bucket
-interval are interim. By default, interim results are included.
+interval are interim. Defaults to `false`, which means interim results are
+included.
 
 `overall_score`::
 (Optional, double) Returns overall buckets with overall scores greater or equal
-than this value.
+than this value. Defaults to `0.0`.
 
 `start`::
-(Optional, string) Returns overall buckets with timestamps after this time.
+(Optional, string) Returns overall buckets with timestamps after this time. 
+Defaults to `-1`, which means it is unset and results are not limited to 
+specific timestamps.
 
 `top_n`::
 (Optional, integer) The number of top {anomaly-job} bucket scores to be used in
-the `overall_score` calculation. The default value is `1`.
+the `overall_score` calculation. Defaults to `1`.
 
 [[ml-get-overall-buckets-results]]
 == {api-response-body-title}

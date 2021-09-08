@@ -49,8 +49,6 @@ the stability of the cluster. Those queries can be categorised as follows:
 
 * <<joining-queries,Joining queries>>
 
-* Queries on <<prefix-trees,deprecated geo-shapes>>
-
 * Queries that may have a high per-document cost:
 ** <<query-dsl-script-score-query,`script_score` queries>>
 ** <<query-dsl-percolate-query,`percolate` queries>>

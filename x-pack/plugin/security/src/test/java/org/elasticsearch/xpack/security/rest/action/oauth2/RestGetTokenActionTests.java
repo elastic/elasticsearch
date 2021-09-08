@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -92,8 +92,9 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
         assertThat(map, hasEntry("kerberos_authentication_response_token", createTokenResponse.getKerberosAuthenticationResponseToken()));
         assertThat(map, hasKey("authentication"));
-        assertThat((Map<String, Object>)(map.get("authentication")),
-            hasEntry("username", createTokenResponse.getAuthentication().getUser().principal()));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> authentication = (Map<String, Object>) (map.get("authentication"));
+        assertThat(authentication, hasEntry("username", createTokenResponse.getAuthentication().getUser().principal()));
         assertEquals(6, map.size());
     }
 

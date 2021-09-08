@@ -9,18 +9,22 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+
+import static org.mockito.Mockito.mock;
 
 public class SearcherHelper {
 
     public static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
                                                CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) {
         try {
-            return IndexShard.wrapSearcher(engineSearcher, readerWrapper);
+            return IndexShard.wrapSearcher(engineSearcher, mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
+                readerWrapper);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

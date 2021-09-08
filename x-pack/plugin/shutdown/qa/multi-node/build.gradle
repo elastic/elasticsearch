@@ -1,11 +1,21 @@
+import org.elasticsearch.gradle.VersionProperties
+
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
-                          password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
 
 tasks.named("javaRestTest").configure {
   systemProperty 'tests.rest.cluster.username', clusterCredentials.username
@@ -16,7 +26,6 @@ testClusters.all {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 
-  systemProperty 'es.shutdown_feature_flag_enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   user username: clusterCredentials.username, password: clusterCredentials.password, role: 'superuser'
 }

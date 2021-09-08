@@ -65,6 +65,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
+        return true;
+    }
+
     enum ClusterType {
         OLD,
         MIXED,

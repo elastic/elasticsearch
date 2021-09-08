@@ -10,7 +10,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;

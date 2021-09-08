@@ -18,8 +18,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -47,7 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD;
+import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
 /**
  * The {@code SnapshotRetentionTask} is invoked by the scheduled job from the
@@ -249,16 +249,20 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     if (logger.isTraceEnabled()) {
                         logger.trace("retrieved snapshots: {}",
                             repositories.stream()
-                                .flatMap(repo -> resp.getSnapshots(repo).stream().map(si -> si.snapshotId().getName()))
-                                .collect(Collectors.toList()));
+                                .flatMap(repo ->
+                                    resp.getSnapshots()
+                                        .stream()
+                                        .filter(info -> repo.equals(info.repository()))
+                                        .map(si -> si.snapshotId().getName())
+                                ).collect(Collectors.toList()));
                     }
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
                     final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
                     repositories.forEach(repo -> {
                         snapshots.put(repo,
                             // Only return snapshots in the SUCCESS state
-                            resp.getSnapshots(repo).stream()
-                                .filter(info -> retainableStates.contains(info.state()))
+                            resp.getSnapshots().stream()
+                                .filter(info -> repo.equals(info.repository()) && retainableStates.contains(info.state()))
                                 .collect(Collectors.toList()));
                     });
                     listener.onResponse(snapshots);
@@ -271,9 +275,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     static String getPolicyId(SnapshotInfo snapshotInfo) {
         return Optional.ofNullable(snapshotInfo.userMetadata())
-            .filter(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) != null)
-            .filter(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String)
-            .map(meta -> (String) meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD))
+            .filter(meta -> meta.get(POLICY_ID_METADATA_FIELD) != null)
+            .filter(meta -> meta.get(POLICY_ID_METADATA_FIELD) instanceof String)
+            .map(meta -> (String) meta.get(POLICY_ID_METADATA_FIELD))
             .orElseThrow(() -> new IllegalStateException("expected snapshot " + snapshotInfo +
                 " to have a policy in its metadata, but it did not"));
     }

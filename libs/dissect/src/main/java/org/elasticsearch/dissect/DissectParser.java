@@ -83,8 +83,8 @@ import java.util.stream.Collectors;
  * Inspired by the Logstash Dissect Filter by Guy Boertje
  */
 public final class DissectParser {
-    private static final Pattern LEADING_DELIMITER_PATTERN = Pattern.compile("^(.*?)%");
-    private static final Pattern KEY_DELIMITER_FIELD_PATTERN = Pattern.compile("%\\{([^}]*?)}([^%]*)", Pattern.DOTALL);
+    private static final Pattern LEADING_DELIMITER_PATTERN = Pattern.compile("^(.*?)%\\{");
+    private static final Pattern KEY_DELIMITER_FIELD_PATTERN = Pattern.compile("%\\{([^}]*?)}(.+?(?=%\\{)|.*$)", Pattern.DOTALL);
     private static final EnumSet<DissectKey.Modifier> ASSOCIATE_MODIFIERS = EnumSet.of(
         DissectKey.Modifier.FIELD_NAME,
         DissectKey.Modifier.FIELD_VALUE);

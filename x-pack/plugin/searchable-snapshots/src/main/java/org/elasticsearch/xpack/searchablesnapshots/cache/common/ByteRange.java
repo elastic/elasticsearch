@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 public final class ByteRange implements Comparable<ByteRange> {
 

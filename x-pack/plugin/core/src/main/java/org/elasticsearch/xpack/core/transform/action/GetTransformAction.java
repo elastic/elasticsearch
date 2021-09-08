@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -113,7 +114,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             builder.startArray();
             for (TransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
-                if (configResponse.isValid() == false) {
+                ValidationException validationException = configResponse.validate(null);
+                if (validationException != null) {
                     invalidTransforms.add(configResponse.getId());
                 }
             }

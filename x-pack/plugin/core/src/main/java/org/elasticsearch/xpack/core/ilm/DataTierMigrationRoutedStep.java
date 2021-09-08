@@ -13,18 +13,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
@@ -39,16 +34,6 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     private static final Logger logger = LogManager.getLogger(DataTierMigrationRoutedStep.class);
 
-    private static final Set<Setting<?>> ALL_CLUSTER_SETTINGS;
-
-    static {
-        Set<Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
-        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
-        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
-        ALL_CLUSTER_SETTINGS = allSettings;
-    }
-
     DataTierMigrationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
@@ -62,8 +47,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(
-                new DataTierAllocationDecider(clusterState.getMetadata().settings(),
-                    new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS))
+                new DataTierAllocationDecider()
             )
         );
         IndexMetadata idxMeta = clusterState.metadata().index(index);

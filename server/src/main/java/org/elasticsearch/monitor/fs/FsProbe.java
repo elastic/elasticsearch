@@ -12,9 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 
@@ -81,6 +81,7 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
+                    final long ioTime = Long.parseLong(fields[12]);
                     final FsInfo.DeviceStats deviceStats =
                             new FsInfo.DeviceStats(
                                     majorDeviceNumber,
@@ -90,6 +91,7 @@ public class FsProbe {
                                     sectorsRead,
                                     writesCompleted,
                                     sectorsWritten,
+                                    ioTime,
                                     deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
                     devicesStats.add(deviceStats);
                 }

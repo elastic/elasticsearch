@@ -8,10 +8,10 @@
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,18 +21,23 @@ import java.io.IOException;
 
 public final class CleanupRepositoryResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ObjectParser<CleanupRepositoryResponse, Void> PARSER =
-        new ObjectParser<>(CleanupRepositoryResponse.class.getName(), true, CleanupRepositoryResponse::new);
+    private static final ObjectParser<CleanupRepositoryResponse, Void> PARSER = new ObjectParser<>(
+        CleanupRepositoryResponse.class.getName(),
+        true,
+        CleanupRepositoryResponse::new
+    );
 
     static {
-        PARSER.declareObject((response, cleanupResult) -> response.result = cleanupResult,
-            RepositoryCleanupResult.PARSER, new ParseField("results"));
+        PARSER.declareObject(
+            (response, cleanupResult) -> response.result = cleanupResult,
+            RepositoryCleanupResult.PARSER,
+            new ParseField("results")
+        );
     }
 
     private RepositoryCleanupResult result;
 
-    public CleanupRepositoryResponse() {
-    }
+    public CleanupRepositoryResponse() {}
 
     public CleanupRepositoryResponse(RepositoryCleanupResult result) {
         this.result = result;

@@ -11,11 +11,10 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,27 +79,19 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
-            .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId(randomAlphaOfLength(5))
+            .setType(type)
             .setReason(randomAlphaOfLength(5))
-            .setStatus(randomStatus())
-            .setStartedAtMillis(randomNonNegativeLong())
-            .setShardMigrationStatus(randomComponentStatus())
-            .setPersistentTasksStatus(randomComponentStatus())
-            .setPluginsStatus(randomComponentStatus())
+            .setStartedAtMillis(randomNonNegativeLong());
+        if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
+            builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+        } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
+            builder.setTargetNodeName(randomAlphaOfLengthBetween(5,10));
+        }
+        return builder.setNodeSeen(randomBoolean())
             .build();
-    }
-
-    private SingleNodeShutdownMetadata.Status randomStatus() {
-        return randomFrom(new ArrayList<>(EnumSet.allOf(SingleNodeShutdownMetadata.Status.class)));
-    }
-
-    private NodeShutdownComponentStatus randomComponentStatus() {
-        return new NodeShutdownComponentStatus(
-            randomStatus(),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(4, 10)
-        );
     }
 
     @Override

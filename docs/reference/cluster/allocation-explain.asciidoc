@@ -25,6 +25,8 @@ GET _cluster/allocation/explain
 
 `GET _cluster/allocation/explain`
 
+`POST _cluster/allocation/explain`
+
 [[cluster-allocation-explain-api-prereqs]]
 ==== {api-prereq-title}
 

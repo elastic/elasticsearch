@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.cli;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.bouncycastle.asn1.DLTaggedObject;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
@@ -26,8 +27,8 @@ import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CAInfo;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -317,8 +317,10 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 }
             }
 
-            PrivateKey privateKey = PemUtils.readPrivateKey(zipRoot.resolve("ca").resolve("ca.key"), () -> keyPassword != null ?
-                        SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null);
+            PrivateKey privateKey = PemUtils.readPrivateKey(
+                zipRoot.resolve("ca").resolve("ca.key"),
+                () -> keyPassword != null ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null
+            );
             assertEquals(caInfo.privateKey, privateKey);
         } else {
             assertFalse(Files.exists(zipRoot.resolve("ca")));

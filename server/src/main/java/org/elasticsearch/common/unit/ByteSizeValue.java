@@ -224,7 +224,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else if (lowerSValue.endsWith("pb")) {
             return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
-            return new ByteSizeValue(Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim()), ByteSizeUnit.BYTES);
+            return parseBytes(lowerSValue, settingName, sValue);
         } else if (lowerSValue.equals("-1")) {
             // Allow this special value to be unit-less:
             return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
@@ -236,6 +236,18 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             throw new ElasticsearchParseException(
                     "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName,
                     sValue);
+        }
+    }
+
+    private static ByteSizeValue parseBytes(String lowerSValue, String settingName, String initialInput) {
+        String s = lowerSValue.substring(0, lowerSValue.length() - 1).trim();
+        try {
+            return new ByteSizeValue(Long.parseLong(s), ByteSizeUnit.BYTES);
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName,
+                initialInput);
         }
     }
 

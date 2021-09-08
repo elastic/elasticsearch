@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PointValues;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,6 +40,25 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
+    // Datastreams' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
+    public static Comparator<LeafReader> DATASTREAM_LEAF_READERS_SORTER =
+        Comparator.comparingLong(
+            (LeafReader r) -> {
+                try {
+                    PointValues points = r.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+                    if (points != null) {
+                        byte[] sortValue = points.getMaxPackedValue();
+                        return LongPoint.decodeDimension(sortValue, 0);
+                    } else if (r.numDocs() == 0) {
+                        // points can be null if the segment contains only deleted documents
+                        return Long.MIN_VALUE;
+                    }
+                } catch (IOException e) {
+                }
+                throw new IllegalStateException("Can't access [" +
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
+            })
+        .reversed();
 
     private final LongSupplier timeProvider;
     private final String name;
@@ -253,9 +275,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.readMap(), in.readBoolean(), in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()
-        );
+            in.readMap(), in.readBoolean(), in.readBoolean(), in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -271,9 +291,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         out.writeMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(system);
-        }
+        out.writeBoolean(system);
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");

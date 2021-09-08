@@ -253,6 +253,11 @@ public class StubbableTransport implements Transport {
         public Transport.Connection getConnection() {
             return connection;
         }
+
+        @Override
+        public String toString() {
+            return "WrappedConnection[" + connection + "]";
+        }
     }
 
     @FunctionalInterface

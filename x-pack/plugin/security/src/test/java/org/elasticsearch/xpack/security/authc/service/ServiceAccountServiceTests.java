@@ -16,17 +16,28 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -34,6 +45,7 @@ import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
@@ -43,11 +55,16 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -55,20 +72,26 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ServiceAccountServiceTests extends ESTestCase {
 
-    private ThreadContext threadContext;
-    private ServiceAccountTokenStore serviceAccountTokenStore;
+    private Client client;
+    private ThreadPool threadPool;
+    private FileServiceAccountTokenStore fileServiceAccountTokenStore;
+    private IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private ServiceAccountService serviceAccountService;
     private Transport transport;
 
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws UnknownHostException {
-        threadContext = new ThreadContext(Settings.EMPTY);
-        serviceAccountTokenStore = mock(ServiceAccountTokenStore.class);
+        threadPool = new TestThreadPool("service account service tests");
+        fileServiceAccountTokenStore = mock(FileServiceAccountTokenStore.class);
+        indexServiceAccountTokenStore = mock(IndexServiceAccountTokenStore.class);
+        when(fileServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.FILE);
+        when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
         final Settings.Builder builder = Settings.builder()
             .put("xpack.security.enabled", true);
         transport = mock(Transport.class);
@@ -85,13 +108,21 @@ public class ServiceAccountServiceTests extends ESTestCase {
         }
         when(transport.boundAddress()).thenReturn(
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
-        serviceAccountService = new ServiceAccountService(
-            serviceAccountTokenStore,
+        client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        serviceAccountService = new ServiceAccountService(client,
+            fileServiceAccountTokenStore, indexServiceAccountTokenStore,
             new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
     }
 
+    @After
+    public void stopThreadPool() {
+        terminate(threadPool);
+    }
+
     public void testGetServiceAccountPrincipals() {
-        assertThat(ServiceAccountService.getServiceAccountPrincipals(), equalTo(Set.of("elastic/fleet-server")));
+        assertThat(ServiceAccountService.getServiceAccountPrincipals(),
+            containsInAnyOrder("elastic/fleet-server", "elastic/kibana"));
     }
 
     public void testTryParseToken() throws IOException, IllegalAccessException {
@@ -249,12 +280,19 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
         // Valid token
         final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-            listener.onResponse(true);
-            return null;
-        }).when(serviceAccountTokenStore).authenticate(any(), any());
+
+        final CachingServiceAccountTokenStore authenticatingStore = randomFrom(fileServiceAccountTokenStore, indexServiceAccountTokenStore);
+        Stream.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore).forEach(store -> {
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener =
+                    (ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(
+                    new ServiceAccountTokenStore.StoreAuthenticationResult(store == authenticatingStore, store.getTokenSource()));
+                return null;
+            }).when(store).authenticate(any(), any());
+        });
+
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         serviceAccountService.authenticateToken(
             new ServiceAccountToken(new ServiceAccountId("elastic", "fleet-server"), "token1",
@@ -266,7 +304,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     Map.of("_elastic_service_account", true), true),
                 new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                Map.of("_token_name", "token1")
+                Map.of("_token_name", "token1",
+                    "_token_source", authenticatingStore.getTokenSource().name().toLowerCase(Locale.ROOT))
             )
         ));
     }
@@ -303,7 +342,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 ElasticServiceAccounts.NAMESPACE,
                 randomValueOtherThan("fleet-server", () -> randomAlphaOfLengthBetween(3, 8)));
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "non-elastic service account", ServiceAccountService.class.getName(), Level.DEBUG,
+                "unknown elastic service name", ServiceAccountService.class.getName(), Level.DEBUG,
                 "the [" + accountId2.asPrincipal() + "] service account does not exist"
             ));
             final ServiceAccountToken token2 = new ServiceAccountToken(accountId2, randomAlphaOfLengthBetween(3, 8), secret);
@@ -315,29 +354,67 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 + token2.getAccountId().asPrincipal() + "] with token name [" + token2.getTokenName() + "]"));
             appender.assertAllExpectationsMatched();
 
-            // Success based on credential store
+            // Length of secret value is too short
             final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
-            final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret);
-            final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
+            final SecureString secret3 = new SecureString(randomAlphaOfLengthBetween(1, 9).toCharArray());
+            final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret3);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "secret value too short", ServiceAccountService.class.getName(), Level.DEBUG,
+                "the provided credential has length [" + secret3.length()
+                    + "] but a token's secret value must be at least [10] characters"
+            ));
+            final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token3, randomAlphaOfLengthBetween(3, 8), future3);
+            final ExecutionException e3 = expectThrows(ExecutionException.class, future3::get);
+            assertThat(e3.getCause().getClass(), is(ElasticsearchSecurityException.class));
+            assertThat(e3.getMessage(), containsString("failed to authenticate service account ["
+                + token3.getAccountId().asPrincipal() + "] with token name [" + token3.getTokenName() + "]"));
+            appender.assertAllExpectationsMatched();
+
+            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
+            final CachingServiceAccountTokenStore store;
+            final CachingServiceAccountTokenStore otherStore;
+            if (tokenSource == TokenInfo.TokenSource.FILE) {
+                store = fileServiceAccountTokenStore;
+                otherStore = indexServiceAccountTokenStore;
+            } else {
+                store = indexServiceAccountTokenStore;
+                otherStore = fileServiceAccountTokenStore;
+            }
+
+            // Success based on credential store
+            final ServiceAccountId accountId4 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
+            final ServiceAccountToken token4 = new ServiceAccountToken(accountId4, randomAlphaOfLengthBetween(3, 8), secret);
+            final ServiceAccountToken token5 = new ServiceAccountToken(accountId4, randomAlphaOfLengthBetween(3, 8),
                 new SecureString(randomAlphaOfLength(20).toCharArray()));
             final String nodeName = randomAlphaOfLengthBetween(3, 8);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
-                final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-                listener.onResponse(true);
+                final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener =
+                    (ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(true, store.getTokenSource()));
                 return null;
-            }).when(serviceAccountTokenStore).authenticate(eq(token3), any());
+            }).when(store).authenticate(eq(token4), any());
 
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
-                final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-                listener.onResponse(false);
+                final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener =
+                    (ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(false, store.getTokenSource()));
                 return null;
-            }).when(serviceAccountTokenStore).authenticate(eq(token4), any());
+            }).when(store).authenticate(eq(token5), any());
 
-            final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
-            serviceAccountService.authenticateToken(token3, nodeName, future3);
-            final Authentication authentication = future3.get();
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener =
+                    (ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(false, otherStore.getTokenSource()));
+                return null;
+            }).when(otherStore).authenticate(any(), any());
+
+            final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token4, nodeName, future4);
+            final Authentication authentication = future4.get();
             assertThat(authentication, equalTo(new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY,
                     "Service account - elastic/fleet-server", null,
@@ -345,20 +422,20 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     true),
                 new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                Map.of("_token_name", token3.getTokenName())
+                Map.of("_token_name", token4.getTokenName(), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
             )));
 
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "non-elastic service account", ServiceAccountService.class.getName(), Level.DEBUG,
-                "failed to authenticate service account [" + token4.getAccountId().asPrincipal()
-                    + "] with token name [" + token4.getTokenName() + "]"
+                "invalid credential", ServiceAccountService.class.getName(), Level.DEBUG,
+                "failed to authenticate service account [" + token5.getAccountId().asPrincipal()
+                    + "] with token name [" + token5.getTokenName() + "]"
             ));
-            final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
-            serviceAccountService.authenticateToken(token4, nodeName, future4);
-            final ExecutionException e4 = expectThrows(ExecutionException.class, future4::get);
-            assertThat(e4.getCause().getClass(), is(ElasticsearchSecurityException.class));
-            assertThat(e4.getMessage(), containsString("failed to authenticate service account ["
-                + token4.getAccountId().asPrincipal() + "] with token name [" + token4.getTokenName() + "]"));
+            final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token5, nodeName, future5);
+            final ExecutionException e5 = expectThrows(ExecutionException.class, future5::get);
+            assertThat(e5.getCause().getClass(), is(ElasticsearchSecurityException.class));
+            assertThat(e5.getMessage(), containsString("failed to authenticate service account ["
+                + token5.getAccountId().asPrincipal() + "] with token name [" + token5.getTokenName() + "]"));
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
@@ -368,6 +445,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptor() throws ExecutionException, InterruptedException {
+        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
         final Authentication auth1 = new Authentication(
             new User("elastic/fleet-server",
                 Strings.EMPTY_ARRAY,
@@ -380,7 +458,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8)));
+            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
 
         final PlainActionFuture<RoleDescriptor> future1 = new PlainActionFuture<>();
         serviceAccountService.getRoleDescriptor(auth1, future1);
@@ -398,12 +476,64 @@ public class ServiceAccountServiceTests extends ESTestCase {
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8)));
+            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         serviceAccountService.getRoleDescriptor(auth2, future2);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
         assertThat(e.getMessage(), containsString(
             "cannot load role for service account [" + username + "] - no such service account"));
+    }
+
+    public void testCreateIndexTokenWillDelegate() {
+        final Authentication authentication = mock(Authentication.class);
+        final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        serviceAccountService.createIndexToken(authentication, request, future);
+        verify(indexServiceAccountTokenStore).createToken(eq(authentication), eq(request), eq(future));
+    }
+
+    public void testDeleteIndexTokenWillDelegate() {
+        final DeleteServiceAccountTokenRequest request = mock(DeleteServiceAccountTokenRequest.class);
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        serviceAccountService.deleteIndexToken(request, future);
+        verify(indexServiceAccountTokenStore).deleteToken(eq(request), eq(future));
+    }
+
+    public void testFindTokensFor() {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final ServiceAccountId accountId = new ServiceAccountId(namespace, serviceName);
+
+        final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 3))
+            .mapToObj(i -> TokenInfo.indexToken(ValidationTests.randomTokenName()))
+            .sorted()
+            .collect(Collectors.toUnmodifiableList());
+
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            @SuppressWarnings("unchecked")
+            final ActionListener<Collection<TokenInfo>> listener = (ActionListener<Collection<TokenInfo>>) args[1];
+            listener.onResponse(indexTokenInfos);
+            return null;
+        }).when(indexServiceAccountTokenStore).findTokensFor(eq(accountId), any());
+
+        final GetServiceAccountCredentialsNodesResponse fileTokensResponse = mock(GetServiceAccountCredentialsNodesResponse.class);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            @SuppressWarnings("unchecked")
+            final ActionListener<GetServiceAccountCredentialsNodesResponse> listener =
+                (ActionListener<GetServiceAccountCredentialsNodesResponse>) args[2];
+            listener.onResponse(fileTokensResponse);
+            return null;
+        }).when(client).execute(eq(GetServiceAccountNodesCredentialsAction.INSTANCE),
+            any(GetServiceAccountCredentialsNodesRequest.class), any());
+
+        final PlainActionFuture<GetServiceAccountCredentialsResponse> future = new PlainActionFuture<>();
+        serviceAccountService.findTokensFor(new GetServiceAccountCredentialsRequest(namespace, serviceName), future);
+        final GetServiceAccountCredentialsResponse response = future.actionGet();
+        assertThat(response.getPrincipal(), equalTo(accountId.asPrincipal()));
+        assertThat(response.getNodesResponse(), is(fileTokensResponse));
+        assertThat(response.getIndexTokenInfos(), equalTo(indexTokenInfos));
     }
 
     public void testTlsRequired() {
@@ -414,8 +544,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         when(transport.boundAddress()).thenReturn(
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
 
-        final ServiceAccountService service = new ServiceAccountService(
-            serviceAccountTokenStore,
+        final ServiceAccountService service = new ServiceAccountService(client,
+            fileServiceAccountTokenStore,indexServiceAccountTokenStore,
             new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
 
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
@@ -424,14 +554,33 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(e1.getMessage(), containsString("[service account authentication] requires TLS for the HTTP interface"));
 
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
+        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
         final Authentication authentication = new Authentication(mock(User.class),
             new Authentication.RealmRef(
                 ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE,
                 randomAlphaOfLengthBetween(3, 8)),
-            null);
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.TOKEN,
+            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         service.getRoleDescriptor(authentication, future2);
         final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);
         assertThat(e2.getMessage(), containsString("[service account role descriptor resolving] requires TLS for the HTTP interface"));
+
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future3 = new PlainActionFuture<>();
+        service.createIndexToken(authentication, mock(CreateServiceAccountTokenRequest.class), future3);
+        final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
+        assertThat(e3.getMessage(), containsString("[create index-backed service token] requires TLS for the HTTP interface"));
+
+        final PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
+        service.deleteIndexToken(mock(DeleteServiceAccountTokenRequest.class), future4);
+        final ElasticsearchException e4 = expectThrows(ElasticsearchException.class, future4::actionGet);
+        assertThat(e4.getMessage(), containsString("[delete index-backed service token] requires TLS for the HTTP interface"));
+
+        final PlainActionFuture<GetServiceAccountCredentialsResponse> future5 = new PlainActionFuture<>();
+        service.findTokensFor(mock(GetServiceAccountCredentialsRequest.class), future5);
+        final ElasticsearchException e5 = expectThrows(ElasticsearchException.class, future5::actionGet);
+        assertThat(e5.getMessage(), containsString("[find service tokens] requires TLS for the HTTP interface"));
     }
 
     private SecureString createBearerString(List<byte[]> bytesList) throws IOException {

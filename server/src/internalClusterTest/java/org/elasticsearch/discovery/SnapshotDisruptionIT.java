@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -237,7 +237,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     private void assertSnapshotExists(String repository, String snapshot) {
         GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
                 .setSnapshots(snapshot).get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(repository).get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());

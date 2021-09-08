@@ -20,7 +20,7 @@ import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
 
-public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeStep> {
+public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
 
     @Override
     public FreezeStep createRandomInstance() {
@@ -54,8 +54,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         return new FreezeStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
@@ -64,7 +63,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         assertTrue(createRandomInstance().indexSurvives());
     }
 
-    public void testFreeze() {
+    public void testFreeze() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -80,7 +79,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
         FreezeStep step = createRandomInstance();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -99,7 +98,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
         FreezeStep step = createRandomInstance();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
     }
 
@@ -115,7 +114,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
 
         FreezeStep step = createRandomInstance();
         Exception e = expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
         assertThat(e.getMessage(), is("freeze index request failed to be acknowledged"));
     }
 }

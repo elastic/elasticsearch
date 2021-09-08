@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 import java.util.Locale;

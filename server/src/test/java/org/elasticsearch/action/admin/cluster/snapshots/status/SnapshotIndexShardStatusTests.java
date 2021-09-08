@@ -8,15 +8,15 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import java.io.IOException;
-import java.util.function.Predicate;
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
+import java.util.function.Predicate;
 
 public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<SnapshotIndexShardStatus> {
 

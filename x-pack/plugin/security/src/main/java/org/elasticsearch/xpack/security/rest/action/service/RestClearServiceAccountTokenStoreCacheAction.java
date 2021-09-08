@@ -54,7 +54,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
             final Set<String> qualifiedTokenNames = new HashSet<>(tokenNames.length);
             for (String name: tokenNames) {
                 if (false == Validation.isValidServiceAccountTokenName(name)) {
-                    throw new IllegalArgumentException(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE + " got: [" + name + "]");
+                    throw new IllegalArgumentException(Validation.formatInvalidServiceTokenNameErrorMessage(name));
                 }
                 qualifiedTokenNames.add(namespace + "/" + service + "/" + name);
             }

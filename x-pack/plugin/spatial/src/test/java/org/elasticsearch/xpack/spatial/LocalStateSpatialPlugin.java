@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.spatial;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.test.VersionUtils;
 
 /**
  * This class overrides the {@link SpatialPlugin} in order
@@ -23,7 +21,7 @@ public class LocalStateSpatialPlugin extends SpatialPlugin {
     protected XPackLicenseState getLicenseState() {
         TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
         License.OperationMode operationMode = License.OperationMode.TRIAL;
-        licenseState.update(operationMode, true, Long.MAX_VALUE, VersionUtils.randomVersion(LuceneTestCase.random()));
+        licenseState.update(operationMode, true, Long.MAX_VALUE);
         return licenseState;
     }
 }

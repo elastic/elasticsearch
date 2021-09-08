@@ -8,6 +8,7 @@
 package fixture.s3;
 
 import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Objects;
@@ -40,8 +41,9 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
 
     public static void main(final String[] args) throws Exception {
         if (args == null || args.length < 6) {
-            throw new IllegalArgumentException("S3HttpFixtureWithSessionToken expects 6 arguments " +
-                "[address, port, bucket, base path, access key, session token]");
+            throw new IllegalArgumentException(
+                "S3HttpFixtureWithSessionToken expects 6 arguments [address, port, bucket, base path, access key, session token]"
+            );
         }
         final S3HttpFixtureWithSessionToken fixture = new S3HttpFixtureWithSessionToken(args);
         fixture.start();

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -18,10 +18,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
+
+    static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
 
     public enum OpType {
         AND,
@@ -90,10 +93,10 @@ public class DiscoveryNodeFilters {
         }
 
         Map<String, String[]> newFilters = original.filters.entrySet().stream()
-            // Remove all entries that start with "_tier", as these will be handled elsewhere
+            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
             .filter(entry -> {
                 String attr = entry.getKey();
-                return attr != null && attr.startsWith("_tier") == false;
+                return attr != null && attr.equals("_tier_preference") == false;
             })
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
@@ -224,6 +227,14 @@ public class DiscoveryNodeFilters {
         } else {
             return true;
         }
+    }
+
+    /**
+     *
+     * @return true if this filter only contains attribute values, i.e., no node specific info.
+     */
+    public boolean isOnlyAttributeValueFilter() {
+        return filters.keySet().stream().anyMatch(NON_ATTRIBUTE_NAMES::contains) == false;
     }
 
     /**

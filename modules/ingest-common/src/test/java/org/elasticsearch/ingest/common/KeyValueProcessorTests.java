@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class KeyValueProcessorTests extends ESTestCase {
 
-    private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory();
+    private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory(TestTemplateService.instance());
 
     public void test() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -92,7 +93,7 @@ public class KeyValueProcessorTests extends ESTestCase {
         Processor processor = createKvProcessor("unknown", "&",
             "=", null, null, "target", false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("field [unknown] not present as part of path [unknown]"));
+        assertThat(exception.getMessage(), equalTo("field [unknown] doesn't exist"));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {

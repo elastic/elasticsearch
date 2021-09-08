@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.payload;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.session.Payload;
 
 import java.util.Collections;

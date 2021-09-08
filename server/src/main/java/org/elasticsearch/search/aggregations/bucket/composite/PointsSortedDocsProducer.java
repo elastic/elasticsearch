@@ -35,15 +35,15 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
     }
 
     @Override
-    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue,
-                         LeafReaderContext context, boolean fillDocIdSet) throws IOException {
+    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet)
+        throws IOException {
         final PointValues values = context.reader().getPointValues(field);
         if (values == null) {
             // no value for the field
             return DocIdSet.EMPTY;
         }
         long lowerBucket = Long.MIN_VALUE;
-        Comparable lowerValue = queue.getLowerValueLeadSource();
+        Comparable<?> lowerValue = queue.getLowerValueLeadSource();
         if (lowerValue != null) {
             if (lowerValue.getClass() != Long.class) {
                 throw new IllegalStateException("expected Long, got " + lowerValue.getClass());
@@ -52,7 +52,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         }
 
         long upperBucket = Long.MAX_VALUE;
-        Comparable upperValue = queue.getUpperValueLeadSource();
+        Comparable<?> upperValue = queue.getUpperValueLeadSource();
         if (upperValue != null) {
             if (upperValue.getClass() != Long.class) {
                 throw new IllegalStateException("expected Long, got " + upperValue.getClass());
@@ -83,8 +83,14 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         long lastBucket;
         boolean first = true;
 
-        Visitor(LeafReaderContext context, CompositeValuesCollectorQueue queue, DocIdSetBuilder builder,
-                int bytesPerDim, long lowerBucket, long upperBucket) {
+        Visitor(
+            LeafReaderContext context,
+            CompositeValuesCollectorQueue queue,
+            DocIdSetBuilder builder,
+            int bytesPerDim,
+            long lowerBucket,
+            long upperBucket
+        ) {
             this.context = context;
             this.maxDoc = context.reader().maxDoc();
             this.queue = queue;
@@ -109,7 +115,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             if (compare(packedValue, packedValue) != PointValues.Relation.CELL_CROSSES_QUERY) {
-                remaining --;
+                remaining--;
                 return;
             }
 
@@ -117,8 +123,8 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             if (first == false && bucket != lastBucket) {
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
-                        // lower bucket is inclusive
-                        lowerBucket != lastBucket) {
+                // lower bucket is inclusive
+                    lowerBucket != lastBucket) {
                     // this bucket does not have any competitive composite buckets,
                     // we can early terminate the collection because the remaining buckets are guaranteed
                     // to be greater than this bucket.
@@ -131,15 +137,15 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             lastBucket = bucket;
             first = false;
             adder.add(docID);
-            remaining --;
+            remaining--;
         }
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            if ((upperPointQuery != null &&
-                    FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0) ||
-                    (lowerPointQuery != null &&
-                        FutureArrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
+            if ((upperPointQuery != null
+                && FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
+                || (lowerPointQuery != null
+                    && FutureArrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
                 // does not match the query
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }
@@ -162,7 +168,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         }
 
         public void flush() throws IOException {
-            if (first == false)  {
+            if (first == false) {
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 processBucket(queue, context, docIdSet.iterator(), lastBucket, builder);
                 bucketDocsBuilder = null;

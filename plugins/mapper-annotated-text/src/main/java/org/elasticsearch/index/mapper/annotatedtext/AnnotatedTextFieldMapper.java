@@ -25,8 +25,8 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -86,7 +86,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers,
+                    m -> builder(m).analyzers.getIndexAnalyzer(),
+                    m -> builder(m).analyzers.positionIncrementGap.getValue());
         }
 
         @Override
@@ -516,7 +518,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
 
         if (value == null) {

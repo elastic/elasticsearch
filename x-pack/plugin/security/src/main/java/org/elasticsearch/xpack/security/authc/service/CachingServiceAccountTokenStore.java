@@ -15,16 +15,22 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public abstract class CachingServiceAccountTokenStore implements ServiceAccountTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
 
@@ -41,7 +47,6 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
     private final Settings settings;
     private final ThreadPool threadPool;
     private final Cache<String, ListenableFuture<CachedResult>> cache;
-    private CacheIteratorHelper<String, ListenableFuture<CachedResult>> cacheIteratorHelper;
     private final Hasher hasher;
 
     CachingServiceAccountTokenStore(Settings settings, ThreadPool threadPool) {
@@ -53,16 +58,14 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 .setExpireAfterWrite(ttl)
                 .setMaximumWeight(CACHE_MAX_TOKENS_SETTING.get(settings))
                 .build();
-            cacheIteratorHelper = new CacheIteratorHelper<>(cache);
         } else {
             cache = null;
-            cacheIteratorHelper = null;
         }
         hasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
     }
 
     @Override
-    public void authenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    public void authenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         try {
             if (cache == null) {
                 doAuthenticate(token, listener);
@@ -74,7 +77,7 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
         }
     }
 
-    private void authenticateWithCache(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    private void authenticateWithCache(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         assert cache != null;
         try {
             final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
@@ -85,25 +88,25 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
             if (valueAlreadyInCache.get()) {
                 listenableCacheEntry.addListener(ActionListener.wrap(result -> {
                     if (result.success) {
-                        listener.onResponse(result.verify(token));
+                        listener.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
                     } else if (result.verify(token)) {
                         // same wrong token
-                        listener.onResponse(false);
+                        listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
                     } else {
                         cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                         authenticateWithCache(token, listener);
                     }
                 }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
             } else {
-                doAuthenticate(token, ActionListener.wrap(success -> {
-                    if (false == success) {
+                doAuthenticate(token, ActionListener.wrap(storeAuthenticationResult -> {
+                    if (false == storeAuthenticationResult.isSuccess()) {
                         // Do not cache failed attempt
                         cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                     } else {
                         logger.trace("cache service token [{}] authentication result", token.getQualifiedName());
                     }
-                    listenableCacheEntry.onResponse(new CachedResult(hasher, success, token));
-                    listener.onResponse(success);
+                    listenableCacheEntry.onResponse(new CachedResult(hasher, storeAuthenticationResult.isSuccess(), token));
+                    listener.onResponse(storeAuthenticationResult);
                 }, e -> {
                     // In case of failure, evict the cache entry and notify all listeners
                     cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
@@ -125,15 +128,28 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
     @Override
     public final void invalidate(Collection<String> qualifiedTokenNames) {
         if (cache != null) {
-            logger.trace("invalidating cache for service token [{}]",
-                Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
-            for (String qualifiedTokenName : qualifiedTokenNames) {
-                if (qualifiedTokenName.endsWith("/")) {
-                    // Wildcard case of invalidating all tokens for a service account, e.g. "elastic/fleet-server/"
-                    cacheIteratorHelper.removeKeysIf(key -> key.startsWith(qualifiedTokenName));
-                } else {
-                    cache.invalidate(qualifiedTokenName);
+            logger.trace("invalidating cache for service token [{}]", Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
+            final Set<String> exacts = new HashSet<>(qualifiedTokenNames);
+            final Set<String> prefixes = new HashSet<>();
+            final Iterator<String> it = exacts.iterator();
+            while (it.hasNext()) {
+                final String name = it.next();
+                if (name.endsWith("/")) {
+                    prefixes.add(name);
+                    it.remove();
                 }
+            }
+
+            exacts.forEach(cache::invalidate);
+            if (false == prefixes.isEmpty()) {
+                final Predicate<String> predicate = k -> prefixes.stream().anyMatch(k::startsWith);
+                final List<String> keys = new ArrayList<>();
+                cache.forEach((k, v) -> {
+                    if (predicate.test(k)) {
+                        keys.add(k);
+                    }
+                });
+                keys.forEach(cache::invalidate);
             }
         }
     }
@@ -154,7 +170,9 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
         return threadPool;
     }
 
-    abstract void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener);
+    abstract void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener);
+
+    abstract TokenSource getTokenSource();
 
     // package private for testing
     Cache<String, ListenableFuture<CachedResult>> getCache() {

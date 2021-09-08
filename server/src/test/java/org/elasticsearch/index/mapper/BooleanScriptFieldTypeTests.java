@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -52,8 +54,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
 
@@ -127,8 +127,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
@@ -136,7 +136,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }
@@ -307,19 +307,23 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";
-            ParseContext ctx = mock(ParseContext.class);
-            when(ctx.parser()).thenReturn(createParser(JsonXContent.jsonXContent, source));
-            ParseContext.Document doc = new ParseContext.Document();
-            when(ctx.doc()).thenReturn(doc);
-            when(ctx.sourceToParse()).thenReturn(new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON));
-            doc.add(new StoredField("_source", new BytesRef(source)));
+            XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+            SourceToParse sourceToParse = new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON);
+            DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, null, null, null, sourceToParse) {
+                @Override
+                public XContentParser parser() {
+                    return parser;
+                }
+            };
+            ctx.doc().add(new StoredField("_source", new BytesRef(source)));
+
             ctx.parser().nextToken();
             ctx.parser().nextToken();
             ctx.parser().nextToken();
             while (ctx.parser().nextToken() != Token.END_ARRAY) {
                 ootb.parse(ctx);
             }
-            iw.addDocument(doc);
+            iw.addDocument(ctx.doc());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertSameCount(
@@ -426,6 +430,6 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     private static BooleanScriptFieldType build(Script script) {
-        return new BooleanScriptFieldType("test", factory(script), script, emptyMap(), (builder, params) -> builder);
+        return new BooleanScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

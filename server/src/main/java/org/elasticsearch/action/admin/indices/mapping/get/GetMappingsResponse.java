@@ -12,7 +12,8 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
@@ -65,7 +69,17 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
-            if (indexEntry.value != null) {
+            boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+                DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.value != null) {
+                builder.startObject(MAPPINGS.getPreferredName());
+
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
+                    builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.value.sourceAsMap());
+                }
+                builder.endObject();
+
+            } else if (indexEntry.value != null) {
                 builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
             } else {
                 builder.startObject(MAPPINGS.getPreferredName()).endObject();

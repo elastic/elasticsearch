@@ -12,13 +12,13 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
@@ -97,10 +97,13 @@ public class ReindexRestClientSslTests extends ESTestCase {
 
         final Path cert = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.crt").toURI());
         final Path key = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.key").toURI());
-        final X509ExtendedKeyManager keyManager = new PemKeyConfig(cert, key, password).createKeyManager();
+        final Path configPath = cert.getParent().getParent();
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert.toString(), key.toString(), password, configPath);
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
 
         final Path ca = PathUtils.get(ReindexRestClientSslTests.class.getResource("ca.pem").toURI());
-        final X509ExtendedTrustManager trustManager = new PemTrustConfig(Collections.singletonList(ca)).createTrustManager();
+        final List<String> caList = Collections.singletonList(ca.toString());
+        final X509ExtendedTrustManager trustManager = new PemTrustConfig(caList, configPath).createTrustManager();
 
         sslContext.init(new KeyManager[] { keyManager }, new TrustManager[] { trustManager }, null);
         return sslContext;

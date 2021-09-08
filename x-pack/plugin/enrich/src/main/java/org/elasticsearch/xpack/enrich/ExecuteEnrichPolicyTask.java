@@ -6,17 +6,24 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import java.util.Map;
-
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 
-class ExecuteEnrichPolicyTask extends Task {
+import java.util.Map;
+
+public class ExecuteEnrichPolicyTask extends CancellableTask {
 
     private volatile ExecuteEnrichPolicyStatus status;
 
-    ExecuteEnrichPolicyTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
+    public ExecuteEnrichPolicyTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        Map<String, String> headers
+    ) {
         super(id, type, action, description, parentTask, headers);
     }
 
@@ -25,7 +32,16 @@ class ExecuteEnrichPolicyTask extends Task {
         return status;
     }
 
-    void setStatus(ExecuteEnrichPolicyStatus status) {
+    public void setStatus(ExecuteEnrichPolicyStatus status) {
         this.status = status;
+    }
+
+    @Override
+    protected void onCancelled() {
+        setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.CANCELLED));
+    }
+
+    public void setStep(String requestStep) {
+        setStatus(new ExecuteEnrichPolicyStatus(status, requestStep));
     }
 }

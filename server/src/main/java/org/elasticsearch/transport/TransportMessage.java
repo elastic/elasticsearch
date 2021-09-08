@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.core.RefCounted;
 
 public abstract class TransportMessage implements Writeable, RefCounted {
 

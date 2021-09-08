@@ -15,7 +15,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -31,14 +33,22 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(RestValidateQueryAction.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in validate query requests is deprecated.";
     @Override
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_validate/query"),
             new Route(POST, "/_validate/query"),
             new Route(GET, "/{index}/_validate/query"),
-            new Route(POST, "/{index}/_validate/query"));
+            new Route(POST, "/{index}/_validate/query"),
+            Route.builder(GET, "/{index}/{type}/_validate/query")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_validate/query")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -48,6 +58,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            deprecationLogger.compatibleApiWarning("validate_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            request.param("type");
+        }
+
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));

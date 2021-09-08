@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -44,12 +43,11 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -69,19 +67,17 @@ import static java.util.Map.entry;
 
 public class Analysis {
 
-    public static Version parseAnalysisVersion(IndexSettings indexSettings, Settings settings, Logger logger) {
-        // check for explicit version on the specific analyzer component
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
+
+    public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
+            DEPRECATION_LOGGER.deprecate(
+                DeprecationCategory.ANALYSIS,
+                "analyzer.version",
+                "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"
+            );
         }
-        // check for explicit version on the index itself as default for all analysis components
-        sVersion = indexSettings.getSettings().get("index.analysis.version");
-        if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
-        }
-        // resolve the analysis version based on the version the index was created with
-        return indexSettings.getIndexVersionCreated().luceneVersion;
     }
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {

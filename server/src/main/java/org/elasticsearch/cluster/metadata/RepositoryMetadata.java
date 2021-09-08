@@ -196,4 +196,8 @@ public class RepositoryMetadata implements Writeable {
     public RepositoryMetadata withUuid(String uuid) {
         return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
     }
+
+    public RepositoryMetadata withSettings(Settings settings) {
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+    }
 }

@@ -12,11 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.mockfile.ExtrasFS;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,24 +38,32 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
+import static org.apache.lucene.index.IndexWriter.WRITE_LOCK_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
@@ -69,13 +78,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final long newTerm = randomNonNegativeLong();
 
-            assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(0L));
+            assertThat(persistedClusterStateService.loadOnDiskState().currentTerm, equalTo(0L));
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(newTerm, ClusterState.EMPTY_STATE);
-                assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
+                assertThat(persistedClusterStateService.loadOnDiskState(false).currentTerm, equalTo(newTerm));
             }
 
-            assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
+            assertThat(persistedClusterStateService.loadOnDiskState().currentTerm, equalTo(newTerm));
         }
     }
 
@@ -268,7 +277,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final Path brokenPath = nodeEnvironment.nodeDataPath();
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
                 try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -277,8 +286,90 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
+        }
+    }
+
+    public void testFailsIfGlobalMetadataIsDuplicated() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
+        // is duplicated
+
+        final Path brokenPath = createTempDir();
+        final Path dupPath = createTempDir(); // this exists only to create a duplicate structure that can be copied
+
+        try (NodeEnvironment nodeEnvironment1 = newNodeEnvironment(brokenPath);
+             NodeEnvironment nodeEnvironment2 = newNodeEnvironment(dupPath)) {
+            try (Writer writer1 = newPersistedClusterStateService(nodeEnvironment1).createWriter();
+                 Writer writer2 = newPersistedClusterStateService(nodeEnvironment2).createWriter()) {
+                final ClusterState oldClusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment1));
+                final long newVersion = randomLongBetween(1L, Long.MAX_VALUE);
+                final ClusterState newClusterState = ClusterState.builder(oldClusterState).version(newVersion).build();
+                writeState(writer1, 0L, newClusterState, oldClusterState);
+                writeState(writer2, 0L, newClusterState, oldClusterState);
+            }
+
+            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = newFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                    indexWriter.addIndexes(dupDirectory);
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> newPersistedClusterStateService(nodeEnvironment1).loadOnDiskState()).getMessage();
+            assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
+        }
+    }
+
+    public void testFailsIfIndexMetadataIsDuplicated() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe some index metadata
+        // is duplicated
+
+        final Path brokenPath = createTempDir();
+        final Path dupPath = createTempDir(); // this exists only to create a duplicate structure that can be copied
+
+        try (NodeEnvironment nodeEnvironment1 = newNodeEnvironment(brokenPath);
+             NodeEnvironment nodeEnvironment2 = newNodeEnvironment(dupPath)) {
+            final String indexUUID = UUIDs.randomBase64UUID(random());
+            final String indexName = randomAlphaOfLength(10);
+
+            try (Writer writer1 = newPersistedClusterStateService(nodeEnvironment1).createWriter();
+                 Writer writer2 = newPersistedClusterStateService(nodeEnvironment2).createWriter()) {
+                final ClusterState oldClusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment1));
+                final ClusterState newClusterState = ClusterState.builder(oldClusterState)
+                    .metadata(Metadata.builder(oldClusterState.metadata())
+                        .version(1L)
+                        .coordinationMetadata(CoordinationMetadata.builder(oldClusterState.coordinationMetadata()).term(1L).build())
+                        .put(IndexMetadata.builder(indexName)
+                            .version(1L)
+                            .settings(Settings.builder()
+                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))))
+                    .incrementVersion().build();
+                writeState(writer1, 0L, newClusterState, oldClusterState);
+                writeState(writer2, 0L, newClusterState, oldClusterState);
+            }
+
+            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = newFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                    indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
+                    indexWriter.addIndexes(dupDirectory);
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> newPersistedClusterStateService(nodeEnvironment1).loadOnDiskState()).getMessage();
+            assertThat(message, allOf(
+                containsString("duplicate metadata found"),
+                containsString(brokenPath.toString()),
+                containsString(indexName),
+                containsString(indexUUID)));
         }
     }
 
@@ -555,6 +646,30 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testFailsIfCorrupt() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
+            }
+
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(nodeEnvironment.nodeDataPath().resolve("_state"))) {
+                CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport
+                    .stream(directoryStream.spliterator(), false)
+                    .filter(p -> {
+                        final String filename = p.getFileName().toString();
+                        return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
+                    })
+                    .collect(Collectors.toList())));
+            }
+
+            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadOnDiskState).getMessage(), allOf(
+                    startsWith("the index containing the cluster metadata under the data path ["),
+                    endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
+        }
+    }
+
     private void assertExpectedLogs(long currentTerm, ClusterState previousState, ClusterState clusterState,
                                     PersistedClusterStateService.Writer writer, MockLogAppender.LoggingExpectation expectation)
         throws IllegalAccessException, IOException {
@@ -592,7 +707,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     private static ClusterState loadPersistedClusterState(PersistedClusterStateService persistedClusterStateService) throws IOException {
-        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadOnDiskState(false);
         return clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
     }
 

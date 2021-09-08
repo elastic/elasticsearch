@@ -52,7 +52,7 @@ modifications to the document data and metadata during reindexing.
 . Reset the `refresh_interval` and `number_of_replicas` to the values
   used in the old index.
 . Wait for the index status to change to `green`.
-. In a single <<indices-aliases,update aliases>> request:
+. In a single <<indices-aliases,aliases API>> request:
 .. Delete the old index.
 .. Add an alias with the old index name to the new index.
 .. Add any aliases that existed on the old index to the new index.
@@ -158,7 +158,9 @@ cluster and remove nodes from the old one.
   faster reindexing.
 
 .. Use the <<docs-reindex,`reindex` API>> to pull documents from the
-  remote index into the new {version} index:
+remote index into the new {version} index.
++
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 +
 --
 [source,console]

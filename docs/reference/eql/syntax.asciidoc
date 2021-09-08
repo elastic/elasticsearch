@@ -792,7 +792,16 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-EQL does not support the following features and syntax.
+EQL has the following limitations.
+
+[discrete]
+[[eql-uses-fields-parameter]]
+==== EQL uses the `fields` parameter
+
+EQL retrieves field values using the search API's <<search-fields-param,`fields`
+parameter>>. Any limitations on the `fields` parameter also apply to EQL
+queries. For example, if `_source` is disabled for any returned fields or at
+index level, the values cannot be retrieved.
 
 [discrete]
 [[eql-compare-fields]]
@@ -809,14 +818,6 @@ another field. This applies even if the fields are changed using a
 EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
 use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
 parameter.
-
-[discrete]
-[[eql-array-fields]]
-==== Array field values are not supported
-
-EQL does not support <<array,array>> field values, also known as
-multi-value fields. EQL searches on array field values may return inconsistent
-results.
 
 [discrete]
 [[eql-nested-fields]]

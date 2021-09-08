@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -30,7 +30,7 @@ public class EmailAttachments implements ToXContentFragment {
         this.attachments = attachments;
     }
 
-    public Collection<EmailAttachmentParser.EmailAttachment> getAttachments() {
+    public Collection<? extends EmailAttachmentParser.EmailAttachment> getAttachments() {
         return attachments;
     }
 

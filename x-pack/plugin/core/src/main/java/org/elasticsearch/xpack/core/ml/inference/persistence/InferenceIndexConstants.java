@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -26,11 +26,15 @@ public final class InferenceIndexConstants {
      *
      * version: 7.10.0: 000003
      *  - adds trained_model_metadata object
+     *
+     * version: 8.0.0: 000004
+     *  - adds binary_definition for TrainedModelDefinitionDoc
      */
-    public static final String INDEX_VERSION = "000003";
+    public static final String INDEX_VERSION = "000004";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;
+    public static final String NATIVE_DEFINITION_STORE_INDEX_NAME = INDEX_NAME_PREFIX + "native";
     public static final ParseField DOC_TYPE = new ParseField("doc_type");
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
@@ -40,6 +44,10 @@ public final class InferenceIndexConstants {
             "/org/elasticsearch/xpack/core/ml/inference_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE);
+    }
+
+    public static String nativeDefinitionStore() {
+        return NATIVE_DEFINITION_STORE_INDEX_NAME;
     }
 
     public static Settings settings() {

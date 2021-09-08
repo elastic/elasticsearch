@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,6 +25,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.RestApiVersion.V_7;
+import static org.elasticsearch.core.RestApiVersion.V_8;
+import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -36,7 +40,10 @@ public class RestGetLicenseAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_license"));
+        return List.of(
+            Route.builder(GET, "/_license")
+                .replaces(GET, "/_xpack/license", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -56,13 +63,21 @@ public class RestGetLicenseAction extends BaseRestHandler {
         overrideParams.put(License.REST_VIEW_MODE, "true");
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
 
+        if (request.getRestApiVersion() == V_7) {
+            // Hide enterprise licenses by default, there is an opt-in flag to show them
+            final boolean hideEnterprise = request.paramAsBoolean("accept_enterprise", false) == false;
+            final int licenseVersion = hideEnterprise ? License.VERSION_CRYPTO_ALGORITHMS : License.VERSION_CURRENT;
+            overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(licenseVersion));
+            overrideParams.put(License.XCONTENT_HIDE_ENTERPRISE, String.valueOf(hideEnterprise));
+        }
         // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
         // TODO Remove this from 9.0
         if (request.hasParam("accept_enterprise")) {
             deprecationLogger.deprecate(DeprecationCategory.API, "get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated." +
-                        " The parameter will be removed in the next major version");
-            if (request.paramAsBoolean("accept_enterprise", true) == false) {
+                    " The parameter will be removed in the next major version");
+            if (request.paramAsBoolean("accept_enterprise", true) == false
+                && request.getRestApiVersion().matches(onOrAfter(V_8))) {
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }
         }

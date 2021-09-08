@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -46,7 +46,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                              ActionListener<Boolean> listener) {
+                              ActionListener<Void> listener) {
         String originalIndex = indexMetadata.getIndex().getName();
         final String targetIndexName = targetIndexPrefix + originalIndex;
         IndexMetadata targetIndexMetadata = currentClusterState.metadata().index(targetIndexName);
@@ -60,7 +60,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             return;
         }
 
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentClusterState), targetIndexName, listener);
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, targetIndexName, listener);
     }
 
     /**
@@ -69,11 +69,11 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
      * <p>
      * The is_write_index will *not* be set on the target index as this operation is currently executed on read-only indices.
      */
-    static void deleteSourceIndexAndTransferAliases(Client client, IndexMetadata sourceIndex, TimeValue masterTimeoutValue,
-                                                    String targetIndex, ActionListener<Boolean> listener) {
+    static void deleteSourceIndexAndTransferAliases(Client client, IndexMetadata sourceIndex, String targetIndex,
+                                                    ActionListener<Void> listener) {
         String sourceIndexName = sourceIndex.getIndex().getName();
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
-            .masterNodeTimeout(masterTimeoutValue)
+            .masterNodeTimeout(TimeValue.MAX_VALUE)
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(sourceIndexName));
         // copy over other aliases from source index
@@ -93,7 +93,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
                 if (response.isAcknowledged() == false) {
                     logger.warn("aliases swap from [{}] to [{}] response was not acknowledged", sourceIndexName, targetIndex);
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             }, listener::onFailure));
     }
 

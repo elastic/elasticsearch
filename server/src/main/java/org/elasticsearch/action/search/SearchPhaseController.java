@@ -25,7 +25,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -63,12 +62,9 @@ import java.util.stream.Collectors;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
-    public SearchPhaseController(NamedWriteableRegistry namedWriteableRegistry,
-            Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
+    public SearchPhaseController(Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
@@ -422,7 +418,7 @@ public final class SearchPhaseController {
         final boolean hasProfileResults =  queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
-        final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
+        final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
@@ -440,7 +436,7 @@ public final class SearchPhaseController {
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    List<Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
+                    List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
                     suggestionList.add(suggestion);
                     if (suggestion instanceof CompletionSuggestion) {
                         CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
@@ -597,8 +593,7 @@ public final class SearchPhaseController {
                                                    SearchRequest request,
                                                    int numShards,
                                                    Consumer<Exception> onPartialMergeFailure) {
-        return new QueryPhaseResultConsumer(request, executor, circuitBreaker,
-            this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
+        return new QueryPhaseResultConsumer(request, executor, circuitBreaker, this,  listener, numShards, onPartialMergeFailure);
     }
 
     static final class TopDocsStats {

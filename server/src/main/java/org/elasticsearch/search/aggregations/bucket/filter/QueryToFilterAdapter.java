@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -26,7 +27,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +49,20 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
         query = searcher.rewrite(query);
+        if (query instanceof ConstantScoreQuery) {
+            /*
+             * Unwrap constant score because it gets in the way of us
+             * understanding what the queries are trying to do and we
+             * don't use the score at all anyway. Effectively we always
+             * run in constant score mode.
+             */
+            query = ((ConstantScoreQuery) query).getQuery();
+        }
         if (query instanceof TermQuery) {
             return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
+        }
+        if (query instanceof DocValuesFieldExistsQuery) {
+            return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);
         }
         if (query instanceof MatchAllDocsQuery) {
             return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);
@@ -69,20 +81,8 @@ public class QueryToFilterAdapter<Q extends Query> {
      * {@link #weight()} to build it when needed.
      */
     private Weight weight;
-    /**
-     * Scorer for each segment or {@code null} if we haven't built the scorer.
-     * Use {@link #bulkScorer(LeafReaderContext, Runnable)} to build the scorer
-     * when needed.
-     */
-    private BulkScorer[] bulkScorers;
-    /**
-     * The number of scorers we prepared just to estimate the cost of counting
-     * documents. For some queries preparing the scorers is very slow so its
-     * nice to know how many we built. Exposed by profiling.
-     */
-    private int scorersPreparedWhileEstimatingCost;
 
-    private QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
+    QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
         this.searcher = searcher;
         this.key = key;
         this.query = query;
@@ -96,6 +96,16 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     Q query() {
         return query;
+    }
+
+    /**
+     * Is this an inefficient union of the top level query with the filter?
+     * If the top level query if complex we can't efficiently merge it with
+     * the filter. If we can't do that it is likely faster to just run the
+     * "native" aggregation implementation rather than go filter by filter.
+     */
+    public boolean isInefficientUnion() {
+        return false;
     }
 
     /**
@@ -166,7 +176,11 @@ public class QueryToFilterAdapter<Q extends Query> {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.MUST);
         builder.add(extraQuery, BooleanClause.Occur.MUST);
-        return new QueryToFilterAdapter<>(searcher(), key(), builder.build());
+        return new QueryToFilterAdapter<>(searcher(), key(), builder.build()) {
+            public boolean isInefficientUnion() {
+                return true;
+            }
+        };
     }
 
     private static Query unwrap(Query query) {
@@ -204,7 +218,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Count the number of documents that match this filter in a leaf.
      */
     long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> {});
+        BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
             return 0;
@@ -214,34 +228,15 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Estimate the cost of calling {@code #count} in a leaf.
-     */
-    long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-        return estimateCollectCost(ctx);
-    }
-
-    /**
      * Collect all documents that match this filter in this leaf.
      */
     void collect(LeafReaderContext ctx, LeafCollector collector, Bits live) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> {});
+        BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
             return;
         }
         scorer.score(collector, live);
-    }
-
-    /**
-     * Estimate the cost of calling {@code #count} in a leaf.
-     */
-    long estimateCollectCost(LeafReaderContext ctx) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> scorersPreparedWhileEstimatingCost++);
-        if (scorer == null) {
-            // There aren't any matches for this filter in this leaf
-            return 0;
-        }
-        return scorer.cost(); // TODO change this to ScorerSupplier.cost
     }
 
     /**
@@ -257,18 +252,6 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("query", query.toString());
-        add.accept("scorers_prepared_while_estimating_cost", scorersPreparedWhileEstimatingCost);
-    }
-
-    private BulkScorer bulkScorer(LeafReaderContext ctx, Runnable onPrepare) throws IOException {
-        if (bulkScorers == null) {
-            bulkScorers = new BulkScorer[searcher().getIndexReader().leaves().size()];
-        }
-        if (bulkScorers[ctx.ord] == null) {
-            onPrepare.run();
-            return bulkScorers[ctx.ord] = weight().bulkScorer(ctx);
-        }
-        return bulkScorers[ctx.ord];
     }
 
     private Weight weight() throws IOException {
@@ -276,114 +259,5 @@ public class QueryToFilterAdapter<Q extends Query> {
             weight = searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         }
         return weight;
-    }
-
-    /**
-     * Special case when the filter can't match anything.
-     */
-    private static class MatchNoneQueryToFilterAdapter extends QueryToFilterAdapter<MatchNoDocsQuery> {
-        private MatchNoneQueryToFilterAdapter(IndexSearcher searcher, String key, MatchNoDocsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
-            return this;
-        }
-
-        @Override
-        IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-            return l -> false;
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            return 0;
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            return 0;
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "match_none");
-        }
-    }
-
-    /**
-     * Filter that matches every document.
-     */
-    private static class MatchAllQueryToFilterAdapter extends QueryToFilterAdapter<MatchAllDocsQuery> {
-        private int resultsFromMetadata;
-
-        private MatchAllQueryToFilterAdapter(IndexSearcher searcher, String key, MatchAllDocsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
-            return QueryToFilterAdapter.build(searcher(), key(), extraQuery);
-        }
-
-        @Override
-        IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-            return l -> true;
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live)) {
-                resultsFromMetadata++;
-                return ctx.reader().maxDoc();  // TODO we could use numDocs even if live is not null because provides accurate numDocs.
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            return canUseMetadata.get() ? 0 : ctx.reader().maxDoc();
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "match_all");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
-    }
-
-    private static class TermQueryToFilterAdapter extends QueryToFilterAdapter<TermQuery> {
-        private int resultsFromMetadata;
-
-        private TermQueryToFilterAdapter(IndexSearcher searcher, String key, TermQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live)) {
-                resultsFromMetadata++;
-                return ctx.reader().docFreq(query().getTerm());
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            if (canUseMetadata.get()) {
-                return 0;
-            }
-            return super.estimateCountCost(ctx, canUseMetadata);
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "term");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
     }
 }

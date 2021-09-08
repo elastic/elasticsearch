@@ -10,13 +10,8 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -29,38 +24,40 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 public class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
@@ -130,8 +127,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             clusterService,
             bigArrays,
             recoverySettings,
-            BlobPath.cleanPath() /* the encrypted repository uses a hardcoded empty
-                                 base blob path but the base path setting is honored for the delegated repository */
+            BlobPath.EMPTY /* the encrypted repository uses a hardcoded empty
+                            base blob path but the base path setting is honored for the delegated repository */
         );
         this.delegatedRepository = delegatedRepository;
         this.dekGenerator = createDEKGenerator();
@@ -197,39 +194,49 @@ public class EncryptedRepository extends BlobStoreRepository {
             localRepositoryPasswordSalt,
             localRepositoryPasswordHash
         );
-        // do not wrap in Map.of; we have to be able to modify the map (remove the added entries) when finalizing the snapshot
-        return snapshotUserMetadata;
+        return Map.copyOf(snapshotUserMetadata);
     }
 
     @Override
-    public void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    ) {
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+        final SnapshotInfo snapshotInfo = finalizeSnapshotContext.snapshotInfo();
         try {
             validateLocalRepositorySecret(snapshotInfo.userMetadata());
         } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
+            finalizeSnapshotContext.onFailure(passwordValidationException);
             return;
-        } finally {
-            // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
-            // to the user
-            snapshotInfo.userMetadata().remove(PASSWORD_HASH_USER_METADATA_KEY);
-            snapshotInfo.userMetadata().remove(PASSWORD_SALT_USER_METADATA_KEY);
         }
+        // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
+        // to the user
+        final Map<String, Object> updatedUserMetadata = new HashMap<>(snapshotInfo.userMetadata());
+        updatedUserMetadata.remove(PASSWORD_HASH_USER_METADATA_KEY);
+        updatedUserMetadata.remove(PASSWORD_SALT_USER_METADATA_KEY);
+        final SnapshotInfo updatedSnapshotInfo = new SnapshotInfo(
+            snapshotInfo.snapshot(),
+            snapshotInfo.indices(),
+            snapshotInfo.dataStreams(),
+            snapshotInfo.featureStates(),
+            snapshotInfo.reason(),
+            snapshotInfo.version(),
+            snapshotInfo.startTime(),
+            snapshotInfo.endTime(),
+            snapshotInfo.totalShards(),
+            snapshotInfo.successfulShards(),
+            snapshotInfo.shardFailures(),
+            snapshotInfo.includeGlobalState(),
+            updatedUserMetadata,
+            snapshotInfo.state(),
+            snapshotInfo.indexSnapshotDetails()
+        );
         super.finalizeSnapshot(
-            shardGenerations,
-            repositoryStateId,
-            clusterMetadata,
-            snapshotInfo,
-            repositoryMetaVersion,
-            stateTransformer,
-            listener
+            new FinalizeSnapshotContext(
+                finalizeSnapshotContext.updatedShardGenerations(),
+                finalizeSnapshotContext.repositoryStateId(),
+                finalizeSnapshotContext.clusterMetadata(),
+                updatedSnapshotInfo,
+                finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext
+            )
         );
     }
 
@@ -482,10 +489,9 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            final Iterator<String> pathIterator = path.iterator();
             BlobPath delegatedBlobContainerPath = delegatedBasePath;
-            while (pathIterator.hasNext()) {
-                delegatedBlobContainerPath = delegatedBlobContainerPath.add(pathIterator.next());
+            for (String s : path.parts()) {
+                delegatedBlobContainerPath = delegatedBlobContainerPath.add(s);
             }
             final BlobContainer delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBlobContainerPath);
             return new EncryptedBlobContainer(path, repositoryName, delegatedBlobContainer, singleUseDEKSupplier, this::getDEKById);
@@ -514,7 +520,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         ) {
             super(path);
             this.repositoryName = repositoryName;
-            final String rootPathElement = path.iterator().hasNext() ? path.iterator().next() : null;
+            final String rootPathElement = path.parts().isEmpty() ? null : path.parts().get(0);
             if (DEK_ROOT_CONTAINER.equals(rootPathElement)) {
                 throw new RepositoryException(repositoryName, "Cannot descend into the DEK blob container " + path);
             }
@@ -624,6 +630,24 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
+        @Override
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
+            // TODO: this is just a stop-gap solution for until we have an encrypted output stream wrapper
+            try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+                writer.accept(out);
+                if (atomic) {
+                    writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+                } else {
+                    writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+                }
+            }
+        }
+
         private ChainingInputStream encryptedInput(InputStream inputStream, SingleUseKey singleUseNonceAndDEK, BytesReference dekIdBytes)
             throws IOException {
             return ChainingInputStream.chain(
@@ -662,7 +686,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
             delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
         }
 
@@ -681,7 +705,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
             final Map<String, BlobContainer> resultBuilder = new HashMap<>(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> childBlobContainer : childEncryptedBlobContainers.entrySet()) {
-                if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && false == path().iterator().hasNext()) {
+                if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && path().parts().isEmpty()) {
                     // do not descend into the DEK blob container
                     continue;
                 }

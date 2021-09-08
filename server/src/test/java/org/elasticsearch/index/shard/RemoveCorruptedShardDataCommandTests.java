@@ -29,12 +29,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -78,7 +78,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private IndexMetadata indexMetadata;
     private ClusterState clusterState;
     private IndexShard indexShard;
-    private Path[] dataPaths;
+    private Path dataPath;
     private Path translogPath;
     private Path indexPath;
 
@@ -92,16 +92,15 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         routing = TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE);
 
-        final Path dataDir = createTempDir();
+        dataPath = createTempDir();
 
         environment =
             TestEnvironment.newEnvironment(Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), dataDir)
-                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
+                .put(Environment.PATH_HOME_SETTING.getKey(), dataPath)
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString()).build());
 
         // create same directory structure as prod does
-        Files.createDirectories(dataDir);
-        dataPaths = new Path[] {dataDir};
+        Files.createDirectories(dataPath);
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -110,11 +109,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataPath);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
-        Condition rolloverCondition = randomFrom(
+        Condition<?> rolloverCondition = randomFrom(
             new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
             new MaxDocsCondition(randomNonNegativeLong()),
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
@@ -132,7 +131,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
             final NodeEnvironment.NodePath dataPath = lock.getNodePath();
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(new Path[] { dataPath.path }, nodeId,
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(dataPath.path, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, clusterState);
@@ -370,11 +369,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options = parser.parse("--index", shardId.getIndex().getName(),
             "--shard-id", Integer.toString(shardId.id()));
 
-        command.findAndProcessShardPath(options, environment, dataPaths, clusterState,
+        command.findAndProcessShardPath(options, environment, dataPath, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
 
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-        command.findAndProcessShardPath(options2, environment, dataPaths, clusterState,
+        command.findAndProcessShardPath(options2, environment, dataPath, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
     }
 

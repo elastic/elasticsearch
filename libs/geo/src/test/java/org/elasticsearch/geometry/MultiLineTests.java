@@ -10,6 +10,7 @@ package org.elasticsearch.geometry;
 
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
@@ -32,22 +33,22 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("MULTILINESTRING ((3.0 1.0, 4.0 2.0))", wkt.toWKT(
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals("MULTILINESTRING ((3.0 1.0, 4.0 2.0))", WellKnownText.toWKT(
             new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2})))));
         assertEquals(new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2}))),
-            wkt.fromWKT("MULTILINESTRING ((3 1, 4 2))"));
+            WellKnownText.fromWKT(validator, true, "MULTILINESTRING ((3 1, 4 2))"));
 
-        assertEquals("MULTILINESTRING EMPTY", wkt.toWKT(MultiLine.EMPTY));
-        assertEquals(MultiLine.EMPTY, wkt.fromWKT("MULTILINESTRING EMPTY)"));
+        assertEquals("MULTILINESTRING EMPTY", WellKnownText.toWKT(MultiLine.EMPTY));
+        assertEquals(MultiLine.EMPTY, WellKnownText.fromWKT(validator, true, "MULTILINESTRING EMPTY)"));
     }
 
     public void testValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2}, new double[]{6, 5})))));
         assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(
+        StandardValidator.instance(true).validate(
             new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2}, new double[]{6, 5}))));
     }
 }

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 
 import java.io.IOException;
 import java.net.URISyntaxException;

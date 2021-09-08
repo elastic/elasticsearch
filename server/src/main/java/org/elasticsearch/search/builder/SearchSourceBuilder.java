@@ -10,21 +10,23 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -68,6 +70,8 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
+
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
@@ -1117,7 +1121,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    size(parser.intValue());
+                    int parsedSize = parser.intValue();
+                    if (parser.getRestApiVersion() == RestApiVersion.V_7 && parsedSize == -1) {
+                        // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
+                        deprecationLogger.compatibleApiWarning(
+                            "search-api-size-1",
+                            "Using search size of -1 is deprecated and will be removed in future versions. "
+                                + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
+                        );
+                    } else {
+                        size(parsedSize);
+                    }
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1164,6 +1178,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         scriptFields.add(new ScriptField(parser));
                     }
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("indices_boost_object_format",
+                        "Object format in indices_boost is deprecated, please use array format instead");
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            indexBoosts.add(new IndexBoost(currentFieldName, parser.floatValue()));
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token +
+                                " in [" + currentFieldName + "].", parser.getTokenLocation());
+                        }
+                    }
                 } else if (AGGREGATIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
                         || AGGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     aggregations = AggregatorFactories.parseAggregators(parser);
@@ -1185,9 +1213,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         } else {
                             SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
                             if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
-                                throw new IllegalStateException("The parsed [" + searchExtBuilder.getClass().getName() + "] object has a "
-                                        + "different writeable name compared to the name of the section that it was parsed from: found ["
-                                        + searchExtBuilder.getWriteableName() + "] expected [" + extSectionName + "]");
+                                throw new IllegalStateException(
+                                    "The parsed ["
+                                        + searchExtBuilder.getClass().getName()
+                                        + "] object has a different writeable name compared to the name of the section that "
+                                        + " it was parsed from: found ["
+                                        + searchExtBuilder.getWriteableName()
+                                        + "] expected ["
+                                        + extSectionName
+                                        + "]"
+                                );
                             }
                             extBuilders.add(searchExtBuilder);
                         }
@@ -1405,7 +1440,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
         if (pointInTimeBuilder != null) {
+            builder.startObject(POINT_IN_TIME.getPreferredName());
             pointInTimeBuilder.toXContent(builder, params);
+            builder.endObject();
         }
         if (false == runtimeMappings.isEmpty()) {
             builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);

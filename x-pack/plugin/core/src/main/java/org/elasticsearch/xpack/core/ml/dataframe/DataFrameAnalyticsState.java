@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 
-public enum DataFrameAnalyticsState implements Writeable {
+public enum DataFrameAnalyticsState implements Writeable, MemoryTrackedTaskState {
 
     // States reindexing and analyzing are no longer used.
     // However, we need to keep them for BWC as tasks may be
@@ -47,9 +48,14 @@ public enum DataFrameAnalyticsState implements Writeable {
     }
 
     /**
-     * @return {@code false} if state matches any of the given {@code candidates}
+     * @return {@code true} if state matches none of the given {@code candidates}
      */
     public boolean isNoneOf(DataFrameAnalyticsState... candidates) {
         return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
+    }
+
+    @Override
+    public boolean consumesMemory() {
+        return isNoneOf(FAILED, STOPPED);
     }
 }

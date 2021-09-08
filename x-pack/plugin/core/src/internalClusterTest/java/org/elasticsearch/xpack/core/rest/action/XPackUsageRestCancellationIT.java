@@ -18,12 +18,12 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -31,8 +31,8 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
@@ -61,7 +62,13 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class, BlockingUsageActionXPackPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), BlockingUsageActionXPackPlugin.class, NioTransportPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int ordinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(ordinal, otherSettings))
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME).build();
     }
 
     @Override
@@ -75,18 +82,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         final String actionName = XPackUsageAction.NAME;
 
         final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        final Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                future.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                future.onFailure(exception);
-            }
-        });
+        final PlainActionFuture<Response> future = new PlainActionFuture<>();
+        final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertThat(future.isDone(), equalTo(false));
         awaitTaskWithPrefix(actionName);

@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -28,7 +29,7 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -162,6 +163,13 @@ public abstract class MappedFieldType {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * @return true if field has been marked as a dimension field
+     */
+    public boolean isDimension() {
+        return false;
     }
 
     /** Generates a query that will only match documents that contain the given value.
@@ -365,17 +373,32 @@ public abstract class MappedFieldType {
         return false;
     }
 
-    /** Return a {@link DocValueFormat} that can be used to display and parse
-     *  values as returned by the fielddata API.
-     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+    /**
+     * Pick a {@link DocValueFormat} that can be used to display and parse
+     * values of fields of this type.
+     */
     public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+        checkNoFormat(format);
+        checkNoTimeZone(timeZone);
+        return DocValueFormat.RAW;
+    }
+
+    /**
+     * Validate the provided {@code format} is null.
+     */
+    protected void checkNoFormat(@Nullable String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
         }
+    }
+
+    /**
+     * Validate the provided {@code timeZone} is null.
+     */
+    protected void checkNoTimeZone(@Nullable ZoneId timeZone) {
         if (timeZone != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
         }
-        return DocValueFormat.RAW;
     }
 
     /**
@@ -428,5 +451,23 @@ public abstract class MappedFieldType {
         NONE, // this field is not collapsable
         KEYWORD,
         NUMERIC
+    }
+
+    /**
+     * This method is used to support auto-complete services and implementations
+     * are expected to find terms beginning with the provided string very quickly.
+     * If fields cannot look up matching terms quickly they should return null.
+     * The returned TermEnum should implement next(), term() and doc_freq() methods
+     * but postings etc are not required.
+     * @param caseInsensitive if matches should be case insensitive
+     * @param string the partially complete word the user has typed (can be empty)
+     * @param queryShardContext the shard context
+     * @param searchAfter - usually null. If supplied the TermsEnum result must be positioned after the provided term (used for pagination)
+     * @return null or an enumeration of matching terms and their doc frequencies
+     * @throws IOException Errors accessing data
+     */
+    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+        throws IOException {
+        return null;
     }
 }

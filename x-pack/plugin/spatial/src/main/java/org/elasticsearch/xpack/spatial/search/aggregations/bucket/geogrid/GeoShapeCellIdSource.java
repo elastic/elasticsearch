@@ -47,10 +47,6 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
         GeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
-        if (encoder.precision() == 0) {
-            // special case, precision 0 is the whole world
-            return new AllCellValues(geoValues, encoder.encode(0, 0), circuitBreakerConsumer);
-        }
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (GeoShapeValuesSourceType.instance() == vs) {
             // docValues are geo shapes

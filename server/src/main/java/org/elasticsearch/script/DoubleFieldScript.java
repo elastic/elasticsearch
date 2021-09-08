@@ -14,9 +14,44 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 import java.util.function.DoubleConsumer;
+import java.util.function.Function;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_field", Factory.class);
+
+    public static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new DoubleFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -70,6 +105,19 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
      */
     public final int count() {
         return count;
+    }
+
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v instanceof Number) {
+            emit(((Number) v).doubleValue());
+        } else if (v instanceof String) {
+            try {
+                emit(Double.parseDouble((String) v));
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
     }
 
     public final void emit(double v) {

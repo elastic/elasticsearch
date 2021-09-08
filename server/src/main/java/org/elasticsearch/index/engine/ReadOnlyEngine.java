@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -68,14 +69,13 @@ public class ReadOnlyEngine extends Engine {
     private final ElasticsearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
-    private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
     final boolean lazilyLoadSoftDeletes;
 
     protected volatile TranslogStats translogStats;
-    protected final String commitId;
+    private final String commitId;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -95,7 +95,6 @@ public class ReadOnlyEngine extends Engine {
                           Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
                           boolean lazilyLoadSoftDeletes) {
         super(config);
-        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         this.requireCompleteHistory = requireCompleteHistory;
         try {
             Store store = config.getStore();
@@ -118,7 +117,7 @@ public class ReadOnlyEngine extends Engine {
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 this.lazilyLoadSoftDeletes = lazilyLoadSoftDeletes;
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                readerManager = new ElasticsearchReaderManager(reader, refreshListener);
+                readerManager = new ElasticsearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
@@ -200,6 +199,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
+        // TODO: provide engineConfig.getLeafSorter() when opening a DirectoryReader from a commit
+        // should be available from Lucene v 8.10
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         if (lazilyLoadSoftDeletes) {
             return new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
@@ -246,8 +247,9 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, MappingLookup mappingLookup, Function<Searcher, Searcher> searcherWrapper) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+    public GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
+                         Function<Searcher, Searcher> searcherWrapper) {
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
     }
 
     @Override
@@ -485,10 +487,6 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReader(ElasticsearchDirectoryReader reader) {
-        refreshListener.accept(reader, null);
-    }
-
     @Override
     public boolean refreshNeeded() {
         return false;
@@ -564,7 +562,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
-        return new SearcherSupplier(Function.identity()) {
+        return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {
                 delegate.close();
@@ -580,5 +578,9 @@ public class ReadOnlyEngine extends Engine {
                 return commitId;
             }
         };
+    }
+
+    public final String getCommitId() {
+        return commitId;
     }
 }

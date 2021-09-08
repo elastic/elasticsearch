@@ -8,5 +8,9 @@
         }
       }
     }
+  },
+  "_meta": {
+    "description": "default policy for the metrics index template installed by x-pack",
+    "managed": true
   }
 }

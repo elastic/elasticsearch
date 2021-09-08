@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
@@ -121,7 +121,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
         assert replicaShardAllocator != null;
-        if (allocation.routingNodes().hasInactiveShards()) {
+        if (allocation.routingNodes().hasInactiveReplicas()) {
             // cancel existing recoveries if we have a better match
             replicaShardAllocator.processExistingRecoveries(allocation);
         }

@@ -10,7 +10,8 @@
 [id="{upid}-{api}-request"]
 ==== Request
 
-The Cache Stats API provides statistics about searchable snapshot shared cache.
+Retrieves statistics about the shared cache for
+{ref}/searchable-snapshots.html#partially-mounted[partially mounted indices].
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

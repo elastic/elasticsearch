@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -110,7 +109,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
 
             step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                 }
 
                 @Override

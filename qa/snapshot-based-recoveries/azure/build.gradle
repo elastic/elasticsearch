@@ -1,0 +1,90 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project fixture = project(':test:fixtures:azure-fixture')
+final Project repositoryPlugin = project(':plugins:repository-azure')
+
+dependencies {
+  testImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
+  testImplementation repositoryPlugin
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot'
+  }
+}
+
+boolean useFixture = false
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
+
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
+
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(fixture.path, 'azure-fixture-snapshot-based-recoveries')
+}
+
+tasks.named("integTest").configure {
+  systemProperty 'test.azure.container', azureContainer
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_snapshot_based_recoveries_tests_" + BuildParams.testSeed
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 3
+  plugin repositoryPlugin.path
+
+  keystore 'azure.client.snapshot_based_recoveries.account', azureAccount
+  if (azureKey != null && azureKey.isEmpty() == false) {
+    keystore 'azure.client.snapshot_based_recoveries.key', azureKey
+  }
+  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+    keystore 'azure.client.snapshot_based_recoveries.sas_token', azureSasToken
+  }
+
+  setting 'xpack.security.enabled', 'false'
+
+  if (useFixture) {
+    def fixtureAddress = { fixtureName ->
+      assert useFixture: 'closure should not be used without a fixture'
+      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
+      assert ephemeralPort > 0
+      '127.0.0.1:' + ephemeralPort
+    }
+    setting 'azure.client.snapshot_based_recoveries.endpoint_suffix',
+      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-snapshot-based-recoveries')}/azure_integration_test_account" }, IGNORE_VALUE
+
+  } else {
+    println "Using an external service to test " + project.name
+  }
+}
+
+tasks.register("azureThirdPartyTest") {
+  dependsOn "integTest"
+}
+

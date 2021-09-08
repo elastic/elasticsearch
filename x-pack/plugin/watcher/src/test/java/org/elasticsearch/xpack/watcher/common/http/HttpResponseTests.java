@@ -114,6 +114,7 @@ public class HttpResponseTests extends ESTestCase {
 
         assertThat(responseMap, hasKey("headers"));
         assertThat(responseMap.get("headers"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
         Map<String, Object> responseHeaders = (Map<String, Object>) responseMap.get("headers");
 
         assertThat(responseHeaders, not(hasKey("es.index")));

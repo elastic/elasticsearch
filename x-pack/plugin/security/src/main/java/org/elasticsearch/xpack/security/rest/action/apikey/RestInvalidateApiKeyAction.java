@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Rest action to invalidate one or more API keys
  */
 public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
+    @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
                 return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2],

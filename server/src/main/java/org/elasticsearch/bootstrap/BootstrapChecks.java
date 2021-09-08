@@ -13,13 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.NodeValidationException;
@@ -523,15 +524,14 @@ final class BootstrapChecks {
     }
 
     /**
-     * Bootstrap check that if system call filters are enabled, then system call filters must have installed successfully.
+     * Bootstrap check that system call filters must have installed successfully.
      */
     static class SystemCallFilterCheck implements BootstrapCheck {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && isSystemCallFilterInstalled() == false) {
-                final String message =  "system call filters failed to install; " +
-                        "check the logs and fix your configuration or disable system call filters at your own risk";
+            if (isSystemCallFilterInstalled() == false) {
+                final String message = "system call filters failed to install; check the logs and fix your configuration";
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -590,10 +590,10 @@ final class BootstrapChecks {
         String message(BootstrapContext context) {
             return String.format(
                 Locale.ROOT,
-                "OnError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
+                "OnError [%s] requires forking but is prevented by system call filters;" +
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
-                onError(),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+                onError()
+            );
         }
 
     }
@@ -614,10 +614,10 @@ final class BootstrapChecks {
         String message(BootstrapContext context) {
             return String.format(
                 Locale.ROOT,
-                "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
+                "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters;" +
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
-                onOutOfMemoryError(),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+                onOutOfMemoryError()
+            );
         }
 
     }

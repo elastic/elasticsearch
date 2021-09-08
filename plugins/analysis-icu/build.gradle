@@ -7,7 +7,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -36,9 +36,23 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
-  ].join(',')
+      //marked as not needing compatible api
+      'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter' // Cleanup versioned deprecations in analysis #41560
+    ].join(',')
+}
+
+tasks.named('splitPackagesAudit').configure {
+    // o.e.i.analysis is owned by server. Move these to an icu package
+  ignoreClasses 'org.elasticsearch.index.analysis.ICUCollationKeyFilter',
+    'org.elasticsearch.index.analysis.IcuAnalyzerProvider',
+    'org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory',
+    'org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IcuTokenizerFactory',
+    'org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IndexableBinaryStringTools',
+    'org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper'
 }

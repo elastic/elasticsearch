@@ -9,6 +9,7 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -46,28 +47,28 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
@@ -100,7 +101,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -112,6 +113,8 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.FieldUsageStats;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -144,6 +147,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -182,6 +186,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DATASTREAM_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -193,6 +198,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
+    private final ShardFieldUsageTracker fieldUsageTracker;
+    private final String shardUuid = UUIDs.randomBase64UUID();
+    private final long shardCreationTime;
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
@@ -277,6 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    private final boolean isDataStreamIndex; // if a shard is a part of data stream
 
     public IndexShard(
             final ShardRouting shardRouting,
@@ -303,7 +312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
-        this.codecService = new CodecService(mapperService, logger);
+        this.codecService = new CodecService(mapperService);
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
@@ -355,6 +364,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
                 this::getSafeCommitInfo,
                 pendingReplicationActions);
+        fieldUsageTracker = new ShardFieldUsageTracker();
+        shardCreationTime = threadPool.absoluteTimeInMillis();
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -379,6 +390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
     }
 
     public ThreadPool getThreadPool() {
@@ -446,6 +458,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /** Returns the primary term that is currently being used to assign to operations */
     public long getOperationPrimaryTerm() {
         return replicationTracker.getOperationPrimaryTerm();
+    }
+
+    /**
+     * Returns a unique UUID that identifies this IndexShard instance
+     */
+    public String getShardUuid() {
+        return shardUuid;
+    }
+
+    /**
+     * Returns the timestamp at which this IndexShard instance was created
+     */
+    public long getShardCreationTime() {
+        return shardCreationTime;
     }
 
     /**
@@ -825,7 +851,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            operation = prepareIndex(docMapper(), sourceToParse,
+            operation = prepareIndex(mapperService, sourceToParse,
                 seqNo, opPrimaryTerm, version, versionType, origin, autoGeneratedTimeStamp, isRetry, ifSeqNo, ifPrimaryTerm);
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -843,16 +869,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long seqNo,
+    public static Engine.Index prepareIndex(MapperService mapperService, SourceToParse source, long seqNo,
                                             long primaryTerm, long version, VersionType versionType, Engine.Operation.Origin origin,
                                             long autoGeneratedIdTimestamp, boolean isRetry,
                                             long ifSeqNo, long ifPrimaryTerm) {
         long startTime = System.nanoTime();
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY :
             "dynamic_templates parameter can only be associated with primary operations";
-        ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
-        if (docMapper.getMapping() != null) {
-            doc.addDynamicMappingsUpdate(docMapper.getMapping());
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        Mapping mapping = null;
+        if (documentMapper == null) {
+            documentMapper = DocumentMapper.createEmpty(mapperService);
+            mapping = documentMapper.mapping();
+        }
+        ParsedDocument doc = documentMapper.parse(source);
+        if (mapping != null) {
+            //If we are indexing but there is no mapping we create one. This is to ensure that whenever at least a document is indexed
+            // some mappings do exist. It covers for the case of indexing an empty doc (`{}`).
+            //TODO this can be removed if we eagerly create mappings as soon as a new index is created, regardless of
+            //whether mappings were provided or not.
+            doc.addDynamicMappingsUpdate(mapping);
         }
         Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         return new Engine.Index(uid, doc, seqNo, primaryTerm, version, versionType, origin, startTime, autoGeneratedIdTimestamp, isRetry,
@@ -977,7 +1013,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappingLookup.hasMappings() == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mappingLookup, this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }
 
     /**
@@ -1053,6 +1089,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public SearchStats searchStats(String... groups) {
         return searchStats.stats(groups);
+    }
+
+    public FieldUsageStats fieldUsageStats(String... fields) {
+        return fieldUsageTracker.stats(fields);
     }
 
     public GetStats getStats() {
@@ -1265,18 +1305,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.Searcher acquireSearcher(String source) {
-        return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+        readAllowed();
+        markSearcherAccessed();
+        final Engine engine = getEngine();
+        return engine.acquireSearcher(source, Engine.SearcherScope.EXTERNAL, this::wrapSearcher);
     }
 
     private void markSearcherAccessed() {
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
-    }
-
-    private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
-        readAllowed();
-        markSearcherAccessed();
-        final Engine engine = getEngine();
-        return engine.acquireSearcher(source, scope, this::wrapSearcher);
     }
 
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
@@ -1284,7 +1320,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = wrapSearcher(searcher, fieldUsageTracker.createSession(), readerWrapper);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -1298,37 +1334,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
-                                        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
-        assert readerWrapper != null;
+                                        ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsTrackingSession,
+                                        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper)
+        throws IOException {
         final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
             ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
+        if (readerWrapper == null) {
+            readerWrapper = r -> r;
+        }
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
-        DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
-        if (reader != nonClosingReaderWrapper) {
-            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
-                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
-                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
-                    "used as cache keys since their are used only per request which would lead to subtle bugs");
-            }
-            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
-                // prevent that somebody wraps with a non-filter reader
-                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
-            }
+        // first apply field usage stats wrapping before applying other wrappers so that it can track the effects of these wrappers
+        DirectoryReader reader = readerWrapper.apply(
+            new FieldUsageTrackingDirectoryReader(nonClosingReaderWrapper, fieldUsageStatsTrackingSession));
+        if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
+            throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
+                "used as cache keys since their are used only per request which would lead to subtle bugs");
+        }
+        if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+            // prevent that somebody wraps with a non-filter reader
+            throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
         }
 
-        if (reader == nonClosingReaderWrapper) {
-            return engineSearcher;
-        } else {
-            // we close the reader to make sure wrappers can release resources if needed....
-            // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), reader,
-                engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
-                () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
-                    engineSearcher)); // this will run the closeable on the wrapped engine reader
-        }
+        // we close the reader to make sure wrappers can release resources if needed....
+        // our NonClosingReaderWrapper makes sure that our reader is not closed
+        return new Engine.Searcher(engineSearcher.source(), reader,
+            engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
+            () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
+                engineSearcher, // this will run the closeable on the wrapped engine reader
+                fieldUsageStatsTrackingSession)); // completes stats recording
     }
 
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
@@ -1739,7 +1776,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
-        final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
@@ -2140,9 +2176,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
     }
 
-    private void ensureSoftDeletesEnabled(String feature) {
+    private void ensureSoftDeletesEnabled() {
         if (indexSettings.isSoftDeleteEnabled() == false) {
-            String message = feature + " requires soft deletes but " + indexSettings.getIndex() + " does not have soft deletes enabled";
+            String message =
+                "retention leases requires soft deletes but " + indexSettings.getIndex() + " does not have soft deletes enabled";
             assert false : message;
             throw new IllegalStateException(message);
         }
@@ -2194,7 +2231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
-        ensureSoftDeletesEnabled("retention leases");
+        ensureSoftDeletesEnabled();
         try (Closeable ignore = acquireHistoryRetentionLock()) {
             final long actualRetainingSequenceNumber =
                 retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
@@ -2216,7 +2253,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
-        ensureSoftDeletesEnabled("retention leases");
+        ensureSoftDeletesEnabled();
         try (Closeable ignore = acquireHistoryRetentionLock()) {
             final long actualRetainingSequenceNumber =
                     retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
@@ -2236,7 +2273,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
-        ensureSoftDeletesEnabled("retention leases");
+        ensureSoftDeletesEnabled();
         replicationTracker.removeRetentionLease(id, listener);
     }
 
@@ -2535,6 +2572,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void maybeCheckIndex() {
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
+            logger.warn(
+                "performing expensive diagnostic checks during shard startup [{}={}]; " +
+                    "these checks should only be enabled temporarily, you must remove this index setting as soon as possible",
+                IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(),
+                checkIndexOnStartup);
             try {
                 checkIndex();
             } catch (IOException ex) {
@@ -2561,30 +2603,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (Lucene.indexExists(store.directory()) == false) {
             return;
         }
-        BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
-            MetadataSnapshot metadata = snapshotStoreMetadata();
+            final MetadataSnapshot metadata;
+            try {
+                metadata = snapshotStoreMetadata();
+            } catch (IOException e) {
+                logger.warn("check index [failure]", e);
+                throw e;
+            }
+            final List<String> checkedFiles = new ArrayList<>(metadata.size());
             for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
-                    out.println("checksum passed: " + entry.getKey());
-                } catch (IOException exc) {
-                    out.println("checksum failed: " + entry.getKey());
-                    exc.printStackTrace(out);
-                    corrupt = exc;
+                    if (corrupt == null) {
+                        checkedFiles.add(entry.getKey());
+                    } else {
+                        logger.info("check index [ok]: checksum check passed on [{}]", entry.getKey());
+                    }
+                } catch (IOException ioException) {
+                    for (final String checkedFile : checkedFiles) {
+                        logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
+                    }
+                    checkedFiles.clear();
+                    logger.warn(new ParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()), ioException);
+                    corrupt = ioException;
                 }
             }
-            out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                 throw corrupt;
+            }
+            if (logger.isDebugEnabled()) {
+                for (final String checkedFile : checkedFiles) {
+                    logger.debug("check index [ok]: checksum check passed on [{}]", checkedFile);
+                }
             }
         } else {
             // full checkindex
+            final BytesStreamOutput os = new BytesStreamOutput();
+            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (status.clean == false) {
@@ -2592,13 +2651,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // ignore if closed....
                     return;
                 }
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                logger.warn("check index [failure]");
+                // report details in a separate message, it might contain control characters which mess up detection of the failure message
+                logger.warn("{}", os.bytes().utf8ToString());
                 throw new IOException("index check failure");
             }
-        }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            if (logger.isDebugEnabled()) {
+                logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            }
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
@@ -2820,10 +2881,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
     }
 
-    private DocumentMapperForType docMapper() {
-        return mapperService.documentMapperWithAutoCreate();
-    }
-
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
@@ -2855,8 +2912,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointSupplier,
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
-                tombstoneDocSupplier(),
-                snapshotCommitSupplier);
+                snapshotCommitSupplier,
+                isDataStreamIndex ? DATASTREAM_LEAF_READERS_SORTER : null);
     }
 
     /**
@@ -2985,7 +3042,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             @Override
             public void onResponse(final Releasable releasable) {
-                final RunOnce releaseOnce = new RunOnce(releasable::close);
+                final Releasable releaseOnce = Releasables.releaseOnce(releasable);
                 try {
                     assert getOperationPrimaryTerm() <= pendingPrimaryTerm;
                     termUpdated.await();
@@ -2998,14 +3055,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } catch (final Exception e) {
                     if (combineWithAction == null) {
                         // otherwise leave it to combineWithAction to release the permit
-                        releaseOnce.run();
+                        releaseOnce.close();
                     }
                     innerFail(e);
                 } finally {
                     if (combineWithAction != null) {
                         combineWithAction.onResponse(releasable);
                     } else {
-                        releaseOnce.run();
+                        releaseOnce.close();
                     }
                 }
             }
@@ -3244,7 +3301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         }
 
                         @Override
-                        protected void doRun() throws IOException {
+                        protected void doRun() {
                             flush(new FlushRequest());
                             periodicFlushMetric.inc();
                         }
@@ -3267,7 +3324,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         }
 
                         @Override
-                        protected void doRun() throws Exception {
+                        protected void doRun() {
                             rollTranslogGeneration();
                         }
 
@@ -3456,7 +3513,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (readAllowed) {
             refreshListeners.addOrNotify(location, listener);
         } else {
-            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            // we're not yet ready for reads, just ignore refresh cycles
             listener.accept(false);
         }
     }
@@ -3491,19 +3548,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
-    }
-
-    private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
-        return new EngineConfig.TombstoneDocSupplier() {
-            @Override
-            public ParsedDocument newDeleteTombstoneDoc(String id) {
-                return ParsedDocument.deleteTombstone(id);
-            }
-            @Override
-            public ParsedDocument newNoopTombstoneDoc(String reason) {
-                return ParsedDocument.noopTombstone(reason);
-            }
-        };
     }
 
     /**

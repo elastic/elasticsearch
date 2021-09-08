@@ -28,13 +28,13 @@ import static org.mockito.Mockito.when;
 public class HotThreadsTests extends ESTestCase {
 
     public void testSupportedThreadsReportType() {
-        for (var type: new String[] {"unsupported", "", null, "CPU", "WAIT", "BLOCK" }) {
-            expectThrows(IllegalArgumentException.class, () -> new HotThreads().type(type));
+        for (String type: new String[] {"unsupported", "", null, "CPU", "WAIT", "BLOCK" }) {
+            expectThrows(IllegalArgumentException.class, () -> new HotThreads().type(HotThreads.ReportType.of(type)));
         }
 
-        for (var type : new String[] { "cpu", "wait", "block" }) {
+        for (String type : new String[] { "cpu", "wait", "block" }) {
             try {
-                new HotThreads().type(type);
+                new HotThreads().type(HotThreads.ReportType.of(type));
             } catch (IllegalArgumentException e) {
                 fail(String.format(Locale.ROOT, "IllegalArgumentException called when creating HotThreads for supported type [%s]", type));
             }
@@ -230,7 +230,7 @@ public class HotThreadsTests extends ESTestCase {
 
         HotThreads hotThreads = new HotThreads()
             .busiestThreads(4)
-            .type("cpu")
+            .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
@@ -258,7 +258,7 @@ public class HotThreadsTests extends ESTestCase {
 
         HotThreads hotWaitingThreads = new HotThreads()
             .busiestThreads(4)
-            .type("wait")
+            .type(HotThreads.ReportType.WAIT)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
@@ -276,7 +276,7 @@ public class HotThreadsTests extends ESTestCase {
 
         HotThreads hotBlockedThreads = new HotThreads()
             .busiestThreads(4)
-            .type("block")
+            .type(HotThreads.ReportType.BLOCK)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
@@ -307,7 +307,7 @@ public class HotThreadsTests extends ESTestCase {
 
         HotThreads hotThreads = new HotThreads()
             .busiestThreads(4)
-            .type("cpu")
+            .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
@@ -315,5 +315,23 @@ public class HotThreadsTests extends ESTestCase {
         var innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
 
         assertEquals(1, innerResult.lines().count());
+    }
+
+    public void testReportTypeValueGetter() {
+        ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
+
+        when(mockedThreadInfo.getBlockedTime()).thenReturn(2L).thenReturn(0L);
+        when(mockedThreadInfo.getWaitedTime()).thenReturn(3L).thenReturn(0L);
+
+        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(mockedThreadInfo, 1L);
+
+        assertEquals(1L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.CPU).applyAsLong(info));
+        assertEquals(3L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
+        assertEquals(2L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info));
+
+        //Ensure all enum types have a report type getter
+        for (HotThreads.ReportType type : HotThreads.ReportType.values()) {
+            assertNotNull(HotThreads.ThreadTimeAccumulator.valueGetterForReportType(type));
+        }
     }
 }

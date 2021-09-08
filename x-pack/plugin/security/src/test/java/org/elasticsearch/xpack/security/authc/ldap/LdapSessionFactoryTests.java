@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -239,9 +240,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * (one failure, one success) depending on which file content is in place.
      */
     public void testSslTrustIsReloaded() throws Exception {
-        assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
-            "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
-            inFipsJvm());
+        assumeFalse(
+            "NPE thrown in BCFIPS JSSE - addressed in https://github.com/bcgit/bc-java/commit/"
+                + "5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
+            inFipsJvm()
+        );
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         InetAddress listenAddress = ldapServer.getListenAddress("ldaps");
         if (listenAddress == null) {
@@ -268,7 +271,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try (ResourceWatcherService resourceWatcher = new ResourceWatcherService(settings, threadPool)) {
-            new SSLConfigurationReloader(environment, resourceWatcher, SSLService.getSSLConfigurations(environment.settings()).values())
+            new SSLConfigurationReloader(resourceWatcher, SSLService.getSSLConfigurations(environment).values())
                 .setSSLService(sslService);
             Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);

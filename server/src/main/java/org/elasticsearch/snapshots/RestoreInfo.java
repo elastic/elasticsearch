@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -97,7 +86,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards -  successfulShards;
+        return totalShards - successfulShards;
     }
 
     /**
@@ -136,8 +125,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         return builder;
     }
 
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(),
-        true, RestoreInfo::new);
+    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), true, RestoreInfo::new);
 
     static {
         ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);
@@ -177,10 +165,10 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreInfo that = (RestoreInfo) o;
-        return totalShards == that.totalShards &&
-            successfulShards == that.successfulShards &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(indices, that.indices);
+        return totalShards == that.totalShards
+            && successfulShards == that.successfulShards
+            && Objects.equals(name, that.name)
+            && Objects.equals(indices, that.indices);
     }
 
     @Override

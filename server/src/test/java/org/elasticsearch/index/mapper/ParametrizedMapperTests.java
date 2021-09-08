@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,9 +20,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -87,7 +77,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         return (TestMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> fixed
             = Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
@@ -104,9 +94,14 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 },
             m -> toType(m).wrapper).setSerializer((b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
         final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5)
-            .setValidator(n -> {
+            .addValidator(n -> {
                 if (n > 50) {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
+                }
+            })
+            .addValidator(n -> {
+                if (n < 0) {
+                    throw new IllegalArgumentException("Value of [n] cannot be less than 0");
                 }
             })
             .setMergeValidator((o, n, c) -> n >= o);
@@ -116,7 +111,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
         final Parameter<String> required = Parameter.stringParam("required", true, m -> toType(m).required, null)
-            .setValidator(value -> {
+            .addValidator(value -> {
                 if (value == null) {
                     throw new IllegalArgumentException("field [required] must be specified");
                 }
@@ -137,23 +132,25 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        public ParametrizedFieldMapper build(Mapper.BuilderContext context) {
-            return new TestMapper(name(), buildFullName(context),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public FieldMapper build(ContentPath contentPath) {
+            return new TestMapper(name(), buildFullName(contentPath),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name,
+                                    Map<String, Object> node,
+                                    MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;
         }
     }
 
-    public static class TestMapper extends ParametrizedFieldMapper {
+    public static class TestMapper extends FieldMapper {
 
         private final boolean fixed;
         private final boolean fixed2;
@@ -187,7 +184,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
 
         }
 
@@ -197,7 +194,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping, Version version) {
+    private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             Map.of("_standard", Lucene.STANDARD_ANALYZER,
@@ -205,7 +202,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, s -> {
+        MappingParserContext pc = new MappingParserContext(s -> null, s -> {
             if (Objects.equals("keyword", s)) {
                 return KeywordFieldMapper.PARSER;
             }
@@ -213,13 +210,20 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, version, () -> null, null, null,
+        }, name -> null, version, () -> null, null, ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
         });
+        if (fromDynamicTemplate) {
+            pc = new MappingParserContext.DynamicTemplateParserContext(pc);
+        }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+            .build(new ContentPath());
+    }
+
+    private static TestMapper fromMapping(String mapping, Version version) {
+        return fromMapping(mapping, version, false);
     }
 
     private static TestMapper fromMapping(String mapping) {
@@ -340,10 +344,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "\"is_interim\":{\"type\":\"boolean\"}}}}}}";
 
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
 
         mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     // test custom serializer
@@ -370,6 +374,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> fromMapping("{\"type\":\"test_mapper\",\"int_value\":60,\"required\":\"value\"}"));
         assertEquals("Value of [n] cannot be greater than 50", e.getMessage());
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> fromMapping("{\"type\":\"test_mapper\",\"int_value\":-60,\"required\":\"value\"}"));
+        assertEquals("Value of [n] cannot be less than 0", e2.getMessage());
     }
 
     // test deprecations
@@ -379,6 +387,26 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertTrue(mapper.fixed2);
         assertWarnings("Parameter [fixed2_old] on mapper [field] is deprecated, use [fixed2]");
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed2\":true,\"required\":\"value\"}}", Strings.toString(mapper));
+    }
+
+    /**
+     * test parsing mapping from dynamic templates, should ignore unknown parameters for bwc and log warning before 8.0.0
+     */
+    public void testBWCunknownParametersfromDynamicTemplates() {
+        String mapping = "{\"type\":\"test_mapper\",\"some_unknown_parameter\":true,\"required\":\"value\"}";
+        TestMapper mapper = fromMapping(mapping, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0), true);
+        assertNotNull(mapper);
+        assertWarnings(
+            "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
+            + "Usage will result in an error in future major versions and should be removed."
+        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"required\":\"value\"}}", Strings.toString(mapper));
+
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> fromMapping(mapping, Version.V_8_0_0, true)
+        );
+        assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
 
     public void testAnalyzers() {

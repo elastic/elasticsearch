@@ -1,29 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -47,7 +47,6 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "queries.toml";
-    private static final String PROPERTIES_FILENAME = "config.properties";
 
     private static Properties CFG;
     private static RestHighLevelClient highLevelClient;
@@ -58,10 +57,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     @BeforeClass
     public static void init() throws IOException {
-        try (InputStream is = EsEQLCorrectnessIT.class.getClassLoader().getResourceAsStream(PROPERTIES_FILENAME)) {
-            CFG = new Properties();
-            CFG.load(is);
-        }
+        CFG = EqlDataLoader.loadConfiguration();
 
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setHttpAsyncResponseConsumerFactory(
@@ -72,27 +68,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     @Before
     public void restoreDataFromGcsRepo() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + CFG.getProperty("index_name"))).getStatusLine().getStatusCode() == 404) {
-            highLevelClient().snapshot()
-                .createRepository(
-                    new PutRepositoryRequest(CFG.getProperty("gcs_repo_name")).type("gcs")
-                        .settings(
-                            Settings.builder()
-                                .put("bucket", CFG.getProperty("gcs_bucket_name"))
-                                .put("base_path", CFG.getProperty("gcs_base_path"))
-                                .put("client", CFG.getProperty("gcs_client_name"))
-                                .build()
-                        ),
-                    RequestOptions.DEFAULT
-                );
-            highLevelClient().snapshot()
-                .restore(
-                    new RestoreSnapshotRequest(CFG.getProperty("gcs_repo_name"), CFG.getProperty("gcs_snapshot_name")).waitForCompletion(
-                        true
-                    ),
-                    RequestOptions.DEFAULT
-                );
-        }
+        EqlDataLoader.restoreSnapshot(highLevelClient(), CFG);
     }
 
     @After
@@ -105,22 +81,16 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         LOGGER.info("Total time: {} ms", totalTime);
     }
 
-    @AfterClass
-    public static void wipeTestData() throws IOException {
-        try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-    }
-
     @Override
     protected boolean preserveClusterUponCompletion() {
         // Need to preserve data between parameterized tests runs
         return true;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
@@ -190,6 +160,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         eqlSearchRequest.tiebreakerField("serial_id");
         eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
         eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
+        eqlSearchRequest.resultPosition(CFG.getProperty("result_position"));
         EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
         long responseTime = response.took();
         LOGGER.info("QueryNo: {}, took: {}ms", queryNo, responseTime);

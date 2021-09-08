@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,9 +35,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
+
+    public static final String BLANK_ID = "blank_data_frame_id";
+    public static final String BLANK_DEST_INDEX = "blank_dest_index";
 
     public static final String TYPE = "data_frame_analytics_config";
 
@@ -236,6 +241,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 builder.field(VERSION.getPreferredName(), version);
             }
             if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                assertNoAuthorizationHeader(headers);
                 builder.field(HEADERS.getPreferredName(), headers);
             }
             if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
@@ -408,6 +414,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
+            assertNoAuthorizationHeader(this.headers);
             return this;
         }
 
@@ -452,10 +459,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
          */
         public DataFrameAnalyticsConfig buildForExplain() {
             return new DataFrameAnalyticsConfig(
-                id != null ? id : "dummy",
+                id != null ? id : BLANK_ID,
                 description,
                 source,
-                dest != null ? dest : new DataFrameAnalyticsDest("dummy", null),
+                dest != null ? dest : new DataFrameAnalyticsDest(BLANK_DEST_INDEX, null),
                 analysis,
                 headers,
                 modelMemoryLimit,

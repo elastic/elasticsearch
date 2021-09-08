@@ -1,0 +1,83 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Classes
+
+class java.time.zone.ZoneOffsetTransition {
+  int compareTo(ZoneOffsetTransition)
+  LocalDateTime getDateTimeAfter()
+  LocalDateTime getDateTimeBefore()
+  Duration getDuration()
+  Instant getInstant()
+  ZoneOffset getOffsetAfter()
+  ZoneOffset getOffsetBefore()
+  boolean isGap()
+  boolean isOverlap()
+  boolean isValidOffset(ZoneOffset)
+  ZoneOffsetTransition of(LocalDateTime,ZoneOffset,ZoneOffset)
+  long toEpochSecond()
+}
+
+class java.time.zone.ZoneOffsetTransitionRule {
+  ZoneOffsetTransition createTransition(int)
+  int getDayOfMonthIndicator()
+  DayOfWeek getDayOfWeek()
+  LocalTime getLocalTime()
+  Month getMonth()
+  ZoneOffset getOffsetAfter()
+  ZoneOffset getOffsetBefore()
+  ZoneOffset getStandardOffset()
+  ZoneOffsetTransitionRule.TimeDefinition getTimeDefinition()
+  boolean isMidnightEndOfDay()
+  ZoneOffsetTransitionRule of(Month,int,DayOfWeek,LocalTime,boolean,ZoneOffsetTransitionRule.TimeDefinition,ZoneOffset,ZoneOffset,ZoneOffset)
+}
+
+class java.time.zone.ZoneRules {
+  Duration getDaylightSavings(Instant)
+  ZoneOffset getOffset(Instant)
+  ZoneOffset getStandardOffset(Instant)
+  ZoneOffsetTransition getTransition(LocalDateTime)
+  List getTransitionRules()
+  List getTransitions()
+  List getValidOffsets(LocalDateTime)
+  boolean isDaylightSavings(Instant)
+  boolean isFixedOffset()
+  boolean isValidOffset(LocalDateTime,ZoneOffset)
+  ZoneOffsetTransition nextTransition(Instant)
+  ZoneRules of(ZoneOffset)
+  ZoneRules of(ZoneOffset,ZoneOffset,List,List,List)
+  ZoneOffsetTransition previousTransition(Instant)
+}
+
+class java.time.zone.ZoneRulesProvider {
+  Set getAvailableZoneIds()
+  ZoneRules getRules(String,boolean)
+  NavigableMap getVersions(String)
+}
+
+#### Enums
+
+class java.time.zone.ZoneOffsetTransitionRule$TimeDefinition {
+  ZoneOffsetTransitionRule.TimeDefinition STANDARD
+  ZoneOffsetTransitionRule.TimeDefinition UTC
+  ZoneOffsetTransitionRule.TimeDefinition WALL
+  LocalDateTime createDateTime(LocalDateTime,ZoneOffset,ZoneOffset)
+  ZoneOffsetTransitionRule.TimeDefinition valueOf(String)
+  ZoneOffsetTransitionRule.TimeDefinition[] values()
+}
+
+#### Exceptions
+
+class java.time.zone.ZoneRulesException {
+  (String)
+}

@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -20,8 +19,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -36,14 +35,14 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
     public HistoBackedMaxAggregator(
         String name,
         ValuesSourceConfig config,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = config.hasValues() ? (HistogramValuesSource.Histogram) config.getValuesSource() : null;
         if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
+            maxes = bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
         this.formatter = config.format();
@@ -57,15 +56,9 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
-            if (parent != null) {
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            } else {
-                // we have no parent and the values source is empty so we can skip collecting hits.
-                throw new CollectionTerminatedException();
-            }
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
 
@@ -73,7 +66,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= maxes.size()) {
                     long from = maxes.size();
-                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes = bigArrays().grow(maxes, bucket + 1);
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {

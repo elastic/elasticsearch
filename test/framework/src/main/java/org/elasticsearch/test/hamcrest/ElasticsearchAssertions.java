@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
@@ -45,9 +33,9 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -132,7 +120,7 @@ public class ElasticsearchAssertions {
      *
      * @param builder the request builder
      */
-    public static void assertBlocked(ActionRequestBuilder builder) {
+    public static void assertBlocked(ActionRequestBuilder<?, ?> builder) {
         assertBlocked(builder, (ClusterBlock) null);
     }
 
@@ -163,7 +151,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final Integer expectedBlockId) {
+    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
         try {
             builder.get();
             fail("Request executed with success but a ClusterBlockException was expected");
@@ -191,7 +179,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlock the expected block
      */
-    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final ClusterBlock expectedBlock) {
+    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
@@ -339,7 +327,15 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(BroadcastResponse response) {
-        assertThat("Unexpected ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
+        if (response.getFailedShards() != 0) {
+            final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
+
+            for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
+                assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
+            }
+
+            throw assertionError;
+        }
     }
 
     public static void assertAllSuccessful(BroadcastResponse response) {
@@ -496,14 +492,6 @@ public class ElasticsearchAssertions {
         assertThat(q.clauses().size(), greaterThan(i));
         assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
         return subqueryType.cast(q.clauses().get(i).getQuery());
-    }
-
-    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
-        assertThat(q.getDisjuncts().size(), greaterThan(i));
-        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
-        return subqueryType.cast(q.getDisjuncts().get(i));
     }
 
     /**

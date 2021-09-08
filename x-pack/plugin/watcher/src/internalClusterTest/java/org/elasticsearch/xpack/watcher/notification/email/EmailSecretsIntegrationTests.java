@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -60,7 +61,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (encryptSensitiveData == null) {
             encryptSensitiveData = randomBoolean();
             if (encryptSensitiveData) {
@@ -68,7 +69,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             }
         }
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
@@ -148,7 +149,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         value = contentSource.getValue("result.actions.0.status");
         assertThat(value, is("success"));
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for the email to be sent");
         }
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -12,8 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
@@ -71,7 +72,7 @@ public class PipelineHttpResource extends PublishableHttpResource {
      * Publish the current {@linkplain #pipelineName pipeline}.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         putResource(client, listener, logger,
                     "/_ingest/pipeline", pipelineName, Collections.emptyMap(), this::pipelineToHttpEntity, "monitoring pipeline",
                     resourceOwnerName, "monitoring cluster");

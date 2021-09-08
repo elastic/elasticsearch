@@ -43,7 +43,12 @@ You don't have to do that.
   Docs follow the same policy as code and fixes are not ordinarily merged to
   versions that are out of maintenance.
   
-* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
+* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions].
+
+* Release notes for known issues are an exception to this policy. Document the 
+  known issue in the release notes for any minor version affected by the issue.
+  Backport the changes to any branch containing release notes for those
+  versions, even if the branch is no longer maintained.
 
 === Snippet testing
 
@@ -79,9 +84,13 @@ used for its modifiers:
   considered tests anyway but this is useful for explicitly documenting the
   reason why the test shouldn't be run.
   * `// TEST[setup:name]`: Run some setup code before running the snippet. This
-  is useful for creating and populating indexes used in the snippet. The setup
-  code is defined in `docs/build.gradle`. See `// TESTSETUP` below for a
-  similar feature.
+  is useful for creating and populating indexes used in the snippet. The `name`
+  is split on `,` and looked up in the `setups` defined in `docs/build.gradle`.
+  See `// TESTSETUP` below for a similar feature.
+  * `// TEST[teardown:name]`: Run some teardown code after the snippet.
+  This is useful for performing hidden cleanup, such as deleting index templates. The
+  `name` is split on `,` and looked up in the `teardowns` defined in
+  `docs/build.gradle`. See `// TESTSETUP` below for a similar feature.
   * `// TEST[warning:some warning]`: Expect the response to include a `Warning`
   header. If the response doesn't include a `Warning` header with the exact
   text then the test fails. If the response includes `Warning` headers that

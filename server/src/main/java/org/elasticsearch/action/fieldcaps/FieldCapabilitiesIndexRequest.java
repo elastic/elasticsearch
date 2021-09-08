@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -31,6 +19,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class FieldCapabilitiesIndexRequest extends ActionRequest implements IndicesRequest {
@@ -42,6 +31,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
+    private final Map<String, Object> runtimeFields;
 
     private ShardId shardId;
 
@@ -52,15 +42,17 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         index = in.readOptionalString();
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis =  in.readLong();
+        runtimeFields = in.readMap();
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
                                   String index,
                                   OriginalIndices originalIndices,
                                   QueryBuilder indexFilter,
-                                  long nowInMillis) {
+                                  long nowInMillis,
+                                  Map<String, Object> runtimeFields) {
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
@@ -69,6 +61,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
+        this.runtimeFields = runtimeFields;
     }
 
     public String[] fields() {
@@ -93,6 +86,10 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         return indexFilter;
     }
 
+    public Map<String, Object> runtimeFields() {
+        return runtimeFields;
+    }
+
     public ShardId shardId() {
         return shardId;
     }
@@ -113,10 +110,9 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         out.writeOptionalString(index);
         out.writeStringArray(fields);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeLong(nowInMillis);
-        }
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeLong(nowInMillis);
+        out.writeMap(runtimeFields);
     }
 
     @Override

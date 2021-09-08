@@ -82,7 +82,7 @@ The following parameters are accepted by `object` fields:
 <<dynamic,`dynamic`>>::
 
     Whether or not new `properties` should be added dynamically
-    to an existing object.  Accepts `true` (default), `false`
+    to an existing object. Accepts `true` (default), `runtime`, `false`
     and `strict`.
 
 <<enabled,`enabled`>>::

@@ -31,7 +31,7 @@ down to the nearest day.
 [[custom-date-formats]]
 ==== Custom date formats
 
-Completely customizable date formats are supported.  The syntax for these is explained
+Completely customizable date formats are supported. The syntax for these is explained
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
 
 [[built-in-date-formats]]

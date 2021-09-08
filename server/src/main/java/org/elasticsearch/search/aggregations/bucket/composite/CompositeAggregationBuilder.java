@@ -1,33 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -50,14 +40,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     public static final ParseField SOURCES_FIELD_NAME = new ParseField("sources");
 
     public static final ConstructingObjectParser<CompositeAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-            NAME, false, (args, name) -> {
-                @SuppressWarnings("unchecked")
-                List<CompositeValuesSourceBuilder<?>> sources = (List<CompositeValuesSourceBuilder<?>>) args[0];
-                return new CompositeAggregationBuilder(name, sources);
-            });
+        NAME,
+        false,
+        (args, name) -> {
+            @SuppressWarnings("unchecked")
+            List<CompositeValuesSourceBuilder<?>> sources = (List<CompositeValuesSourceBuilder<?>>) args[0];
+            return new CompositeAggregationBuilder(name, sources);
+        }
+    );
     static {
-        PARSER.declareObjectArray(constructorArg(),
-            (p, c) -> CompositeValuesSourceParserHelper.fromXContent(p), SOURCES_FIELD_NAME);
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> CompositeValuesSourceParserHelper.fromXContent(p), SOURCES_FIELD_NAME);
         PARSER.declareInt(CompositeAggregationBuilder::size, SIZE_FIELD_NAME);
         PARSER.declareObject(CompositeAggregationBuilder::aggregateAfter, (p, context) -> p.map(), AFTER_FIELD_NAME);
     }
@@ -80,8 +72,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         this.sources = sources;
     }
 
-    protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected CompositeAggregationBuilder(
+        CompositeAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.sources = new ArrayList<>(clone.sources);
         this.after = clone.after;
@@ -171,11 +166,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory checkParentIsNullOrNested(AggregatorFactory factory) {
+    private AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory) {
-            return checkParentIsNullOrNested(factory.getParent());
+        } else if (factory instanceof NestedAggregatorFactory || factory instanceof FilterAggregatorFactory) {
+            return validateParentAggregations(factory.getParent());
         } else {
             return factory;
         }
@@ -204,12 +199,19 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
-                                        AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
-        AggregatorFactory invalid = checkParentIsNullOrNested(parent);
+    protected AggregatorFactory doBuild(
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subfactoriesBuilder
+    ) throws IOException {
+        AggregatorFactory invalid = validateParentAggregations(parent);
         if (invalid != null) {
-            throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation of" +
-                " type: [" + invalid.getClass().getSimpleName() + "]");
+            throw new IllegalArgumentException(
+                "[composite] aggregation cannot be used with a parent aggregation of"
+                    + " type: ["
+                    + invalid.getClass().getSimpleName()
+                    + "]"
+            );
         }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {
@@ -221,10 +223,10 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         final CompositeKey afterKey;
         if (after != null) {
             if (after.size() != configs.length) {
-                throw new IllegalArgumentException("[after] has " + after.size() +
-                    " value(s) but [sources] has " + sources.size());
+                throw new IllegalArgumentException("[after] has " + after.size() + " value(s) but [sources] has " + sources.size());
             }
-            Comparable[] values = new Comparable[sources.size()];
+            @SuppressWarnings("rawtypes")
+            Comparable<?>[] values = new Comparable[sources.size()];
             for (int i = 0; i < sources.size(); i++) {
                 String sourceName = sources.get(i).name();
                 if (after.containsKey(sourceName) == false) {
@@ -234,10 +236,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
                 } else if (obj instanceof Comparable) {
-                    values[i] = (Comparable) obj;
+                    values[i] = (Comparable<?>) obj;
                 } else {
-                    throw new IllegalArgumentException("Invalid value for [after." + sources.get(i).name() +
-                        "], expected comparable, got [" + (obj == null ? "null" :  obj.getClass().getSimpleName()) + "]");
+                    throw new IllegalArgumentException(
+                        "Invalid value for [after."
+                            + sources.get(i).name()
+                            + "], expected comparable, got ["
+                            + (obj == null ? "null" : obj.getClass().getSimpleName())
+                            + "]"
+                    );
                 }
             }
             afterKey = new CompositeKey(values);
@@ -247,13 +254,12 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metadata, size, configs, afterKey);
     }
 
-
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SIZE_FIELD_NAME.getPreferredName(), size);
         builder.startArray(SOURCES_FIELD_NAME.getPreferredName());
-        for (CompositeValuesSourceBuilder<?> source: sources) {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
             CompositeValuesSourceParserHelper.toXContent(source, builder, params);
         }
         builder.endArray();
@@ -275,8 +281,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         CompositeAggregationBuilder other = (CompositeAggregationBuilder) obj;
-        return size == other.size &&
-            Objects.equals(sources, other.sources) &&
-            Objects.equals(after, other.after);
+        return size == other.size && Objects.equals(sources, other.sources) && Objects.equals(after, other.after);
     }
 }

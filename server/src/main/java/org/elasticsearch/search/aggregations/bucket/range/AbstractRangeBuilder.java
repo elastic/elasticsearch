@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -36,8 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
-        extends ValuesSourceAggregationBuilder<AB> {
+public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range> extends ValuesSourceAggregationBuilder<
+    AB> {
 
     protected final InternalRange.Factory<?, ?> rangeFactory;
     protected List<R> ranges = new ArrayList<>();
@@ -48,8 +37,11 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         this.rangeFactory = rangeFactory;
     }
 
-    protected AbstractRangeBuilder(AbstractRangeBuilder<AB, R> clone,
-                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AbstractRangeBuilder(
+        AbstractRangeBuilder<AB, R> clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.rangeFactory = clone.rangeFactory;
         this.ranges = new ArrayList<>(clone.ranges);
@@ -60,7 +52,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      * Read from a stream.
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
-            throws IOException {
+        throws IOException {
         super(in);
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
@@ -69,7 +61,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // Copied over from the old targetValueType setting.  Not sure what cases this is still relevant for. --Tozzi 2020-01-13
+        // Copied over from the old targetValueType setting. Not sure what cases this is still relevant for. --Tozzi 2020-01-13
         return rangeFactory.getValueSourceType();
     }
 
@@ -116,6 +108,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         out.writeBoolean(keyed);
     }
 
+    @SuppressWarnings("unchecked")
     public AB addRange(R range) {
         if (range == null) {
             throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
@@ -128,6 +121,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
+    @SuppressWarnings("unchecked")
     public AB keyed(boolean keyed) {
         this.keyed = keyed;
         return (AB) this;
@@ -155,12 +149,12 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         AbstractRangeBuilder<AB, R> other = (AbstractRangeBuilder<AB, R>) obj;
-        return Objects.equals(ranges, other.ranges)
-                && Objects.equals(keyed, other.keyed);
+        return Objects.equals(ranges, other.ranges) && Objects.equals(keyed, other.keyed);
     }
 }

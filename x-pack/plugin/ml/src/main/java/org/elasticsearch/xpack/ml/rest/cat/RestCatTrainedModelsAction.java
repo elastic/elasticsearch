@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.cat;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -47,7 +48,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "_cat/ml/trained_models"),
-            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID + "}"));
     }
 
     @Override
@@ -62,7 +63,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             modelId = Metadata.ALL;
         }
         GetTrainedModelsStatsAction.Request statsRequest = new GetTrainedModelsStatsAction.Request(modelId);
-        GetTrainedModelsAction.Request modelsAction = new GetTrainedModelsAction.Request(modelId, false, null);
+        GetTrainedModelsAction.Request modelsAction = new GetTrainedModelsAction.Request(modelId, null, Collections.emptySet());
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             statsRequest.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
@@ -152,6 +153,9 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         table.addCell("description", TableColumnAttributeBuilder.builder("The model description", false)
             .setAliases("d")
             .build());
+        table.addCell("type", TableColumnAttributeBuilder.builder("The model type")
+            .setAliases("t")
+            .build());
 
         // Trained Model Stats
         table.addCell("ingest.pipelines", TableColumnAttributeBuilder.builder("The number of pipelines referencing the model")
@@ -204,22 +208,14 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                                                                         final int size,
                                                                         final List<TrainedModelConfig> configs,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<>() {
-            @Override
-            public void onResponse(final Collection<ActionResponse> responses) {
-                GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
-                GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
-                listener.onResponse(buildTable(request,
+        return new GroupedActionListener<>(listener.delegateFailure((l, responses) -> {
+            GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
+            GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
+            l.onResponse(buildTable(request,
                     statsResponse.getResources().results(),
                     configs,
                     analytics == null ? Collections.emptyList() : analytics.getResources().results()));
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        }, size);
+        }), size);
     }
 
 
@@ -246,6 +242,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.addCell(config.getCreateTime());
             table.addCell(config.getVersion().toString());
             table.addCell(config.getDescription());
+            table.addCell(config.getModelType());
 
             GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
             table.addCell(modelStats.getPipelineCount());

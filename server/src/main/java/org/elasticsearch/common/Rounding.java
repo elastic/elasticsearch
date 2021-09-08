@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common;
 
@@ -28,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -291,6 +280,17 @@ public abstract class Rounding implements Writeable {
          * next rounded value in specified units if possible.
          */
         double roundingSize(long utcMillis, DateTimeUnit timeUnit);
+        /**
+         * Returns the size of each rounding bucket in timeUnits.
+         */
+        double roundingSize(DateTimeUnit timeUnit);
+        /**
+         * If this rounding mechanism precalculates rounding points then
+         * this array stores dates such that each date between each entry.
+         * if the rounding mechanism doesn't precalculate points then this
+         * is {@code null}.
+         */
+        long[] fixedRoundingPoints();
     }
     /**
      * Prepare to round many times.
@@ -435,6 +435,11 @@ public abstract class Rounding implements Writeable {
             }
             return new ArrayRounding(values, i, this);
         }
+
+        @Override
+        public long[] fixedRoundingPoints() {
+            return null;
+        }
     }
 
     static class TimeUnitRounding extends Rounding {
@@ -510,7 +515,14 @@ public abstract class Rounding implements Writeable {
         }
 
         private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
-            long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
+            /*
+             minUtcMillis has to be decreased by 2 units.
+             This is because if a minUtcMillis can be rounded down up to unit.extraLocalOffsetLookup
+             and that rounding down might still fall within DST gap/overlap.
+             Meaning that minUtcMillis has to be decreased by additional unit
+             so that the transition just before the minUtcMillis is applied
+             */
+            long minLookup = minUtcMillis - 2 * unit.extraLocalOffsetLookup();
             long maxLookup = maxUtcMillis;
 
             long unitMillis = 0;
@@ -598,15 +610,40 @@ public abstract class Rounding implements Writeable {
         private abstract class TimeUnitPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
-                if (timeUnit.isMillisBased == unit.isMillisBased) {
-                    return (double) unit.ratio / timeUnit.ratio;
-                } else {
-                    if (unit.isMillisBased == false) {
-                        return (double) (nextRoundingValue(utcMillis) - utcMillis) / timeUnit.ratio;
+                if (unit.isMillisBased) {
+                    if (timeUnit.isMillisBased) {
+                        return (double) unit.ratio / timeUnit.ratio;
                     } else {
                         throw new IllegalArgumentException("Cannot use month-based rate unit [" + timeUnit.shortName +
                             "] with non-month based calendar interval histogram [" + unit.shortName +
                             "] only week, day, hour, minute and second are supported for this histogram");
+                    }
+                } else {
+                    if (timeUnit.isMillisBased) {
+                        return (double) (nextRoundingValue(utcMillis) - utcMillis) / timeUnit.ratio;
+                    } else {
+                        return (double) unit.ratio / timeUnit.ratio;
+                    }
+                }
+            }
+
+            @Override
+            public double roundingSize(DateTimeUnit timeUnit) {
+                if (unit.isMillisBased) {
+                    if (timeUnit.isMillisBased) {
+                        return (double) unit.ratio / timeUnit.ratio;
+                    } else {
+                        throw new IllegalArgumentException("Cannot use month-based rate unit [" + timeUnit.shortName +
+                            "] with non-month based calendar interval histogram [" + unit.shortName +
+                            "] only week, day, hour, minute and second are supported for this histogram");
+                    }
+                } else {
+                    if (timeUnit.isMillisBased) {
+                        throw new IllegalArgumentException("Cannot use non month-based rate unit [" + timeUnit.shortName +
+                            "] with calendar interval histogram [" + unit.shortName +
+                            "] only month, quarter and year are supported for this histogram");
+                    } else {
+                        return (double) unit.ratio / timeUnit.ratio;
                     }
                 }
             }
@@ -984,6 +1021,11 @@ public abstract class Rounding implements Writeable {
         private abstract class TimeIntervalPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+                return roundingSize(timeUnit);
+            }
+
+            @Override
+            public double roundingSize(DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased) {
                     return (double) interval / timeUnit.ratio;
                 } else {
@@ -1253,6 +1295,17 @@ public abstract class Rounding implements Writeable {
                 public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
                     return delegatePrepared.roundingSize(utcMillis, timeUnit);
                 }
+
+                @Override
+                public double roundingSize(DateTimeUnit timeUnit) {
+                    return delegatePrepared.roundingSize(timeUnit);
+                }
+
+                @Override
+                public long[] fixedRoundingPoints() {
+                    // TODO we can likely translate here
+                    return null;
+                }
             };
         }
 
@@ -1334,6 +1387,16 @@ public abstract class Rounding implements Writeable {
         @Override
         public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
             return delegate.roundingSize(utcMillis, timeUnit);
+        }
+
+        @Override
+        public double roundingSize(DateTimeUnit timeUnit) {
+            return delegate.roundingSize(timeUnit);
+        }
+
+        @Override
+        public long[] fixedRoundingPoints() {
+            return Arrays.copyOf(values, max);
         }
     }
 }

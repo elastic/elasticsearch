@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
@@ -36,15 +37,17 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
             case 0:
                 return new SnapshotInvocationRecord(
                     randomValueOtherThan(instance.getSnapshotName(), () -> randomAlphaOfLengthBetween(2,10)),
-                    instance.getTimestamp(),
+                    instance.getSnapshotFinishTimestamp() - 100,
+                    instance.getSnapshotFinishTimestamp(),
                     instance.getDetails());
             case 1:
+                long timestamp = randomValueOtherThan(instance.getSnapshotFinishTimestamp(), ESTestCase::randomNonNegativeLong);
                 return new SnapshotInvocationRecord(instance.getSnapshotName(),
-                    randomValueOtherThan(instance.getTimestamp(), ESTestCase::randomNonNegativeLong),
+                    timestamp - 100, timestamp,
                     instance.getDetails());
             case 2:
                 return new SnapshotInvocationRecord(instance.getSnapshotName(),
-                    instance.getTimestamp(),
+                    instance.getSnapshotFinishTimestamp() - 100, instance.getSnapshotFinishTimestamp(),
                     randomValueOtherThan(instance.getDetails(), () -> randomAlphaOfLengthBetween(2,10)));
             default:
                 throw new AssertionError("failure, got illegal switch case");
@@ -54,8 +57,18 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
     public static SnapshotInvocationRecord randomSnapshotInvocationRecord() {
         return new SnapshotInvocationRecord(
             randomAlphaOfLengthBetween(5,10),
+            randomNonNegativeNullableLong(),
             randomNonNegativeLong(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
+    }
+
+    private static Long randomNonNegativeNullableLong() {
+        long value = randomLong();
+        if (value < 0) {
+            return null;
+        } else {
+            return value;
+        }
     }
 
 }

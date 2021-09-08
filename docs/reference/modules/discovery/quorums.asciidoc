@@ -22,7 +22,7 @@ tolerance by updating the cluster's <<modules-discovery-voting,voting
 configuration>>, which is the set of master-eligible nodes whose responses are
 counted when making decisions such as electing a new master or committing a new
 cluster state. A decision is made only after more than half of the nodes in the
-voting configuration have responded.  Usually the voting configuration is the
+voting configuration have responded. Usually the voting configuration is the
 same as the set of all the master-eligible nodes that are currently in the
 cluster. However, there are some situations in which they may be different.
 

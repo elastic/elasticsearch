@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -147,7 +148,7 @@ public class IndexingStateProcessor implements StateProcessor {
                 resultsPersisterService.bulkIndexWithRetry(bulkRequest,
                     jobId,
                     () -> true,
-                    (msg) -> auditor.warning(jobId, "Bulk indexing of state failed " + msg));
+                    retryMessage -> LOGGER.debug("[{}] Bulk indexing of state failed {}", jobId, retryMessage));
             } catch (Exception ex) {
                 String msg = "failed indexing updated state docs";
                 LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
@@ -161,7 +162,7 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     @SuppressWarnings("unchecked")
-    /**
+    /*
      * Extracts document id from the given {@code bytesRef}.
      * Only first non-blank line is parsed and document id is assumed to be a nested "index._id" field of type String.
      */
@@ -226,7 +227,7 @@ public class IndexingStateProcessor implements StateProcessor {
                 searchRequest,
                 jobId,
                 () -> true,
-                (msg) -> auditor.warning(jobId, documentId + " " + msg));
+                retryMessage -> LOGGER.debug("[{}] {} {}", jobId, documentId, retryMessage));
         return searchResponse.getHits().getHits().length > 0
             ? searchResponse.getHits().getHits()[0].getIndex()
             : AnomalyDetectorsIndex.jobStateIndexWriteAlias();

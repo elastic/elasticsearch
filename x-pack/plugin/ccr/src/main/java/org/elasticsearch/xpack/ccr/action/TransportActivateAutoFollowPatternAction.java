@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -45,17 +46,11 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
 
     @Override
     protected void masterOperation(final Task task, final Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("activate-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
-
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
-                protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) throws Exception {
+                public ClusterState execute(final ClusterState currentState) {
                     return innerActivate(request, currentState);
                 }
             });
@@ -82,6 +77,7 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
             new AutoFollowMetadata.AutoFollowPattern(
                 previousAutoFollowPattern.getRemoteCluster(),
                 previousAutoFollowPattern.getLeaderIndexPatterns(),
+                previousAutoFollowPattern.getLeaderIndexExclusionPatterns(),
                 previousAutoFollowPattern.getFollowIndexPattern(),
                 previousAutoFollowPattern.getSettings(),
                 request.isActive(),

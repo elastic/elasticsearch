@@ -1,20 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -28,6 +25,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 
 public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, RateAggregationBuilder> {
     public static final String NAME = "rate";
@@ -128,7 +129,19 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
                 throw new IllegalArgumentException("The mode parameter is only supported with field or script");
             }
         }
-        return new RateAggregatorFactory(name, config, rateUnit, rateMode, context, parent, subFactoriesBuilder, metadata);
+
+        RateAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new RateAggregatorFactory(
+            name,
+            config,
+            rateUnit,
+            rateMode,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -186,7 +199,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         RateAggregationBuilder that = (RateAggregationBuilder) o;
         return rateUnit == that.rateUnit && rateMode == that.rateMode;
     }

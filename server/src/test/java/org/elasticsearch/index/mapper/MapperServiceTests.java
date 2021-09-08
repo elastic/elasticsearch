@@ -1,34 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -40,6 +38,17 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(mapperService, MergeReason.MAPPING_UPDATE, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
         assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
+    }
+
+    public void testMappingLookup() throws IOException {
+        MapperService service = createMapperService(mapping(b -> {}));
+        MappingLookup oldLookup = service.mappingLookup();
+        assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
+
+        merge(service, mapping(b -> b.startObject("cat").field("type", "keyword").endObject()));
+        MappingLookup newLookup = service.mappingLookup();
+        assertThat(newLookup.fieldTypesLookup().get("cat"), not(nullValue()));
+        assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
     }
 
     /**
@@ -230,6 +239,76 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
 
         assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
+    }
+
+    public void testIsMetadataField() throws IOException {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+
+        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
+            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(Version.V_8_0_0)) {
+                continue;   // Nested field does not exist in the 7x line
+            }
+            assertTrue("Expected " + builtIn + " to be a metadata field for version " + version,
+                mapperService.isMetadataField(builtIn));
+        }
+    }
+
+    public void testMappingUpdateChecks() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // Text fields are not stored by default, so an incoming update that is identical but
+            // just has `stored:false` should not require an update
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"false\"}}}");
+            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
+        }
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // However, an update that really does need a rebuild will throw an exception
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"true\"}}}");
+            Exception e = expectThrows(IllegalStateException.class,
+                () -> mapperService.assertNoUpdateRequired(builder.build()));
+
+            assertThat(e.getMessage(), containsString("expected current mapping ["));
+            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
+        }
+    }
+
+    public void testEagerGlobalOrdinals() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("eager1").field("type", "keyword").field("eager_global_ordinals", true).endObject();
+            b.startObject("lazy1").field("type", "keyword").field("eager_global_ordinals", false).endObject();
+            b.startObject("eager2").field("type", "keyword").field("eager_global_ordinals", true).endObject();
+            b.startObject("lazy2").field("type", "long").endObject();
+        }));
+
+        List<String> eagerFieldNames = StreamSupport
+            .stream(mapperService.getEagerGlobalOrdinalsFields().spliterator(), false)
+            .map(MappedFieldType::name)
+            .collect(Collectors.toList());
+        assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
     }
 
 }

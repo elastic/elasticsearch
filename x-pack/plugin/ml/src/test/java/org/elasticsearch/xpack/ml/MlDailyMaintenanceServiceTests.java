@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -16,9 +17,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -162,6 +163,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 0,
                 0,
                 true,
+                false,
                 new TaskId("test", 456),
                 Collections.emptyMap());
 
@@ -230,8 +232,16 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
         return new MlDailyMaintenanceService(Settings.EMPTY, threadPool, client, clusterService, mlAssignmentNotifier, () -> {
-                latch.countDown();
-                return TimeValue.timeValueMillis(100);
+                // We need to be careful that an unexpected iteration doesn't get squeezed in by the maintenance threadpool in
+                // between the latch getting counted down to zero and the main test thread stopping the maintenance service.
+                // This could happen if the main test thread happens to be waiting for a CPU for the whole 100ms after the
+                // latch counts down to zero.
+                if (latch.getCount() > 0) {
+                    latch.countDown();
+                    return TimeValue.timeValueMillis(100);
+                } else {
+                    return TimeValue.timeValueHours(1);
+                }
             });
     }
 

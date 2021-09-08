@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest;
@@ -41,12 +30,13 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.core.Types.forciblyCast;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SuggestionEntryTests extends ESTestCase {
 
-    private static final Map<Class<? extends Entry>, Function<XContentParser, ? extends Entry>> ENTRY_PARSERS = new HashMap<>();
+    private static final Map<Class<? extends Entry<?>>, Function<XContentParser, ? extends Entry<?>>> ENTRY_PARSERS = new HashMap<>();
     static {
         ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);
         ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, PhraseSuggestion.Entry::fromXContent);
@@ -57,27 +47,27 @@ public class SuggestionEntryTests extends ESTestCase {
      * Create a randomized Suggestion.Entry
      */
     @SuppressWarnings("unchecked")
-    public static <O extends Option> Entry<O> createTestItem(Class<? extends Entry> entryType) {
+    public static <O extends Option> Entry<O> createTestItem(Class<? extends Entry<O>> entryType) {
         Text entryText = new Text(randomAlphaOfLengthBetween(5, 15));
         int offset = randomInt();
         int length = randomInt();
-        Entry entry;
+        Entry<O> entry;
         Supplier<Option> supplier;
-        if (entryType == TermSuggestion.Entry.class) {
-            entry = new TermSuggestion.Entry(entryText, offset, length);
+        if (entryType == (Class<? extends Entry<? extends Option>>) TermSuggestion.Entry.class) {
+            entry = (Entry<O>) new TermSuggestion.Entry(entryText, offset, length);
             supplier = TermSuggestionOptionTests::createTestItem;
-        } else if (entryType == PhraseSuggestion.Entry.class) {
-            entry = new PhraseSuggestion.Entry(entryText, offset, length, randomDouble());
+        } else if (entryType == (Class<? extends Entry<? extends Option>>) PhraseSuggestion.Entry.class) {
+            entry = (Entry<O>) new PhraseSuggestion.Entry(entryText, offset, length, randomDouble());
             supplier = SuggestionOptionTests::createTestItem;
-        } else if (entryType == CompletionSuggestion.Entry.class) {
-            entry = new CompletionSuggestion.Entry(entryText, offset, length);
+        } else if (entryType == (Class<? extends Entry<? extends Option>>) CompletionSuggestion.Entry.class) {
+            entry = (Entry<O>) new CompletionSuggestion.Entry(entryText, offset, length);
             supplier = CompletionSuggestionOptionTests::createTestItem;
         } else {
             throw new UnsupportedOperationException("entryType not supported [" + entryType + "]");
         }
         int numOptions = randomIntBetween(0, 5);
         for (int i = 0; i < numOptions; i++) {
-            entry.addOption(supplier.get());
+            entry.addOption((O) supplier.get());
         }
         return entry;
     }
@@ -92,8 +82,8 @@ public class SuggestionEntryTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void doTestFromXContent(boolean addRandomFields) throws IOException {
-        for (Class<? extends Entry> entryType : ENTRY_PARSERS.keySet()) {
-            Entry<Option> entry = createTestItem(entryType);
+        for (Class<? extends Entry<?>> entryType : ENTRY_PARSERS.keySet()) {
+            Entry<Option> entry = createTestItem((forciblyCast(entryType)));
             XContentType xContentType = randomFrom(XContentType.values());
             boolean humanReadable = randomBoolean();
             BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -116,7 +106,7 @@ public class SuggestionEntryTests extends ESTestCase {
             Entry<Option> parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                parsed = ENTRY_PARSERS.get(entry.getClass()).apply(parser);
+                parsed = (Entry<Option>) ENTRY_PARSERS.get(entry.getClass()).apply(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }

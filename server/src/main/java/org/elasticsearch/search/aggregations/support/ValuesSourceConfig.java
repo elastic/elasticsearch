@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -54,16 +43,26 @@ public class ValuesSourceConfig {
      * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
-    public static ValuesSourceConfig resolve(AggregationContext context,
-                                             ValueType userValueTypeHint,
-                                             String field,
-                                             Script script,
-                                             Object missing,
-                                             ZoneId timeZone,
-                                             String format,
-                                             ValuesSourceType defaultValueSourceType) {
+    public static ValuesSourceConfig resolve(
+        AggregationContext context,
+        ValueType userValueTypeHint,
+        String field,
+        Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format,
+        ValuesSourceType defaultValueSourceType
+    ) {
 
-        return internalResolve(context, userValueTypeHint, field, script, missing, timeZone, format, defaultValueSourceType,
+        return internalResolve(
+            context,
+            userValueTypeHint,
+            field,
+            script,
+            missing,
+            timeZone,
+            format,
+            defaultValueSourceType,
             ValuesSourceConfig::getMappingFromRegistry
         );
     }
@@ -84,14 +83,16 @@ public class ValuesSourceConfig {
      * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
-    public static ValuesSourceConfig resolveUnregistered(AggregationContext context,
-                                                         ValueType userValueTypeHint,
-                                                         String field,
-                                                         Script script,
-                                                         Object missing,
-                                                         ZoneId timeZone,
-                                                         String format,
-                                                         ValuesSourceType defaultValueSourceType) {
+    public static ValuesSourceConfig resolveUnregistered(
+        AggregationContext context,
+        ValueType userValueTypeHint,
+        String field,
+        Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format,
+        ValuesSourceType defaultValueSourceType
+    ) {
         return internalResolve(
             context,
             userValueTypeHint,
@@ -101,19 +102,21 @@ public class ValuesSourceConfig {
             timeZone,
             format,
             defaultValueSourceType,
-            ValuesSourceConfig::getLegacyMapping);
+            ValuesSourceConfig::getLegacyMapping
+        );
     }
 
-    private static ValuesSourceConfig internalResolve(AggregationContext context,
-                                                     ValueType userValueTypeHint,
-                                                     String field,
-                                                     Script script,
-                                                     Object missing,
-                                                     ZoneId timeZone,
-                                                     String format,
-                                                     ValuesSourceType defaultValueSourceType,
-                                                     FieldResolver fieldResolver
-                                                     ) {
+    private static ValuesSourceConfig internalResolve(
+        AggregationContext context,
+        ValueType userValueTypeHint,
+        String field,
+        Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format,
+        ValuesSourceType defaultValueSourceType,
+        FieldResolver fieldResolver
+    ) {
         ValuesSourceConfig config;
         ValuesSourceType valuesSourceType = null;
         ValueType scriptValueType = userValueTypeHint;
@@ -126,8 +129,7 @@ public class ValuesSourceConfig {
         }
         if (field == null) {
             if (script == null) {
-                throw new IllegalStateException(
-                    "value source config is invalid; must have either a field or a script");
+                throw new IllegalStateException("value source config is invalid; must have either a field or a script");
             }
         } else {
             // Field case
@@ -139,7 +141,7 @@ public class ValuesSourceConfig {
                  * specified missing value.
                  */
                 unmapped = true;
-                aggregationScript = null;  // Value scripts are not allowed on unmapped fields.  What would that do, anyway?
+                aggregationScript = null;  // Value scripts are not allowed on unmapped fields. What would that do, anyway?
             } else {
                 if (valuesSourceType == null) {
                     // We have a field, and the user didn't specify a type, so get the type from the field
@@ -170,7 +172,8 @@ public class ValuesSourceConfig {
         ValuesSourceType getValuesSourceType(
             FieldContext fieldContext,
             ValueType userValueTypeHint,
-            ValuesSourceType defaultValuesSourceType);
+            ValuesSourceType defaultValuesSourceType
+        );
 
     }
 
@@ -212,8 +215,12 @@ public class ValuesSourceConfig {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValuesSourceType valuesSourceType, @Nullable ZoneId tz,
-                                                @Nullable FieldContext fieldContext) {
+    private static DocValueFormat resolveFormat(
+        @Nullable String format,
+        @Nullable ValuesSourceType valuesSourceType,
+        @Nullable ZoneId tz,
+        @Nullable FieldContext fieldContext
+    ) {
         if (fieldContext != null) {
             return fieldContext.fieldType().docValueFormat(format, tz);
         }
@@ -228,7 +235,7 @@ public class ValuesSourceConfig {
      */
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
-        ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType(); 
+        ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
         return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
     }
 
@@ -276,19 +283,16 @@ public class ValuesSourceConfig {
         this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
 
-        if (!valid()) {
-            // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
+        if (valid() == false) {
+            // TODO: resolve no longer generates invalid configs. Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
-                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+                "value source config is invalid; must have either a field context or a script or marked as unwrapped"
+            );
         }
         valuesSource = constructValuesSource(missing, format, context);
     }
 
-    private ValuesSource constructValuesSource(
-        Object missing,
-        DocValueFormat format,
-        AggregationContext context
-    ) {
+    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, AggregationContext context) {
         final ValuesSource vs;
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
@@ -371,8 +375,11 @@ public class ValuesSourceConfig {
         return valuesSource.roundingPreparer();
     }
 
-    public boolean hasGlobalOrdinals() {
-        return valuesSource.hasGlobalOrdinals();
+    /**
+     * Check if this values source supports using global and segment ordinals.
+     */
+    public boolean hasOrdinals() {
+        return valuesSource.hasOrdinals();
     }
 
     /**
@@ -385,11 +392,17 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        MappedFieldType fieldType = fieldType();
-        if (fieldType != null && script() == null && missing() == null) {
-            return fieldType.pointReaderIfPossible();
-        }
-        return null;
+        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+    }
+
+    /**
+     * Do {@link ValuesSource}s built by this config line up with the search
+     * index of the underlying field? This'll only return true if the fields
+     * is searchable and there aren't missing values or a script to confuse
+     * the ordering.
+     */
+    public boolean alignesWithSearchIndex() {
+        return script() == null && missing() == null && fieldType() != null && fieldType().isSearchable();
     }
 
     /**

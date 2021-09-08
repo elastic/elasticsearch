@@ -32,7 +32,7 @@ user2:
         - create_index
         - indices:admin/refresh
 
-user_dls:
+user-dls:
   cluster:
     - cluster:monitor/main
   indices:
@@ -55,3 +55,7 @@ user_dls:
             ]
           }
         }
+
+user-cancel:
+  cluster:
+    - cancel_task

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
@@ -57,6 +58,8 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         final Bits liveDocs = reader.getLiveDocs();
         if (roleQueryBits == null) {
             return 0;
+        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+            return reader.numDocs();
         } else if (liveDocs == null) {
             // slow
             return roleQueryBits.cardinality();
@@ -83,7 +86,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
     private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws IOException, ExecutionException {
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper(); // this one takes deletes into account
         if (cacheHelper == null) {
-            throw new IllegalStateException("Reader " + reader + " does not support caching");
+            return computeNumDocs(reader, roleQueryBits);
         }
         final boolean[] added = new boolean[] { false };
         Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),
@@ -193,6 +196,8 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             // If we would return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
             // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted
             return new Bits.MatchNoBits(in.maxDoc());
+        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+            return actualLiveDocs;
         } else if (actualLiveDocs == null) {
             return roleQueryBits;
         } else {

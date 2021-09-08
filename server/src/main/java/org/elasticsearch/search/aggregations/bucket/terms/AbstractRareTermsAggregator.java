@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -25,10 +14,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
-import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,12 +30,10 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     protected final DocValueFormat format;
     private final int filterSeed;
 
-    protected MergingBucketsDeferringCollector deferringCollector;
-
     AbstractRareTermsAggregator(
         String name,
         AggregatorFactories factories,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
         long maxDocCount,
@@ -60,8 +45,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
         this.maxDocCount = maxDocCount;
         this.precision = precision;
         this.format = format;
-        // We seed the rng with the ShardID so results are deterministic and don't change randomly
-        this.filterSeed = context.indexShard().shardId().hashCode();
+        this.filterSeed = context.shardRandomSeed();
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {
@@ -73,9 +57,16 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
              * But the RareTerms agg _must_ execute in breadth first since it relies on
              * deferring execution, so we just have to throw up our hands and refuse
              */
-            throw new IllegalStateException("RareTerms agg [" + name() + "] is the child of the nested agg [" + nestedAgg
-                + "], and also has a scoring child agg [" + scoringAgg + "].  This combination is not supported because " +
-                "it requires executing in [depth_first] mode, which the RareTerms agg cannot do.");
+            throw new IllegalStateException(
+                "RareTerms agg ["
+                    + name()
+                    + "] is the child of the nested agg ["
+                    + nestedAgg
+                    + "], and also has a scoring child agg ["
+                    + scoringAgg
+                    + "].  This combination is not supported because "
+                    + "it requires executing in [depth_first] mode, which the RareTerms agg cannot do."
+            );
         }
     }
 
@@ -88,12 +79,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return true;
-    }
-
-    @Override
-    public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
-        return deferringCollector;
     }
 
     private String subAggsNeedScore() {

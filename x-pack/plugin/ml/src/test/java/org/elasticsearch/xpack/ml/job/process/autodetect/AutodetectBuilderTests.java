@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +30,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -81,56 +81,17 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
-        dd.setFieldDelimiter('|');
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 
         List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
         assertTrue(command.contains(AutodetectBuilder.AUTODETECT_PATH));
-        assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
-        assertTrue(command.contains(AutodetectBuilder.LATENCY_ARG + "360"));
-        assertTrue(command.contains(AutodetectBuilder.SUMMARY_COUNT_FIELD_ARG + "summaryField"));
-        assertTrue(command.contains(AutodetectBuilder.MULTIVARIATE_BY_FIELDS_ARG));
-        assertThat(command.contains(AutodetectBuilder.STOP_CATEGORIZATION_ON_WARN_ARG), is(isPerPartitionCategorization));
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
+        assertTrue(command.contains(AutodetectBuilder.LICENSE_KEY_VALIDATED_ARG + true));
 
-        assertTrue(command.contains(AutodetectBuilder.TIME_FIELD_ARG + "tf"));
-        assertTrue(command.contains(AutodetectBuilder.JOB_ID_ARG + "unit-test-job"));
-
-        int expectedPersistInterval = 10800 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
-        assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
-        int expectedMaxQuantileInterval = 21600 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
-        assertTrue(command.contains(AutodetectBuilder.MAX_QUANTILE_INTERVAL_ARG + expectedMaxQuantileInterval));
-
-        assertEquals(isPerPartitionCategorization ? 12 : 11, command.size());
-    }
-
-    public void testBuildAutodetectCommand_defaultTimeField() {
-        Job.Builder job = buildJobBuilder("unit-test-job");
-
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-
-        assertTrue(command.contains(AutodetectBuilder.TIME_FIELD_ARG + "time"));
-    }
-
-    public void testBuildAutodetectCommand_givenPersistModelState() {
-        settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.getKey(), true).build();
-        Job.Builder job = buildJobBuilder("unit-test-job");
-
-        int expectedPersistInterval = 10800 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
-
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertFalse(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
-
-        settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        env = TestEnvironment.newEnvironment(settings);
-
-        command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
+        assertEquals(4, command.size());
     }
 
     private AutodetectBuilder autodetectBuilder(Job job) {
@@ -142,7 +103,7 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         autodetectBuilder(job.build()).build();
 
-        assertThat(filesToDelete, hasSize(3));
+        assertThat(filesToDelete, hasSize(1));
 
         verify(nativeController).startProcess(commandCaptor.capture());
         verifyNoMoreInteractions(nativeController);

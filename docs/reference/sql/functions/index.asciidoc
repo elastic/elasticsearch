@@ -59,13 +59,13 @@
 ** <<sql-functions-datetime-datetimeformat>>
 ** <<sql-functions-datetime-datetimeparse>>
 ** <<sql-functions-datetime-format>>
-** <<sql-functions-datetime-timeparse>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>
 ** <<sql-functions-datetime-day>>
 ** <<sql-functions-datetime-dow>>
 ** <<sql-functions-datetime-doy>>
 ** <<sql-functions-datetime-dayname>>
+** <<sql-functions-datetime-extract>>
 ** <<sql-functions-datetime-hour>>
 ** <<sql-functions-datetime-isodow>>
 ** <<sql-functions-datetime-isoweek>>
@@ -76,10 +76,11 @@
 ** <<sql-functions-now>>
 ** <<sql-functions-datetime-second>>
 ** <<sql-functions-datetime-quarter>>
+** <<sql-functions-datetime-timeparse>>
+** <<sql-functions-datetime-to_char>>
 ** <<sql-functions-today>>
 ** <<sql-functions-datetime-week>>
 ** <<sql-functions-datetime-year>>
-** <<sql-functions-datetime-extract>>
 * <<sql-functions-search>>
 ** <<sql-functions-search-match>>
 ** <<sql-functions-search-query>>

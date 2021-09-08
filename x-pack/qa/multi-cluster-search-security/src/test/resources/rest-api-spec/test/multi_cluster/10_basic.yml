@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:
@@ -33,7 +33,7 @@ setup:
         username: "remote"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "remote_ccs" ]
             }
   - do:
@@ -80,7 +80,7 @@ teardown:
             - '{"f1": "local_cluster", "filter_field": 0}'
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: local_index,my_remote_cluster:test_index
@@ -99,7 +99,7 @@ teardown:
   - match: { aggregations.cluster.buckets.1.doc_count: 5 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: local_index,my_remote_cluster:test_index
@@ -123,7 +123,7 @@ teardown:
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       async_search.submit:
         index: local_index,my_remote_cluster:test_index
         wait_for_completion_timeout: 10s
@@ -151,7 +151,7 @@ teardown:
   - match: { response.aggregations.cluster.buckets.0.doc_count: 6 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       async_search.get:
         id: "$id"
 
@@ -168,14 +168,14 @@ teardown:
   - match: { response.aggregations.cluster.buckets.0.doc_count: 6 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       async_search.delete:
         id: "$id"
 
   - match: { acknowledged:   true }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -197,7 +197,7 @@ teardown:
 
   # Test wildcard in cluster name
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: "my_*:test_index"
@@ -218,7 +218,7 @@ teardown:
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: local_index
@@ -254,7 +254,7 @@ teardown:
   - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
@@ -268,7 +268,7 @@ teardown:
 
   # Test wildcard that matches multiple (two) cluster names
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: "*_remote_cluster:test_ind*"
@@ -283,7 +283,7 @@ teardown:
 "Search an filtered alias on the remote cluster":
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
@@ -300,7 +300,7 @@ teardown:
 "Search across clusters via a secured alias":
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:secure_alias # TODO make this a wildcard once
@@ -317,7 +317,7 @@ teardown:
 "Async search against filtered alias on the remote cluster":
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       async_search.submit:
         index: my_remote_cluster:aliased_test_index
         wait_for_completion_timeout: 10s
@@ -333,7 +333,7 @@ teardown:
   - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       async_search.get:
         id: "$id"
 
@@ -345,8 +345,10 @@ teardown:
   - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       async_search.delete:
         id: "$id"
 
   - match: { acknowledged:   true }
+
+

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
@@ -96,8 +97,7 @@ public class RollupIDGenerator {
 
     public String getID() {
         setFlag();
-        MurmurHash3.Hash128 hasher
-            = MurmurHash3.hash128(id.bytes(), 0, id.length(), SEED, new MurmurHash3.Hash128());
+        MurmurHash3.Hash128 hasher = MurmurHash3.hash128(id.bytes(), 0, id.length(), SEED, new MurmurHash3.Hash128());
         byte[] hashedBytes = new byte[16];
         System.arraycopy(Numbers.longToBytes(hasher.h1), 0, hashedBytes, 0, 8);
         System.arraycopy(Numbers.longToBytes(hasher.h2), 0, hashedBytes, 8, 8);

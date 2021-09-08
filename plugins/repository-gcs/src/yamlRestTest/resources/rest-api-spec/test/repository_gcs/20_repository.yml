@@ -9,9 +9,9 @@ setup:
         body:
           type: gcs
           settings:
-            bucket: ${bucket}
+            bucket: @bucket@
             client: "integration_test"
-            base_path: "${base_path}"
+            base_path: "@base_path@"
 
   # Remove the snapshots, if a previous test failed to delete them. This is
   # useful for third party tests that runs the test against a real external service.
@@ -28,18 +28,15 @@ setup:
 
 ---
 "Snapshot/Restore with repository-gcs":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   # Get repository
   - do:
       snapshot.get_repository:
         repository: repository
 
-  - match: { repository.settings.bucket : ${bucket} }
+  - match: { repository.settings.bucket : @bucket@ }
   - match: { repository.settings.client : "integration_test" }
-  - match: { repository.settings.base_path : "${base_path}" }
+  - match: { repository.settings.base_path : "@base_path@" }
 
   # Index documents
   - do:
@@ -130,9 +127,9 @@ setup:
         repository: repository
         snapshot: snapshot-one,snapshot-two
 
-  - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.state : SUCCESS }
-  - match: { responses.0.snapshots.1.state : SUCCESS }
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
 
   # Delete the index
   - do:
@@ -209,17 +206,12 @@ setup:
 
 ---
 "Get a non existing snapshot":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   - do:
+      catch: /snapshot_missing_exception/
       snapshot.get:
         repository: repository
         snapshot: missing
-
-  - is_true: responses.0.error
-  - match: { responses.0.error.type: snapshot_missing_exception }
 
 ---
 "Delete a non existing snapshot":

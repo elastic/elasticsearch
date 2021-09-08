@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.stats;
@@ -46,13 +47,14 @@ public class StatsPersister {
                 docIdSupplier.apply(jobId),
                 true,
                 () -> true,
-                errorMsg -> auditor.error(jobId,
-                    "failed to persist result with id [" + docIdSupplier.apply(jobId) + "]; " + errorMsg)
+                retryMessage ->
+                    LOGGER.debug("[{}] failed to persist result with id [{}]; {}", jobId, docIdSupplier.apply(jobId), retryMessage)
             );
         } catch (IOException ioe) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", jobId), ioe);
         } catch (Exception e) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", jobId), e);
+            auditor.error(jobId, "Failed indexing stats result with id [" + docIdSupplier.apply(jobId) + "]; " + e.getMessage());
         }
     }
 }

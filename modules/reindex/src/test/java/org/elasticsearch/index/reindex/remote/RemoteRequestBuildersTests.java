@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex.remote;
@@ -27,7 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,7 +25,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScroll;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearch;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scroll;
@@ -119,15 +108,16 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // Test stored_fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
-        // V_5_0_0_alpha4 => current
-        remoteVersion = Version.fromId(between(5000004, Version.CURRENT.id));
+        // V_5_0_0 (final) => current
+        int minStoredFieldsVersion = 5000099;
+        remoteVersion = Version.fromId(randomBoolean() ? minStoredFieldsVersion : between(minStoredFieldsVersion, Version.CURRENT.id));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
         // V_2_0_0 => V_5_0_0_alpha3
-        remoteVersion = Version.fromId(between(2000099, 5000003));
+        remoteVersion = Version.fromId(randomBoolean() ? minStoredFieldsVersion - 1 : between(2000099, minStoredFieldsVersion - 1));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("fields", "_source,_id"));
 
         // Test extra fields for versions that need it

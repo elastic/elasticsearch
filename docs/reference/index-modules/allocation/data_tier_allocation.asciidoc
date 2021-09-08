@@ -13,29 +13,15 @@ These tier attributes are set using the data node roles:
 * <<data-hot-node, data_hot>>
 * <<data-warm-node, data_warm>>
 * <<data-cold-node, data_cold>>
+* <<data-frozen-node, data_frozen>>
 
 NOTE: The <<data-node, data>> role is not a valid data tier and cannot be used
-for data tier filtering.
+for data tier filtering. The frozen tier stores <<partially-mounted,partially
+mounted indices>> exclusively.
 
 [discrete]
 [[data-tier-allocation-filters]]
-====Data tier allocation settings
-
-
-`index.routing.allocation.include._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has at
-    least one of to the comma-separated values.
-
-`index.routing.allocation.require._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has _all_
-    of the comma-separated values.
-
-`index.routing.allocation.exclude._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has _none_ of the
-    comma-separated values.
+==== Data tier allocation settings
 
 [[tier-preference-allocation-filter]]
 `index.routing.allocation.include._tier_preference`::
@@ -43,7 +29,6 @@ for data tier filtering.
     Assign the index to the first tier in the list that has an available node.
     This prevents indices from remaining unallocated if no nodes are available
     in the preferred tier.
-
     For example, if you set `index.routing.allocation.include._tier_preference`
     to `data_warm,data_hot`, the index is allocated to the warm tier if there
     are nodes with the `data_warm` role. If there are no nodes in the warm tier,

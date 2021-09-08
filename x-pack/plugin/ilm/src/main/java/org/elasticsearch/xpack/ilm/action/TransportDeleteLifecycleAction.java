@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -10,6 +11,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
-import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Response;
 
 import java.util.List;
 import java.util.SortedMap;
@@ -38,24 +39,19 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_NAME_SETTING;
 
-public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     @Inject
     public TransportDeleteLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            Request::new, indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+            Request::new, indexNameExpressionResolver, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-lifecycle-" + request.getPolicyName(),
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
-                    @Override
-                    protected Response newResponse(boolean acknowledged) {
-                        return new Response(acknowledged);
-                    }
-
+                new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         Spliterator<ObjectCursor<IndexMetadata>> indicesIt = currentState.metadata().indices().values().spliterator();

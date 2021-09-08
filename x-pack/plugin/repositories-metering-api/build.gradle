@@ -1,4 +1,6 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'repositories-metering-api'
   description 'Repositories metering API'
@@ -8,29 +10,12 @@ esplugin {
 archivesBaseName = 'x-pack-repositories-metering-api'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-task testJar(type: Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
+addQaCheckDependencies()

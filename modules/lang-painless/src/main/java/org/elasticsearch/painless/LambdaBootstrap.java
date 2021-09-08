@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -34,6 +23,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static java.lang.invoke.MethodHandles.Lookup;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
@@ -403,6 +394,8 @@ public final class LambdaBootstrap {
         // Loads any passed in arguments onto the stack.
         iface.loadArgs();
 
+        String functionalInterfaceWithCaptures;
+
         // Handles the case for a lambda function or a static reference method.
         // interfaceMethodType and delegateMethodType both have the captured types
         // inserted into their type signatures.  This later allows the delegate
@@ -413,6 +406,7 @@ public final class LambdaBootstrap {
         if (delegateInvokeType == H_INVOKESTATIC) {
             interfaceMethodType =
                 interfaceMethodType.insertParameterTypes(0, factoryMethodType.parameterArray());
+            functionalInterfaceWithCaptures = interfaceMethodType.toMethodDescriptorString();
             delegateMethodType =
                 delegateMethodType.insertParameterTypes(0, factoryMethodType.parameterArray());
         } else if (delegateInvokeType == H_INVOKEVIRTUAL ||
@@ -425,19 +419,32 @@ public final class LambdaBootstrap {
                 Class<?> clazz = delegateMethodType.parameterType(0);
                 delegateClassType = Type.getType(clazz);
                 delegateMethodType = delegateMethodType.dropParameterTypes(0, 1);
+                functionalInterfaceWithCaptures = interfaceMethodType.toMethodDescriptorString();
             // Handles the case for a virtual or interface reference method with 'this'
             // captured. interfaceMethodType inserts the 'this' type into its
             // method signature. This later allows the delegate
             // method to be invoked dynamically and have the interface method types
             // appropriately converted to the delegate method types.
             // Example: something::toString
-            } else if (captures.length == 1) {
+            } else {
                 Class<?> clazz = factoryMethodType.parameterType(0);
                 delegateClassType = Type.getType(clazz);
-                interfaceMethodType = interfaceMethodType.insertParameterTypes(0, clazz);
-            } else {
-                throw new LambdaConversionException(
-                    "unexpected number of captures [ " + captures.length + "]");
+
+                // functionalInterfaceWithCaptures needs to add the receiver and other captures
+                List<Type> parameters = interfaceMethodType.parameterList().stream().map(Type::getType).collect(Collectors.toList());
+                parameters.add(0,  delegateClassType);
+                for (int i = 1; i < captures.length; i++) {
+                    parameters.add(i, captures[i].type);
+                }
+                Type[] parametersArray = parameters.toArray(new Type[0]);
+                functionalInterfaceWithCaptures = Type.getMethodDescriptor(Type.getType(interfaceMethodType.returnType()), parametersArray);
+
+                // delegateMethod does not need the receiver
+                List<Class<?>> factoryParameters = factoryMethodType.parameterList();
+                if (factoryParameters.size() > 1) {
+                    List<Class<?>> factoryParametersWithReceiver = factoryParameters.subList(1, factoryParameters.size());
+                    delegateMethodType = delegateMethodType.insertParameterTypes(0, factoryParametersWithReceiver);
+                }
             }
         } else {
             throw new IllegalStateException(
@@ -456,7 +463,7 @@ public final class LambdaBootstrap {
         System.arraycopy(injections, 0, args, 2, injections.length);
         iface.invokeDynamic(
                 delegateMethodName,
-                Type.getMethodType(interfaceMethodType.toMethodDescriptorString()).getDescriptor(),
+                Type.getMethodType(functionalInterfaceWithCaptures).getDescriptor(),
                 DELEGATE_BOOTSTRAP_HANDLE,
                 args);
 

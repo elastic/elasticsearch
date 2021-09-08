@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query.functionscore;
@@ -33,7 +22,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +40,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -184,7 +173,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
         try (InputStream stream = functionBytes.streamInput();
@@ -200,7 +189,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
      * */
     protected abstract DecayFunction getDecayFunction();
 
-    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, SearchExecutionContext context,
             MultiValueMode mode) throws IOException {
         //the field must exist, else we cannot read the value for the doc later
         MappedFieldType fieldType = context.getFieldType(fieldName);
@@ -223,7 +212,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
     }
 
-    private AbstractDistanceScoreFunction parseNumberVariable(XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseNumberVariable(XContentParser parser, SearchExecutionContext context,
             MappedFieldType fieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -250,7 +239,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
-        if (!scaleFound || !refFound) {
+        if (scaleFound == false || refFound == false) {
             throw new ElasticsearchParseException("both [{}] and [{}] must be set for numeric fields.", DecayFunctionBuilder.SCALE,
                     DecayFunctionBuilder.ORIGIN);
         }
@@ -258,7 +247,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
-    private AbstractDistanceScoreFunction parseGeoVariable(XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseGeoVariable(XContentParser parser, SearchExecutionContext context,
             MappedFieldType fieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -292,7 +281,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
     }
 
-    private AbstractDistanceScoreFunction parseDateVariable(XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseDateVariable(XContentParser parser, SearchExecutionContext context,
             MappedFieldType dateFieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;

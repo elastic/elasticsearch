@@ -19,7 +19,7 @@
 
 package org.elasticsearch.core.internal.io;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -200,7 +200,7 @@ public final class IOUtils {
      */
     public static void rm(final Path... locations) throws IOException {
         final LinkedHashMap<Path,Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
-        if (!unremoved.isEmpty()) {
+        if (unremoved.isEmpty() == false) {
             final StringBuilder b = new StringBuilder("could not remove the following files (in the order of attempts):\n");
             for (final Map.Entry<Path,Throwable> kv : unremoved.entrySet()) {
                 b.append("   ")
@@ -280,6 +280,21 @@ public final class IOUtils {
      *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
+        fsync(fileToSync, isDir, true);
+    }
+
+    /**
+     * Ensure that any writes to the given file is written to the storage device that contains it. The {@code isDir} parameter specifies
+     * whether or not the path to sync is a directory. This is needed because we open for read and ignore an {@link IOException} since not
+     * all filesystems and operating systems support fsyncing on a directory. For regular files we must open for write for the fsync to have
+     * an effect.
+     *
+     * @param fileToSync the file to fsync
+     * @param isDir      if true, the given file is a directory (we open for read and ignore {@link IOException}s, because not all file
+     *                   systems and operating systems allow to fsync on a directory)
+     * @param metaData   if {@code true} both the file's content and metadata will be sync, otherwise only the file's content will be sync
+     */
+    public static void fsync(final Path fileToSync, final boolean isDir, final boolean metaData) throws IOException {
         if (isDir && WINDOWS) {
             // opening a directory on Windows fails, directories can not be fsynced there
             if (Files.exists(fileToSync) == false) {
@@ -290,7 +305,7 @@ public final class IOUtils {
         }
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
             try {
-                file.force(true);
+                file.force(metaData);
             } catch (final IOException e) {
                 if (isDir) {
                     assert (LINUX || MAC_OS_X) == false :

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.After;
@@ -53,9 +53,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -94,9 +92,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNull(indicesPrivileges.getDeniedFields());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().privileges("READ").indices("*")
@@ -190,7 +188,11 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
-        final SecurityIndexManager securityIndex = SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService);
+        final SecurityIndexManager securityIndex = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            Security.SECURITY_MAIN_INDEX_DESCRIPTOR
+        );
         final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
@@ -259,16 +261,13 @@ public class NativeRolesStoreTests extends ESTestCase {
                 .build();
         Metadata metadata = Metadata.builder()
                 .put(IndexMetadata.builder(securityIndexName).settings(settings))
-                .put(new IndexTemplateMetadata(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
-                        Collections.singletonList(securityIndexName), Settings.EMPTY, ImmutableOpenMap.of(),
-                        ImmutableOpenMap.of()))
                 .build();
 
         if (withAlias) {
             metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
         }
 
-        Index index = new Index(securityIndexName, UUID.randomUUID().toString());
+        Index index = metadata.index(securityIndexName).getIndex();
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(Reason.INDEX_CREATED, ""));
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))

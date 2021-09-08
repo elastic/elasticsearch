@@ -1,12 +1,18 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.javaRestTest {
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
@@ -18,6 +24,7 @@ testClusters.javaRestTest {
 
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.certificate', 'http.crt'
   setting 'xpack.security.http.ssl.key', 'http.key'
@@ -28,4 +35,5 @@ testClusters.javaRestTest {
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }

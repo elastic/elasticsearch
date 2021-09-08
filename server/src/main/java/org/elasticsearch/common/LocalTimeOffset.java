@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -40,8 +29,9 @@ import java.util.Locale;
  * utc. So converting from utc is as simple as adding the offset.
  * <p>
  * Getting from local time back to utc is harder. Most local times happen once.
- * But some local times happen twice. And some don't happen at all. Take, for
- * example, the time in my house. Most days I don't touch my clocks and I'm a
+ * But some local times happen twice (DST overlap).
+ * And some don't happen at all (DST gap).  Take, for example,
+ * the time in my house. Most days I don't touch my clocks and I'm a
  * constant offset from UTC. But once in the fall at 2am I roll my clock back.
  * So at 5am utc my clocks say 1am. Then at 6am utc my clocks say 1am AGAIN.
  * I do similarly terrifying things again in the spring when I skip my clocks
@@ -49,13 +39,15 @@ import java.util.Locale;
  * <p>
  * So there are two methods to convert from local time back to utc,
  * {@link #localToUtc(long, Strategy)} and {@link #localToUtcInThisOffset(long)}.
+ * @see ZoneOffsetTransition#isGap()
+ * @see ZoneOffsetTransition#isOverlap()
  */
 public abstract class LocalTimeOffset {
     /**
      * Lookup offsets for a provided zone. This <strong>can</strong> fail if
      * there are many transitions and the provided lookup would be very large.
      *
-     * @return a {@linkplain Lookup} or {@code null} if none could be built 
+     * @return a {@linkplain Lookup} or {@code null} if none could be built
      */
     public static Lookup lookup(ZoneId zone, long minUtcMillis, long maxUtcMillis) {
         if (minUtcMillis > maxUtcMillis) {
@@ -90,7 +82,7 @@ public abstract class LocalTimeOffset {
      * Lookup offsets without any known min or max time. This will generally
      * fail if the provided zone isn't fixed.
      *
-     * @return a lookup function of {@code null} if none could be built 
+     * @return a lookup function of {@code null} if none could be built
      */
     public static LocalTimeOffset fixedOffset(ZoneId zone) {
         return checkForFixedZone(zone, zone.getRules());
@@ -702,7 +694,7 @@ public abstract class LocalTimeOffset {
         }
         if (minYear == maxYear) {
             if (transitions.isEmpty()) {
-                // Make sure we have *some* transition to work with. 
+                // Make sure we have *some* transition to work with.
                 transitions.add(lastTransitionFromMinYear);
             }
             return transitions;

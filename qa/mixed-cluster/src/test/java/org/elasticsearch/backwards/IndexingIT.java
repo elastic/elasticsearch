@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.backwards;
 
@@ -28,8 +17,11 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -44,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public class IndexingIT extends ESRestTestCase {
 
@@ -303,7 +296,10 @@ public class IndexingIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class, () -> oldNodeClient.performRequest(request));
                 assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
                 assertThat(responseException.getResponse().getWarnings(),
-                    contains("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."));
+                    contains(
+                        oneOf("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.",
+                            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.")
+                    ));
                 Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));
                 assertThat(result.get("successful"), equalTo(0));
@@ -316,9 +312,58 @@ public class IndexingIT extends ESRestTestCase {
         try (RestClient newNodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
             Request request = new Request("POST", index + "/_flush/synced");
-            List<String> warningMsg = List.of("Synced flush was removed and a normal flush was performed instead. " +
-                "This transition will be removed in a future version.");
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(warningMsg) == false));
+            final String v7MediaType = XContentType.VND_JSON.toParsedMediaType()
+                .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
+                    String.valueOf(RestApiVersion.minimumSupported().major)));
+            List<String> warningMsg = List.of("Synced flush is deprecated and will be removed in 8.0." +
+                " Use flush at /_flush or /{index}/_flush instead.");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder()
+                        .setWarningsHandler(warnings -> warnings.equals(warningMsg) == false)
+                        .addHeader("Accept", v7MediaType));
+
+            assertBusy(() -> {
+                Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(totalShards));
+                assertThat(result.get("failed"), equalTo(0));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+    }
+
+    public void testFlushTransition() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
+        assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
+        // Allocate shards to new nodes then verify flush requests processed by old nodes/new nodes
+        String newNodes = nodes.getNewNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+        int numShards = randomIntBetween(1, 10);
+        int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
+        int totalShards = numShards * (numOfReplicas + 1);
+        final String index = "test_flush";
+        createIndex(index, Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put("index.routing.allocation.include._name", newNodes).build());
+        ensureGreen(index);
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient oldNodeClient = buildClient(restClientSettings(),
+            nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush");
+            assertBusy(() -> {
+                Map<String, Object> result = ObjectPath.createFromResponse(oldNodeClient.performRequest(request)).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(totalShards));
+                assertThat(result.get("failed"), equalTo(0));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient newNodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush");
             assertBusy(() -> {
                 Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));
@@ -396,7 +441,11 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private Nodes buildNodeAndVersions() throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
+        return buildNodeAndVersions(client());
+    }
+
+    static Nodes buildNodeAndVersions(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         Nodes nodes = new Nodes();
@@ -407,12 +456,12 @@ public class IndexingIT extends ESRestTestCase {
                 Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
                 HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))));
         }
-        response = client().performRequest(new Request("GET", "_cluster/state"));
+        response = client.performRequest(new Request("GET", "_cluster/state"));
         nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
         return nodes;
     }
 
-    final class Nodes extends HashMap<String, Node> {
+    static final class Nodes extends HashMap<String, Node> {
 
         private String masterNodeId = null;
 
@@ -465,7 +514,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
-    final class Node {
+    static final class Node {
         private final String id;
         private final String nodeName;
         private final Version version;

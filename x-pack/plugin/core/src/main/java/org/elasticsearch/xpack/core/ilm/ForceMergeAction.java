@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,9 +33,12 @@ import java.util.Objects;
  * A {@link LifecycleAction} which force-merges the index.
  */
 public class ForceMergeAction implements LifecycleAction {
+    private static final Logger logger = LogManager.getLogger(ForceMergeAction.class);
+
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
     public static final ParseField CODEC = new ParseField("index_codec");
+    public static final String CONDITIONAL_SKIP_FORCE_MERGE_STEP = BranchingStep.NAME + "-forcemerge-check-prerequisites";
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
@@ -68,11 +73,7 @@ public class ForceMergeAction implements LifecycleAction {
 
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.codec = in.readOptionalString();
-        } else {
-            this.codec = null;
-        }
+        this.codec = in.readOptionalString();
     }
 
     public int getMaxNumSegments() {
@@ -86,9 +87,7 @@ public class ForceMergeAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalString(codec);
-        }
+        out.writeOptionalString(codec);
     }
 
     @Override
@@ -120,6 +119,7 @@ public class ForceMergeAction implements LifecycleAction {
 
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
+        StepKey preForceMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FORCE_MERGE_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
 
@@ -131,6 +131,18 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
+        BranchingStep conditionalSkipShrinkStep = new BranchingStep(preForceMergeBranchingKey, checkNotWriteIndex, nextStepKey,
+            (index, clusterState) -> {
+                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
+                        "Skipping this action", ForceMergeAction.NAME, index.getName(), policyName);
+                    return true;
+                }
+                return false;
+            });
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         UpdateSettingsStep readOnlyStep =
@@ -147,6 +159,7 @@ public class ForceMergeAction implements LifecycleAction {
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
 
         List<Step> mergeSteps = new ArrayList<>();
+        mergeSteps.add(conditionalSkipShrinkStep);
         mergeSteps.add(checkNotWriteIndexStep);
         mergeSteps.add(readOnlyStep);
 

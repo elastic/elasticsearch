@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
  */
 public class RealmSettings {
 
+    public static final String RESERVED_REALM_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
 
     public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting("enabled",

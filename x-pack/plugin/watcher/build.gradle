@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-watcher'
@@ -13,9 +13,6 @@ archivesBaseName = 'x-pack-watcher'
 
 ext.compactProfile = 'full'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
 }
@@ -23,12 +20,13 @@ tasks.named("dependencyLicenses").configure {
 dependencies {
   compileOnly project(':server')
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   compileOnly project(path: ':modules:transport-netty4')
   compileOnly project(path: ':plugins:transport-nio')
 
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ilm'))
+  testImplementation project(xpackModule('data-streams'))
 
   // watcher deps
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
@@ -45,7 +43,7 @@ dependencies {
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',
@@ -76,23 +74,8 @@ thirdPartyAudit {
   )
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
 }
 
-internalClusterTest {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()

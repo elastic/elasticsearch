@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
+
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,30 +49,43 @@ public interface XContent {
     /**
      * Creates a parser over the provided string content.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
+        throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException;
+
+    /**
+     * Creates a parser over the provided bytes.
+     */
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException;
-
-    /**
-     * Creates a parser over the provided bytes.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
+                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, Reader reader) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException;
+
+    /**
+     * Creates a parser over the provided input stream and with the indication that a request is using REST compatible API.
+     *
+     * @param restApiVersion - indicates if the N-1 or N compatible XContent parsing logic will be used.
+     */
+    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                                InputStream is, RestApiVersion restApiVersion) throws IOException;
+
+    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
+                                                RestApiVersion restApiVersion) throws IOException;
+
 }

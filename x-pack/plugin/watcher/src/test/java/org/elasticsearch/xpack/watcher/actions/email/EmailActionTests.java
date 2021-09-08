@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -86,7 +87,7 @@ public class EmailActionTests extends ESTestCase {
 
     @Before
     public void addEmailAttachmentParsers() {
-        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
             new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -389,7 +390,7 @@ public class EmailActionTests extends ESTestCase {
         ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
                 .parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(10), parser);
 
-        if (!hideSecrets) {
+        if (hideSecrets == false) {
             assertThat(parsed, equalTo(executable));
         } else {
             assertThat(parsed.action().getAccount(), is(executable.action().getAccount()));
@@ -518,7 +519,7 @@ public class EmailActionTests extends ESTestCase {
                 .thenReturn(new HttpResponse(403));
 
         // setup email attachment parsers
-        Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> attachmentParsers = new HashMap<>();
         attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, engine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 

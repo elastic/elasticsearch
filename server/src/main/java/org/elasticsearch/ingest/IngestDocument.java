@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -37,6 +27,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +68,6 @@ public final class IngestDocument {
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
-
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
@@ -487,6 +477,33 @@ public final class IngestDocument {
         setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
     }
 
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param value The value to put in for the path key
+     * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+        Map<String, Object> model = createTemplateModel();
+        if (ignoreEmptyValue) {
+            if (value == null) {
+                return;
+            }
+            if (value instanceof String){
+                String valueStr = (String) value;
+                if (valueStr.isEmpty()) {
+                    return;
+                }
+            }
+        }
+
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+    }
+
     private void setFieldValue(String path, Object value, boolean append) {
         setFieldValue(path, value, append, true);
     }
@@ -644,12 +661,14 @@ public final class IngestDocument {
     }
 
     private Map<String, Object> createTemplateModel() {
-        Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-        model.put(SourceFieldMapper.NAME, sourceAndMetadata);
-        // If there is a field in the source with the name '_ingest' it gets overwritten here,
-        // if access to that field is required then it get accessed via '_source._ingest'
-        model.put(INGEST_KEY, ingestMetadata);
-        return model;
+        return new LazyMap<>(() -> {
+            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
+            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            // If there is a field in the source with the name '_ingest' it gets overwritten here,
+            // if access to that field is required then it get accessed via '_source._ingest'
+            model.put(INGEST_KEY, ingestMetadata);
+            return model;
+        });
     }
 
     /**
@@ -697,7 +716,7 @@ public final class IngestDocument {
         return (Map<K, V>) deepCopy(source);
     }
 
-    private static Object deepCopy(Object value) {
+    public static Object deepCopy(Object value) {
         if (value instanceof Map) {
             Map<?, ?> mapValue = (Map<?, ?>) value;
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
@@ -709,6 +728,13 @@ public final class IngestDocument {
             List<?> listValue = (List<?>) value;
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object itemValue : listValue) {
+                copy.add(deepCopy(itemValue));
+            }
+            return copy;
+        } else if (value instanceof Set) {
+            Set<?> setValue = (Set<?>) value;
+            Set<Object> copy = new HashSet<>(setValue.size());
+            for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
@@ -787,12 +813,14 @@ public final class IngestDocument {
 
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
+        TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
         VERSION_TYPE("_version_type"),
         IF_SEQ_NO("_if_seq_no"),
-        IF_PRIMARY_TERM("_if_primary_term");
+        IF_PRIMARY_TERM("_if_primary_term"),
+        DYNAMIC_TEMPLATES("_dynamic_templates");
 
         private final String fieldName;
 

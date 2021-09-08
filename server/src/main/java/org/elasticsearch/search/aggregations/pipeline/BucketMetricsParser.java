@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -42,8 +31,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, XContentParser parser)
-            throws IOException {
+    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -81,11 +69,13 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         }
 
         if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]"
+            );
         }
 
-        BucketMetricsPipelineAggregationBuilder<?> factory  = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
+        BucketMetricsPipelineAggregationBuilder<?> factory = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
         if (format != null) {
             factory.format(format);
         }
@@ -93,24 +83,34 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
             factory.gapPolicy(gapPolicy);
         }
 
-        assert(factory != null);
+        assert (factory != null);
 
         return factory;
     }
 
-    protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
-                                                                              Map<String, Object> params);
+    protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(
+        String pipelineAggregatorName,
+        String bucketsPaths,
+        Map<String, Object> params
+    );
 
-    protected boolean token(XContentParser parser, String field,
-                            XContentParser.Token token, Map<String, Object> params) throws IOException {
+    protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
+        throws IOException {
         return false;
     }
 
-    private void parseToken(String aggregationName, XContentParser parser, String currentFieldName,
-                       XContentParser.Token currentToken, Map<String, Object> params) throws IOException {
+    private void parseToken(
+        String aggregationName,
+        XContentParser parser,
+        String currentFieldName,
+        XContentParser.Token currentToken,
+        Map<String, Object> params
+    ) throws IOException {
         if (token(parser, currentFieldName, currentToken, params) == false) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]"
+            );
         }
     }
 }

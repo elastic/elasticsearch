@@ -1,0 +1,146 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    1
+          - field: foo
+          - index:
+              _index: docs
+              _id:    2
+          - field: bar
+          - index:
+              _index: docs
+              _id:    3
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+
+---
+"Tests searchable snapshots usage stats":
+  - skip:
+      version: " - 7.11.99"
+      reason:  storage flag introduced in 7.12.0
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 0 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: full_copy
+        body:
+          index: docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 1 }
+
+---
+"Tests searchable snapshots usage stats with full_copy and shared_cache indices":
+  - skip:
+      version: " - 7.12.99"
+      reason:  "extra full_copy and shared_cache fields introduced in 7.13.0"
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 0 }
+  - match: { searchable_snapshots.full_copy_indices_count: 0 }
+  - match: { searchable_snapshots.shared_cache_indices_count: 0 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: full_copy
+        body:
+          index: docs
+          renamed_index: docs_full_copy
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 1 }
+  - match: { searchable_snapshots.full_copy_indices_count: 1 }
+  - match: { searchable_snapshots.shared_cache_indices_count: 0 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+          renamed_index: docs_shared_cache
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 2 }
+  - match: { searchable_snapshots.full_copy_indices_count: 1 }
+  - match: { searchable_snapshots.shared_cache_indices_count: 1 }

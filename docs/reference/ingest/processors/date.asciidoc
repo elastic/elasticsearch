@@ -18,8 +18,8 @@ in the same order they were defined as part of the processor definition.
 | `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
 | `formats`              | yes       | -                   | An array of the expected date formats. Can be a <<mapping-date-format,java time pattern>> or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
-| `timezone`             | no        | UTC                 | The timezone to use when parsing the date. Supports <<accessing-template-fields,template snippets>>.
-| `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days. Supports <<accessing-template-fields,template snippets>>.
+| `timezone`             | no        | UTC                 | The timezone to use when parsing the date. Supports <<template-snippets,template snippets>>.
+| `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days. Supports <<template-snippets,template snippets>>.
 | `output_format`        | no        | `yyyy-MM-dd'T'HH:mm:ss.SSSXXX` | The format to use when writing the date to `target_field`. Can be a <<mapping-date-format,java time pattern>> or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 include::common-options.asciidoc[]
 |======
@@ -59,8 +59,8 @@ the timezone and locale values.
         "field" : "initial_date",
         "target_field" : "timestamp",
         "formats" : ["ISO8601"],
-        "timezone" : "{{my_timezone}}",
-        "locale" : "{{my_locale}}"
+        "timezone" : "{{{my_timezone}}}",
+        "locale" : "{{{my_locale}}}"
       }
     }
   ]

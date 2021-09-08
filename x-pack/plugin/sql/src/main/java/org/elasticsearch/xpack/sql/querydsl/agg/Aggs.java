@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
@@ -28,10 +29,10 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
  * This class maps the SQL GroupBy's (and co) to ES composite agg.
  * While the composite agg doesn't require a dedicated structure, for folding purposes, this structure
  * tracks the relationship between each key and its sub-aggs or pipelines.
- * 
+ *
  * Since sub-aggs can only refer to their group key and these are on the root-level, the tree can have at most
  * 2 levels - the grouping and its sub-aggs.
- * 
+ *
  * In case no group is specified (which maps to the default group in SQL), due to ES nature a 'dummy' filter agg
  * is used.
  */
@@ -77,7 +78,7 @@ public class Aggs {
         }
 
         // if there's a group, move everything under the composite agg
-        if (!groups.isEmpty()) {
+        if (groups.isEmpty() == false) {
             List<CompositeValuesSourceBuilder<?>> keys = new ArrayList<>(groups.size());
             // first iterate to compute the sources
             for (GroupByKey key : groups) {
@@ -172,6 +173,6 @@ public class Aggs {
         return Objects.equals(groups, other.groups)
                 && Objects.equals(simpleAggs, other.simpleAggs)
                 && Objects.equals(pipelineAggs, other.pipelineAggs);
-                
+
     }
 }

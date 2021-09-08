@@ -180,7 +180,7 @@ Guidelines
 ////
 
 `foo`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, do a cool thing.
 Defaults to `false`.
 

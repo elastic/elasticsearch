@@ -1,25 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
-
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,7 +45,7 @@ public class GND extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof GND)) {
+        if ((other instanceof GND) == false) {
             return false;
         }
         return super.equals(other);
@@ -91,10 +78,9 @@ public class GND extends NXYSignificanceHeuristic {
             // perfect co-occurrence
             return 1.0;
         }
-        double score = (Math.max(Math.log(fx), Math.log(fy)) - Math.log(fxy)) /
-                (Math.log(N) - Math.min(Math.log(fx), Math.log(fy)));
+        double score = (Math.max(Math.log(fx), Math.log(fy)) - Math.log(fxy)) / (Math.log(N) - Math.min(Math.log(fx), Math.log(fy)));
 
-        //we must invert the order of terms because GND scores relevant terms low
+        // we must invert the order of terms because GND scores relevant terms low
         score = Math.exp(-1.0d * score);
         return score;
     }
@@ -126,4 +112,3 @@ public class GND extends NXYSignificanceHeuristic {
         }
     }
 }
-

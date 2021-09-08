@@ -1,0 +1,60 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "strings_as_keyword": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
+          }
+        }
+      ],
+      "date_detection": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "data_stream": {
+          "properties": {
+            "type": {
+              "type": "constant_keyword",
+              "value": "logs"
+            },
+            "dataset": {
+              "type": "constant_keyword"
+            },
+            "namespace": {
+              "type": "constant_keyword"
+            }
+          }
+        },
+        "ecs": {
+          "properties": {
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "host": {
+          "properties": {
+            "ip": {
+              "type": "ip"
+            }
+          }
+        },
+        "message": {
+          "type": "text"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for Stack deprecation logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.deprecation.indexing.template.version}
+}

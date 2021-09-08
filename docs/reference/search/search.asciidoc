@@ -23,6 +23,16 @@ GET /my-index-000001/_search
 
 `POST /_search`
 
+[[search-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
++
+To search a <<point-in-time-api,point in time (PIT)>> for an alias, you
+must have the `read` index privilege for the alias's data streams or indices.
+
 [[search-search-api-desc]]
 ==== {api-description-title}
 
@@ -34,12 +44,9 @@ query string parameter>> or <<search-request-body,request body>>.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
-Wildcard (`*`) expressions are supported.
-+
-To search all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
 [role="child_attributes"]
 [[search-search-api-query-params]]
@@ -55,8 +62,8 @@ Defaults to `true`.
 
 [[search-partial-responses]]
 `allow_partial_search_results`::
-(Optional, boolean)
-If `true`, returns partial results if there are request timeouts or
+(Optional, Boolean)
+If `true`, returns partial results if there are shard request timeouts or
 <<shard-failures,shard failures>>. If `false`, returns an error with
 no partial results. Defaults to `true`.
 +
@@ -71,7 +78,7 @@ shards in the request can be large. Defaults to `512`.
 
 [[ccs-minimize-roundtrips]]
 `ccs_minimize_roundtrips`::
-(Optional, boolean) If `true`, network round-trips between the
+(Optional, Boolean) If `true`, network round-trips between the
 coordinating node and the remote clusters are minimized when executing
 {ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
@@ -84,7 +91,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `explain`::
-(Optional, boolean) If `true`, returns detailed information about score
+(Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
@@ -94,7 +101,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 <<search-after,`search_after`>> parameter.
 
 `ignore_throttled`::
-(Optional, boolean) If `true`, concrete, expanded or aliased indices will be
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices will be
 ignored when frozen. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
@@ -136,7 +143,7 @@ using the default method.
 
 `_only_nodes:<node-id>,<node-id>`::
 Run the search on only the specified nodes IDs. If suitable shards exist on more
-than one selected nodes, use shards on those nodes using the default method. If
+than one selected node, use shards on those nodes using the default method. If
 none of the specified nodes are available, select shards from any available node
 using the default method.
 
@@ -145,11 +152,11 @@ If possible, run the search on the specified nodes IDs. If not, select shards
 using the default method.
 
 `_shards:<shard>,<shard>`::
-Run the search only on the specified shards. This value can be combined with
-other `preference` values, but this value must come first. For example:
-`_shards:2,3|_local`
+Run the search only on the specified shards. You can combine this value with
+other `preference` values, excluding `<custom-string>`. However, the `_shards`
+value must come first. For example: `_shards:2,3|_local`.
 
-<custom-string>::
+`<custom-string>`::
 Any string that does not start with `_`. If the cluster state and selected
 shards do not change, searches using the same `<custom-string>` value are routed
 to the same shards in the same order.
@@ -168,12 +175,12 @@ parameter in the request body. If both parameters are specified, documents
 matching the `query` request body parameter are not returned.
 
 `request_cache`::
-(Optional, boolean) If `true`, the caching of search results is enabled for
+(Optional, Boolean) If `true`, the caching of search results is enabled for
 requests where `size` is `0`. See <<shard-request-cache>>. Defaults to index
 level settings.
 
 `rest_total_hits_as_int`::
-(Optional, boolean) Indicates whether hits.total should be rendered as an
+(Optional, Boolean) Indicates whether hits.total should be rendered as an
 integer or an object in the rest search response. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
@@ -211,7 +218,7 @@ searches.
 ====
 
 `seq_no_primary_term`::
-(Optional, boolean) If `true`, returns sequence number and primary term of the
+(Optional, Boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
 `size`::
@@ -234,11 +241,11 @@ the search response. Defaults to `true`.
 [%collapsible%open]
 ====
 `true`::
-(boolean)
+(Boolean)
 The entire document source is returned.
 
 `false`::
-(boolean)
+(Boolean)
 The document source is not returned.
 
 `<string>`::
@@ -277,26 +284,26 @@ Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
-for a response. If no response is received before the timeout expires, the
+for a response from each shard. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 `track_scores`::
-(Optional, boolean) If `true`, calculate and return document scores, even if
+(Optional, Boolean) If `true`, calculate and return document scores, even if
 the scores are not used for sorting. Defaults to `false`.
 
 `track_total_hits`::
-(Optional, integer or boolean)
+(Optional, integer or Boolean)
 Number of hits matching the query to count accurately. Defaults to `10000`.
 +
 If `true`, the exact number of hits is returned at the cost of some performance.
 If `false`, the response does not include the total number of hits matching the query.
 
 `typed_keys`::
-(Optional, boolean) If `true`, aggregation and suggester names are be prefixed
+(Optional, Boolean) If `true`, aggregation and suggester names are be prefixed
 by their respective types in the response. Defaults to `true`.
 
 `version`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
 
 [role="child_attributes"]
@@ -324,7 +331,7 @@ pattern.
 (Optional, string)
 Format in which the doc values are returned.
 +
-For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+For <<date,date fields>>, you can specify a date <<mapping-date-format,date
 `format`>>. For <<number,numeric fields>> fields, you can specify a
 https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
 pattern].
@@ -332,36 +339,65 @@ pattern].
 For other field data types, this parameter is not supported.
 ====
 
+[[search-api-fields]]
 `fields`::
 (Optional, array of strings and objects)
 Array of wildcard (`*`) patterns. The request returns values for field names
 matching these patterns in the `hits.fields` property of the response.
 +
 You can specify items in the array as a string or object.
-See <<search-fields-param>> for more details.
 +
 .Properties of `fields` objects
 [%collapsible%open]
 ====
+// tag::fields-api-props[]
 `field`::
-(Required, string)
-Wildcard pattern. The request returns values for field names matching this pattern.
+(Required, string) Field to return. Supports wildcards (`*`).
 
 `format`::
 (Optional, string)
-Format in which the values are returned.
+Format for date and geospatial fields. Other field data types do not support
+this parameter.
 +
-The date fields <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
-<<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>> accept either
-`geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
-{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
+--
+<<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
+<<mapping-date-format,date format>>. <<geo-point,`geo_point`>> and
+<<geo-shape,`geo_shape`>> fields accept:
+
+`geojson` (default):::
+http://www.geojson.org[GeoJSON]
+
+`wkt`:::
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
+
+`mvt(<zoom>/<x>/<y>@<extent>)` or `mvt(<zoom>/<x>/<y>)`:::
+experimental:[] Binary
+https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile]. The API
+returns the tile as a base64-encoded string.
 +
-For other field data types, this parameter is not supported.
+.`mvt` parameters
+[%collapsible%open]
+========
+`<zoom>`::
+(Required, integer) Zoom level for the tile. Accepts `0`-`29`.
+
+`<x>`::
+(Required, integer) X coordinate for the tile.
+
+`<y>`::
+(Required, integer) Y coordinate for the tile.
+
+`<extent>`::
+(Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
+square with equal sides. Defaults to `4096`.
+========
+--
+// end::fields-api-props[]
 ====
 
 [[request-body-search-explain]]
 `explain`::
-(Optional, boolean) If `true`, returns detailed information about score
+(Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
@@ -394,14 +430,113 @@ A boost value greater than `1.0` increases the score. A boost value between
 Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
 lower `_score` are not included in the search results.
 
+`pit`::
+(Optional, object)
+Limits the search to a <<point-in-time-api,point in time (PIT)>>. If you provide
+a `pit`, you cannot specify a `<target>` in the request path.
++
+.Properties of `pit`
+[%collapsible%open]
+====
+`id`::
+(Required*, string)
+ID for the PIT to search. If you provide a `pit` object, this parameter is
+required.
+
+`keep_alive`::
+(Optional, <<time-units,time value>>)
+Period of time used to extend the life of the PIT.
+====
+
 [[request-body-search-query]]
 `query`::
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
 
+[[search-api-body-runtime]]
+// tag::runtime-mappings-def[]
+`runtime_mappings`::
+(Optional, object of objects)
+Defines one or more <<runtime-search-request,runtime fields>> in the search
+request. These fields take precedence over mapped fields with the same name.
++
+.Properties of `runtime_mappings` objects
+[%collapsible%open]
+====
+
+`<field-name>`::
+(Required, object)
+Configuration for the runtime field. The key is the field name.
++
+.Properties of `<field-name>`
+[%collapsible%open]
+=====
+
+`type`::
+(Required, string)
+<<mapping-types,Field type>>, which can be any of the following:
++
+include::{es-ref-dir}/mapping/runtime.asciidoc[tag=runtime-data-types]
+
+`script`::
+(Optional, string)
+<<modules-scripting-using,Painless script>> executed at query time. The
+script has access to the entire context of a document, including the original
+`_source` and any mapped fields plus their values.
++
+This script must include `emit` to return calculated values. For example:
++
+[source,js,indent=0]
+----
+include::search.asciidoc[tag=runtime-script]
+----
+// NOTCONSOLE
+
+=====
+====
+// end::runtime-mappings-def[]
+
+////
+[source,console]
+----
+POST _search?size=1&filter_path=hits.hits
+{
+  "runtime_mappings": {
+    "dow": {
+      "type": "keyword",
+      // tag::runtime-script[]
+      "script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
+      // end::runtime-script[]
+    }
+  },
+  "fields": [{"field": "dow"}]
+}
+----
+// TEST[setup:my_index]
+
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_index": $body.hits.hits.0._index,
+        "_id": $body.hits.hits.0._id,
+        "_score": $body.hits.hits.0._score,
+        "_source": $body.hits.hits.0._source,
+        "fields": {
+          "dow": ["SUNDAY"]
+        }
+      }
+    ]
+  }
+}
+----
+////
+
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::
-(Optional, boolean) If `true`, returns sequence number and primary term of the
+(Optional, Boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
 `size`::
@@ -421,11 +556,11 @@ the search response. Defaults to `true`.
 [%collapsible%open]
 ====
 `true`::
-(boolean)
+(Boolean)
 The entire document source is returned.
 
 `false`::
-(boolean)
+(Boolean)
 The document source is not returned.
 
 `<wildcard_pattern>`::
@@ -469,12 +604,12 @@ Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
-for a response. If no response is received before the timeout expires, the
+for a response from each shard. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 [[request-body-search-version]]
 `version`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
 
 
@@ -493,6 +628,7 @@ next batch of search results for the request. See
 This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
 query parameter>> is specified in the request.
 
+[[search-api-took]]
 `took`::
 +
 --
@@ -518,11 +654,12 @@ Took time does *not* include:
 --
 
 `timed_out`::
-(boolean)
+(Boolean)
 If `true`,
 the request timed out before completion;
 returned results may be partial or empty.
 
+[[search-api-shards]]
 `_shards`::
 (object)
 Contains a count of shards used for the request.
@@ -651,7 +788,7 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /my-index-000001/_search?from=40&size=20
 {
   "query": {
     "term": {
@@ -661,6 +798,7 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/\?from=40&size=20//]
 
 The API returns the following response:
 
@@ -677,7 +815,7 @@ The API returns the following response:
   },
   "hits": {
     "total": {
-      "value": 1,
+      "value": 20,
       "relation": "eq"
     },
     "max_score": 1.3862942,
@@ -706,9 +844,12 @@ The API returns the following response:
             "id": "kimchy"
           }
         }
-      }
+      },
+      ...
     ]
   }
 }
 ----
 // TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/"value": 20,/"value": 1,/]
+// TESTRESPONSE[s/,\n      \.\.\.//]

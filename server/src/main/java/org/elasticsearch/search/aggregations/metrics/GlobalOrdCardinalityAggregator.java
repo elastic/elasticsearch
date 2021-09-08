@@ -1,41 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
-
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,15 +45,15 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     private SortedSetDocValues values;
     private ObjectArray<BitArray> visitedOrds;
 
-
     public GlobalOrdCardinalityAggregator(
-            String name,
-            ValuesSource.Bytes.WithOrdinals valuesSource,
-            int precision,
-            int maxOrd,
-            SearchContext context,
-            Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+        String name,
+        ValuesSource.Bytes.WithOrdinals valuesSource,
+        int precision,
+        int maxOrd,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.precision = precision;
@@ -80,8 +68,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         values = valuesSource.globalOrdinalsValues(ctx);
         return new LeafBucketCollector() {
             @Override
@@ -101,7 +88,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         };
     }
 
-    @Override
     protected void doPostCollection() throws IOException {
         counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
@@ -114,8 +100,9 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 }
 
                 final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-                for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
-                     ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
+                    ? allVisitedOrds.nextSetBit(ord + 1)
+                    : Long.MAX_VALUE) {
                     final BytesRef value = values.lookupOrd(ord);
                     MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                     hashes.set(ord, hash.h1);
@@ -126,8 +113,9 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                     if (bits != null) {
                         visitedOrds.set(bucket, null); // remove bitset from array
                         counts.ensureCapacity(bucket, bits.cardinality());
-                        for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
-                             ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                        for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
+                            ? bits.nextSetBit(ord + 1)
+                            : Long.MAX_VALUE) {
                             counts.collect(bucket, hashes.get(ord));
                         }
                     }
@@ -141,7 +129,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public double metric(long owningBucketOrd) {
-        return counts == null ? 0 : counts.cardinality(owningBucketOrd);
+        return counts.cardinality(owningBucketOrd);
     }
 
     @Override

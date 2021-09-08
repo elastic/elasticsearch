@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -24,13 +13,13 @@ import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -55,6 +44,7 @@ public class NaNSortingIT extends ESIntegTestCase {
                 factory.field("numeric_field");
                 return factory;
             }
+
             @Override
             public double getValue(Aggregation aggregation) {
                 return ((Avg) aggregation).getValue();
@@ -67,26 +57,30 @@ public class NaNSortingIT extends ESIntegTestCase {
                 factory.field("numeric_field");
                 return factory;
             }
+
             @Override
             public String sortKey() {
                 return name + ".variance";
             }
+
             @Override
             public double getValue(Aggregation aggregation) {
                 return ((ExtendedStats) aggregation).getVariance();
             }
         },
-        STD_DEVIATION("std_deviation"){
+        STD_DEVIATION("std_deviation") {
             @Override
             public ExtendedStatsAggregationBuilder builder() {
                 ExtendedStatsAggregationBuilder factory = extendedStats(name);
                 factory.field("numeric_field");
                 return factory;
             }
+
             @Override
             public String sortKey() {
                 return name + ".std_deviation";
             }
+
             @Override
             public double getValue(Aggregation aggregation) {
                 return ((ExtendedStats) aggregation).getStdDeviation();
@@ -99,8 +93,11 @@ public class NaNSortingIT extends ESIntegTestCase {
 
         public String name;
 
-        public abstract ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric,
-                ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>> builder();
+        public abstract
+            ValuesSourceAggregationBuilder.LeafOnly<
+                ValuesSource.Numeric,
+                ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>>
+            builder();
 
         public String sortKey() {
             return name;
@@ -111,13 +108,14 @@ public class NaNSortingIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .setMapping("string_value", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("string_value", "type=keyword").get());
         final int numDocs = randomIntBetween(2, 10);
         for (int i = 0; i < numDocs; ++i) {
             final long value = randomInt(5);
-            XContentBuilder source = jsonBuilder().startObject().field("long_value", value).field("double_value", value + 0.05)
-                    .field("string_value", "str_" + value);
+            XContentBuilder source = jsonBuilder().startObject()
+                .field("long_value", value)
+                .field("double_value", value + 0.05)
+                .field("string_value", "str_" + value);
             if (randomBoolean()) {
                 source.field("numeric_value", randomDouble());
             }
@@ -153,9 +151,13 @@ public class NaNSortingIT extends ESIntegTestCase {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field(fieldName).collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
-                .get();
+            .addAggregation(
+                terms("terms").field(fieldName)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .subAggregation(agg.builder())
+                    .order(BucketOrder.aggregation(agg.sortKey(), asc))
+            )
+            .get();
 
         assertSearchResponse(response);
         final Terms terms = response.getAggregations().get("terms");
@@ -178,10 +180,13 @@ public class NaNSortingIT extends ESIntegTestCase {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo")
-                        .field("long_value").interval(randomIntBetween(1, 2))
-                        .subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
-                .get();
+            .addAggregation(
+                histogram("histo").field("long_value")
+                    .interval(randomIntBetween(1, 2))
+                    .subAggregation(agg.builder())
+                    .order(BucketOrder.aggregation(agg.sortKey(), asc))
+            )
+            .get();
 
         assertSearchResponse(response);
         final Histogram histo = response.getAggregations().get("histo");

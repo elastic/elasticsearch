@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz.store;
@@ -13,13 +14,14 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -41,7 +43,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * Inspects all aliases that have greater privileges than the indices that they point to and logs the role descriptor, granting privileges
@@ -163,10 +164,10 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
         // collate privileges by index and by alias separately
         for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
-            final Predicate<String> namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
+            final StringMatcher matcher = StringMatcher.of(Arrays.asList(indexPrivilege.getIndices()));
             for (final Map.Entry<String, IndexAbstraction> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                 final String aliasOrIndexName = aliasOrIndex.getKey();
-                if (namePatternPredicate.test(aliasOrIndexName)) {
+                if (matcher.test(aliasOrIndexName)) {
                     if (aliasOrIndex.getValue().getType() == IndexAbstraction.Type.ALIAS) {
                         final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
                                 k -> new HashSet<>());
@@ -206,7 +207,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             if (false == inferiorIndexNames.isEmpty()) {
                 final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                         aliasName, String.join(", ", inferiorIndexNames));
-                deprecationLogger.deprecate("index_permissions_on_alias", logMessage);
+                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
             }
         }
     }

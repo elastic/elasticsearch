@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -43,17 +32,21 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
 
     static RolloverAction randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
-        return new RolloverAction(maxSize, maxAge, maxDocs);
+        ByteSizeValue maxSize = randomBoolean()
+            ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxPrimaryShardSize = randomBoolean()
+            ? null : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+        TimeValue maxAge = randomBoolean()
+            ? null : TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        Long maxDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null || randomBoolean())
+            ? randomNonNegativeLong() : null;
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     public void testNoConditions() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new RolloverAction(null, null, null));
+            () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 }

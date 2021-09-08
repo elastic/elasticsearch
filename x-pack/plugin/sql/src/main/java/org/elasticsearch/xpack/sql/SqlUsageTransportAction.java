@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql;
 
@@ -47,7 +48,6 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.SQL);
         SqlStatsRequest sqlRequest = new SqlStatsRequest();
         sqlRequest.includeStats(true);
         sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -58,7 +58,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
-            SqlFeatureSetUsage usage = new SqlFeatureSetUsage(available, mergedCounters.toNestedMap());
+            SqlFeatureSetUsage usage = new SqlFeatureSetUsage(mergedCounters.toNestedMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }, listener::onFailure));
     }

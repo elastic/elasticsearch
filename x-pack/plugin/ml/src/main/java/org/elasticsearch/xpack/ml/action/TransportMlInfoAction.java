@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
@@ -38,6 +40,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeoutException;
+
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
+import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
@@ -91,7 +98,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
             Job.DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         try {
             defaults.put(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
-                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())
+                CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList())
                     .asMap(xContentRegistry).get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName()));
         } catch (IOException e) {
             logger.error("failed to convert default categorization analyzer to map", e);
@@ -115,9 +122,27 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return anomalyDetectorsDefaults;
     }
 
+    static ByteSizeValue calculateTotalMlMemory(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
+
+        long totalMlMemory = 0;
+
+        for (DiscoveryNode node : nodes) {
+            OptionalLong limit = NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings);
+            if (limit.isEmpty()) {
+                continue;
+            }
+            totalMlMemory += limit.getAsLong();
+        }
+
+        // Round down to a whole number of megabytes, since we generally deal with model
+        // memory limits in whole megabytes
+        return ByteSizeValue.ofMb(ByteSizeUnit.BYTES.toMB(totalMlMemory));
+    }
+
     static ByteSizeValue calculateEffectiveMaxModelMemoryLimit(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
 
         long maxMlMemory = -1;
+        int numMlNodes = 0;
 
         for (DiscoveryNode node : nodes) {
             OptionalLong limit = NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings);
@@ -125,17 +150,30 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
                 continue;
             }
             maxMlMemory = Math.max(maxMlMemory, limit.getAsLong());
+            ++numMlNodes;
+        }
+
+        // It is possible that there is scope for more ML nodes to be added
+        // to the cluster, in which case take those into account too
+        long maxMlNodeSize = clusterSettings.get(MAX_ML_NODE_SIZE).getBytes();
+        int maxLazyNodes = clusterSettings.get(MAX_LAZY_ML_NODES);
+        if (maxMlNodeSize > 0 && numMlNodes < maxLazyNodes) {
+            maxMlMemory = Math.max(maxMlMemory, NativeMemoryCalculator.allowedBytesForMl(
+                maxMlNodeSize,
+                clusterSettings.get(MAX_MACHINE_MEMORY_PERCENT),
+                clusterSettings.get(USE_AUTO_MACHINE_MEMORY_PERCENT)));
         }
 
         if (maxMlMemory <= 0) {
-            // This implies there are currently no ML nodes in the cluster, so we
-            // have no idea what the effective limit would be if one were added
+            // This implies there are currently no ML nodes in the cluster, and
+            // no automatic mechanism for adding one, so we have no idea what
+            // the effective limit would be if one were added
             return null;
         }
 
         maxMlMemory -= Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
         maxMlMemory -= MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
-        return ByteSizeValue.ofMb(Math.max(0L, maxMlMemory) / 1024 / 1024);
+        return ByteSizeValue.ofMb(ByteSizeUnit.BYTES.toMB(Math.max(0L, maxMlMemory)));
     }
 
     private Map<String, Object> limits() {
@@ -153,6 +191,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         if (effectiveMaxModelMemoryLimit != null) {
             limits.put("effective_max_model_memory_limit", effectiveMaxModelMemoryLimit.getStringRep());
         }
+        limits.put("total_ml_memory",
+            calculateTotalMlMemory(clusterService.getClusterSettings(), clusterService.state().getNodes()).getStringRep());
         return limits;
     }
 }

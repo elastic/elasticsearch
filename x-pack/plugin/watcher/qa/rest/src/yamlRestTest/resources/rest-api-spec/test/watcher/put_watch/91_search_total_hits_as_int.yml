@@ -110,3 +110,42 @@ setup:
 
   - match: { _source.key: "value" }
 
+---
+"Test persist rest_total_hits_as_int":
+  - do:
+      watcher.put_watch:
+        id: "my_watch1"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": false,
+                  "body" : {
+                    "query": {
+                      "match_all" : {}
+                    }
+                  }
+                }
+              }
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch1" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch1"
+  - match: { found : true}
+  - match: { _id: "my_watch1" }
+  - match: { watch.input.search.request.rest_total_hits_as_int: false }

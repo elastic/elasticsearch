@@ -22,12 +22,15 @@ when it expires, for example.
 For more information about the different types of licenses, see
 https://www.elastic.co/subscriptions.
 
+NOTE: If the master node is generating a new cluster state, the get license API
+may return a `404 Not Found` response. If you receive an unexpected `404`
+response after cluster startup, wait a short period and retry the request. 
 
 [discrete]
 ==== Query Parameters
 
 `local`::
-  (boolean) Specifies whether to retrieve local information. The default value
+  (Boolean) Specifies whether to retrieve local information. The default value
   is `false`, which means the information is retrieved from the master node.
 
 

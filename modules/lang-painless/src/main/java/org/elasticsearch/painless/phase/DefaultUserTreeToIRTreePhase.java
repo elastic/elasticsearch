@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
@@ -76,7 +67,6 @@ import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
-import org.elasticsearch.painless.ir.ReferenceNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StatementNode;
@@ -86,10 +76,8 @@ import org.elasticsearch.painless.ir.StoreBraceNode;
 import org.elasticsearch.painless.ir.StoreDotDefNode;
 import org.elasticsearch.painless.ir.StoreDotNode;
 import org.elasticsearch.painless.ir.StoreDotShortcutNode;
-import org.elasticsearch.painless.ir.StoreFieldMemberNode;
 import org.elasticsearch.painless.ir.StoreListShortcutNode;
 import org.elasticsearch.painless.ir.StoreMapShortcutNode;
-import org.elasticsearch.painless.ir.StoreNode;
 import org.elasticsearch.painless.ir.StoreVariableNode;
 import org.elasticsearch.painless.ir.StringConcatenationNode;
 import org.elasticsearch.painless.ir.ThrowNode;
@@ -97,9 +85,11 @@ import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
+import org.elasticsearch.painless.ir.UnaryNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -157,6 +147,7 @@ import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
+import org.elasticsearch.painless.symbol.Decorations.CaptureBox;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.Compound;
@@ -168,6 +159,8 @@ import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.GetterPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
+import org.elasticsearch.painless.symbol.Decorations.InstanceCapturingLambda;
+import org.elasticsearch.painless.symbol.Decorations.InstanceCapturingFunctionRef;
 import org.elasticsearch.painless.symbol.Decorations.InstanceType;
 import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.ListShortcut;
@@ -192,6 +185,7 @@ import org.elasticsearch.painless.symbol.Decorations.StandardPainlessInstanceBin
 import org.elasticsearch.painless.symbol.Decorations.StandardPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
 import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
@@ -199,6 +193,59 @@ import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDCaptureNames;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDCast;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDClassBinding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstructor;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDeclarationType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDefReferenceEncoding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDField;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDFieldType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDFlags;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDIndexName;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDIndexType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDIndexedType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableName;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDParameterNames;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDReference;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDRegexLimit;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDReturnType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDShiftType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDSize;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDStoreType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDUnaryType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDValue;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDVariableName;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDVariableType;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.objectweb.asm.Opcodes;
@@ -207,7 +254,9 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -229,23 +278,23 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         int modifiers = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
 
         FieldNode irFieldNode = new FieldNode(internalLocation);
-        irFieldNode.setModifiers(modifiers);
-        irFieldNode.setFieldType(PainlessLookup.class);
-        irFieldNode.setName("$DEFINITION");
+        irFieldNode.attachDecoration(new IRDModifiers(modifiers));
+        irFieldNode.attachDecoration(new IRDFieldType(PainlessLookup.class));
+        irFieldNode.attachDecoration(new IRDName("$DEFINITION"));
 
         irClassNode.addFieldNode(irFieldNode);
 
         irFieldNode = new FieldNode(internalLocation);
-        irFieldNode.setModifiers(modifiers);
-        irFieldNode.setFieldType(FunctionTable.class);
-        irFieldNode.setName("$FUNCTIONS");
+        irFieldNode.attachDecoration(new IRDModifiers(modifiers));
+        irFieldNode.attachDecoration(new IRDFieldType(FunctionTable.class));
+        irFieldNode.attachDecoration(new IRDName("$FUNCTIONS"));
 
         irClassNode.addFieldNode(irFieldNode);
 
         irFieldNode = new FieldNode(internalLocation);
-        irFieldNode.setModifiers(modifiers);
-        irFieldNode.setFieldType(Map.class);
-        irFieldNode.setName("$COMPILERSETTINGS");
+        irFieldNode.attachDecoration(new IRDModifiers(modifiers));
+        irFieldNode.attachDecoration(new IRDFieldType(Map.class));
+        irFieldNode.attachDecoration(new IRDName("$COMPILERSETTINGS"));
 
         irClassNode.addFieldNode(irFieldNode);
 
@@ -254,21 +303,21 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         try {
             FunctionNode irFunctionNode = new FunctionNode(internalLocation);
-            irFunctionNode.setReturnType(CallSite.class);
-            irFunctionNode.setName("$bootstrapDef");
-            irFunctionNode.getTypeParameters().addAll(
-                    Arrays.asList(Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class));
-            irFunctionNode.getParameterNames().addAll(
-                    Arrays.asList("methodHandlesLookup", "name", "type", "initialDepth", "flavor", "args"));
-            irFunctionNode.setStatic(true);
-            irFunctionNode.setVarArgs(true);
-            irFunctionNode.setSynthetic(true);
-            irFunctionNode.setMaxLoopCounter(0);
+            irFunctionNode.attachDecoration(new IRDName("$bootstrapDef"));
+            irFunctionNode.attachDecoration(new IRDReturnType(CallSite.class));
+            irFunctionNode.attachDecoration(new IRDTypeParameters(
+                    Arrays.asList(Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class)));
+            irFunctionNode.attachDecoration(new IRDParameterNames(
+                    Arrays.asList("methodHandlesLookup", "name", "type", "initialDepth", "flavor", "args")));
+            irFunctionNode.attachCondition(IRCStatic.class);
+            irFunctionNode.attachCondition(IRCVarArgs.class);
+            irFunctionNode.attachCondition(IRCSynthetic.class);
+            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
 
             irClassNode.addFunctionNode(irFunctionNode);
 
             BlockNode blockNode = new BlockNode(internalLocation);
-            blockNode.setAllEscape(true);
+            blockNode.attachCondition(IRCAllEscape.class);
 
             irFunctionNode.setBlockNode(blockNode);
 
@@ -277,17 +326,17 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             blockNode.addStatementNode(returnNode);
 
             BinaryImplNode irBinaryImplNode = new BinaryImplNode(internalLocation);
-            irBinaryImplNode.setExpressionType(CallSite.class);
+            irBinaryImplNode.attachDecoration(new IRDExpressionType(CallSite.class));
 
             returnNode.setExpressionNode(irBinaryImplNode);
 
             StaticNode staticNode = new StaticNode(internalLocation);
-            staticNode.setExpressionType(DefBootstrap.class);
+            staticNode.attachDecoration(new IRDExpressionType(DefBootstrap.class));
 
             irBinaryImplNode.setLeftNode(staticNode);
 
             InvokeCallNode invokeCallNode = new InvokeCallNode(internalLocation);
-            invokeCallNode.setExpressionType(CallSite.class);
+            invokeCallNode.attachDecoration(new IRDExpressionType(CallSite.class));
             invokeCallNode.setMethod(new PainlessMethod(
                             DefBootstrap.class.getMethod("bootstrap",
                                     PainlessLookup.class,
@@ -321,59 +370,59 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irBinaryImplNode.setRightNode(invokeCallNode);
 
             LoadFieldMemberNode irLoadFieldMemberNode = new LoadFieldMemberNode(internalLocation);
-            irLoadFieldMemberNode.setExpressionType(PainlessLookup.class);
-            irLoadFieldMemberNode.setName("$DEFINITION");
-            irLoadFieldMemberNode.setStatic(true);
+            irLoadFieldMemberNode.attachDecoration(new IRDExpressionType(PainlessLookup.class));
+            irLoadFieldMemberNode.attachDecoration(new IRDName("$DEFINITION"));
+            irLoadFieldMemberNode.attachCondition(IRCStatic.class);
 
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
             irLoadFieldMemberNode = new LoadFieldMemberNode(internalLocation);
-            irLoadFieldMemberNode.setExpressionType(FunctionTable.class);
-            irLoadFieldMemberNode.setName("$FUNCTIONS");
-            irLoadFieldMemberNode.setStatic(true);
+            irLoadFieldMemberNode.attachDecoration(new IRDExpressionType(FunctionTable.class));
+            irLoadFieldMemberNode.attachDecoration(new IRDName("$FUNCTIONS"));
+            irLoadFieldMemberNode.attachCondition(IRCStatic.class);
 
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
             irLoadFieldMemberNode = new LoadFieldMemberNode(internalLocation);
-            irLoadFieldMemberNode.setExpressionType(Map.class);
-            irLoadFieldMemberNode.setName("$COMPILERSETTINGS");
-            irLoadFieldMemberNode.setStatic(true);
+            irLoadFieldMemberNode.attachDecoration(new IRDExpressionType(Map.class));
+            irLoadFieldMemberNode.attachDecoration(new IRDName("$COMPILERSETTINGS"));
+            irLoadFieldMemberNode.attachCondition(IRCStatic.class);
 
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
             LoadVariableNode irLoadVariableNode = new LoadVariableNode(internalLocation);
-            irLoadVariableNode.setExpressionType(Lookup.class);
-            irLoadVariableNode.setName("methodHandlesLookup");
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(Lookup.class));
+            irLoadVariableNode.attachDecoration(new IRDName("methodHandlesLookup"));
 
             invokeCallNode.addArgumentNode(irLoadVariableNode);
 
             irLoadVariableNode = new LoadVariableNode(internalLocation);
-            irLoadVariableNode.setExpressionType(String.class);
-            irLoadVariableNode.setName("name");
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(String.class));
+            irLoadVariableNode.attachDecoration(new IRDName("name"));
 
             invokeCallNode.addArgumentNode(irLoadVariableNode);
 
             irLoadVariableNode = new LoadVariableNode(internalLocation);
-            irLoadVariableNode.setExpressionType(MethodType.class);
-            irLoadVariableNode.setName("type");
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(MethodType.class));
+            irLoadVariableNode.attachDecoration(new IRDName("type"));
 
             invokeCallNode.addArgumentNode(irLoadVariableNode);
 
             irLoadVariableNode = new LoadVariableNode(internalLocation);
-            irLoadVariableNode.setExpressionType(int.class);
-            irLoadVariableNode.setName("initialDepth");
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(int.class));
+            irLoadVariableNode.attachDecoration(new IRDName("initialDepth"));
 
             invokeCallNode.addArgumentNode(irLoadVariableNode);
 
             irLoadVariableNode = new LoadVariableNode(internalLocation);
-            irLoadVariableNode.setExpressionType(int.class);
-            irLoadVariableNode.setName("flavor");
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(int.class));
+            irLoadVariableNode.attachDecoration(new IRDName("flavor"));
 
             invokeCallNode.addArgumentNode(irLoadVariableNode);
 
             irLoadVariableNode = new LoadVariableNode(internalLocation);
-            irLoadVariableNode.setExpressionType(Object[].class);
-            irLoadVariableNode.setName("args");
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(Object[].class));
+            irLoadVariableNode.attachDecoration(new IRDName("args"));
 
             invokeCallNode.addArgumentNode(irLoadVariableNode);
         } catch (Exception exception) {
@@ -404,8 +453,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         }
 
         CastNode irCastNode = new CastNode(irExpressionNode.getLocation());
-        irCastNode.setExpressionType(targetType);
-        irCastNode.setCast(painlessCast);
+        irCastNode.attachDecoration(new IRDExpressionType(targetType));
+        irCastNode.attachDecoration(new IRDCast(painlessCast));
         irCastNode.setChildNode(irExpressionNode);
 
         return irCastNode;
@@ -425,7 +474,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * @return The root node for this assignment.
      */
     protected ExpressionNode buildLoadStore(int accessDepth, Location location, boolean isNullSafe,
-            ExpressionNode irPrefixNode, ExpressionNode irIndexNode, ExpressionNode irLoadNode, StoreNode irStoreNode) {
+            ExpressionNode irPrefixNode, ExpressionNode irIndexNode, ExpressionNode irLoadNode, UnaryNode irStoreNode) {
 
         // build out the load structure for load/compound assignment or the store structure for just store
         ExpressionNode irExpressionNode = irLoadNode != null ? irLoadNode : irStoreNode;
@@ -440,12 +489,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 if (isNullSafe) {
                     // the null-safe structure is slightly different from the standard structure since
                     // both the index and expression are not written to the stack if the prefix is null
-                    binaryImplNode.setExpressionType(irExpressionNode.getExpressionType());
+                    binaryImplNode.attachDecoration(new IRDExpressionType(irExpressionNode.getDecorationValue(IRDExpressionType.class)));
                     binaryImplNode.setLeftNode(irIndexNode);
                     binaryImplNode.setRightNode(irExpressionNode);
                     irExpressionNode = binaryImplNode;
                 } else {
-                    binaryImplNode.setExpressionType(void.class);
+                    binaryImplNode.attachDecoration(new IRDExpressionType(void.class));
                     binaryImplNode.setLeftNode(irPrefixNode);
                     binaryImplNode.setRightNode(irIndexNode);
                     irPrefixNode = binaryImplNode;
@@ -455,21 +504,20 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (irLoadNode != null && irStoreNode != null) {
                 // this is a compound assignment and requires and additional dup to re-access the prefix
                 DupNode dupNode = new DupNode(location);
-                dupNode.setExpressionType(void.class);
-                dupNode.setSize(accessDepth);
-                dupNode.setDepth(0);
+                dupNode.attachDecoration(new IRDExpressionType(void.class));
+                dupNode.attachDecoration(new IRDSize(accessDepth));
                 dupNode.setChildNode(irPrefixNode);
                 irPrefixNode = dupNode;
             }
 
             // build the structure to combine the prefix and the load/store
             BinaryImplNode binaryImplNode = new BinaryImplNode(location);
-            binaryImplNode.setExpressionType(irExpressionNode.getExpressionType());
+            binaryImplNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
 
             if (isNullSafe) {
                 // build the structure for a null safe load
                 NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(location);
-                irNullSafeSubNode.setExpressionType(irExpressionNode.getExpressionType());
+                irNullSafeSubNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
                 irNullSafeSubNode.setChildNode(irExpressionNode);
                 binaryImplNode.setLeftNode(irPrefixNode);
                 binaryImplNode.setRightNode(irNullSafeSubNode);
@@ -532,21 +580,21 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             } else if (userFunctionNode.isAutoReturnEnabled()) {
                 if (returnType.isPrimitive()) {
                     ConstantNode irConstantNode = new ConstantNode(userFunctionNode.getLocation());
-                    irConstantNode.setExpressionType(returnType);
+                    irConstantNode.attachDecoration(new IRDExpressionType(returnType));
 
                     if (returnType == boolean.class) {
-                        irConstantNode.setConstant(false);
+                        irConstantNode.attachDecoration(new IRDConstant(false));
                     } else if (returnType == byte.class
                             || returnType == char.class
                             || returnType == short.class
                             || returnType == int.class) {
-                        irConstantNode.setConstant(0);
+                        irConstantNode.attachDecoration(new IRDConstant(0));
                     } else if (returnType == long.class) {
-                        irConstantNode.setConstant(0L);
+                        irConstantNode.attachDecoration(new IRDConstant(0L));
                     } else if (returnType == float.class) {
-                        irConstantNode.setConstant(0f);
+                        irConstantNode.attachDecoration(new IRDConstant(0f));
                     } else if (returnType == double.class) {
-                        irConstantNode.setConstant(0d);
+                        irConstantNode.attachDecoration(new IRDConstant(0d));
                     } else {
                         throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
                     }
@@ -554,7 +602,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     irExpressionNode = irConstantNode;
                 } else {
                     irExpressionNode = new NullNode(userFunctionNode.getLocation());
-                    irExpressionNode.setExpressionType(returnType);
+                    irExpressionNode.attachDecoration(new IRDExpressionType(returnType));
                 }
             } else {
                 throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
@@ -568,14 +616,24 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         FunctionNode irFunctionNode = new FunctionNode(userFunctionNode.getLocation());
         irFunctionNode.setBlockNode(irBlockNode);
-        irFunctionNode.setName(userFunctionNode.getFunctionName());
-        irFunctionNode.setReturnType(returnType);
-        irFunctionNode.getTypeParameters().addAll(localFunction.getTypeParameters());
-        irFunctionNode.getParameterNames().addAll(userFunctionNode.getParameterNames());
-        irFunctionNode.setStatic(userFunctionNode.isStatic());
-        irFunctionNode.setVarArgs(false);
-        irFunctionNode.setSynthetic(userFunctionNode.isSynthetic());
-        irFunctionNode.setMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter());
+        String mangledName = scriptScope.getFunctionTable().getFunction(
+                        userFunctionNode.getFunctionName(),
+                        userFunctionNode.getCanonicalTypeNameParameters().size()
+                ).getMangledName();
+        irFunctionNode.attachDecoration(new IRDName(mangledName));
+        irFunctionNode.attachDecoration(new IRDReturnType(returnType));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(new ArrayList<>(localFunction.getTypeParameters())));
+        irFunctionNode.attachDecoration(new IRDParameterNames(new ArrayList<>(userFunctionNode.getParameterNames())));
+
+        if (userFunctionNode.isStatic()) {
+            irFunctionNode.attachCondition(IRCStatic.class);
+        }
+
+        if (userFunctionNode.isSynthetic()) {
+            irFunctionNode.attachCondition(IRCSynthetic.class);
+        }
+
+        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
 
         scriptScope.putDecoration(userFunctionNode, new IRNodeDecoration(irFunctionNode));
     }
@@ -588,7 +646,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irBlockNode.addStatementNode((StatementNode)visit(userStatementNode, scriptScope));
         }
 
-        irBlockNode.setAllEscape(scriptScope.getCondition(userBlockNode, AllEscape.class));
+        if (scriptScope.getCondition(userBlockNode, AllEscape.class)) {
+            irBlockNode.attachCondition(IRCAllEscape.class);
+        }
 
         scriptScope.putDecoration(userBlockNode, new IRNodeDecoration(irBlockNode));
     }
@@ -617,7 +677,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         WhileLoopNode irWhileLoopNode = new WhileLoopNode(userWhileNode.getLocation());
         irWhileLoopNode.setConditionNode(injectCast(userWhileNode.getConditionNode(), scriptScope));
         irWhileLoopNode.setBlockNode((BlockNode)visit(userWhileNode.getBlockNode(), scriptScope));
-        irWhileLoopNode.setContinuous(scriptScope.getCondition(userWhileNode, ContinuousLoop.class));
+
+        if (scriptScope.getCondition(userWhileNode, ContinuousLoop.class)) {
+            irWhileLoopNode.attachCondition(IRCContinuous.class);
+        }
 
         scriptScope.putDecoration(userWhileNode, new IRNodeDecoration(irWhileLoopNode));
     }
@@ -627,7 +690,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         DoWhileLoopNode irDoWhileLoopNode = new DoWhileLoopNode(userDoNode.getLocation());
         irDoWhileLoopNode.setConditionNode(injectCast(userDoNode.getConditionNode(), scriptScope));
         irDoWhileLoopNode.setBlockNode((BlockNode)visit(userDoNode.getBlockNode(), scriptScope));
-        irDoWhileLoopNode.setContinuous(scriptScope.getCondition(userDoNode, ContinuousLoop.class));
+
+        if (scriptScope.getCondition(userDoNode, ContinuousLoop.class)) {
+            irDoWhileLoopNode.attachCondition(IRCContinuous.class);
+        }
 
         scriptScope.putDecoration(userDoNode, new IRNodeDecoration(irDoWhileLoopNode));
     }
@@ -639,7 +705,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         irForLoopNode.setConditionNode(injectCast(userForNode.getConditionNode(), scriptScope));
         irForLoopNode.setAfterthoughtNode((ExpressionNode)visit(userForNode.getAfterthoughtNode(), scriptScope));
         irForLoopNode.setBlockNode((BlockNode)visit(userForNode.getBlockNode(), scriptScope));
-        irForLoopNode.setContinuous(scriptScope.getCondition(userForNode, ContinuousLoop.class));
+
+        if (scriptScope.getCondition(userForNode, ContinuousLoop.class)) {
+            irForLoopNode.attachCondition(IRCContinuous.class);
+        }
 
         scriptScope.putDecoration(userForNode, new IRNodeDecoration(irForLoopNode));
     }
@@ -659,28 +728,37 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             ForEachSubArrayNode irForEachSubArrayNode = new ForEachSubArrayNode(userEachNode.getLocation());
             irForEachSubArrayNode.setConditionNode(irIterableNode);
             irForEachSubArrayNode.setBlockNode(irBlockNode);
-            irForEachSubArrayNode.setVariableType(variable.getType());
-            irForEachSubArrayNode.setVariableName(variable.getName());
-            irForEachSubArrayNode.setCast(painlessCast);
-            irForEachSubArrayNode.setArrayType(iterableValueType);
-            irForEachSubArrayNode.setArrayName("#array" + userEachNode.getLocation().getOffset());
-            irForEachSubArrayNode.setIndexType(int.class);
-            irForEachSubArrayNode.setIndexName("#index" + userEachNode.getLocation().getOffset());
-            irForEachSubArrayNode.setIndexedType(iterableValueType.getComponentType());
-            irForEachSubArrayNode.setContinuous(false);
+            irForEachSubArrayNode.attachDecoration(new IRDVariableType(variable.getType()));
+            irForEachSubArrayNode.attachDecoration(new IRDVariableName(variable.getName()));
+            irForEachSubArrayNode.attachDecoration(new IRDArrayType(iterableValueType));
+            irForEachSubArrayNode.attachDecoration(new IRDArrayName("#array" + userEachNode.getLocation().getOffset()));
+            irForEachSubArrayNode.attachDecoration(new IRDIndexType(int.class));
+            irForEachSubArrayNode.attachDecoration(new IRDIndexName("#index" + userEachNode.getLocation().getOffset()));
+            irForEachSubArrayNode.attachDecoration(new IRDIndexedType(iterableValueType.getComponentType()));
+
+            if (painlessCast != null) {
+                irForEachSubArrayNode.attachDecoration(new IRDCast(painlessCast));
+            }
+
             irConditionNode = irForEachSubArrayNode;
         } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
             ForEachSubIterableNode irForEachSubIterableNode = new ForEachSubIterableNode(userEachNode.getLocation());
             irForEachSubIterableNode.setConditionNode(irIterableNode);
             irForEachSubIterableNode.setBlockNode(irBlockNode);
-            irForEachSubIterableNode.setVariableType(variable.getType());
-            irForEachSubIterableNode.setVariableName(variable.getName());
-            irForEachSubIterableNode.setCast(painlessCast);
-            irForEachSubIterableNode.setIteratorType(Iterator.class);
-            irForEachSubIterableNode.setIteratorName("#itr" + userEachNode.getLocation().getOffset());
-            irForEachSubIterableNode.setMethod(iterableValueType == def.class ? null :
-                    scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class).getIterablePainlessMethod());
-            irForEachSubIterableNode.setContinuous(false);
+            irForEachSubIterableNode.attachDecoration(new IRDVariableType(variable.getType()));
+            irForEachSubIterableNode.attachDecoration(new IRDVariableName(variable.getName()));
+            irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
+            irForEachSubIterableNode.attachDecoration(new IRDIterableName("#itr" + userEachNode.getLocation().getOffset()));
+
+            if (iterableValueType != def.class) {
+                irForEachSubIterableNode.attachDecoration(new IRDMethod(
+                        scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class).getIterablePainlessMethod()));
+            }
+
+            if (painlessCast != null) {
+                irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+            }
+
             irConditionNode = irForEachSubIterableNode;
         } else {
             throw userEachNode.createError(new IllegalStateException("illegal tree structure"));
@@ -709,8 +787,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         DeclarationNode irDeclarationNode = new DeclarationNode(userDeclarationNode.getLocation());
         irDeclarationNode.setExpressionNode(injectCast(userDeclarationNode.getValueNode(), scriptScope));
-        irDeclarationNode.setDeclarationType(variable.getType());
-        irDeclarationNode.setName(variable.getName());
+        irDeclarationNode.attachDecoration(new IRDDeclarationType(variable.getType()));
+        irDeclarationNode.attachDecoration(new IRDName(variable.getName()));
 
         scriptScope.putDecoration(userDeclarationNode, new IRNodeDecoration(irDeclarationNode));
     }
@@ -759,8 +837,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         Variable variable = scriptScope.getDecoration(userCatchNode, SemanticVariable.class).getSemanticVariable();
 
         CatchNode irCatchNode = new CatchNode(userCatchNode.getLocation());
-        irCatchNode.setExceptionType(variable.getType());
-        irCatchNode.setSymbol(variable.getName());
+        irCatchNode.attachDecoration(new IRDExceptionType(variable.getType()));
+        irCatchNode.attachDecoration(new IRDSymbol(variable.getName()));
         irCatchNode.setBlockNode((BlockNode)visit(userCatchNode.getBlockNode(), scriptScope));
 
         scriptScope.putDecoration(userCatchNode, new IRNodeDecoration(irCatchNode));
@@ -802,29 +880,29 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (compoundType != null) {
             boolean concatenate = userAssignmentNode.getOperation() == Operation.ADD && compoundType == String.class;
             scriptScope.setCondition(userAssignmentNode.getLeftNode(), Compound.class);
-            StoreNode irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
+            UnaryNode irStoreNode = (UnaryNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
             ExpressionNode irLoadNode = irStoreNode.getChildNode();
             ExpressionNode irCompoundNode;
 
             // handles when the operation is a string concatenation
             if (concatenate) {
                 StringConcatenationNode stringConcatenationNode = new StringConcatenationNode(irStoreNode.getLocation());
-                stringConcatenationNode.setExpressionType(String.class);
+                stringConcatenationNode.attachDecoration(new IRDExpressionType(String.class));
                 irCompoundNode = stringConcatenationNode;
 
                 // must handle the StringBuilder case for java version <= 8
                 if (irLoadNode instanceof BinaryImplNode && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
-                    ((DupNode)((BinaryImplNode)irLoadNode).getLeftNode()).setDepth(1);
+                    ((DupNode)((BinaryImplNode)irLoadNode).getLeftNode()).attachDecoration(new IRDDepth(1));
                 }
             // handles when the operation is mathematical
             } else {
                 BinaryMathNode irBinaryMathNode = new BinaryMathNode(irStoreNode.getLocation());
                 irBinaryMathNode.setLeftNode(irLoadNode);
-                irBinaryMathNode.setExpressionType(compoundType);
-                irBinaryMathNode.setBinaryType(compoundType);
-                irBinaryMathNode.setOperation(userAssignmentNode.getOperation());
+                irBinaryMathNode.attachDecoration(new IRDExpressionType(compoundType));
+                irBinaryMathNode.attachDecoration(new IRDOperation(userAssignmentNode.getOperation()));
+                irBinaryMathNode.attachDecoration(new IRDBinaryType(compoundType));
                 // add a compound assignment flag to the binary math node
-                irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                irBinaryMathNode.attachDecoration(new IRDFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT));
                 irCompoundNode = irBinaryMathNode;
             }
 
@@ -833,13 +911,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             // no need to downcast so the binary math node is the value for the store node
             if (downcast == null) {
-                irCompoundNode.setExpressionType(irStoreNode.getStoreType());
+                irCompoundNode.attachDecoration(new IRDExpressionType(irStoreNode.getDecorationValue(IRDStoreType.class)));
                 irStoreNode.setChildNode(irCompoundNode);
             // add a cast node to do a downcast as the value for the store node
             } else {
                 CastNode irCastNode = new CastNode(irCompoundNode.getLocation());
-                irCastNode.setExpressionType(downcast.targetType);
-                irCastNode.setCast(downcast);
+                irCastNode.attachDecoration(new IRDExpressionType(downcast.targetType));
+                irCastNode.attachDecoration(new IRDCast(downcast));
                 irCastNode.setChildNode(irCompoundNode);
                 irStoreNode.setChildNode(irCastNode);
             }
@@ -851,18 +929,20 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
                 // the value is read from prior to assignment (post-increment)
                 if (userAssignmentNode.postIfRead()) {
+                    int size = MethodWriter.getType(irLoadNode.getDecorationValue(IRDExpressionType.class)).getSize();
                     irDupNode = new DupNode(irLoadNode.getLocation());
-                    irDupNode.setExpressionType(irLoadNode.getExpressionType());
-                    irDupNode.setSize(MethodWriter.getType(irLoadNode.getExpressionType()).getSize());
-                    irDupNode.setDepth(accessDepth);
+                    irDupNode.attachDecoration(irLoadNode.getDecoration(IRDExpressionType.class));
+                    irDupNode.attachDecoration(new IRDSize(size));
+                    irDupNode.attachDecoration(new IRDDepth(accessDepth));
                     irDupNode.setChildNode(irLoadNode);
                     irLoadNode = irDupNode;
                 // the value is read from after the assignment (pre-increment/compound)
                 } else {
+                    int size = MethodWriter.getType(irStoreNode.getDecorationValue(IRDExpressionType.class)).getSize();
                     irDupNode = new DupNode(irStoreNode.getLocation());
-                    irDupNode.setExpressionType(irStoreNode.getStoreType());
-                    irDupNode.setSize(MethodWriter.getType(irStoreNode.getExpressionType()).getSize());
-                    irDupNode.setDepth(accessDepth);
+                    irDupNode.attachDecoration(new IRDExpressionType(irStoreNode.getDecorationValue(IRDStoreType.class)));
+                    irDupNode.attachDecoration(new IRDSize(size));
+                    irDupNode.attachDecoration(new IRDDepth(accessDepth));
                     irDupNode.setChildNode(irStoreNode.getChildNode());
                     irStoreNode.setChildNode(irDupNode);
                 }
@@ -874,8 +954,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             // upcast the stored value if necessary
             if (upcast != null) {
                 CastNode irCastNode = new CastNode(irLoadNode.getLocation());
-                irCastNode.setExpressionType(upcast.targetType);
-                irCastNode.setCast(upcast);
+                irCastNode.attachDecoration(new IRDExpressionType(upcast.targetType));
+                irCastNode.attachDecoration(new IRDCast(upcast));
                 irCastNode.setChildNode(irLoadNode);
                 irLoadNode = irCastNode;
             }
@@ -897,20 +977,21 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             // the value is read from after the assignment
             if (read) {
+                int size = MethodWriter.getType(irValueNode.getDecorationValue(IRDExpressionType.class)).getSize();
                 int accessDepth = scriptScope.getDecoration(userAssignmentNode.getLeftNode(), AccessDepth.class).getAccessDepth();
 
                 DupNode irDupNode = new DupNode(irValueNode.getLocation());
-                irDupNode.setExpressionType(irValueNode.getExpressionType());
-                irDupNode.setSize(MethodWriter.getType(irValueNode.getExpressionType()).getSize());
-                irDupNode.setDepth(accessDepth);
+                irDupNode.attachDecoration(irValueNode.getDecoration(IRDExpressionType.class));
+                irDupNode.attachDecoration(new IRDSize(size));
+                irDupNode.attachDecoration(new IRDDepth(accessDepth));
                 irDupNode.setChildNode(irValueNode);
                 irValueNode = irDupNode;
             }
 
             if (irAssignmentNode instanceof BinaryImplNode) {
-                ((StoreNode)((BinaryImplNode)irAssignmentNode).getRightNode()).setChildNode(irValueNode);
+                ((UnaryNode)((BinaryImplNode)irAssignmentNode).getRightNode()).setChildNode(irValueNode);
             } else {
-                ((StoreNode)irAssignmentNode).setChildNode(irValueNode);
+                ((UnaryNode)irAssignmentNode).setChildNode(irValueNode);
             }
         }
 
@@ -928,10 +1009,19 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irNode = visit(userUnaryNode.getChildNode(), scriptScope);
         } else {
             UnaryMathNode irUnaryMathNode = new UnaryMathNode(userUnaryNode.getLocation());
-            irUnaryMathNode.setExpressionType(scriptScope.getDecoration(userUnaryNode, ValueType.class).getValueType());
-            irUnaryMathNode.setUnaryType(unaryType);
-            irUnaryMathNode.setOperation(userUnaryNode.getOperation());
-            irUnaryMathNode.setOriginallyExplicit(scriptScope.getCondition(userUnaryNode, Explicit.class));
+            irUnaryMathNode.attachDecoration(
+                    new IRDExpressionType(scriptScope.getDecoration(userUnaryNode, ValueType.class).getValueType()));
+
+            if (unaryType != null) {
+                irUnaryMathNode.attachDecoration(new IRDUnaryType(unaryType));
+            }
+
+            irUnaryMathNode.attachDecoration(new IRDOperation(userUnaryNode.getOperation()));
+
+            if (scriptScope.getCondition(userUnaryNode, Explicit.class)) {
+                irUnaryMathNode.attachDecoration(new IRDFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST));
+            }
+
             irUnaryMathNode.setChildNode(injectCast(userUnaryNode.getChildNode(), scriptScope));
             irNode = irUnaryMathNode;
         }
@@ -952,20 +1042,26 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             stringConcatenationNode.addArgumentNode((ExpressionNode)visit(userBinaryNode.getRightNode(), scriptScope));
             irExpressionNode = stringConcatenationNode;
         } else {
+            Class<?> binaryType = scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType();
             Class<?> shiftType = scriptScope.hasDecoration(userBinaryNode, ShiftType.class) ?
                     scriptScope.getDecoration(userBinaryNode, ShiftType.class).getShiftType() : null;
 
             BinaryMathNode irBinaryMathNode = new BinaryMathNode(userBinaryNode.getLocation());
 
+            irBinaryMathNode.attachDecoration(new IRDOperation(operation));
+
             if (operation == Operation.MATCH || operation == Operation.FIND) {
-                irBinaryMathNode.setRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor());
+                irBinaryMathNode.attachDecoration(new IRDRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor()));
             }
-            irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());
-            irBinaryMathNode.setShiftType(shiftType);
-            irBinaryMathNode.setOperation(operation);
+
+            irBinaryMathNode.attachDecoration(new IRDBinaryType(binaryType));
+
+            if (shiftType != null) {
+                irBinaryMathNode.attachDecoration(new IRDShiftType(shiftType));
+            }
 
             if (scriptScope.getCondition(userBinaryNode, Explicit.class)) {
-                irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST);
+                irBinaryMathNode.attachDecoration(new IRDFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST));
             }
 
             irBinaryMathNode.setLeftNode(injectCast(userBinaryNode.getLeftNode(), scriptScope));
@@ -973,15 +1069,17 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irExpressionNode = irBinaryMathNode;
         }
 
-        irExpressionNode.setExpressionType(valueType);
+        irExpressionNode.attachDecoration(new IRDExpressionType(valueType));
         scriptScope.putDecoration(userBinaryNode, new IRNodeDecoration(irExpressionNode));
     }
 
     @Override
     public void visitBooleanComp(EBooleanComp userBooleanCompNode, ScriptScope scriptScope) {
+        Class<?> valueType = scriptScope.getDecoration(userBooleanCompNode, ValueType.class).getValueType();
+
         BooleanNode irBooleanNode = new BooleanNode(userBooleanCompNode.getLocation());
-        irBooleanNode.setExpressionType(scriptScope.getDecoration(userBooleanCompNode, ValueType.class).getValueType());
-        irBooleanNode.setOperation(userBooleanCompNode.getOperation());
+        irBooleanNode.attachDecoration(new IRDExpressionType(valueType));
+        irBooleanNode.attachDecoration(new IRDOperation(userBooleanCompNode.getOperation()));
         irBooleanNode.setLeftNode(injectCast(userBooleanCompNode.getLeftNode(), scriptScope));
         irBooleanNode.setRightNode(injectCast(userBooleanCompNode.getRightNode(), scriptScope));
 
@@ -991,9 +1089,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     @Override
     public void visitComp(EComp userCompNode, ScriptScope scriptScope) {
         ComparisonNode irComparisonNode = new ComparisonNode(userCompNode.getLocation());
-        irComparisonNode.setExpressionType(scriptScope.getDecoration(userCompNode, ValueType.class).getValueType());
-        irComparisonNode.setComparisonType(scriptScope.getDecoration(userCompNode, ComparisonType.class).getComparisonType());
-        irComparisonNode.setOperation(userCompNode.getOperation());
+        irComparisonNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userCompNode, ValueType.class).getValueType()));
+        irComparisonNode.attachDecoration(
+                new IRDComparisonType(scriptScope.getDecoration(userCompNode, ComparisonType.class).getComparisonType()));
+        irComparisonNode.attachDecoration(new IRDOperation(userCompNode.getOperation()));
         irComparisonNode.setLeftNode(injectCast(userCompNode.getLeftNode(), scriptScope));
         irComparisonNode.setRightNode(injectCast(userCompNode.getRightNode(), scriptScope));
 
@@ -1007,9 +1106,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
     @Override
     public void visitInstanceof(EInstanceof userInstanceofNode, ScriptScope scriptScope) {
+        Class<?> valuetype = scriptScope.getDecoration(userInstanceofNode, ValueType.class).getValueType();
+        Class<?> instanceType = scriptScope.getDecoration(userInstanceofNode, InstanceType.class).getInstanceType();
+
         InstanceofNode irInstanceofNode = new InstanceofNode(userInstanceofNode.getLocation());
-        irInstanceofNode.setExpressionType(scriptScope.getDecoration(userInstanceofNode, ValueType.class).getValueType());
-        irInstanceofNode.setInstanceType(scriptScope.getDecoration(userInstanceofNode, InstanceType.class).getInstanceType());
+        irInstanceofNode.attachDecoration(new IRDExpressionType(valuetype));
+        irInstanceofNode.attachDecoration(new IRDInstanceType(instanceType));
         irInstanceofNode.setChildNode((ExpressionNode)visit(userInstanceofNode.getExpressionNode(), scriptScope));
 
         scriptScope.putDecoration(userInstanceofNode, new IRNodeDecoration(irInstanceofNode));
@@ -1018,7 +1120,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     @Override
     public void visitConditional(EConditional userConditionalNode, ScriptScope scriptScope) {
         ConditionalNode irConditionalNode = new ConditionalNode(userConditionalNode.getLocation());
-        irConditionalNode.setExpressionType(scriptScope.getDecoration(userConditionalNode, ValueType.class).getValueType());
+        irConditionalNode.attachDecoration(
+                new IRDExpressionType(scriptScope.getDecoration(userConditionalNode, ValueType.class).getValueType()));
         irConditionalNode.setConditionNode(injectCast(userConditionalNode.getConditionNode(), scriptScope));
         irConditionalNode.setLeftNode(injectCast(userConditionalNode.getTrueNode(), scriptScope));
         irConditionalNode.setRightNode(injectCast(userConditionalNode.getFalseNode(), scriptScope));
@@ -1029,7 +1132,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     @Override
     public void visitElvis(EElvis userElvisNode, ScriptScope scriptScope) {
         ElvisNode irElvisNode = new ElvisNode(userElvisNode.getLocation());
-        irElvisNode.setExpressionType(scriptScope.getDecoration(userElvisNode, ValueType.class).getValueType());
+        irElvisNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userElvisNode, ValueType.class).getValueType()));
         irElvisNode.setLeftNode(injectCast(userElvisNode.getLeftNode(), scriptScope));
         irElvisNode.setRightNode(injectCast(userElvisNode.getRightNode(), scriptScope));
 
@@ -1040,11 +1143,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     public void visitListInit(EListInit userListInitNode, ScriptScope scriptScope) {
         ListInitializationNode irListInitializationNode = new ListInitializationNode(userListInitNode.getLocation());
 
-        irListInitializationNode.setExpressionType(scriptScope.getDecoration(userListInitNode, ValueType.class).getValueType());
-        irListInitializationNode.setConstructor(
-                scriptScope.getDecoration(userListInitNode, StandardPainlessConstructor.class).getStandardPainlessConstructor());
-        irListInitializationNode.setMethod(
-                scriptScope.getDecoration(userListInitNode, StandardPainlessMethod.class).getStandardPainlessMethod());
+        irListInitializationNode.attachDecoration(
+                new IRDExpressionType(scriptScope.getDecoration(userListInitNode, ValueType.class).getValueType()));
+        irListInitializationNode.attachDecoration(new IRDConstructor(
+                scriptScope.getDecoration(userListInitNode, StandardPainlessConstructor.class).getStandardPainlessConstructor()));
+        irListInitializationNode.attachDecoration(new IRDMethod(
+                scriptScope.getDecoration(userListInitNode, StandardPainlessMethod.class).getStandardPainlessMethod()));
 
         for (AExpression userValueNode : userListInitNode.getValueNodes()) {
             irListInitializationNode.addArgumentNode(injectCast(userValueNode, scriptScope));
@@ -1057,11 +1161,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     public void visitMapInit(EMapInit userMapInitNode, ScriptScope scriptScope) {
         MapInitializationNode irMapInitializationNode = new MapInitializationNode(userMapInitNode.getLocation());
 
-        irMapInitializationNode.setExpressionType(scriptScope.getDecoration(userMapInitNode, ValueType.class).getValueType());
-        irMapInitializationNode.setConstructor(
-                scriptScope.getDecoration(userMapInitNode, StandardPainlessConstructor.class).getStandardPainlessConstructor());
-        irMapInitializationNode.setMethod(
-                scriptScope.getDecoration(userMapInitNode, StandardPainlessMethod.class).getStandardPainlessMethod());
+        irMapInitializationNode.attachDecoration(
+                new IRDExpressionType(scriptScope.getDecoration(userMapInitNode, ValueType.class).getValueType()));
+        irMapInitializationNode.attachDecoration(new IRDConstructor(
+                scriptScope.getDecoration(userMapInitNode, StandardPainlessConstructor.class).getStandardPainlessConstructor()));
+        irMapInitializationNode.attachDecoration(new IRDMethod(
+                scriptScope.getDecoration(userMapInitNode, StandardPainlessMethod.class).getStandardPainlessMethod()));
 
 
         for (int i = 0; i < userMapInitNode.getKeyNodes().size(); ++i) {
@@ -1077,8 +1182,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     public void visitNewArray(ENewArray userNewArrayNode, ScriptScope scriptScope) {
         NewArrayNode irNewArrayNode = new NewArrayNode(userNewArrayNode.getLocation());
 
-        irNewArrayNode.setExpressionType(scriptScope.getDecoration(userNewArrayNode, ValueType.class).getValueType());
-        irNewArrayNode.setInitialize(userNewArrayNode.isInitializer());
+        irNewArrayNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userNewArrayNode, ValueType.class).getValueType()));
+
+        if (userNewArrayNode.isInitializer()) {
+           irNewArrayNode.attachCondition(IRCInitialize.class);
+        }
 
         for (AExpression userArgumentNode : userNewArrayNode.getValueNodes()) {
             irNewArrayNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
@@ -1089,12 +1197,17 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
     @Override
     public void visitNewObj(ENewObj userNewObjectNode, ScriptScope scriptScope) {
-        NewObjectNode irNewObjectNode = new NewObjectNode(userNewObjectNode.getLocation());
+        Class<?> valueType = scriptScope.getDecoration(userNewObjectNode, ValueType.class).getValueType();
+        PainlessConstructor painlessConstructor =
+                scriptScope.getDecoration(userNewObjectNode, StandardPainlessConstructor.class).getStandardPainlessConstructor();
 
-        irNewObjectNode.setExpressionType(scriptScope.getDecoration(userNewObjectNode, ValueType.class).getValueType());
-        irNewObjectNode.setRead(scriptScope.getCondition(userNewObjectNode, Read.class));
-        irNewObjectNode.setConstructor(
-                scriptScope.getDecoration(userNewObjectNode, StandardPainlessConstructor.class).getStandardPainlessConstructor());
+        NewObjectNode irNewObjectNode = new NewObjectNode(userNewObjectNode.getLocation());
+        irNewObjectNode.attachDecoration(new IRDExpressionType(valueType));
+        irNewObjectNode.attachDecoration(new IRDConstructor(painlessConstructor));
+
+        if (scriptScope.getCondition(userNewObjectNode, Read.class)) {
+            irNewObjectNode.attachCondition(IRCRead.class);
+        }
 
         for (AExpression userArgumentNode : userNewObjectNode.getArgumentNodes()) {
             irNewObjectNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
@@ -1108,39 +1221,47 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(callLocalNode.getLocation());
 
         if (scriptScope.hasDecoration(callLocalNode, StandardLocalFunction.class)) {
-            irInvokeCallMemberNode.setLocalFunction(
-                    scriptScope.getDecoration(callLocalNode, StandardLocalFunction.class).getLocalFunction());
+            LocalFunction localFunction = scriptScope.getDecoration(callLocalNode, StandardLocalFunction.class).getLocalFunction();
+            irInvokeCallMemberNode.attachDecoration(new IRDFunction(localFunction));
+        } else if (scriptScope.hasDecoration(callLocalNode, ThisPainlessMethod.class)) {
+            PainlessMethod thisMethod =
+                    scriptScope.getDecoration(callLocalNode, ThisPainlessMethod.class).getThisPainlessMethod();
+            irInvokeCallMemberNode.attachDecoration(new IRDThisMethod(thisMethod));
         } else if (scriptScope.hasDecoration(callLocalNode, StandardPainlessMethod.class)) {
-            irInvokeCallMemberNode.setImportedMethod(
-                    scriptScope.getDecoration(callLocalNode, StandardPainlessMethod.class).getStandardPainlessMethod());
+            PainlessMethod importedMethod =
+                    scriptScope.getDecoration(callLocalNode, StandardPainlessMethod.class).getStandardPainlessMethod();
+            irInvokeCallMemberNode.attachDecoration(new IRDMethod(importedMethod));
         } else if (scriptScope.hasDecoration(callLocalNode, StandardPainlessClassBinding.class)) {
             PainlessClassBinding painlessClassBinding =
                     scriptScope.getDecoration(callLocalNode, StandardPainlessClassBinding.class).getPainlessClassBinding();
             String bindingName = scriptScope.getNextSyntheticName("class_binding");
 
             FieldNode irFieldNode = new FieldNode(callLocalNode.getLocation());
-            irFieldNode.setModifiers(Modifier.PRIVATE);
-            irFieldNode.setFieldType(painlessClassBinding.javaConstructor.getDeclaringClass());
-            irFieldNode.setName(bindingName);
+            irFieldNode.attachDecoration(new IRDModifiers(Modifier.PRIVATE));
+            irFieldNode.attachDecoration(new IRDFieldType(painlessClassBinding.javaConstructor.getDeclaringClass()));
+            irFieldNode.attachDecoration(new IRDName(bindingName));
             irClassNode.addFieldNode(irFieldNode);
 
-            irInvokeCallMemberNode.setClassBinding(painlessClassBinding);
-            irInvokeCallMemberNode.setClassBindingOffset(
-                    (int)scriptScope.getDecoration(callLocalNode, StandardConstant.class).getStandardConstant());
-            irInvokeCallMemberNode.setBindingName(bindingName);
+            irInvokeCallMemberNode.attachDecoration(new IRDClassBinding(painlessClassBinding));
+
+            if ((int)scriptScope.getDecoration(callLocalNode, StandardConstant.class).getStandardConstant() == 0) {
+                irInvokeCallMemberNode.attachCondition(IRCStatic.class);
+            }
+
+            irInvokeCallMemberNode.attachDecoration(new IRDName(bindingName));
         } else if (scriptScope.hasDecoration(callLocalNode, StandardPainlessInstanceBinding.class)) {
             PainlessInstanceBinding painlessInstanceBinding =
                     scriptScope.getDecoration(callLocalNode, StandardPainlessInstanceBinding.class).getPainlessInstanceBinding();
             String bindingName = scriptScope.getNextSyntheticName("instance_binding");
 
             FieldNode irFieldNode = new FieldNode(callLocalNode.getLocation());
-            irFieldNode.setModifiers(Modifier.PUBLIC | Modifier.STATIC);
-            irFieldNode.setFieldType(painlessInstanceBinding.targetInstance.getClass());
-            irFieldNode.setName(bindingName);
+            irFieldNode.attachDecoration(new IRDModifiers(Modifier.PUBLIC | Modifier.STATIC));
+            irFieldNode.attachDecoration(new IRDFieldType(painlessInstanceBinding.targetInstance.getClass()));
+            irFieldNode.attachDecoration(new IRDName(bindingName));
             irClassNode.addFieldNode(irFieldNode);
 
-            irInvokeCallMemberNode.setInstanceBinding(painlessInstanceBinding);
-            irInvokeCallMemberNode.setBindingName(bindingName);
+            irInvokeCallMemberNode.attachDecoration(new IRDInstanceBinding(painlessInstanceBinding));
+            irInvokeCallMemberNode.attachDecoration(new IRDName(bindingName));
 
             scriptScope.addStaticConstant(bindingName, painlessInstanceBinding.targetInstance);
         } else {
@@ -1151,43 +1272,56 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irInvokeCallMemberNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
         }
 
-        irInvokeCallMemberNode.setExpressionType(scriptScope.getDecoration(callLocalNode, ValueType.class).getValueType());
+        Class<?> valueType = scriptScope.getDecoration(callLocalNode, ValueType.class).getValueType();
+        irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(valueType));
 
         scriptScope.putDecoration(callLocalNode, new IRNodeDecoration(irInvokeCallMemberNode));
     }
 
     @Override
     public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, ScriptScope scriptScope) {
+        Class<?> valueType = scriptScope.getDecoration(userBooleanConstantNode, ValueType.class).getValueType();
+        Object constant = scriptScope.getDecoration(userBooleanConstantNode, StandardConstant.class).getStandardConstant();
+
         ConstantNode irConstantNode = new ConstantNode(userBooleanConstantNode.getLocation());
-        irConstantNode.setExpressionType(scriptScope.getDecoration(userBooleanConstantNode, ValueType.class).getValueType());
-        irConstantNode.setConstant(scriptScope.getDecoration(userBooleanConstantNode, StandardConstant.class).getStandardConstant());
+        irConstantNode.attachDecoration(new IRDExpressionType(valueType));
+        irConstantNode.attachDecoration(new IRDConstant(constant));
 
         scriptScope.putDecoration(userBooleanConstantNode, new IRNodeDecoration(irConstantNode));
     }
 
     @Override
     public void visitNumeric(ENumeric userNumericNode, ScriptScope scriptScope) {
+        Class<?> valueType = scriptScope.getDecoration(userNumericNode, ValueType.class).getValueType();
+        Object constant = scriptScope.getDecoration(userNumericNode, StandardConstant.class).getStandardConstant();
+
         ConstantNode irConstantNode = new ConstantNode(userNumericNode.getLocation());
-        irConstantNode.setExpressionType(scriptScope.getDecoration(userNumericNode, ValueType.class).getValueType());
-        irConstantNode.setConstant(scriptScope.getDecoration(userNumericNode, StandardConstant.class).getStandardConstant());
+        irConstantNode.attachDecoration(new IRDExpressionType(valueType));
+        irConstantNode.attachDecoration(new IRDConstant(constant));
 
         scriptScope.putDecoration(userNumericNode, new IRNodeDecoration(irConstantNode));
     }
 
     @Override
     public void visitDecimal(EDecimal userDecimalNode, ScriptScope scriptScope) {
+        Class<?> valueType = scriptScope.getDecoration(userDecimalNode, ValueType.class).getValueType();
+        Object constant = scriptScope.getDecoration(userDecimalNode, StandardConstant.class).getStandardConstant();
+
         ConstantNode irConstantNode = new ConstantNode(userDecimalNode.getLocation());
-        irConstantNode.setExpressionType(scriptScope.getDecoration(userDecimalNode, ValueType.class).getValueType());
-        irConstantNode.setConstant(scriptScope.getDecoration(userDecimalNode, StandardConstant.class).getStandardConstant());
+        irConstantNode.attachDecoration(new IRDExpressionType(valueType));
+        irConstantNode.attachDecoration(new IRDConstant(constant));
 
         scriptScope.putDecoration(userDecimalNode, new IRNodeDecoration(irConstantNode));
     }
 
     @Override
     public void visitString(EString userStringNode, ScriptScope scriptScope) {
+        Class<?> valueType = scriptScope.getDecoration(userStringNode, ValueType.class).getValueType();
+        Object constant = scriptScope.getDecoration(userStringNode, StandardConstant.class).getStandardConstant();
+
         ConstantNode irConstantNode = new ConstantNode(userStringNode.getLocation());
-        irConstantNode.setExpressionType(scriptScope.getDecoration(userStringNode, ValueType.class).getValueType());
-        irConstantNode.setConstant(scriptScope.getDecoration(userStringNode, StandardConstant.class).getStandardConstant());
+        irConstantNode.attachDecoration(new IRDExpressionType(valueType));
+        irConstantNode.attachDecoration(new IRDConstant(constant));
 
         scriptScope.putDecoration(userStringNode, new IRNodeDecoration(irConstantNode));
     }
@@ -1195,150 +1329,109 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     @Override
     public void visitNull(ENull userNullNode, ScriptScope scriptScope) {
         NullNode irNullNode = new NullNode(userNullNode.getLocation());
-        irNullNode.setExpressionType(scriptScope.getDecoration(userNullNode, ValueType.class).getValueType());
+        irNullNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userNullNode, ValueType.class).getValueType()));
 
         scriptScope.putDecoration(userNullNode, new IRNodeDecoration(irNullNode));
     }
 
     @Override
     public void visitRegex(ERegex userRegexNode, ScriptScope scriptScope) {
-        String memberFieldName = scriptScope.getNextSyntheticName("regex");
-
-        FieldNode irFieldNode = new FieldNode(userRegexNode.getLocation());
-        irFieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
-        irFieldNode.setFieldType(Pattern.class);
-        irFieldNode.setName(memberFieldName);
-
-        irClassNode.addFieldNode(irFieldNode);
-
-        try {
-            StatementExpressionNode irStatementExpressionNode = new StatementExpressionNode(userRegexNode.getLocation());
-
-            BlockNode blockNode = irClassNode.getClinitBlockNode();
-            blockNode.addStatementNode(irStatementExpressionNode);
-
-            StoreFieldMemberNode irStoreFieldMemberNode = new StoreFieldMemberNode(userRegexNode.getLocation());
-            irStoreFieldMemberNode.setExpressionType(void.class);
-            irStoreFieldMemberNode.setStoreType(Pattern.class);
-            irStoreFieldMemberNode.setName(memberFieldName);
-            irStoreFieldMemberNode.setStatic(true);
-
-            irStatementExpressionNode.setExpressionNode(irStoreFieldMemberNode);
-
-            BinaryImplNode irBinaryImplNode = new BinaryImplNode(userRegexNode.getLocation());
-            irBinaryImplNode.setExpressionType(Pattern.class);
-
-            irStoreFieldMemberNode.setChildNode(irBinaryImplNode);
-
-            StaticNode irStaticNode = new StaticNode(userRegexNode.getLocation());
-            irStaticNode.setExpressionType(Pattern.class);
-
-            irBinaryImplNode.setLeftNode(irStaticNode);
-
-            InvokeCallNode invokeCallNode = new InvokeCallNode(userRegexNode.getLocation());
-            invokeCallNode.setExpressionType(Pattern.class);
-            invokeCallNode.setBox(Pattern.class);
-            invokeCallNode.setMethod(new PainlessMethod(
-                            Pattern.class.getMethod("compile", String.class, int.class),
-                            Pattern.class,
-                            Pattern.class,
-                            Arrays.asList(String.class, int.class),
-                            null,
-                            null,
-                            null
-                    )
-            );
-
-            irBinaryImplNode.setRightNode(invokeCallNode);
-
-            ConstantNode irConstantNode = new ConstantNode(userRegexNode.getLocation());
-            irConstantNode.setExpressionType(String.class);
-            irConstantNode.setConstant(userRegexNode.getPattern());
-
-            invokeCallNode.addArgumentNode(irConstantNode);
-
-            irConstantNode = new ConstantNode(userRegexNode.getLocation());
-            irConstantNode.setExpressionType(int.class);
-            irConstantNode.setConstant(scriptScope.getDecoration(userRegexNode, StandardConstant.class).getStandardConstant());
-
-            invokeCallNode.addArgumentNode(irConstantNode);
-        } catch (Exception exception) {
-            throw userRegexNode.createError(new IllegalStateException("illegal tree structure"));
-        }
-
-        LoadFieldMemberNode irLoadFieldMemberNode = new LoadFieldMemberNode(userRegexNode.getLocation());
-        irLoadFieldMemberNode.setExpressionType(Pattern.class);
-        irLoadFieldMemberNode.setName(memberFieldName);
-        irLoadFieldMemberNode.setStatic(true);
-
-        scriptScope.putDecoration(userRegexNode, new IRNodeDecoration(irLoadFieldMemberNode));
+        ConstantNode constant = new ConstantNode(userRegexNode.getLocation());
+        constant.attachDecoration(new IRDExpressionType(Pattern.class));
+        constant.attachDecoration(new IRDConstant(scriptScope.getDecoration(userRegexNode, StandardConstant.class).getStandardConstant()));
+        scriptScope.putDecoration(userRegexNode, new IRNodeDecoration(constant));
     }
 
     @Override
     public void visitLambda(ELambda userLambdaNode, ScriptScope scriptScope) {
-        ReferenceNode irReferenceNode;
+        ExpressionNode irExpressionNode;
 
         if (scriptScope.hasDecoration(userLambdaNode, TargetType.class)) {
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(userLambdaNode.getLocation());
-            typedInterfaceReferenceNode.setReference(scriptScope.getDecoration(userLambdaNode, ReferenceDecoration.class).getReference());
-            irReferenceNode = typedInterfaceReferenceNode;
+            typedInterfaceReferenceNode.attachDecoration(new IRDReference(
+                    scriptScope.getDecoration(userLambdaNode, ReferenceDecoration.class).getReference()));
+            irExpressionNode = typedInterfaceReferenceNode;
         } else {
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userLambdaNode.getLocation());
-            defInterfaceReferenceNode.setDefReferenceEncoding(
-                    scriptScope.getDecoration(userLambdaNode, EncodingDecoration.class).getEncoding());
-            irReferenceNode = defInterfaceReferenceNode;
+            defInterfaceReferenceNode.attachDecoration(new IRDDefReferenceEncoding(
+                    scriptScope.getDecoration(userLambdaNode, EncodingDecoration.class).getEncoding()));
+            irExpressionNode = defInterfaceReferenceNode;
         }
 
         FunctionNode irFunctionNode = new FunctionNode(userLambdaNode.getLocation());
         irFunctionNode.setBlockNode((BlockNode)visit(userLambdaNode.getBlockNode(), scriptScope));
-        irFunctionNode.setName(scriptScope.getDecoration(userLambdaNode, MethodNameDecoration.class).getMethodName());
-        irFunctionNode.setReturnType(scriptScope.getDecoration(userLambdaNode, ReturnType.class).getReturnType());
-        irFunctionNode.getTypeParameters().addAll(scriptScope.getDecoration(userLambdaNode, TypeParameters.class).getTypeParameters());
-        irFunctionNode.getParameterNames().addAll(scriptScope.getDecoration(userLambdaNode, ParameterNames.class).getParameterNames());
-        irFunctionNode.setStatic(true);
-        irFunctionNode.setVarArgs(false);
-        irFunctionNode.setSynthetic(true);
-        irFunctionNode.setMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter());
+        irFunctionNode.attachDecoration(new IRDName(scriptScope.getDecoration(userLambdaNode, MethodNameDecoration.class).getMethodName()));
+        irFunctionNode.attachDecoration(new IRDReturnType(scriptScope.getDecoration(userLambdaNode, ReturnType.class).getReturnType()));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(
+                new ArrayList<>(scriptScope.getDecoration(userLambdaNode, TypeParameters.class).getTypeParameters())));
+        irFunctionNode.attachDecoration(new IRDParameterNames(
+                new ArrayList<>(scriptScope.getDecoration(userLambdaNode, ParameterNames.class).getParameterNames())));
+        if (scriptScope.getCondition(userLambdaNode, InstanceCapturingLambda.class)) {
+            irFunctionNode.attachCondition(IRCInstanceCapture.class);
+            irExpressionNode.attachCondition(IRCInstanceCapture.class);
+        } else {
+            irFunctionNode.attachCondition(IRCStatic.class);
+        }
+        irFunctionNode.attachCondition(IRCSynthetic.class);
+        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
         irClassNode.addFunctionNode(irFunctionNode);
 
-        irReferenceNode.setExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).getValueType());
+        irExpressionNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).getValueType()));
 
         List<Variable> captures = scriptScope.getDecoration(userLambdaNode, CapturesDecoration.class).getCaptures();
 
-        for (Variable capture : captures) {
-            irReferenceNode.addCapture(capture.getName());
+        if (captures.isEmpty() == false) {
+            List<String> captureNames = new ArrayList<>();
+
+            for (Variable capture : captures) {
+                captureNames.add(capture.getName());
+            }
+
+            irExpressionNode.attachDecoration(new IRDCaptureNames(captureNames));
         }
 
-        scriptScope.putDecoration(userLambdaNode, new IRNodeDecoration(irReferenceNode));
+        scriptScope.putDecoration(userLambdaNode, new IRNodeDecoration(irExpressionNode));
     }
 
     @Override
     public void visitFunctionRef(EFunctionRef userFunctionRefNode, ScriptScope scriptScope) {
-        ReferenceNode irReferenceNode;
+        ExpressionNode irReferenceNode;
 
         TargetType targetType = scriptScope.getDecoration(userFunctionRefNode, TargetType.class);
         CapturesDecoration capturesDecoration = scriptScope.getDecoration(userFunctionRefNode, CapturesDecoration.class);
 
         if (targetType == null) {
+            Def.Encoding encoding = scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).getEncoding();
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userFunctionRefNode.getLocation());
-            defInterfaceReferenceNode.setDefReferenceEncoding(
-                    scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).getEncoding());
+            defInterfaceReferenceNode.attachDecoration(new IRDDefReferenceEncoding(encoding));
+            if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
+                defInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
+            }
             irReferenceNode = defInterfaceReferenceNode;
         } else if (capturesDecoration != null && capturesDecoration.getCaptures().get(0).getType() == def.class) {
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode(userFunctionRefNode.getLocation());
-            typedCaptureReferenceNode.setMethodName(userFunctionRefNode.getMethodName());
+            typedCaptureReferenceNode.attachDecoration(new IRDName(userFunctionRefNode.getMethodName()));
             irReferenceNode = typedCaptureReferenceNode;
         } else {
+            FunctionRef reference = scriptScope.getDecoration(userFunctionRefNode, ReferenceDecoration.class).getReference();
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(userFunctionRefNode.getLocation());
-            typedInterfaceReferenceNode.setReference(
-                    scriptScope.getDecoration(userFunctionRefNode, ReferenceDecoration.class).getReference());
+            typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
+            if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
+                typedInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
+            }
             irReferenceNode = typedInterfaceReferenceNode;
         }
 
-        irReferenceNode.setExpressionType(scriptScope.getDecoration(userFunctionRefNode, ValueType.class).getValueType());
+        irReferenceNode.attachDecoration(
+                new IRDExpressionType(scriptScope.getDecoration(userFunctionRefNode, ValueType.class).getValueType()));
 
         if (capturesDecoration != null) {
-            irReferenceNode.addCapture(capturesDecoration.getCaptures().get(0).getName());
+            irReferenceNode.attachDecoration(new IRDCaptureNames(
+                    Collections.singletonList(capturesDecoration.getCaptures().get(0).getName())));
+
+            if (scriptScope.getCondition(userFunctionRefNode, CaptureBox.class)) {
+                irReferenceNode.attachCondition(IRCCaptureBox.class);
+            }
         }
 
         scriptScope.putDecoration(userFunctionRefNode, new IRNodeDecoration(irReferenceNode));
@@ -1346,54 +1439,53 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
     @Override
     public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, ScriptScope scriptScope) {
-        ReferenceNode irReferenceNode;
+        ExpressionNode irReferenceNode;
 
         if (scriptScope.hasDecoration(userNewArrayFunctionRefNode, TargetType.class)) {
             TypedInterfaceReferenceNode typedInterfaceReferenceNode =
                     new TypedInterfaceReferenceNode(userNewArrayFunctionRefNode.getLocation());
-            typedInterfaceReferenceNode.setReference(
-                    scriptScope.getDecoration(userNewArrayFunctionRefNode, ReferenceDecoration.class).getReference());
+            FunctionRef reference = scriptScope.getDecoration(userNewArrayFunctionRefNode, ReferenceDecoration.class).getReference();
+            typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
             irReferenceNode = typedInterfaceReferenceNode;
         } else {
+            Def.Encoding encoding = scriptScope.getDecoration(userNewArrayFunctionRefNode, EncodingDecoration.class).getEncoding();
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode(userNewArrayFunctionRefNode.getLocation());
-            defInterfaceReferenceNode.setDefReferenceEncoding(
-                    scriptScope.getDecoration(userNewArrayFunctionRefNode, EncodingDecoration.class).getEncoding());
+            defInterfaceReferenceNode.attachDecoration(new IRDDefReferenceEncoding(encoding));
             irReferenceNode = defInterfaceReferenceNode;
         }
 
         Class<?> returnType = scriptScope.getDecoration(userNewArrayFunctionRefNode, ReturnType.class).getReturnType();
 
         LoadVariableNode irLoadVariableNode = new LoadVariableNode(userNewArrayFunctionRefNode.getLocation());
-        irLoadVariableNode.setExpressionType(int.class);
-        irLoadVariableNode.setName("size");
+        irLoadVariableNode.attachDecoration(new IRDExpressionType(int.class));
+        irLoadVariableNode.attachDecoration(new IRDName("size"));
 
         NewArrayNode irNewArrayNode = new NewArrayNode(userNewArrayFunctionRefNode.getLocation());
-        irNewArrayNode.setExpressionType(returnType);
-        irNewArrayNode.setInitialize(false);
-
+        irNewArrayNode.attachDecoration(new IRDExpressionType(returnType));
         irNewArrayNode.addArgumentNode(irLoadVariableNode);
 
         ReturnNode irReturnNode = new ReturnNode(userNewArrayFunctionRefNode.getLocation());
         irReturnNode.setExpressionNode(irNewArrayNode);
 
         BlockNode irBlockNode = new BlockNode(userNewArrayFunctionRefNode.getLocation());
-        irBlockNode.setAllEscape(true);
+        irBlockNode.attachCondition(IRCAllEscape.class);
         irBlockNode.addStatementNode(irReturnNode);
 
         FunctionNode irFunctionNode = new FunctionNode(userNewArrayFunctionRefNode.getLocation());
-        irFunctionNode.setMaxLoopCounter(0);
-        irFunctionNode.setName(scriptScope.getDecoration(userNewArrayFunctionRefNode, MethodNameDecoration.class).getMethodName());
-        irFunctionNode.setReturnType(returnType);
-        irFunctionNode.addTypeParameter(int.class);
-        irFunctionNode.addParameterName("size");
-        irFunctionNode.setStatic(true);
-        irFunctionNode.setVarArgs(false);
-        irFunctionNode.setSynthetic(true);
+        irFunctionNode.attachDecoration(new IRDName(
+                scriptScope.getDecoration(userNewArrayFunctionRefNode, MethodNameDecoration.class).getMethodName()));
+        irFunctionNode.attachDecoration(new IRDReturnType(returnType));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(Collections.singletonList(int.class)));
+        irFunctionNode.attachDecoration(new IRDParameterNames(Collections.singletonList("size")));
+        irFunctionNode.attachCondition(IRCStatic.class);
+        irFunctionNode.attachCondition(IRCSynthetic.class);
+        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
         irFunctionNode.setBlockNode(irBlockNode);
 
         irClassNode.addFunctionNode(irFunctionNode);
 
-        irReferenceNode.setExpressionType(scriptScope.getDecoration(userNewArrayFunctionRefNode, ValueType.class).getValueType());
+        irReferenceNode.attachDecoration(
+                new IRDExpressionType(scriptScope.getDecoration(userNewArrayFunctionRefNode, ValueType.class).getValueType()));
 
         scriptScope.putDecoration(userNewArrayFunctionRefNode, new IRNodeDecoration(irReferenceNode));
     }
@@ -1409,7 +1501,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (scriptScope.hasDecoration(userSymbolNode, StaticType.class)) {
             Class<?> staticType = scriptScope.getDecoration(userSymbolNode, StaticType.class).getStaticType();
             StaticNode staticNode = new StaticNode(userSymbolNode.getLocation());
-            staticNode.setExpressionType(staticType);
+            staticNode.attachDecoration(new IRDExpressionType(staticType));
             irExpressionNode = staticNode;
         } else if (scriptScope.hasDecoration(userSymbolNode, ValueType.class)) {
             boolean read = scriptScope.getCondition(userSymbolNode, Read.class);
@@ -1419,21 +1511,21 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             String symbol = userSymbolNode.getSymbol();
             Class<?> valueType = scriptScope.getDecoration(userSymbolNode, ValueType.class).getValueType();
 
-            StoreNode irStoreNode = null;
+            UnaryNode irStoreNode = null;
             ExpressionNode irLoadNode = null;
 
             if (write || compound) {
                 StoreVariableNode irStoreVariableNode = new StoreVariableNode(location);
-                irStoreVariableNode.setExpressionType(read ? valueType : void.class);
-                irStoreVariableNode.setStoreType(valueType);
-                irStoreVariableNode.setName(symbol);
+                irStoreVariableNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                irStoreVariableNode.attachDecoration(new IRDStoreType(valueType));
+                irStoreVariableNode.attachDecoration(new IRDName(symbol));
                 irStoreNode = irStoreVariableNode;
             }
 
             if (write == false || compound) {
                 LoadVariableNode irLoadVariableNode = new LoadVariableNode(location);
-                irLoadVariableNode.setExpressionType(valueType);
-                irLoadVariableNode.setName(symbol);
+                irLoadVariableNode.attachDecoration(new IRDExpressionType(valueType));
+                irLoadVariableNode.attachDecoration(new IRDName(symbol));
                 irLoadNode = irLoadVariableNode;
             }
 
@@ -1457,7 +1549,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (scriptScope.hasDecoration(userDotNode, StaticType.class)) {
             Class<?> staticType = scriptScope.getDecoration(userDotNode, StaticType.class).getStaticType();
             StaticNode staticNode = new StaticNode(userDotNode.getLocation());
-            staticNode.setExpressionType(staticType);
+            staticNode.attachDecoration(new IRDExpressionType(staticType));
             irExpressionNode = staticNode;
         } else {
             boolean read = scriptScope.getCondition(userDotNode, Read.class);
@@ -1470,29 +1562,29 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             ExpressionNode irPrefixNode = (ExpressionNode)visit(userDotNode.getPrefixNode(), scriptScope);
             ExpressionNode irIndexNode = null;
-            StoreNode irStoreNode = null;
+            UnaryNode irStoreNode = null;
             ExpressionNode irLoadNode = null;
             int accessDepth;
 
             if (prefixValueType != null && prefixValueType.getValueType().isArray()) {
                 LoadDotArrayLengthNode irLoadDotArrayLengthNode = new LoadDotArrayLengthNode(location);
-                irLoadDotArrayLengthNode.setExpressionType(int.class);
+                irLoadDotArrayLengthNode.attachDecoration(new IRDExpressionType(int.class));
                 irLoadNode = irLoadDotArrayLengthNode;
 
                 accessDepth = 1;
             } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
                 if (write || compound) {
                     StoreDotDefNode irStoreDotDefNode = new StoreDotDefNode(location);
-                    irStoreDotDefNode.setExpressionType(read ? valueType : void.class);
-                    irStoreDotDefNode.setStoreType(valueType);
-                    irStoreDotDefNode.setValue(index);
+                    irStoreDotDefNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                    irStoreDotDefNode.attachDecoration(new IRDStoreType(valueType));
+                    irStoreDotDefNode.attachDecoration(new IRDValue(index));
                     irStoreNode = irStoreDotDefNode;
                 }
 
                 if (write == false || compound) {
                     LoadDotDefNode irLoadDotDefNode = new LoadDotDefNode(location);
-                    irLoadDotDefNode.setExpressionType(valueType);
-                    irLoadDotDefNode.setValue(index);
+                    irLoadDotDefNode.attachDecoration(new IRDExpressionType(valueType));
+                    irLoadDotDefNode.attachDecoration(new IRDValue(userDotNode.getIndex()));
                     irLoadNode = irLoadDotDefNode;
                 }
 
@@ -1503,16 +1595,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
                 if (write || compound) {
                     StoreDotNode irStoreDotNode = new StoreDotNode(location);
-                    irStoreDotNode.setExpressionType(read ? valueType : void.class);
-                    irStoreDotNode.setStoreType(valueType);
-                    irStoreDotNode.setField(painlessField);
+                    irStoreDotNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                    irStoreDotNode.attachDecoration(new IRDStoreType(valueType));
+                    irStoreDotNode.attachDecoration(new IRDField(painlessField));
                     irStoreNode = irStoreDotNode;
                 }
 
                 if (write == false || compound) {
                     LoadDotNode irLoadDotNode = new LoadDotNode(location);
-                    irLoadDotNode.setExpressionType(valueType);
-                    irLoadDotNode.setField(painlessField);
+                    irLoadDotNode.attachDecoration(new IRDExpressionType(valueType));
+                    irLoadDotNode.attachDecoration(new IRDField(painlessField));
                     irLoadNode = irLoadDotNode;
                 }
 
@@ -1520,66 +1612,67 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             } else if (scriptScope.getCondition(userDotNode, Shortcut.class)) {
                 if (write || compound) {
                     StoreDotShortcutNode irStoreDotShortcutNode = new StoreDotShortcutNode(location);
-                    irStoreDotShortcutNode.setExpressionType(read ? valueType : void.class);
-                    irStoreDotShortcutNode.setStoreType(valueType);
-                    irStoreDotShortcutNode.setSetter(
-                            scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod());
+                    irStoreDotShortcutNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                    irStoreDotShortcutNode.attachDecoration(new IRDStoreType(valueType));
+                    irStoreDotShortcutNode.attachDecoration(new IRDMethod(
+                            scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod()));
                     irStoreNode = irStoreDotShortcutNode;
                 }
 
                 if (write == false || compound) {
                     LoadDotShortcutNode irLoadDotShortcutNode = new LoadDotShortcutNode(location);
-                    irLoadDotShortcutNode.setExpressionType(valueType);
-                    irLoadDotShortcutNode.setGetter(
-                            scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod());
+                    irLoadDotShortcutNode.attachDecoration(new IRDExpressionType(valueType));
+                    irLoadDotShortcutNode.attachDecoration(new IRDMethod(
+                            scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod()));
                     irLoadNode = irLoadDotShortcutNode;
                 }
 
                 accessDepth = 1;
             } else if (scriptScope.getCondition(userDotNode, MapShortcut.class)) {
                 ConstantNode irConstantNode = new ConstantNode(location);
-                irConstantNode.setExpressionType(String.class);
-                irConstantNode.setConstant(index);
+                irConstantNode.attachDecoration(new IRDExpressionType(String.class));
+                irConstantNode.attachDecoration(new IRDConstant(index));
                 irIndexNode = irConstantNode;
 
                 if (write || compound) {
                     StoreMapShortcutNode irStoreMapShortcutNode = new StoreMapShortcutNode(location);
-                    irStoreMapShortcutNode.setExpressionType(read ? valueType : void.class);
-                    irStoreMapShortcutNode.setStoreType(valueType);
-                    irStoreMapShortcutNode.setSetter(
-                            scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod());
+                    irStoreMapShortcutNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                    irStoreMapShortcutNode.attachDecoration(new IRDStoreType(valueType));
+                    irStoreMapShortcutNode.attachDecoration(new IRDMethod(
+                            scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod()));
                     irStoreNode = irStoreMapShortcutNode;
                 }
 
                 if (write == false || compound) {
                     LoadMapShortcutNode irLoadMapShortcutNode = new LoadMapShortcutNode(location);
-                    irLoadMapShortcutNode.setExpressionType(valueType);
-                    irLoadMapShortcutNode.setGetter(
-                            scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod());
+                    irLoadMapShortcutNode.attachDecoration(new IRDExpressionType(valueType));
+                    irLoadMapShortcutNode.attachDecoration(new IRDMethod(
+                            scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod()));
                     irLoadNode = irLoadMapShortcutNode;
                 }
 
                 accessDepth = 2;
             } else if (scriptScope.getCondition(userDotNode, ListShortcut.class)) {
                 ConstantNode irConstantNode = new ConstantNode(location);
-                irConstantNode.setExpressionType(int.class);
-                irConstantNode.setConstant(scriptScope.getDecoration(userDotNode, StandardConstant.class).getStandardConstant());
+                irConstantNode.attachDecoration(new IRDExpressionType(int.class));
+                irConstantNode.attachDecoration(
+                        new IRDConstant(scriptScope.getDecoration(userDotNode, StandardConstant.class).getStandardConstant()));
                 irIndexNode = irConstantNode;
 
                 if (write || compound) {
                     StoreListShortcutNode irStoreListShortcutNode = new StoreListShortcutNode(location);
-                    irStoreListShortcutNode.setExpressionType(read ? valueType : void.class);
-                    irStoreListShortcutNode.setStoreType(valueType);
-                    irStoreListShortcutNode.setSetter(
-                            scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod());
+                    irStoreListShortcutNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                    irStoreListShortcutNode.attachDecoration(new IRDStoreType(valueType));
+                    irStoreListShortcutNode.attachDecoration(new IRDMethod(
+                            scriptScope.getDecoration(userDotNode, SetterPainlessMethod.class).getSetterPainlessMethod()));
                     irStoreNode = irStoreListShortcutNode;
                 }
 
                 if (write == false || compound) {
                     LoadListShortcutNode irLoadListShortcutNode = new LoadListShortcutNode(location);
-                    irLoadListShortcutNode.setExpressionType(valueType);
-                    irLoadListShortcutNode.setGetter(
-                            scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod());
+                    irLoadListShortcutNode.attachDecoration(new IRDExpressionType(valueType));
+                    irLoadListShortcutNode.attachDecoration(new IRDMethod(
+                            scriptScope.getDecoration(userDotNode, GetterPainlessMethod.class).getGetterPainlessMethod()));
                     irLoadNode = irLoadListShortcutNode;
                 }
 
@@ -1611,85 +1704,85 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         ExpressionNode irPrefixNode = (ExpressionNode)visit(userBraceNode.getPrefixNode(), scriptScope);
         ExpressionNode irIndexNode = injectCast(userBraceNode.getIndexNode(), scriptScope);
-        StoreNode irStoreNode = null;
+        UnaryNode irStoreNode = null;
         ExpressionNode irLoadNode = null;
 
         if (prefixValueType.isArray()) {
             FlipArrayIndexNode irFlipArrayIndexNode = new FlipArrayIndexNode(userBraceNode.getIndexNode().getLocation());
-            irFlipArrayIndexNode.setExpressionType(int.class);
+            irFlipArrayIndexNode.attachDecoration(new IRDExpressionType(int.class));
             irFlipArrayIndexNode.setChildNode(irIndexNode);
             irIndexNode = irFlipArrayIndexNode;
 
             if (write || compound) {
                 StoreBraceNode irStoreBraceNode = new StoreBraceNode(location);
-                irStoreBraceNode.setExpressionType(read ? valueType : void.class);
-                irStoreBraceNode.setStoreType(valueType);
+                irStoreBraceNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                irStoreBraceNode.attachDecoration(new IRDStoreType(valueType));
                 irStoreNode = irStoreBraceNode;
             }
 
             if (write == false || compound) {
                 LoadBraceNode irLoadBraceNode = new LoadBraceNode(location);
-                irLoadBraceNode.setExpressionType(valueType);
+                irLoadBraceNode.attachDecoration(new IRDExpressionType(valueType));
                 irLoadNode = irLoadBraceNode;
             }
         } else if (prefixValueType == def.class) {
             Class<?> indexType = scriptScope.getDecoration(userBraceNode.getIndexNode(), ValueType.class).getValueType();
             FlipDefIndexNode irFlipDefIndexNode = new FlipDefIndexNode(userBraceNode.getIndexNode().getLocation());
-            irFlipDefIndexNode.setExpressionType(indexType);
+            irFlipDefIndexNode.attachDecoration(new IRDExpressionType(indexType));
             irFlipDefIndexNode.setChildNode(irIndexNode);
             irIndexNode = irFlipDefIndexNode;
 
             if (write || compound) {
                 StoreBraceDefNode irStoreBraceNode = new StoreBraceDefNode(location);
-                irStoreBraceNode.setExpressionType(read ? valueType : void.class);
-                irStoreBraceNode.setStoreType(valueType);
-                irStoreBraceNode.setIndexType(indexType);
+                irStoreBraceNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                irStoreBraceNode.attachDecoration(new IRDStoreType(valueType));
+                irStoreBraceNode.attachDecoration(new IRDIndexType(indexType));
                 irStoreNode = irStoreBraceNode;
             }
 
             if (write == false || compound) {
                 LoadBraceDefNode irLoadBraceDefNode = new LoadBraceDefNode(location);
-                irLoadBraceDefNode.setExpressionType(valueType);
-                irLoadBraceDefNode.setIndexType(indexType);
+                irLoadBraceDefNode.attachDecoration(new IRDExpressionType(valueType));
+                irLoadBraceDefNode.attachDecoration(new IRDIndexType(indexType));
                 irLoadNode = irLoadBraceDefNode;
             }
         } else if (scriptScope.getCondition(userBraceNode, MapShortcut.class)) {
             if (write || compound) {
+                PainlessMethod setter = scriptScope.getDecoration(userBraceNode, SetterPainlessMethod.class).getSetterPainlessMethod();
                 StoreMapShortcutNode irStoreMapShortcutNode = new StoreMapShortcutNode(location);
-                irStoreMapShortcutNode.setExpressionType(read ? valueType : void.class);
-                irStoreMapShortcutNode.setStoreType(valueType);
-                irStoreMapShortcutNode.setSetter(
-                        scriptScope.getDecoration(userBraceNode, SetterPainlessMethod.class).getSetterPainlessMethod());
+                irStoreMapShortcutNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                irStoreMapShortcutNode.attachDecoration(new IRDStoreType(valueType));
+                irStoreMapShortcutNode.attachDecoration(new IRDMethod(setter));
                 irStoreNode = irStoreMapShortcutNode;
             }
 
             if (write == false || compound) {
+                PainlessMethod getter = scriptScope.getDecoration(userBraceNode, GetterPainlessMethod.class).getGetterPainlessMethod();
                 LoadMapShortcutNode irLoadMapShortcutNode = new LoadMapShortcutNode(location);
-                irLoadMapShortcutNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
-                irLoadMapShortcutNode.setGetter(
-                        scriptScope.getDecoration(userBraceNode, GetterPainlessMethod.class).getGetterPainlessMethod());
+                irLoadMapShortcutNode.attachDecoration(new IRDExpressionType(valueType));
+                irLoadMapShortcutNode.attachDecoration(new IRDMethod(getter));
                 irLoadNode = irLoadMapShortcutNode;
             }
         } else if (scriptScope.getCondition(userBraceNode, ListShortcut.class)) {
             FlipCollectionIndexNode irFlipCollectionIndexNode = new FlipCollectionIndexNode(userBraceNode.getIndexNode().getLocation());
-            irFlipCollectionIndexNode.setExpressionType(int.class);
+            irFlipCollectionIndexNode.attachDecoration(new IRDExpressionType(int.class));
             irFlipCollectionIndexNode.setChildNode(irIndexNode);
             irIndexNode = irFlipCollectionIndexNode;
 
             if (write || compound) {
+                PainlessMethod setter = scriptScope.getDecoration(userBraceNode, SetterPainlessMethod.class).getSetterPainlessMethod();
                 StoreListShortcutNode irStoreListShortcutNode = new StoreListShortcutNode(location);
-                irStoreListShortcutNode.setExpressionType(read ? valueType : void.class);
-                irStoreListShortcutNode.setStoreType(valueType);
-                irStoreListShortcutNode.setSetter(
-                        scriptScope.getDecoration(userBraceNode, SetterPainlessMethod.class).getSetterPainlessMethod());
+                irStoreListShortcutNode.attachDecoration(new IRDExpressionType(read ? valueType : void.class));
+                irStoreListShortcutNode.attachDecoration(new IRDStoreType(valueType));
+                irStoreListShortcutNode.attachDecoration(new IRDMethod(setter));
                 irStoreNode = irStoreListShortcutNode;
             }
 
             if (write == false || compound) {
+                PainlessMethod getter = scriptScope.getDecoration(userBraceNode, GetterPainlessMethod.class).getGetterPainlessMethod();
                 LoadListShortcutNode irLoadListShortcutNode = new LoadListShortcutNode(location);
-                irLoadListShortcutNode.setExpressionType(scriptScope.getDecoration(userBraceNode, ValueType.class).getValueType());
-                irLoadListShortcutNode.setGetter(
-                        scriptScope.getDecoration(userBraceNode, GetterPainlessMethod.class).getGetterPainlessMethod());
+                irLoadListShortcutNode.attachDecoration(new IRDExpressionType(valueType));
+                irLoadListShortcutNode.attachDecoration(new IRDMethod(getter));
                 irLoadNode = irLoadListShortcutNode;
             }
         } else {
@@ -1707,6 +1800,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         ExpressionNode irExpressionNode;
 
         ValueType prefixValueType = scriptScope.getDecoration(userCallNode.getPrefixNode(), ValueType.class);
+        Class<?> valueType = scriptScope.getDecoration(userCallNode, ValueType.class).getValueType();
 
         if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
             InvokeCallDefNode irCallSubDefNode = new InvokeCallDefNode(userCallNode.getLocation());
@@ -1715,8 +1809,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irCallSubDefNode.addArgumentNode((ExpressionNode)visit(userArgumentNode, scriptScope));
             }
 
-            irCallSubDefNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());
-            irCallSubDefNode.setName(userCallNode.getMethodName());
+            irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
+            irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
             irExpressionNode = irCallSubDefNode;
         } else {
             Class<?> boxType;
@@ -1742,8 +1836,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 }
 
                 ConstantNode constantNode = new ConstantNode(userCallNode.getLocation());
-                constantNode.setExpressionType(parameterType);
-                constantNode.setConstant(injection);
+                constantNode.attachDecoration(new IRDExpressionType(parameterType));
+                constantNode.attachDecoration(new IRDConstant(injection));
                 irInvokeCallNode.addArgumentNode(constantNode);
             }
 
@@ -1751,7 +1845,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNode, scriptScope));
             }
 
-            irInvokeCallNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());;
+            irInvokeCallNode.attachDecoration(new IRDExpressionType(valueType));
             irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod());
             irInvokeCallNode.setBox(boxType);
             irExpressionNode = irInvokeCallNode;
@@ -1760,14 +1854,14 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (userCallNode.isNullSafe()) {
             NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(irExpressionNode.getLocation());
             irNullSafeSubNode.setChildNode(irExpressionNode);
-            irNullSafeSubNode.setExpressionType(irExpressionNode.getExpressionType());
+            irNullSafeSubNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
             irExpressionNode = irNullSafeSubNode;
         }
 
         BinaryImplNode irBinaryImplNode = new BinaryImplNode(irExpressionNode.getLocation());
         irBinaryImplNode.setLeftNode((ExpressionNode)visit(userCallNode.getPrefixNode(), scriptScope));
         irBinaryImplNode.setRightNode(irExpressionNode);
-        irBinaryImplNode.setExpressionType(irExpressionNode.getExpressionType());
+        irBinaryImplNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
 
         scriptScope.putDecoration(userCallNode, new IRNodeDecoration(irBinaryImplNode));
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
@@ -15,7 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,9 +73,10 @@ public class TransportOpenIdConnectAuthenticateAction
                     @SuppressWarnings("unchecked") final Map<String, Object> tokenMetadata = (Map<String, Object>) result.getMetadata()
                         .get(OpenIdConnectRealm.CONTEXT_TOKEN_DATA);
                     tokenService.createOAuth2Tokens(authentication, originatingAuthentication, tokenMetadata, true,
-                        ActionListener.wrap(tuple -> {
+                        ActionListener.wrap(tokenResult -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tuple.v1(), tuple.v2(), expiresIn));
+                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tokenResult.getAccessToken(),
+                                tokenResult.getRefreshToken(), expiresIn));
                         }, listener::onFailure));
                 }, e -> {
                     logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.template;
@@ -25,7 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -420,9 +421,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
-                new ActionListener<PutLifecycleAction.Response>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutLifecycleAction.Response response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
                             logger.error("error adding lifecycle policy [{}] for [{}], request was not acknowledged",

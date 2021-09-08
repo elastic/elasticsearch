@@ -1,5 +1,5 @@
-[[breaking-changes-8.0]]
-== Breaking changes in 8.0
+[[migrating-8.0]]
+== Migrating to 8.0
 ++++
 <titleabbrev>8.0</titleabbrev>
 ++++
@@ -16,7 +16,9 @@ coming[8.0.0]
 * <<breaking_80_analysis_changes>>
 * <<breaking_80_breaker_changes>>
 * <<breaking_80_cluster_changes>>
+* <<breaking_80_ccr_changes>>
 * <<breaking_80_discovery_changes>>
+* <<breaking_80_eql_changes>>
 * <<breaking_80_http_changes>>
 * <<breaking_80_ilm_changes>>
 * <<breaking_80_indices_changes>>
@@ -35,6 +37,22 @@ coming[8.0.0]
 * <<breaking_80_threadpool_changes>>
 * <<breaking_80_transport_changes>>
 
+[discrete]
+[[breaking-changes-8.0]]
+=== Breaking changes
+
+The following changes in {es} 8.0 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 8.0, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
@@ -44,7 +62,7 @@ coming[8.0.0]
 [%collapsible]
 ====
 *Details* +
-Elasticsearch 8.0 can read indices created in version 7.0 or above.  An
+Elasticsearch 8.0 can read indices created in version 7.0 or above. An
 Elasticsearch 8.0 node will not start in the presence of indices created in a
 version of Elasticsearch before 7.0.
 
@@ -74,7 +92,9 @@ include::migrate_8_0/allocation.asciidoc[]
 include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/breaker.asciidoc[]
 include::migrate_8_0/cluster.asciidoc[]
+include::migrate_8_0/ccr.asciidoc[]
 include::migrate_8_0/discovery.asciidoc[]
+include::migrate_8_0/eql.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]
@@ -93,3 +113,20 @@ include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
+
+////
+[discrete]
+[[deprecated-8.0]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 8.0
+and will be removed in 8.0
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 8.0.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+////

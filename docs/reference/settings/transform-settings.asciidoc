@@ -16,14 +16,15 @@ default.
 
 `node.roles: [ transform ]`::
 (<<static-cluster-setting,Static>>) Set `node.roles` to contain `transform` to
-identify the node as a _transform node_. If you use the default settings for a
-node, it does not have the `transform` role.
+identify the node as a _transform node_. If you want to run {transforms}, there 
+must be at least one {transform} node in your cluster.
 +
-If a node doesn't have this role, the node cannot run transforms. If you want to 
-run transforms, there must be at least one transform node in your cluster.
-+
-If you use the `node.roles` setting, all required roles must be explicitly set.
-Consult <<modules-node>> to learn more.
+If you set `node.roles`, you must explicitly specify all the required roles for
+the node. To learn more, refer to <<modules-node>>.
++ 
+IMPORTANT: It is strongly recommended that dedicated {transform} nodes also have 
+the `remote_cluster_client` role; otherwise, {ccs} fails when used in 
+{transforms}. See <<remote-node>>.
 
 `xpack.transform.enabled`::
 deprecated:[7.8.0,Basic License features should always be enabled]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,20 +34,21 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     private final boolean ownedByAuthenticatedUser;
 
     public InvalidateApiKeyRequest() {
-        this(null, null, null, null, false, null);
+        this(null, null, null, false, null);
     }
 
     public InvalidateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        realmName = in.readOptionalString();
-        userName = in.readOptionalString();
+        realmName = textOrNull(in.readOptionalString());
+        userName = textOrNull(in.readOptionalString());
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             ids = in.readOptionalStringArray();
         } else {
             final String id = in.readOptionalString();
-            ids = Strings.hasText(id) == false ? null : new String[] { id };
+            ids = Strings.hasText(id) ? new String[] { id } : null;
         }
-        name = in.readOptionalString();
+        validateIds(ids);
+        name = textOrNull(in.readOptionalString());
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
@@ -54,26 +56,18 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
     }
 
-    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
-                                   @Nullable String name, boolean ownedByAuthenticatedUser) {
-        this(realmName, userName, id, name, ownedByAuthenticatedUser, null);
+    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName,
+                                   @Nullable String name, boolean ownedByAuthenticatedUser, @Nullable String[] ids) {
+        validateIds(ids);
+        this.realmName = textOrNull(realmName);
+        this.userName = textOrNull(userName);
+        this.ids = ids;
+        this.name = textOrNull(name);
+        this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
 
-    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
-                                   @Nullable String name, boolean ownedByAuthenticatedUser, @Nullable String[] ids) {
-        if (id != null && ids != null) {
-            throw new IllegalArgumentException("Must use either [id] or [ids], not both at the same time");
-        }
-
-        this.realmName = realmName;
-        this.userName = userName;
-        if (id != null) {
-            this.ids = new String[] {id};
-        } else {
-            this.ids = ids;
-        }
-        this.name = name;
-        this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+    private static String textOrNull(@Nullable String arg) {
+        return Strings.hasText(arg) ? arg : null;
     }
 
     public String getRealmName() {
@@ -103,7 +97,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingRealmName(String realmName) {
-        return new InvalidateApiKeyRequest(realmName, null, null, null, false);
+        return new InvalidateApiKeyRequest(realmName, null, null, false, null);
     }
 
     /**
@@ -113,7 +107,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingUserName(String userName) {
-        return new InvalidateApiKeyRequest(null, userName, null, null, false);
+        return new InvalidateApiKeyRequest(null, userName, null, false, null);
     }
 
     /**
@@ -124,11 +118,11 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingRealmAndUserName(String realmName, String userName) {
-        return new InvalidateApiKeyRequest(realmName, userName, null, null, false);
+        return new InvalidateApiKeyRequest(realmName, userName, null, false, null);
     }
 
     /**
-     * Creates invalidate API key request for given api key id
+     * Creates invalidate API key request for given api key ids
      *
      * @param id api key id
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
@@ -136,7 +130,19 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyId(String id, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, id, null, ownedByAuthenticatedUser);
+        return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser, new String[]{ id });
+    }
+
+    /**
+     * Creates invalidate API key request for given api key id
+     *
+     * @param ids array of api key ids
+     * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
+     * {@code false}
+     * @return {@link InvalidateApiKeyRequest}
+     */
+    public static InvalidateApiKeyRequest usingApiKeyIds(String[] ids, boolean ownedByAuthenticatedUser) {
+        return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser, ids);
     }
 
     /**
@@ -148,32 +154,19 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyName(String name, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, null, name, ownedByAuthenticatedUser);
+        return new InvalidateApiKeyRequest(null, null, name, ownedByAuthenticatedUser, null);
     }
 
     /**
      * Creates invalidate api key request to invalidate api keys owned by the current authenticated user.
      */
     public static InvalidateApiKeyRequest forOwnedApiKeys() {
-        return new InvalidateApiKeyRequest(null, null, null, null, true);
+        return new InvalidateApiKeyRequest(null, null, null, true, null);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (ids != null) {
-            if (ids.length == 0) {
-                validationException = addValidationError("Field [ids] cannot be an empty array", validationException);
-            } else {
-                final int[] idxOfBlankIds = IntStream.range(0, ids.length).filter(i -> Strings.hasText(ids[i]) == false).toArray();
-                if (idxOfBlankIds.length > 0) {
-                    validationException = addValidationError("Field [ids] must not contain blank id, but got blank "
-                        + (idxOfBlankIds.length == 1 ? "id" : "ids") + " at index "
-                        + (idxOfBlankIds.length == 1 ? "position" : "positions") + ": "
-                        + Arrays.toString(idxOfBlankIds), validationException);
-                }
-            }
-        }
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && ids == null
             && Strings.hasText(name) == false && ownedByAuthenticatedUser == false) {
             validationException = addValidationError("One of [api key id(s), api key name, username, realm name] must be specified if " +
@@ -242,5 +235,25 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     @Override
     public int hashCode() {
         return Objects.hash(realmName, userName, ids, name, ownedByAuthenticatedUser);
+    }
+
+    private void validateIds(@Nullable String[] ids) {
+        if (ids != null) {
+            if (ids.length == 0) {
+                final ActionRequestValidationException validationException = new ActionRequestValidationException();
+                validationException.addValidationError("Field [ids] cannot be an empty array");
+                throw validationException;
+            } else {
+                final int[] idxOfBlankIds = IntStream.range(0, ids.length).filter(i -> Strings.hasText(ids[i]) == false).toArray();
+                if (idxOfBlankIds.length > 0) {
+                    final ActionRequestValidationException validationException = new ActionRequestValidationException();
+                    validationException.addValidationError("Field [ids] must not contain blank id, but got blank "
+                        + (idxOfBlankIds.length == 1 ? "id" : "ids") + " at index "
+                        + (idxOfBlankIds.length == 1 ? "position" : "positions") + ": "
+                        + Arrays.toString(idxOfBlankIds));
+                    throw validationException;
+                }
+            }
+        }
     }
 }

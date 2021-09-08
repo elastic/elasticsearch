@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
@@ -24,7 +27,9 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * Defined by its key and stage.
  * This class is NOT immutable (to optimize memory) which means its associations need to be managed.
  */
-public class Sequence {
+public class Sequence implements Comparable<Sequence>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Sequence.class);
 
     private final SequenceKey key;
     private final int stages;
@@ -40,14 +45,13 @@ public class Sequence {
         this.matches[0] = new Match(ordinal, firstHit);
     }
 
-    public int putMatch(int stage, Ordinal ordinal, HitReference hit) {
+    public void putMatch(int stage, Ordinal ordinal, HitReference hit) {
         if (stage == currentStage + 1) {
-            int previousStage = currentStage;
             currentStage = stage;
             matches[currentStage] = new Match(ordinal, hit);
-            return previousStage;
+        } else {
+            throw new EqlIllegalArgumentException("Invalid stage [{}] specified for sequence[key={}, stage={}]", stage, key, currentStage);
         }
-        throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage={}]", stage, key, currentStage);
     }
 
     public SequenceKey key() {
@@ -71,25 +75,35 @@ public class Sequence {
     }
 
     @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(key) + RamUsageEstimator.sizeOf(matches);
+    }
+
+    @Override
+    public int compareTo(Sequence o) {
+        return ordinal().compareTo(o.ordinal());
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(currentStage, key);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Sequence other = (Sequence) obj;
         return Objects.equals(currentStage, other.currentStage)
                 && Objects.equals(key, other.key);
     }
-    
+
     @Override
     public String toString() {
         int numberOfDigits = stages > 100 ? 3 : stages > 10 ? 2 : 1;
@@ -105,7 +119,7 @@ public class Sequence {
         for (int i = 0; i < matches.length; i++) {
             sb.append(format(null, "\n [{}]={{}}", nf.format(i), matches[i]));
         }
-        
+
         return sb.toString();
     }
 }

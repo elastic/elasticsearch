@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ccr;
@@ -23,7 +12,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -50,6 +39,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
         for (int i = 0; i < numPatterns; i++) {
             String remoteCluster = randomAlphaOfLength(4);
             List<String> leaderIndexPatterns = Collections.singletonList(randomAlphaOfLength(4));
+            List<String> leaderIndexExclusionsPatterns = randomList(0, randomIntBetween(1, 10), () -> randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
             final Settings settings =
                 Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build();
@@ -100,6 +90,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
                 new AutoFollowMetadata.AutoFollowPattern(
                     remoteCluster,
                     leaderIndexPatterns,
+                    leaderIndexExclusionsPatterns,
                     followIndexNamePattern,
                     settings,
                     active,
@@ -135,6 +126,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             assertThat(serverPattern.getRemoteCluster(), equalTo(clientPattern.getRemoteCluster()));
             assertThat(serverPattern.getLeaderIndexPatterns(), equalTo(clientPattern.getLeaderIndexPatterns()));
             assertThat(serverPattern.getFollowIndexPattern(), equalTo(clientPattern.getFollowIndexNamePattern()));
+            assertThat(serverPattern.getLeaderIndexExclusionPatterns(), equalTo(clientPattern.getLeaderIndexExclusionPatterns()));
             assertThat(serverPattern.getSettings(), equalTo(clientPattern.getSettings()));
             assertThat(serverPattern.getMaxOutstandingReadRequests(), equalTo(clientPattern.getMaxOutstandingReadRequests()));
             assertThat(serverPattern.getMaxOutstandingWriteRequests(), equalTo(clientPattern.getMaxOutstandingWriteRequests()));

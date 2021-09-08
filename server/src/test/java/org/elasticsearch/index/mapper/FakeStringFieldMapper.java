@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,14 +12,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 // Like a String mapper but with very few options. We just use it to test if highlighting on a custom string mapped field works as expected.
-public class FakeStringFieldMapper extends ParametrizedFieldMapper {
+public class FakeStringFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "fake_string";
 
@@ -41,7 +30,7 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         public Builder(String name) {
             super(name);
@@ -53,11 +42,11 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public FakeStringFieldMapper build(BuilderContext context) {
+        public FakeStringFieldMapper build(ContentPath contentPath) {
             return new FakeStringFieldMapper(
                 new FakeStringFieldType(name, true,
                     new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
-                multiFieldsBuilder.build(this, context), copyTo.build());
+                multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
@@ -67,7 +56,6 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
         private FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
             super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
         @Override
@@ -76,24 +64,19 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
         }
     }
 
     protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), mappedFieldType, multiFields, copyTo);
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        String value = context.parser().textOrNull();
 
         if (value == null) {
             return;
@@ -109,7 +92,7 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -46,11 +48,11 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     /**
      * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
      *
-     * @param mappingsProperties mappings.properties portion of the index mappings
      * @param resultsFieldName name of the results field under which all the results are stored
+     * @param fieldCapabilitiesResponse field capabilities fetched for this analysis' required fields
      * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
-    Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
+    Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values

@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -199,15 +188,16 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMalformedContentTypeHeader() {
         final String type = randomFrom("text", "text/:ain; charset=utf-8", "text/plain\";charset=utf-8", ":", "/", "t:/plain");
-        final RestRequest.ContentTypeHeaderException e = expectThrows(
-                RestRequest.ContentTypeHeaderException.class,
+        final RestRequest.MediaTypeHeaderException e = expectThrows(
+                RestRequest.MediaTypeHeaderException.class,
                 () -> {
                     final Map<String, List<String>> headers = Collections.singletonMap("Content-Type", Collections.singletonList(type));
                     contentRestRequest("", Collections.emptyMap(), headers);
                 });
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header [" + type + "]"));
+        assertThat(e.getCause().getMessage(), equalTo("invalid media-type [" + type + "]"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
     }
 
     public void testNoContentTypeHeader() {
@@ -217,12 +207,13 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMultipleContentTypeHeaders() {
         List<String> headers = new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 16), randomIntBetween(2, 10)));
-        final RestRequest.ContentTypeHeaderException e = expectThrows(
-                RestRequest.ContentTypeHeaderException.class,
+        final RestRequest.MediaTypeHeaderException e = expectThrows(
+                RestRequest.MediaTypeHeaderException.class,
                 () -> contentRestRequest("", Collections.emptyMap(), Collections.singletonMap("Content-Type", headers)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf((IllegalArgumentException.class)));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: only one Content-Type header should be provided"));
+        assertThat(e.getCause().getMessage(), equalTo("Incorrect header [Content-Type]. Only one value should be provided"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
     }
 
     public void testRequiredContent() {

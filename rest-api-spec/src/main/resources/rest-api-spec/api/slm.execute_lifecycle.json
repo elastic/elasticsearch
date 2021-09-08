@@ -1,0 +1,30 @@
+{
+  "slm.execute_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-execute-lifecycle.html",
+      "description":"Immediately creates a snapshot according to the lifecycle policy, without waiting for the scheduled time."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_slm/policy/{policy_id}/_execute",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "policy_id":{
+              "type":"string",
+              "description":"The id of the snapshot lifecycle policy to be executed"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

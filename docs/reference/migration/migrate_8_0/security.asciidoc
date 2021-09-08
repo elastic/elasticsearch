@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_security_changes]]
-=== Security changes
+==== Security changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -33,7 +33,24 @@ xpack.security.authc.realms.kerberos.kerb1:
   remove_realm_name: false
 --------------------------------------------------
 ====
-// end::notable-breaking-changes[]
+
+[[audit-logs-are-rolled-over-and-archived-by-size]]
+.Audit logs are rolled-over and archived by size.
+[%collapsible]
+====
+*Details* +
+In addition to the existing daily rollover, the security audit logs are
+now rolled-over by disk size limit as well. Moreover, the rolled-over logs
+are also gzip compressed.
+
+*Impact* +
+The names of rolled over audit logfiles (but not the name of the current log)
+have changed.
+If you've setup automated tools to consume these files, you must configure them
+to use the new names and to possibly account for gzip archives instead of plaintext.
+The Docker build of Elasticsearch is not affected since it logs on stdout where
+rollover is not performed.
+====
 
 [[accept-default-password-removed]]
 .The `accept_default_password` setting has been removed.
@@ -97,7 +114,7 @@ result in an error on startup.
 
 [discrete]
 [[ssl-validation-changes]]
-==== SSL/TLS configuration validation
+===== SSL/TLS configuration validation
 
 .The `xpack.security.transport.ssl.enabled` setting is now required to configure `xpack.security.transport.ssl` settings.
 [%collapsible]
@@ -181,7 +198,7 @@ xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
 <1> or `false`.
 ====
 
-.A `xpack.security.transport.ssl` certificate and key are now required to enable SSL for the transport interface. 
+.A `xpack.security.transport.ssl` certificate and key are now required to enable SSL for the transport interface.
 [%collapsible]
 ====
 *Details* +
@@ -216,8 +233,34 @@ on startup.
 ====
 
 [discrete]
+[[ssl-misc-changes]]
+===== Other SSL/TLS changes 
+
+.PKCS#11 keystores and trustores cannot be configured in `elasticsearch.yml`
+[%collapsible]
+====
+*Details* +
+The settings `*.ssl.keystore.type` and `*.ssl.truststore.type` no longer accept "PKCS11" as a valid type.
+This applies to all SSL settings in Elasticsearch, including
+
+- `xpack.security.http.keystore.type`
+- `xpack.security.transport.keystore.type`
+- `xpack.security.http.truststore.type`
+- `xpack.security.transport.truststore.type`
+
+As well as SSL settings for security realms, watcher and monitoring.
+
+Use of a PKCS#11 keystore or truststore as the JRE's default store is not affected.
+
+*Impact* +
+If you have a PKCS#11 keystore configured within your `elasticsearch.yml` file, you must remove that
+configuration and switch to a supported keystore type, or configure your PKCS#11 keystore as the 
+JRE default store.
+====
+
+[discrete]
 [[builtin-users-changes]]
-==== Changes to built-in users
+===== Changes to built-in users
 
 .The `kibana` user has been replaced by `kibana_system`.
 [%collapsible]
@@ -250,7 +293,7 @@ user password. You must explicitly set a password for the `kibana_system` user.
 
 [discrete]
 [[builtin-roles-changes]]
-==== Changes to built-in roles
+===== Changes to built-in roles
 
 .The `kibana_user` role has been renamed `kibana_admin`.
 [%collapsible]
@@ -264,3 +307,34 @@ renamed to better reflect its intended use.
 Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
 ====
+// end::notable-breaking-changes[]
+
+// These are non-notable changes
+
+[discrete]
+// This change is not notable because it should not have any impact on upgrades
+// However we document it here out of an abundance of caution
+[[fips-default-hash-changed]]
+===== Changes to FIPS 140 mode
+.When FIPS mode is enabled the default password hash is now PBKDF2_STRETCH
+[%collapsible]
+====
+*Details* +
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), 
+the value of `xpack.security.authc.password_hashing.algorithm` now defaults to
+`pbkdf2_stretch`.
+
+In earlier versions this setting would always default to `bcrypt` and a runtime
+check would prevent a node from starting unless the value was explicitly set to
+a "pbkdf2" variant.
+
+There is no change for clusters that do not enable FIPS 140 mode.
+
+*Impact* +
+This change should not have any impact on upgraded nodes.
+Any node with an explicitly configured value for the password hashing algorithm
+will continue to use that configured value.
+Any node that did not have an explicitly configured password hashing algorithm in
+{es} 6.x or {es} 7.x would have failed to start.
+====
+

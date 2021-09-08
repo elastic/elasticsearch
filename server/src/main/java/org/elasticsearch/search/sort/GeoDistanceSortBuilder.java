@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
@@ -30,7 +19,8 @@ import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -42,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -54,7 +45,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -74,6 +65,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A geo distance based sorting on a geo point like field.
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(GeoDistanceSortBuilder.class);
 
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
@@ -417,7 +409,15 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("nested_filter",
+                        "[nested_filter] has been removed in favour of the [nested] parameter");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[nested_filter] has been removed in favour of the [nested] parameter",
+                        currentName);
+                } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -434,7 +434,15 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if (ORDER_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("nested_path",
+                        "[nested_path] has been removed in favour of the [nested] parameter");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[nested_path] has been removed in favour of the [nested] parameter",
+                        currentName);
+                } else if (ORDER_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     order = SortOrder.fromString(parser.text());
                 } else if (UNIT_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     unit = DistanceUnit.fromString(parser.text());
@@ -446,24 +454,24 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     sortMode = SortMode.fromString(parser.text());
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (token == Token.VALUE_STRING){
+                } else if (token == Token.VALUE_STRING) {
                     if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "Trying to reset fieldName to [{}], already set to [{}].",
-                                currentName,
-                                fieldName);
+                            parser.getTokenLocation(),
+                            "Trying to reset fieldName to [{}], already set to [{}].",
+                            currentName,
+                            fieldName);
                     }
 
                     GeoPoint point = new GeoPoint();
                     point.resetFromString(parser.text());
                     geoPoints.add(point);
                     fieldName = currentName;
-                } else if (fieldName.equals(currentName)){
+                } else if (fieldName.equals(currentName)) {
                     throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "Only geohashes of type string supported for field [{}]",
-                            currentName);
+                        parser.getTokenLocation(),
+                        "Only geohashes of type string supported for field [{}]",
+                        currentName);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -492,7 +500,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         GeoPoint[] localPoints = localPoints();
         boolean reverse = order == SortOrder.DESC;
         MultiValueMode localSortMode = localSortMode();
@@ -516,7 +524,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
         GeoPoint[] localPoints = localPoints();
         MultiValueMode localSortMode = localSortMode();
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
@@ -525,7 +534,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         // TODO implement the single point optimization above
 
         return comparatorSource(localPoints, localSortMode, geoIndexFieldData, nested)
-                .newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
+                .newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
     }
 
     private GeoPoint[] localPoints() {
@@ -566,7 +575,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         return order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
     }
 
-    private IndexGeoPointFieldData fieldData(QueryShardContext context) {
+    private IndexGeoPointFieldData fieldData(SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
@@ -578,7 +587,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         return context.getForField(fieldType);
     }
 
-    private Nested nested(QueryShardContext context) throws IOException {
+    private Nested nested(SearchExecutionContext context) throws IOException {
         // TODO this is pretty similar to FieldSortBuilder. Share?
         if (nestedSort == null) {
             validateMissingNestedPath(context, fieldName);
@@ -656,14 +665,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {
-        while (!parser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
+        while (parser.nextToken().equals(XContentParser.Token.END_ARRAY) == false) {
             if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 // we might get here if the geo point is " number, number] " and the parser already moved over the
                 // opening bracket in this case we cannot use GeoUtils.parseGeoPoint(..) because this expects an opening
                 // bracket
                 double lon = parser.doubleValue();
                 parser.nextToken();
-                if (!parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)) {
+                if (parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER) == false) {
                     throw new ElasticsearchParseException(
                             "geo point parsing: expected second number but got [{}] instead",
                             parser.currentToken());

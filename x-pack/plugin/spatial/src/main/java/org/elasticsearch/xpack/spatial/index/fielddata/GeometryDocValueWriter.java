@@ -1,40 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * This is a tree-writer that serializes a list of {@link ShapeField.DecodedTriangle} as an interval tree
+ * This is a tree-writer that serializes a list of {@link IndexableField} as an interval tree
  * into a byte array.
  */
 public class GeometryDocValueWriter {
 
-    private final TriangleTreeWriter treeWriter;
-    private final CoordinateEncoder coordinateEncoder;
-    private final CentroidCalculator centroidCalculator;
-
-    public GeometryDocValueWriter(List<ShapeField.DecodedTriangle> triangles, CoordinateEncoder coordinateEncoder,
-                                  CentroidCalculator centroidCalculator) {
-        this.coordinateEncoder = coordinateEncoder;
-        this.centroidCalculator = centroidCalculator;
-        this.treeWriter = new TriangleTreeWriter(triangles);
+    private GeometryDocValueWriter() {
     }
 
-    /*** Serialize the interval tree in the provided data output */
-    public void writeTo(ByteBuffersDataOutput out) throws IOException {
-        out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
-        out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
+    /*** Serialize the triangle tree in a BytesRef */
+    public static BytesRef write(List<IndexableField> fields,
+                                 CoordinateEncoder coordinateEncoder,
+                                 CentroidCalculator centroidCalculator) throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput();
+        // normalization may be required due to floating point precision errors
+        out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
+        out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
-        treeWriter.writeTo(out);
+        TriangleTreeWriter.writeTo(out, fields);
+        return out.bytes().toBytesRef();
     }
 }

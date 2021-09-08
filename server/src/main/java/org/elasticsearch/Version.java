@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -85,8 +73,24 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_9_2 = new Version(7090299, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_3 = new Version(7090399, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_10_1 = new Version(7100199, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_10_2 = new Version(7100299, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_11_0 = new Version(7110099, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_11_1 = new Version(7110199, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_11_2 = new Version(7110299, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_12_0 = new Version(7120099, org.apache.lucene.util.Version.LUCENE_8_8_0);
+    public static final Version V_7_12_1 = new Version(7120199, org.apache.lucene.util.Version.LUCENE_8_8_0);
+    public static final Version V_7_13_0 = new Version(7130099, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_13_1 = new Version(7130199, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_13_2 = new Version(7130299, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_13_3 = new Version(7130399, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_13_4 = new Version(7130499, org.apache.lucene.util.Version.LUCENE_8_8_2);
+    public static final Version V_7_14_0 = new Version(7140099, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_7_14_1 = new Version(7140199, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_7_14_2 = new Version(7140299, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_7_15_0 = new Version(7150099, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_7_16_0 = new Version(7160099, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
@@ -126,7 +130,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
-
+        assert RestApiVersion.current().major == CURRENT.major : "RestApiVersion must be upgraded " +
+            "to reflect major from Version.CURRENT [" + CURRENT.major + "]" +
+            " but is still set to [" + RestApiVersion.current().major + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
         idToVersion = builder.build();
@@ -170,25 +176,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return new Version(id, luceneVersion);
     }
 
-    /**
-     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
-     *
-     * @throws IllegalStateException if the given index settings doesn't contain a value for the key
-     *         {@value IndexMetadata#SETTING_VERSION_CREATED}
-     */
-    public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion == V_EMPTY) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "[%s] is not present in the index settings for index with UUID [%s]",
-                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
-            throw new IllegalStateException(message);
-        }
-        return indexVersion;
-    }
-
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
         out.writeVInt(version.id);
     }
@@ -209,7 +196,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (!Strings.hasLength(version)) {
+        if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
         final Version cached = stringToVersion.get(version);
@@ -258,6 +245,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
     private final String toString;
+    private final int previousMajorId;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
@@ -267,6 +255,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
         this.toString = major + "." + minor + "." + revision;
+        this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
     public boolean after(Version version) {
@@ -389,6 +378,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
     }
+
+
+    /**
+     * Returns a first major version previous to the version stored in this object.
+     * I.e 8.1.0 will return 7.0.0
+     */
+    public Version previousMajor() {
+        return Version.fromId(previousMajorId);
+    }
+
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {

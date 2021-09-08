@@ -12,38 +12,20 @@ end::actions[]
 
 tag::active-only[]
 `active_only`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response only includes ongoing shard recoveries.
 Defaults to `false`.
 end::active-only[]
 
-tag::index-alias[]
-Comma-separated list or wildcard expression of index alias names
-used to limit the request.
-end::index-alias[]
-
-tag::aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
-end::aliases[]
-
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-Index aliases which include the target index.
-See <<indices-aliases>>.
-end::target-index-aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
-indices. This behavior applies even if the request targets other open indices.
-For example, a request targeting `foo*,bar*` returns an error if an index
-starts with `foo` but no index starts with `bar`.
+<<aliases,index alias>>, or `_all` value targets only missing or closed indices.
+This behavior applies even if the request targets other open indices. For
+example, a request targeting `foo*,bar*` returns an error if an index starts
+with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -89,7 +71,7 @@ end::analyzer[]
 
 tag::analyze_wildcard[]
 `analyze_wildcard`::
-(Optional, boolean) If `true`, wildcard and prefix queries are
+(Optional, Boolean) If `true`, wildcard and prefix queries are
 analyzed. Defaults to `false`.
 end::analyze_wildcard[]
 
@@ -101,6 +83,11 @@ end::bytes[]
 tag::checkpointing-changes-last-detected-at[]
 The timestamp when changes were last detected in the source indices.
 end::checkpointing-changes-last-detected-at[]
+
+tag::checkpointing-last-search-time[]
+The timestamp of the last search in the source indices. This field is only
+shown if the transform is running.
+end::checkpointing-last-search-time[]
 
 tag::cluster-health-status[]
 (string)
@@ -137,6 +124,10 @@ Comma-separated list or wildcard expressions of fields
 to include in `fielddata` and `suggest` statistics.
 end::completion-fields[]
 
+tag::delete-time-ms[]
+The amount of time spent deleting, in milliseconds.
+end::delete-time-ms[]
+
 tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR.
@@ -148,20 +139,20 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination 
-index are deduced based on the source fields when possible. If alternate 
-mappings are required, use the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+The _destination index_ for the {transform}. The mappings of the destination
+index are deduced based on the source fields when possible. If alternate
+mappings are required, use the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
 prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
-The unique identifier for a <<pipeline,pipeline>>.
+The unique identifier for an <<ingest,ingest pipeline>>.
 end::dest-pipeline[]
 
 tag::detailed[]
 `detailed`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response includes detailed information about shard recoveries.
 Defaults to `false`.
@@ -190,6 +181,11 @@ Also, {es} creates extra deleted documents to internally track the recent
 history of operations on a shard.
 end::docs-deleted[]
 
+tag::docs-deleted-transform[]
+The number of documents that have been deleted from the destination index due to
+the retention policy for this {transform}.
+end::docs-deleted-transform[]
+
 tag::docs-indexed[]
 The number of documents that have been indexed into the destination index
 for the {transform}.
@@ -200,34 +196,51 @@ The number of documents that have been processed from the source index of
 the {transform}.
 end::docs-processed[]
 
-tag::enrich-policy[]
-Enrich policy name
-used to limit the request.
-end::enrich-policy[]
+tag::ds-expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string)
+Type of data stream that wildcard patterns can match. Supports
+comma-separated values, such as `open,hidden`. Valid values are:
+
+`all`, `hidden`::
+Match any data stream, including <<hidden,hidden>> ones.
+
+`open`, `closed`::
+Matches any non-hidden data stream. Data streams cannot be closed.
+
+`none`::
+Wildcard patterns are not accepted.
+--
+end::ds-expand-wildcards[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard expressions can
-expand to. Multiple values are accepted when separated by a comma, as in
-`open,hidden`. Valid values are:
+(Optional, string)
+Type of index that wildcard patterns can match. If the request can target data
+streams, this argument determines whether wildcard expressions match hidden data
+streams. Supports comma-separated values, such as `open,hidden`. Valid values
+are:
 
 `all`::
-Expand to open and closed indices, including <<index-hidden,hidden indices>>.
+Match any data stream or index, including <<hidden,hidden>> ones.
 
 `open`::
-Expand only to open indices.
+Match open, non-hidden indices. Also matches any non-hidden data stream.
 
 `closed`::
-Expand only to closed indices.
+Match closed, non-hidden indices. Also matches any non-hidden data stream. Data
+streams cannot be closed.
 
 `hidden`::
-Expansion of wildcards will include <<index-hidden,hidden indices>>.
-Must be combined with `open`, `closed`, or both.
+Match hidden data streams and hidden indices. Must be combined with `open`,
+`closed`, or both.
 
 `none`::
-Wildcard expressions are not accepted.
+Wildcard patterns are not accepted.
 --
 end::expand-wildcards[]
 
@@ -247,7 +260,7 @@ end::exponential-avg-documents-processed[]
 
 tag::field_statistics[]
 `field_statistics`::
-(Optional, boolean) If `true`, the response includes the document count, sum of document frequencies,
+(Optional, Boolean) If `true`, the response includes the document count, sum of document frequencies,
 and sum of total term frequencies.
 Defaults to `true`.
 end::field_statistics[]
@@ -273,17 +286,9 @@ in the `completion_fields` or `fielddata_fields` parameters.
 --
 end::fields[]
 
-tag::index-alias-filter[]
-<<query-dsl-bool-query, Filter query>>
-used to limit the index alias.
-+
-If specified,
-the index alias only applies to documents returned by the filter.
-end::index-alias-filter[]
-
 tag::flat-settings[]
 `flat_settings`::
-(Optional, boolean) If `true`, returns settings in flat format. Defaults to
+(Optional, Boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
 
@@ -350,7 +355,7 @@ end::cat-h[]
 
 tag::help[]
 `help`::
-(Optional, boolean) If `true`, the response includes help information. Defaults
+(Optional, Boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
 
@@ -375,33 +380,33 @@ end::if_seq_no[]
 
 tag::ignore_throttled[]
 `ignore_throttled`::
-(Optional, boolean) If `true`, concrete, expanded or aliased indices are
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
-(Optional, boolean) If `true`, missing or closed indices are not included in the
+(Optional, Boolean) If `true`, missing or closed indices are not included in the
 response. Defaults to `false`.
 end::index-ignore-unavailable[]
 
 tag::include-defaults[]
 `include_defaults`::
-(Optional, string) If `true`, return all default settings in the response.
+(Optional, Boolean) If `true`, return all default settings in the response.
 Defaults to `false`.
 end::include-defaults[]
 
 tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the call reports the aggregated disk usage of
-each one  of the Lucene index files (only applies if segment stats are
+each one of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
-(Optional, boolean) If `true`, the response includes information from segments
+(Optional, Boolean) If `true`, the response includes information from segments
 that are **not** loaded into memory. Defaults to `false`.
 end::include-unloaded-segments[]
 
@@ -427,7 +432,7 @@ The amount of time spent indexing, in milliseconds.
 end::index-time-ms[]
 
 tag::index-total[]
-The number of indices created.
+The number of index operations.
 end::index-total[]
 
 tag::bulk-index[]
@@ -525,7 +530,7 @@ end::component-template[]
 
 tag::lenient[]
 `lenient`::
-(Optional, boolean) If `true`, format-based query failures (such as
+(Optional, Boolean) If `true`, format-based query failures (such as
 providing text to a numeric field) will be ignored. Defaults to `false`.
 end::lenient[]
 
@@ -547,7 +552,7 @@ end::level[]
 
 tag::local[]
 `local`::
-(Optional, boolean) If `true`, the request retrieves information from the local
+(Optional, Boolean) If `true`, the request retrieves information from the local
 node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
@@ -580,11 +585,27 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::bulk-require-alias[]
+`require_alias`::
+(Optional, Boolean)
+If `true`, the action must target an <<aliases,index alias>>. Defaults to
+`false`.
+end::bulk-require-alias[]
+
 tag::require-alias[]
 `require_alias`::
-(Optional, boolean) When true, this requires the destination to be an alias.
-Defaults to false.
+(Optional, Boolean) If `true`, the destination must be an <<aliases,index alias>>.
+Defaults to `false`.
 end::require-alias[]
+
+tag::bulk-dynamic-templates[]
+`dynamic_templates`::
+(Optional, map)
+A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be
+applied regardless of other match predicates defined in the template. And if a field is
+already defined in the mapping, then this parameter won't be used.
+end::bulk-dynamic-templates[]
 
 tag::node-filter[]
 `<node_filter>`::
@@ -608,7 +629,7 @@ end::node-id-query-parm[]
 
 tag::offsets[]
 `<offsets>`::
-(Optional, boolean) If `true`, the response includes term offsets.
+(Optional, Boolean) If `true`, the response includes term offsets.
 Defaults to `true`.
 end::offsets[]
 
@@ -628,7 +649,7 @@ end::parent-task-id[]
 
 tag::payloads[]
 `payloads`::
-(Optional, boolean) If `true`, the response includes term payloads.
+(Optional, Boolean) If `true`, the response includes term payloads.
 Defaults to `true`.
 end::payloads[]
 
@@ -642,20 +663,14 @@ The number of search or bulk index operations processed. Documents are
 processed in batches instead of individually.
 end::pages-processed[]
 
-tag::path-pipeline[]
-`<pipeline>`::
-(Optional, string) Comma-separated list or wildcard expression of pipeline IDs
-used to limit the request.
-end::path-pipeline[]
-
 tag::pivot[]
-The method for transforming the data. These objects define the pivot function
-`group by` fields and the aggregation to reduce the data.
+The `pivot` method transforms the data by aggregating and grouping it. These
+objects define the `group by` fields and the aggregation to reduce the data.
 end::pivot[]
 
 tag::pivot-aggs[]
 Defines how to aggregate the grouped data. The following aggregations are
-supported:
+currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
@@ -665,27 +680,27 @@ supported:
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
+* <<search-aggregations-metrics-geo-line,Geo line>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
+* <<search-aggregations-metrics-stats-aggregation,Stats>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-bucket-terms-aggregation, Terms>>
+* <<search-aggregations-metrics-top-metrics,Top Metrics>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
-
-
-IMPORTANT: {transforms-cap} support a subset of the functionality in
-aggregations. See <<transform-limitations>>.
 
 --
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined
-  per pivot. The following groupings are supported:
+Defines how to group the data. More than one grouping can be defined per pivot.
+The following groupings are currently supported:
 +
 --
 * <<_date_histogram,Date histogram>>
@@ -698,7 +713,7 @@ end::pivot-group-by[]
 
 tag::positions[]
 `positions`::
-(Optional, boolean) If `true`, the response includes term positions.
+(Optional, Boolean) If `true`, the response includes term positions.
 Defaults to `true`.
 end::positions[]
 
@@ -729,7 +744,7 @@ end::query[]
 
 tag::realtime[]
 `realtime`::
-(Optional, boolean) If `true`, the request is real-time as opposed to near-real-time.
+(Optional, Boolean) If `true`, the request is real-time as opposed to near-real-time.
 Defaults to `true`. See <<realtime>>.
 end::realtime[]
 
@@ -743,7 +758,7 @@ end::refresh[]
 
 tag::request_cache[]
 `request_cache`::
-(Optional, boolean) If `true`, the request cache is used for this request.
+(Optional, Boolean) If `true`, the request cache is used for this request.
 Defaults to the index-level setting.
 end::request_cache[]
 
@@ -755,15 +770,9 @@ end::requests_per_second[]
 
 tag::routing[]
 `routing`::
-(Optional, string) Target the specified primary shard.
-end::routing[]
-
-tag::index-routing[]
-`routing`::
 (Optional, string)
-Custom <<mapping-routing-field, routing value>>
-used to route operations to a specific shard.
-end::index-routing[]
+Custom value used to route operations to a specific shard.
+end::routing[]
 
 tag::cat-s[]
 `s`::
@@ -790,13 +799,6 @@ end::search-failures[]
 tag::search-time-ms[]
 The amount of time spent searching, in milliseconds.
 end::search-time-ms[]
-
-tag::search_timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>)
-Explicit timeout for each search request.
-Defaults to no timeout.
-end::search_timeout[]
 
 tag::search-total[]
 The number of search operations on the source index for the {transform}.
@@ -894,14 +896,24 @@ end::source-transforms[]
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
 pattern (for example, `"my-index-*"`), an array of indices (for example,
-`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for example,
-`["my-index-*", "my-other-index-*"]`.
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
+`"remote_name:index_name"`.
+
+NOTE: If any indices are in remote clusters then the master node and at least
+one transform node must have the `remote_cluster_client` node role.
 end::source-index-transforms[]
 
 tag::source-query-transforms[]
 A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
+
+tag::source-runtime-mappings-transforms[]
+Definitions of search-time runtime fields that can be used by the transform. For
+search runtime fields all data nodes, including remote nodes, must be 7.12 or
+later.
+end::source-runtime-mappings-transforms[]
 
 tag::state-transform[]
 The status of the {transform}, which can be one of the following values:
@@ -931,7 +943,7 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, boolean) If `true`, retrieves the document fields stored in the
+(Optional, Boolean) If `true`, retrieves the document fields stored in the
 index rather than the document `_source`. Defaults to `false`.
 end::stored_fields[]
 
@@ -953,9 +965,39 @@ The time delay between the current time and the latest input data time. The
 default value is `60s`.
 end::sync-time-delay[]
 
+tag::transform-latest[]
+The `latest` method transforms the data by finding the latest document for each
+unique key.
+end::transform-latest[]
+
+tag::transform-retention[]
+Defines a retention policy for the {transform}. Data that meets the defined
+criteria is deleted from the destination index.
+end::transform-retention[]
+
+tag::transform-retention-time[]
+Specifies that the {transform} uses a time field to set the retention policy.
+end::transform-retention-time[]
+
+tag::transform-retention-time-field[]
+The date field that is used to calculate the age of the document.
+end::transform-retention-time-field[]
+
+tag::transform-retention-time-max-age[]
+Specifies the maximum age of a document in the destination index. Documents that
+are older than the configured value are removed from the destination index.
+end::transform-retention-time-max-age[]
+
 tag::transform-settings[]
 Defines optional {transform} settings.
 end::transform-settings[]
+
+tag::transform-settings-dates-as-epoch-milli[]
+Defines if dates in the output should be written as ISO formatted string (default)
+or as millis since epoch. `epoch_millis` has been the default for transforms created
+before version `7.11`. For compatible output set this to `true`.
+The default value is `false`.
+end::transform-settings-dates-as-epoch-milli[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
@@ -963,12 +1005,28 @@ throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
+tag::transform-settings-align-checkpoints[]
+Specifies whether the transform checkpoint ranges should be optimized for performance.
+Such optimization can align checkpoint ranges with date histogram interval when date histogram
+is specified as a group source in the transform config. As an effect, less document updates in the
+destination index will be performed thus improving overall performance.
+The default value is `true`, which means the checkpoint ranges will be optimized if possible.
+end::transform-settings-align-checkpoints[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
+
+tag::transform-sort[]
+Specifies the date field that is used to identify the latest documents.
+end::transform-sort[]
+
+tag::transform-unique-key[]
+Specifies an array of one or more fields that are used to group the data.
+end::transform-unique-key[]
 
 tag::target-index[]
 `<target-index>`::
@@ -989,14 +1047,20 @@ end::task-id[]
 
 tag::term_statistics[]
 `term_statistics`::
-(Optional, boolean) If `true`, the response includes term frequency and document frequency.
+(Optional, Boolean) If `true`, the response includes term frequency and document frequency.
 Defaults to `false`.
 end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::
-(Optional, integer) The maximum number of documents to collect for each shard,
-upon reaching which the query execution will terminate early.
+(Optional, integer) Maximum number of documents to collect for each shard. If a
+query reaches this limit, {es} terminates the query early. {es} collects
+documents before sorting.
++
+IMPORTANT: Use with caution. {es} applies this parameter to each shard handling
+the request. When possible, let {es} perform early termination automatically.
+Avoid specifying this parameter for requests that target data streams with
+backing indices across multiple data tiers.
 end::terminate_after[]
 
 tag::time[]
@@ -1006,19 +1070,19 @@ Unit used to display time values.
 end::time[]
 
 tag::timeoutparms[]
-
-tag::timeout[]
 tag::master-timeout[]
 `master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+(Optional, <<time-units, time units>>)
+Period to wait for a connection to the master node. If no response is received
+before the timeout expires, the request fails and returns an error. Defaults to
+`30s`.
 end::master-timeout[]
 
+tag::timeout[]
 `timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
+(Optional, <<time-units, time units>>)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
 end::timeout[]
 end::timeoutparms[]
 
@@ -1043,13 +1107,13 @@ end::trigger-count[]
 
 tag::cat-v[]
 `v`::
-(Optional, boolean) If `true`, the response includes column headings.
+(Optional, Boolean) If `true`, the response includes column headings.
 Defaults to `false`.
 end::cat-v[]
 
 tag::version[]
 `version`::
-(Optional, boolean) If `true`, returns the document version as part of a hit.
+(Optional, Boolean) If `true`, returns the document version as part of a hit.
 end::version[]
 
 tag::doc-version[]
@@ -1065,7 +1129,7 @@ end::segment-version[]
 
 tag::version_type[]
 `version_type`::
-(Optional, enum) Specific version type: `internal`, `external`,
+(Optional, enum) Specific version type: `external`,
 `external_gte`.
 end::version_type[]
 
@@ -1081,9 +1145,3 @@ Default: 1, the primary shard.
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
-
-tag::wait_for_completion[]
-`wait_for_completion`::
-(Optional, boolean) If `true`, the request blocks until the operation is complete.
-Defaults to `true`.
-end::wait_for_completion[]

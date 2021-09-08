@@ -7,13 +7,15 @@
 showTables
 SHOW TABLES INCLUDE FROZEN;
 
-       name        | type  |  kind   
+       name        | type  |  kind
+empty_mapping      |TABLE  |INDEX
 frozen_emp         |TABLE  |FROZEN INDEX
 logs               |TABLE  |INDEX
+logs_nanos         |TABLE  |INDEX
 test_alias         |VIEW   |ALIAS
-test_alias_emp     |VIEW   |ALIAS 
-test_emp           |TABLE  |INDEX  
-test_emp_copy      |TABLE  |INDEX  
+test_alias_emp     |VIEW   |ALIAS
+test_emp           |TABLE  |INDEX
+test_emp_copy      |TABLE  |INDEX
 ;
 
 columnFromFrozen
@@ -30,25 +32,25 @@ F
 percentileFrozen
 SELECT gender, PERCENTILE(emp_no, 92.45) p1 FROM FROZEN frozen_emp GROUP BY gender;
 
-gender:s             | p1:d     
-null                 |10018.745 
+gender:s             | p1:d
+null                 |10018.745
 F                    |10098.0085
-M                    |10091.393 
+M                    |10091.393
 ;
 
 countFromFrozen
 SELECT gender, COUNT(*) AS c FROM FROZEN frozen_emp GROUP BY gender;
 
 gender:s       | c:l
-null           |10             
-F              |33             
+null           |10
+F              |33
 M              |57
 ;
 
 sum
 SELECT SUM(salary) FROM FROZEN frozen_emp;
 
-  SUM(salary)
+  SUM(salary):l
 ---------------
 4824855
 ;

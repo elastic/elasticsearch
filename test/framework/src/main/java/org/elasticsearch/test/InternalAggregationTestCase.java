@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -86,14 +75,18 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -248,6 +241,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
+        map.put(LongRareTerms.NAME, (p, c) -> ParsedLongRareTerms.fromXContent(p, (String) c));
+        map.put(StringRareTerms.NAME, (p, c) -> ParsedStringRareTerms.fromXContent(p, (String) c));
         map.put(MissingAggregationBuilder.NAME, (p, c) -> ParsedMissing.fromXContent(p, (String) c));
         map.put(NestedAggregationBuilder.NAME, (p, c) -> ParsedNested.fromXContent(p, (String) c));
         map.put(ReverseNestedAggregationBuilder.NAME, (p, c) -> ParsedReverseNested.fromXContent(p, (String) c));
@@ -327,7 +322,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     @Override
-
+    @SuppressWarnings("unchecked")
     protected final Class<T> categoryClass() {
         return (Class<T>) InternalAggregation.class;
     }
@@ -362,13 +357,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, inputs.size());
-            List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
+            List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
+            // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+            toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             @SuppressWarnings("unchecked")
-            T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
+            T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
-            for (InternalAggregation internalAggregation : internalAggregations) {
+            for (InternalAggregation internalAggregation : toPartialReduce) {
                 initialBucketCount += countInnerBucket(internalAggregation);
             }
             int reducedBucketCount = countInnerBucket(reduced);
@@ -414,7 +411,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(randomAlphaOfLength(5));
     }
 
-    private T createTestInstance(String name) {
+    public final Map<String, Object> createTestMetadata() {
         Map<String, Object> metadata = null;
         if (randomBoolean()) {
             metadata = new HashMap<>();
@@ -423,7 +420,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, metadata);
+        return metadata;
+    }
+
+    private T createTestInstance(String name) {
+        return createTestInstance(name, createTestMetadata());
     }
 
     /** Return an instance on an unmapped field. */
@@ -528,7 +529,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      * @return a random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.
      */
-    protected static DocValueFormat randomNumericDocValueFormat() {
+    public static DocValueFormat randomNumericDocValueFormat() {
         final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
         formats.add(() -> DocValueFormat.RAW);
         formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));

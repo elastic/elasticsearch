@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
@@ -66,7 +55,7 @@ import static java.util.Collections.emptyList;
  * worst case. Critically, it is a very fast {@code O(1)} to check if a value
  * is competitive at all which, so long as buckets aren't hit in reverse
  * order, they mostly won't be. Extracting results in sorted order is still
- * {@code O(n * log n)}. 
+ * {@code O(n * log n)}.
  * </p>
  * <p>
  * When we first collect a bucket we make sure that we've allocated enough
@@ -90,7 +79,7 @@ public abstract class BucketedSort implements Releasable {
          * <p>
          * Both parameters will have previously been loaded by
          * {@link Loader#loadFromDoc(long, int)} so the implementer shouldn't
-         * need to grow the underlying storage to implement this. 
+         * need to grow the underlying storage to implement this.
          * </p>
          */
         void swap(long lhs, long rhs);
@@ -128,7 +117,7 @@ public abstract class BucketedSort implements Releasable {
     private final SortOrder order;
     private final DocValueFormat format;
     private final int bucketSize;
-    private final ExtraData extra;
+    protected final ExtraData extra;
     /**
      * {@code true} if the bucket is in heap mode, {@code false} if
      * it is still gathering.
@@ -171,7 +160,7 @@ public abstract class BucketedSort implements Releasable {
      */
     @FunctionalInterface
     public interface ResultBuilder<T> {
-        T build(long index, SortValue sortValue);
+        T build(long index, SortValue sortValue) throws IOException;
     }
 
     /**
@@ -180,7 +169,7 @@ public abstract class BucketedSort implements Releasable {
      * @param builder builds results. See {@link ExtraData} for how to store
      *                data along side the sort for this to extract.
      */
-    public final <T extends Comparable<T>> List<T> getValues(long bucket, ResultBuilder<T> builder) {
+    public final <T extends Comparable<T>> List<T> getValues(long bucket, ResultBuilder<T> builder) throws IOException {
         long rootIndex = bucket * bucketSize;
         if (rootIndex >= values().size()) {
             // We've never seen this bucket.
@@ -201,14 +190,14 @@ public abstract class BucketedSort implements Releasable {
      * Get the values for a bucket if it has been collected. If it hasn't
      * then returns an empty array.
      */
-    public final List<SortValue> getValues(long bucket) {
+    public final List<SortValue> getValues(long bucket) throws IOException {
         return getValues(bucket, (i, sv) -> sv);
     }
 
     /**
-     * Is this bucket a min heap {@code true} or in gathering mode {@code false}? 
+     * Is this bucket a min heap {@code true} or in gathering mode {@code false}?
      */
-    private boolean inHeapMode(long bucket) {
+    public boolean inHeapMode(long bucket) {
         return heapMode.get(bucket);
     }
 
@@ -254,7 +243,7 @@ public abstract class BucketedSort implements Releasable {
     /**
      * {@code true} if the entry at index {@code lhs} is "better" than
      * the entry at {@code rhs}. "Better" in this means "lower" for
-     * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}. 
+     * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     protected abstract boolean betterThan(long lhs, long rhs);
 
@@ -283,7 +272,7 @@ public abstract class BucketedSort implements Releasable {
 
     /**
      * Initialize the gather offsets after setting up values. Subclasses
-     * should call this once, after setting up their {@link #values()}.  
+     * should call this once, after setting up their {@link #values()}.
      */
     protected final void initGatherOffsets() {
         setNextGatherOffsets(0);
@@ -325,12 +314,12 @@ public abstract class BucketedSort implements Releasable {
      * case.
      * </p>
      * <ul>
-     * <li>Hayward, Ryan; McDiarmid, Colin (1991).  
+     * <li>Hayward, Ryan; McDiarmid, Colin (1991).
      * <a href="https://web.archive.org/web/20160205023201/http://www.stats.ox.ac.uk/__data/assets/pdf_file/0015/4173/heapbuildjalg.pdf">
      * Average Case Analysis of Heap Building byRepeated Insertion</a> J. Algorithms.
      * <li>D.E. Knuth, ”The Art of Computer Programming, Vol. 3, Sorting and Searching”</li>
      * </ul>
-     * @param rootIndex the index the start of the bucket 
+     * @param rootIndex the index the start of the bucket
      */
     private void heapify(long rootIndex) {
         int maxParent = bucketSize / 2 - 1;
@@ -344,7 +333,7 @@ public abstract class BucketedSort implements Releasable {
      * runs in {@code O(log n)} time.
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
-     *               For example, 0 is the "root". 
+     *               For example, 0 is the "root".
      */
     private void downHeap(long rootIndex, int parent) {
         while (true) {
@@ -443,7 +432,7 @@ public abstract class BucketedSort implements Releasable {
         /**
          * {@code true} if the sort value for the doc is "better" than the
          * entry at {@code index}. "Better" in means is "lower" for
-         * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}. 
+         * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
          */
         protected abstract boolean docBetterThan(long index);
 
@@ -545,7 +534,7 @@ public abstract class BucketedSort implements Releasable {
          * The maximum size of buckets this can store. This is because we
          * store the next offset to write to in a float and floats only have
          * {@code 23} bits of mantissa so they can't accurate store values
-         * higher than {@code 2 ^ 24}. 
+         * higher than {@code 2 ^ 24}.
          */
         public static final int MAX_BUCKET_SIZE = (int) Math.pow(2, 24);
 

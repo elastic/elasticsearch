@@ -1,0 +1,56 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+class java.util.regex.Pattern {
+# Pattern compile(String)   Intentionally not included. We don't want dynamic patterns because they allow regexes to be generated per time
+#                           the script is run which is super slow. LRegex generates code that calls this method but it skips these checks.
+  Predicate asPredicate()
+  int flags()
+  Matcher org.elasticsearch.painless.api.Augmentation matcher(int, CharSequence) @inject_constant[1="regex_limit_factor"]
+  String pattern()
+  String quote(String)
+  String[] org.elasticsearch.painless.api.Augmentation split(int, CharSequence) @inject_constant[1="regex_limit_factor"]
+  String[] org.elasticsearch.painless.api.Augmentation split(int, CharSequence,int) @inject_constant[1="regex_limit_factor"]
+  Stream org.elasticsearch.painless.api.Augmentation splitAsStream(int, CharSequence) @inject_constant[1="regex_limit_factor"]
+}
+
+class java.util.regex.Matcher {
+  int end()
+  int end(int)
+  boolean find()
+  boolean find(int)
+  String group()
+  String group(int)
+  String org.elasticsearch.painless.api.Augmentation namedGroup(String)
+  int groupCount()
+  boolean hasAnchoringBounds()
+  boolean hasTransparentBounds()
+  boolean hitEnd()
+  boolean lookingAt()
+  boolean matches()
+  Pattern pattern()
+  String quoteReplacement(String)
+  Matcher region(int,int)
+  int regionEnd()
+  int regionStart()
+  String replaceAll(String)
+  String replaceFirst(String)
+  boolean requireEnd()
+  Matcher reset()
+  # Note: Do not whitelist Matcher.reset(String), it subverts regex limiting
+  int start()
+  int start(int)
+  Matcher useAnchoringBounds(boolean)
+  Matcher usePattern(Pattern)
+  Matcher useTransparentBounds(boolean)
+}

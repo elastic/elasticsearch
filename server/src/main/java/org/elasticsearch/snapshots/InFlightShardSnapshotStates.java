@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 
 import java.util.Collections;
@@ -51,35 +41,34 @@ public final class InFlightShardSnapshotStates {
      * @return in flight shard states for all snapshot operation running for the given repository name
      */
     public static InFlightShardSnapshotStates forRepo(String repoName, List<SnapshotsInProgress.Entry> snapshots) {
-        final Map<String, Map<Integer, String>> generations = new HashMap<>();
+        final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
             if (runningSnapshot.repository().equals(repoName) == false) {
                 continue;
             }
-            if (runningSnapshot.isClone()) {
-                for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clone : runningSnapshot.clones()) {
-                    final RepositoryShardId repoShardId = clone.key;
-                    addStateInformation(generations, busyIds, clone.value, repoShardId.shardId(), repoShardId.indexName());
-                }
-            } else {
-                for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shards()) {
-                    final ShardId sid = shard.key;
-                    addStateInformation(generations, busyIds, shard.value, sid.id(), sid.getIndexName());
-                }
+            for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardsByRepoShardId()) {
+                final RepositoryShardId sid = shard.key;
+                addStateInformation(generations, busyIds, shard.value, sid.shardId(), sid.indexName());
             }
         }
         return new InFlightShardSnapshotStates(generations, busyIds);
     }
 
-    private static void addStateInformation(Map<String, Map<Integer, String>> generations, Map<String, Set<Integer>> busyIds,
-                                            SnapshotsInProgress.ShardSnapshotStatus shardState, int shardId, String indexName) {
+    private static void addStateInformation(
+        Map<String, Map<Integer, ShardGeneration>> generations,
+        Map<String, Set<Integer>> busyIds,
+        SnapshotsInProgress.ShardSnapshotStatus shardState,
+        int shardId,
+        String indexName
+    ) {
         if (shardState.isActive()) {
             busyIds.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
             assert assertGenerationConsistency(generations, indexName, shardId, shardState.generation());
         } else if (shardState.state() == SnapshotsInProgress.ShardState.SUCCESS) {
-            assert busyIds.getOrDefault(indexName, Collections.emptySet()).contains(shardId) == false :
-                "Can't have a successful operation queued after an in-progress operation";
+            assert busyIds.getOrDefault(indexName, Collections.emptySet()).contains(shardId) == false
+                : "Can't have a successful operation queued after an in-progress operation";
             generations.computeIfAbsent(indexName, k -> new HashMap<>()).put(shardId, shardState.generation());
         }
     }
@@ -88,22 +77,25 @@ public final class InFlightShardSnapshotStates {
      * Map that maps index name to a nested map of shard id to most recent successful shard generation for that
      * shard id.
      */
-    private final Map<String, Map<Integer, String>> generations;
+    private final Map<String, Map<Integer, ShardGeneration>> generations;
 
     /**
      * Map of index name to a set of shard ids that currently are actively executing an operation on the repository.
      */
     private final Map<String, Set<Integer>> activeShardIds;
 
-
-    private InFlightShardSnapshotStates(Map<String, Map<Integer, String>> generations, Map<String, Set<Integer>> activeShardIds) {
+    private InFlightShardSnapshotStates(Map<String, Map<Integer, ShardGeneration>> generations, Map<String, Set<Integer>> activeShardIds) {
         this.generations = generations;
         this.activeShardIds = activeShardIds;
     }
 
-    private static boolean assertGenerationConsistency(Map<String, Map<Integer, String>> generations, String indexName,
-                                                       int shardId, @Nullable String activeGeneration) {
-        final String bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
+    private static boolean assertGenerationConsistency(
+        Map<String, Map<Integer, ShardGeneration>> generations,
+        String indexName,
+        int shardId,
+        @Nullable ShardGeneration activeGeneration
+    ) {
+        final ShardGeneration bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
         assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
         return true;
     }
@@ -130,8 +122,8 @@ public final class InFlightShardSnapshotStates {
      * @return most recent shard generation for the given shard
      */
     @Nullable
-    String generationForShard(IndexId indexId, int shardId, ShardGenerations shardGenerations) {
-        final String inFlightBest = generations.getOrDefault(indexId.getName(), Collections.emptyMap()).get(shardId);
+    ShardGeneration generationForShard(IndexId indexId, int shardId, ShardGenerations shardGenerations) {
+        final ShardGeneration inFlightBest = generations.getOrDefault(indexId.getName(), Collections.emptyMap()).get(shardId);
         if (inFlightBest != null) {
             return inFlightBest;
         }

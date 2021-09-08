@@ -9,8 +9,6 @@
 
 Retrieves configuration information for {dfanalytics-jobs}.
 
-experimental[]
-
 
 [[ml-get-dfanalytics-request]]
 == {api-request-title}
@@ -27,12 +25,8 @@ experimental[]
 [[ml-get-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-dfanalytics-desc]]
@@ -60,7 +54,7 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
@@ -72,7 +66,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
 `exclude_generated`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
 [role="child_attributes"]
@@ -128,7 +122,7 @@ to `ml`.
 (string) The unique identifier of the {dfanalytics-job}.
 
 `model_memory_limit`:::
-(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+(string) The `model_memory_limit` that has been set for the {dfanalytics-job}.
 
 `source`:::
 (object) The configuration of how the analysis data is sourced. It has an

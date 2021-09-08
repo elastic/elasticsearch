@@ -49,18 +49,22 @@ teardown:
   - match: { created: true }
 
   - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found: true }
+  - match: { _id: "my_watch" }
+
+  - do:
       watcher.delete_watch:
         id: "my_watch"
   - match: { found: true }
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.watches], but in a future major version, direct access to system indices will be prevented by default"
-      search:
-        rest_total_hits_as_int: true
-        index: .watches
-        body: { "query": { "term": { "_id": "my_watch" } } }
-  - match: { hits.total: 0 }
+      catch: missing
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found: false }
+  - match: { _id: "my_watch" }
 
 ---
 "Non existent watch returns 404":

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
@@ -29,14 +18,11 @@ import org.elasticsearch.action.search.SearchProgressListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -71,8 +57,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
-
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)
@@ -80,31 +64,21 @@ import static java.util.Collections.emptyList;
 @State(Scope.Thread)
 @Fork(value = 1)
 public class TermsReduceBenchmark {
-    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-    private final SearchPhaseController controller = new SearchPhaseController(
-        namedWriteableRegistry,
-        req -> new InternalAggregation.ReduceContextBuilder() {
-            @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
-            }
-
-            @Override
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-                    Integer.MAX_VALUE,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                );
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    null,
-                    null,
-                    bucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
-                );
-            }
+    private final SearchPhaseController controller = new SearchPhaseController(req -> new InternalAggregation.ReduceContextBuilder() {
+        @Override
+        public InternalAggregation.ReduceContext forPartialReduction() {
+            return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
         }
-    );
+
+        @Override
+        public InternalAggregation.ReduceContext forFinalReduction() {
+            final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                Integer.MAX_VALUE,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            );
+            return InternalAggregation.ReduceContext.forFinalReduction(null, null, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+        }
+    });
 
     @State(Scope.Benchmark)
     public static class TermsList extends AbstractList<InternalAggregations> {
@@ -165,7 +139,7 @@ public class TermsReduceBenchmark {
                 true,
                 0,
                 buckets,
-                0
+                null
             );
         }
 
@@ -214,7 +188,6 @@ public class TermsReduceBenchmark {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             controller,
             SearchProgressListener.NOOP,
-            namedWriteableRegistry,
             shards.size(),
             exc -> {}
         );

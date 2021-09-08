@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -64,24 +52,23 @@ import java.util.stream.StreamSupport;
 /**
  * Represents the current state of the cluster.
  * <p>
- * The cluster state object is immutable with the exception of the {@link RoutingNodes} structure, which is
- * built on demand from the {@link RoutingTable}.
- * The cluster state can be updated only on the master node. All updates are performed by on a
- * single thread and controlled by the {@link ClusterService}. After every update the
- * {@link Discovery#publish} method publishes a new version of the cluster state to all other nodes in the
- * cluster. The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
- * the type of discovery.
+ * The cluster state object is immutable with the exception of the {@link RoutingNodes} structure, which is built on demand from the {@link
+ * RoutingTable}. The cluster state can be updated only on the master node. All updates are performed by on a single thread and controlled
+ * by the {@link ClusterService}. After every update the {@link Discovery#publish} method publishes a new version of the cluster state to
+ * all other nodes in the cluster.
  * <p>
- * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state
- * differences instead of the entire state on each change. The publishing mechanism should only send differences
- * to a node if this node was present in the previous version of the cluster state. If a node was
- * not present in the previous version of the cluster state, this node is unlikely to have the previous cluster
- * state version and should be sent a complete version. In order to make sure that the differences are applied to the
- * correct version of the cluster state, each cluster state version update generates {@link #stateUUID} that uniquely
- * identifies this version of the state. This uuid is verified by the {@link ClusterStateDiff#apply} method to
- * make sure that the correct diffs are applied. If uuids don’t match, the {@link ClusterStateDiff#apply} method
- * throws the {@link IncompatibleClusterStateVersionException}, which causes the publishing mechanism to send
+ * Implements the {@link Diffable} interface in order to support publishing of cluster state differences instead of the entire state on each
+ * change. The publishing mechanism only sends differences to a node if this node was present in the previous version of the cluster state.
+ * If a node was not present in the previous version of the cluster state, this node is unlikely to have the previous cluster state version
+ * and should be sent a complete version. In order to make sure that the differences are applied to the correct version of the cluster
+ * state, each cluster state version update generates {@link #stateUUID} that uniquely identifies this version of the state. This uuid is
+ * verified by the {@link ClusterStateDiff#apply} method to make sure that the correct diffs are applied. If uuids don’t match, the {@link
+ * ClusterStateDiff#apply} method throws the {@link IncompatibleClusterStateVersionException}, which causes the publishing mechanism to send
  * a full version of the cluster state to the node on which this exception was thrown.
+ * <p>
+ * Implements {@link ToXContentFragment} to be exposed in REST APIs (e.g. {@code GET _cluster/state} and {@code POST _cluster/reroute}) and
+ * to be indexed by monitoring, mostly just for diagnostics purposes. The XContent representation does not need to be 100% faithful since we
+ * never reconstruct a cluster state from its XContent representation, but the more faithful it is the more useful it is for diagnostics.
  */
 public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
 
@@ -97,6 +84,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return false;
         }
 
+        /**
+         * Serialize this {@link Custom} for diagnostic purposes, exposed by the <pre>GET _cluster/state</pre> API etc. The XContent
+         * representation does not need to be 100% faithful since we never reconstruct a cluster state from its XContent representation, but
+         * the more faithful it is the more useful it is for diagnostics.
+         */
+        @Override
+        XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
@@ -323,7 +317,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
 
-        private static Map<String, Metric> valueToEnum;
+        private static final Map<String, Metric> valueToEnum;
 
         static {
             valueToEnum = new HashMap<>();
@@ -348,7 +342,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 }
                 Metric m = valueToEnum.get(metric);
                 if (m == null) {
-                    if (!ignoreUnknown) {
+                    if (ignoreUnknown == false) {
                         throw new IllegalArgumentException("Unknown metric [" + metric + "]");
                     }
                 } else {
@@ -365,7 +359,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
 
@@ -384,7 +377,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.BLOCKS)) {
             builder.startObject("blocks");
 
-            if (!blocks().global().isEmpty()) {
+            if (blocks().global().isEmpty() == false) {
                 builder.startObject("global");
                 for (ClusterBlock block : blocks().global()) {
                     block.toXContent(builder, params);
@@ -392,7 +385,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.endObject();
             }
 
-            if (!blocks().indices().isEmpty()) {
+            if (blocks().indices().isEmpty() == false) {
                 builder.startObject("indices");
                 for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
                     builder.startObject(entry.key);
@@ -646,19 +639,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         routingTable.writeTo(out);
         nodes.writeTo(out);
         blocks.writeTo(out);
-        // filter out custom states not supported by the other node
-        int numberOfCustoms = 0;
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
-                numberOfCustoms++;
-            }
-        }
-        out.writeVInt(numberOfCustoms);
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
-                out.writeNamedWriteable(cursor.value);
-            }
-        }
+        VersionedNamedWriteable.writeVersionedWritables(out, customs);
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }

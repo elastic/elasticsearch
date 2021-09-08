@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,8 +28,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class CompositeValuesSourceParserHelper {
 
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
-        objectParser.declareField(VB::field, XContentParser::text,
-            new ParseField("field"), ObjectParser.ValueType.STRING);
+        objectParser.declareField(VB::field, XContentParser::text, new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
@@ -48,10 +36,14 @@ public class CompositeValuesSourceParserHelper {
             return valueType;
         }, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 
-        objectParser.declareField(VB::script,
-            (parser, context) -> Script.parse(parser), Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        objectParser.declareField(
+            VB::script,
+            (parser, context) -> Script.parse(parser),
+            Script.SCRIPT_PARSE_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_STRING
+        );
 
-        objectParser.declareField(VB::order,  XContentParser::text, new ParseField("order"), ObjectParser.ValueType.STRING);
+        objectParser.declareField(VB::order, XContentParser::text, new ParseField("order"), ObjectParser.ValueType.STRING);
     }
 
     public static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
@@ -64,8 +56,13 @@ public class CompositeValuesSourceParserHelper {
             code = 2;
         } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
             if (out.getVersion().before(Version.V_7_5_0)) {
-                throw new IOException("Attempting to serialize [" + builder.getClass().getSimpleName()
-                    + "] to a node with unsupported version [" + out.getVersion() + "]");
+                throw new IOException(
+                    "Attempting to serialize ["
+                        + builder.getClass().getSimpleName()
+                        + "] to a node with unsupported version ["
+                        + out.getVersion()
+                        + "]"
+                );
             }
             code = 3;
         } else {
@@ -77,7 +74,7 @@ public class CompositeValuesSourceParserHelper {
 
     public static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
         int code = in.readByte();
-        switch(code) {
+        switch (code) {
             case 0:
                 return new TermsValuesSourceBuilder(in);
             case 1:
@@ -105,7 +102,7 @@ public class CompositeValuesSourceParserHelper {
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         final CompositeValuesSourceBuilder<?> builder;
-        switch(type) {
+        switch (type) {
             case TermsValuesSourceBuilder.TYPE:
                 builder = TermsValuesSourceBuilder.parse(name, parser);
                 break;
@@ -127,7 +124,7 @@ public class CompositeValuesSourceParserHelper {
     }
 
     public static XContentBuilder toXContent(CompositeValuesSourceBuilder<?> source, XContentBuilder builder, Params params)
-            throws IOException {
+        throws IOException {
         builder.startObject();
         builder.startObject(source.name());
         source.toXContent(builder, params);

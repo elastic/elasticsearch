@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform;
@@ -18,17 +19,20 @@ public class TransformMessages {
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
     public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
         "Detected transforms with no config [{0}]. Use force to stop/delete them.";
-    public static final String REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION = "Failed to validate configuration";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
     public static final String REST_PUT_TRANSFORM_INCONSISTENT_ID =
         "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
-    public static final String TRANSFORM_CONFIG_INVALID = "Transform configuration is invalid [{0}]";
     public static final String REST_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
     public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist transform statistics for transform [{0}]";
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
+    public static final String FAILED_TO_UNSET_RESET_MODE =
+        "Failed to set [reset_mode] to [false] after {0}. To allow transforms to run, please call the feature reset API again";
+
     public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
+    public static final String REST_WARN_NO_TRANSFORM_NODES =
+        "Transform requires the transform node role for at least 1 node, found no transform nodes";
 
     public static final String CANNOT_STOP_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state with reason [{1}]."
         + " Use force stop to stop the transform.";
@@ -44,13 +48,13 @@ public class TransformMessages {
         "Failed to parse transform statistics for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CHECKPOINT = "Failed to load transform checkpoint for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_STATE = "Failed to load transform state for transform [{0}]";
-    public static final String TRANSFORM_CONFIGURATION_NO_TRANSFORM = "Transform configuration must specify exactly 1 function";
+    public static final String TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT = "Transform configuration must specify exactly 1 function";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY = "Pivot transform configuration must specify at least 1 group_by";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION =
         "Pivot transform configuration must specify at least 1 aggregation";
-    public static final String TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
-        "Failed to create composite aggregation from pivot function";
-    public static final String TRANSFORM_CONFIGURATION_INVALID = "Transform configuration [{0}] has invalid elements";
+    public static final String TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
+        "Failed to create composite aggregation from {0} function";
+    public static final String TRANSFORM_CONFIGURATION_INVALID = "Transform configuration [{0}] has invalid elements: [{1}]";
     public static final String UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
     public static final String TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD =
         "Cannot change the current sync configuration of transform [{0}] from [{1}] to [{2}]";

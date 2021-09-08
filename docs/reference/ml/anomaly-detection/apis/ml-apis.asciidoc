@@ -19,6 +19,7 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-post-data,Post data to {anomaly-jobs}>>
 * <<ml-update-job,Update {anomaly-jobs}>>
 * <<ml-forecast,Create>> or <<ml-delete-forecast,delete forecasts>>
+* <<ml-reset-job,Reset {anomaly-jobs}>> 
 
 
 [discrete]
@@ -51,13 +52,13 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-snapshot-endpoint]]
-== Model Snapshots
+== Model snapshots
 
 * <<ml-delete-snapshot,Delete model snapshot>>
 * <<ml-get-snapshot,Get model snapshot info>>
 * <<ml-revert-snapshot,Revert model snapshot>>
 * <<ml-update-snapshot,Update model snapshot>>
-
+* <<ml-upgrade-job-model-snapshot,Upgrade model snapshot>>
 
 [discrete]
 [[ml-api-result-endpoint]]
@@ -68,12 +69,6 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-get-category,Get categories>>
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
-
-[discrete]
-[[ml-api-file-structure-endpoint]]
-== File structure
-
-* <<ml-find-file-structure,Find file structure>>
 
 [discrete]
 [[ml-api-ml-info-endpoint]]

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.search;
@@ -24,7 +13,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,14 +34,21 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in count requests is deprecated.";
     @Override
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_count"),
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count"));
+            new Route(POST, "/{index}/_count"),
+            Route.builder(GET, "/{index}/{type}/_count")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_count")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -60,6 +58,10 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            deprecationLogger.compatibleApiWarning("count_with_types", TYPES_DEPRECATION_MESSAGE);
+            request.param("type");
+        }
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
@@ -83,11 +85,7 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.preference(request.param("preference"));
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
-        if (terminateAfter < 0) {
-            throw new IllegalArgumentException("terminateAfter must be > 0");
-        } else if (terminateAfter > 0) {
-            searchSourceBuilder.terminateAfter(terminateAfter);
-        }
+        searchSourceBuilder.terminateAfter(terminateAfter);
         return channel -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {

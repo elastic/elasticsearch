@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
@@ -25,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     // can't add a second test method, because each test run creates a new instance of this class and that will will result
     // in a new random value:
@@ -82,9 +84,9 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build();
     }

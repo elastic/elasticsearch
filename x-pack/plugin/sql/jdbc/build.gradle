@@ -27,14 +27,13 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation project(":test:framework")
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+testImplementation(testArtifact(project(xpackModule('core'))))}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-shadowJar {
+tasks.named("shadowJar").configure {
   relocate 'com.fasterxml', 'shadow.fasterxml'
   relocate('org.elasticsearch', 'shadow.org.elasticsearch') {
     // Don't relocate the JDBC driver classes themselves as that's (mostly) public API
@@ -42,10 +41,12 @@ shadowJar {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  'com.fasterxml.jackson.databind.ObjectMapper',
-  'com.fasterxml.jackson.databind.cfg.MapperBuilder'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'com.fasterxml.jackson.databind.ObjectMapper',
+          'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
+}
 
 tasks.named("test").configure {
   // reset the unit test classpath as using the shadow jar won't work due to relocated packages

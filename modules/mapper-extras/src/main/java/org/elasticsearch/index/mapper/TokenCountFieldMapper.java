@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,7 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,14 +25,14 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * A {@link FieldMapper} that takes a string and writes a count of the tokens in that string
  * to the index.  In most ways the mapper acts just like an {@link NumberFieldMapper}.
  */
-public class TokenCountFieldMapper extends ParametrizedFieldMapper {
+public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
     private static TokenCountFieldMapper toType(FieldMapper in) {
         return (TokenCountFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -69,18 +58,18 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public TokenCountFieldMapper build(BuilderContext context) {
+        public TokenCountFieldMapper build(ContentPath contentPath) {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue());
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -88,15 +77,15 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
 
         TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
                             boolean hasDocValues, Number nullValue, Map<String, String> meta) {
-            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta, null, false);
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
                 return lookup -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }
     }
 
@@ -121,13 +110,8 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        final String value = context.parser().textOrNull();
 
         if (value == null && nullValue == null) {
             return;
@@ -196,7 +180,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

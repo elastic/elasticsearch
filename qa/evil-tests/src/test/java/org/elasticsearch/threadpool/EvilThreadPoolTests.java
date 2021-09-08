@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -64,9 +53,8 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnDirectExecutorService() throws InterruptedException {
-        final ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        checkExecutionError(getExecuteRunner(directExecutorService));
-        checkExecutionError(getSubmitRunner(directExecutorService));
+        checkExecutionError(getExecuteRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE));
+        checkExecutionError(getSubmitRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE));
     }
 
     public void testExecutionErrorOnFixedESThreadPoolExecutor() throws InterruptedException {
@@ -92,8 +80,12 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
-        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
+        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
+            "test",
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
             checkExecutionError(getSubmitRunner(prioritizedExecutor));
@@ -109,7 +101,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnScheduler() throws InterruptedException {
-        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         try {
             checkExecutionError(getExecuteRunner(scheduler));
             checkExecutionError(getSubmitRunner(scheduler));
@@ -162,9 +154,8 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnDirectExecutorService() throws InterruptedException {
-        final ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        checkExecutionException(getExecuteRunner(directExecutorService), true);
-        checkExecutionException(getSubmitRunner(directExecutorService), false);
+        checkExecutionException(getExecuteRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE), true);
+        checkExecutionException(getSubmitRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE), false);
     }
 
     public void testExecutionExceptionOnFixedESThreadPoolExecutor() throws InterruptedException {
@@ -190,8 +181,12 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
-        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
+        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
+            "test",
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);
@@ -208,7 +203,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnScheduler() throws InterruptedException {
-        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         try {
             checkExecutionException(getExecuteRunner(scheduler), true);
             // while submit does return a Future, we choose to log exceptions anyway,

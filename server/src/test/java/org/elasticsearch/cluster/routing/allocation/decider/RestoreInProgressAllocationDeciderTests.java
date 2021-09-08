@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -89,9 +78,14 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         final Decision decision = executeAllocation(clusterState, primary);
         assertEquals(Decision.Type.NO, decision.type());
-        assertThat(decision.getExplanation(), equalTo("shard has failed to be restored from the snapshot " +
-            "[_repository:_missing/_uuid] - manually close or delete the index [test] in order to retry to restore the snapshot again " +
-            "or use the reroute API to force the allocation of an empty primary shard. Details: [restore_source[_repository/_missing]]"));
+        assertThat(
+            decision.getExplanation(),
+            equalTo(
+                "shard has failed to be restored from the snapshot [_repository:_missing/_uuid] - manually close or "
+                    + "delete the index [test] in order to retry to restore the snapshot again or use the reroute API "
+                    + "to force the allocation of an empty primary shard. Details: [restore_source[_repository/_missing]]"
+            )
+        );
     }
 
     public void testCanAllocatePrimaryExistingInRestoreInProgress() {
@@ -119,9 +113,17 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             shardState = RestoreInProgress.State.FAILURE;
 
             UnassignedInfo currentInfo = primary.unassignedInfo();
-            UnassignedInfo newInfo = new UnassignedInfo(currentInfo.getReason(), currentInfo.getMessage(), new IOException("i/o failure"),
-                currentInfo.getNumFailedAllocations(), currentInfo.getUnassignedTimeInNanos(), currentInfo.getUnassignedTimeInMillis(),
-                currentInfo.isDelayed(), currentInfo.getLastAllocationStatus(), currentInfo.getFailedNodeIds());
+            UnassignedInfo newInfo = new UnassignedInfo(
+                currentInfo.getReason(),
+                currentInfo.getMessage(),
+                new IOException("i/o failure"),
+                currentInfo.getNumFailedAllocations(),
+                currentInfo.getUnassignedTimeInNanos(),
+                currentInfo.getUnassignedTimeInMillis(),
+                currentInfo.isDelayed(),
+                currentInfo.getLastAllocationStatus(),
+                currentInfo.getFailedNodeIds(),
+                currentInfo.getLastAllocatedNodeId());
             primary = primary.updateUnassigned(newInfo, primary.recoverySource());
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");
@@ -155,10 +157,15 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         Decision decision = executeAllocation(clusterState, primary);
         if (shardState == RestoreInProgress.State.FAILURE) {
             assertEquals(Decision.Type.NO, decision.type());
-            assertThat(decision.getExplanation(), startsWith("shard has failed to be restored from the snapshot " +
-                "[_repository:_existing/_uuid] - manually close or delete the index " +
-                "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of " +
-                "an empty primary shard. Details: [restore_source[_repository/_existing], failure java.io.IOException: i/o failure"));
+            assertThat(
+                decision.getExplanation(),
+                startsWith(
+                    "shard has failed to be restored from the snapshot [_repository:_existing/_uuid] - manually close or delete the index "
+                        + "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of "
+                        + "an empty primary shard. Details: [restore_source[_repository/_existing], failure "
+                        + "java.io.IOException: i/o failure"
+                )
+            );
         } else {
             assertEquals(Decision.Type.YES, decision.type());
             assertEquals("shard is currently being restored", decision.getExplanation());

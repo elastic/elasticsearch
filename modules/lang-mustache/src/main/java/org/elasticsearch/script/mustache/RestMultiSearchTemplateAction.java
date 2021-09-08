@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -38,7 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
-
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
+        + " Specifying types in multi search template requests is deprecated.";
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -61,7 +52,13 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_msearch/template"),
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
-            new Route(POST, "/{index}/_msearch/template"));
+            new Route(POST, "/{index}/_msearch/template"),
+            Route.builder(GET, "/{index}/{type}/_msearch/template")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_msearch/template")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -79,6 +76,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
+            restRequest.param("type");
+        }
+
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));

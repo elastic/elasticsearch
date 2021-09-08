@@ -57,7 +57,7 @@ class MembersInjectorStore {
      * aren't any type listeners.
      */
     public boolean hasTypeListeners() {
-        return !typeListenerBindings.isEmpty();
+        return typeListenerBindings.isEmpty() == false;
     }
 
     /**

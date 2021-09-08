@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.ActiveSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -179,6 +182,27 @@ public class SchedulerEngineTests extends ESTestCase {
             listenerLatch.countDown();
 
             assertBusy(() -> assertEquals(called, calledCount.get()), 5, TimeUnit.MILLISECONDS);
+        } finally {
+            engine.stop();
+        }
+    }
+
+    public void testNextScheduledTimeAfterCurrentScheduledTime() throws Exception {
+        final Clock clock = Clock.fixed(Clock.systemUTC().instant(), ZoneId.of("UTC"));
+        final long oneHourMillis = TimeUnit.HOURS.toMillis(1L);
+        final String jobId = randomAlphaOfLength(4);
+        final SchedulerEngine engine = new SchedulerEngine(Settings.EMPTY, clock);
+        try {
+            engine.add(new Job(jobId, ((startTime, now) -> now + oneHourMillis)));
+
+            ActiveSchedule activeSchedule = engine.getSchedule(jobId);
+            assertNotNull(activeSchedule);
+            assertEquals(clock.millis() + oneHourMillis, activeSchedule.getScheduledTime());
+
+            assertEquals(clock.millis() + oneHourMillis + oneHourMillis,
+                activeSchedule.computeNextScheduledTime(clock.millis() - randomIntBetween(1, 999)));
+            assertEquals(clock.millis() + oneHourMillis + oneHourMillis,
+                activeSchedule.computeNextScheduledTime(clock.millis() + TimeUnit.SECONDS.toMillis(10L)));
         } finally {
             engine.stop();
         }

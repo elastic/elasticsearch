@@ -1,8 +1,8 @@
-import org.elasticsearch.gradle.BwcVersions.UnreleasedVersionInfo
+import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 description = 'Integration tests for SQL JDBC driver'
 apply plugin: 'elasticsearch.java'
@@ -22,13 +22,15 @@ dependencies {
 }
 
 // disable unit tests because these are all integration tests used other qa projects
-test.enabled = false
+tasks.named("test").configure {
+  enabled = false
+}
 
 subprojects {
   if (subprojects.isEmpty()) {
     // leaf project
     apply plugin: 'elasticsearch.standalone-rest-test'
-    apply from: "$rootDir/gradle/bwc-test.gradle"
+    apply plugin: 'elasticsearch.bwc-test'
   } else {
     apply plugin: 'elasticsearch.java'
   }
@@ -36,7 +38,7 @@ subprojects {
   repositories {
     maven {
       // Repository for downloading BWC compatible JDBC driver releases
-      url = 'https://artifacts.elastic.co/maven'
+      url = 'https://artifacts-no-kpi.elastic.co/maven'
     }
   }
 
@@ -54,7 +56,7 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.testclusters'
+    apply plugin: 'elasticsearch.internal-testclusters'
     apply plugin: 'elasticsearch.rest-test'
 
     testClusters.all {
@@ -63,7 +65,7 @@ subprojects {
       setting 'xpack.watcher.enabled', 'false'
     }
 
-    integTest {
+    tasks.named("integTest").configure {
         classpath += configurations.jdbcDriver
         systemProperty 'jdbc.driver.version', VersionProperties.elasticsearch
     }
@@ -74,7 +76,10 @@ subprojects {
       if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
         String baseName = "v${bwcVersion}"
         UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-        Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}")
+        Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
+          // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
+          transitive = false
+        }
         Object driverDependency = null
 
         if (unreleasedVersion) {
@@ -89,9 +94,10 @@ subprojects {
           "jdbcDriver${baseName}"(driverDependency)
         }
 
-        tasks.create(bwcTaskName(bwcVersion), RestIntegTestTask) {
+        final String bwcVersionString = bwcVersion.toString()
+        tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
             classpath += driverConfiguration
-            systemProperty 'jdbc.driver.version', bwcVersion.toString()
+            systemProperty 'jdbc.driver.version', bwcVersionString
         }
       }
     }

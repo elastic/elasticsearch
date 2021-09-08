@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -31,7 +32,7 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         super(allFields,
             Collections.emptyList(),
             Collections.emptyMap());
-        if (!allFields.contains(timeField)) {
+        if (allFields.contains(timeField) == false) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }
         this.timeField = Objects.requireNonNull(timeField);
@@ -55,13 +56,16 @@ public class TimeBasedExtractedFields extends ExtractedFields {
 
     public static TimeBasedExtractedFields build(Job job, DatafeedConfig datafeed, FieldCapabilitiesResponse fieldsCapabilities) {
         Set<String> scriptFields = datafeed.getScriptFields().stream().map(sf -> sf.fieldName()).collect(Collectors.toSet());
-        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
+        Set<String> searchRuntimeFields = datafeed.getRuntimeMappings().keySet();
+
+        ExtractionMethodDetector extractionMethodDetector =
+            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
         String timeField = job.getDataDescription().getTimeField();
         if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");
         }
         ExtractedField timeExtractedField = extractedTimeField(timeField, scriptFields);
-        List<String> remainingFields = job.allInputFields().stream().filter(f -> !f.equals(timeField)).collect(Collectors.toList());
+        List<String> remainingFields = job.allInputFields().stream().filter(f -> f.equals(timeField) == false).collect(Collectors.toList());
         List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size() + 1);
         allExtractedFields.add(timeExtractedField);
         remainingFields.forEach(field -> allExtractedFields.add(extractionMethodDetector.detect(field)));

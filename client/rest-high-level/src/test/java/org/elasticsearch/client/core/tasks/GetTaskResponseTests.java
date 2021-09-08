@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core.tasks;
@@ -70,7 +59,7 @@ public class GetTaskResponseTests extends ESTestCase {
         assertEquals(expectedInstance.isCompleted(), newInstance.isCompleted());
         assertEquals(expectedInstance.getTaskInfo(), newInstance.getTaskInfo());
     }
-    
+
     static TaskInfo randomTaskInfo() {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLength(5);
@@ -80,11 +69,23 @@ public class GetTaskResponseTests extends ESTestCase {
         long startTime = randomLong();
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Map<String, String> headers = randomBoolean() ?
                 Collections.emptyMap() :
                 Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        return new TaskInfo(
+                taskId,
+                type,
+                action,
+                description,
+                status,
+                startTime,
+                runningTimeNanos,
+                cancellable,
+                cancelled,
+                parentTaskId,
+                headers);
     }
 
     private static TaskId randomTaskId() {
@@ -103,5 +104,5 @@ public class GetTaskResponseTests extends ESTestCase {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-    }    
+    }
 }

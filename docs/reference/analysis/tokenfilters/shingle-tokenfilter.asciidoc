@@ -333,7 +333,7 @@ cannot exceed the <<index-max-shingle-diff,`index.max_shingle_diff`>>
 index-level setting, which defaults to `3`.
 
 `output_unigrams`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the output includes the original input tokens. If `false`, the output
 only includes shingles; the original input tokens are removed. Defaults to
 `true`.

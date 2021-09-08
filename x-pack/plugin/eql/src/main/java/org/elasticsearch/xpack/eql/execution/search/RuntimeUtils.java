@@ -1,16 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -41,10 +46,49 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 public final class RuntimeUtils {
 
     static final Logger QUERY_LOG = LogManager.getLogger(QueryClient.class);
+    public static final Version SWITCH_TO_MULTI_VALUE_FIELDS_VERSION = Version.V_7_15_0;
 
     private RuntimeUtils() {}
 
-    static void logSearchResponse(SearchResponse response, Logger logger) {
+    public static ActionListener<SearchResponse> searchLogListener(ActionListener<SearchResponse> listener, Logger log) {
+        return ActionListener.wrap(response -> {
+            ShardSearchFailure[] failures = response.getShardFailures();
+            if (CollectionUtils.isEmpty(failures) == false) {
+                listener.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
+                return;
+            }
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+            listener.onResponse(response);
+        }, listener::onFailure);
+    }
+
+    public static ActionListener<MultiSearchResponse> multiSearchLogListener(ActionListener<MultiSearchResponse> listener, Logger log) {
+        return ActionListener.wrap(items -> {
+            for (MultiSearchResponse.Item item : items) {
+                Exception failure = item.getFailure();
+                SearchResponse response = item.getResponse();
+
+                if (failure == null) {
+                    ShardSearchFailure[] failures = response.getShardFailures();
+                    if (CollectionUtils.isEmpty(failures) == false) {
+                        failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                    }
+                }
+                if (failure != null) {
+                    listener.onFailure(failure);
+                    return;
+                }
+                if (log.isTraceEnabled()) {
+                    logSearchResponse(response, log);
+                }
+            }
+            listener.onResponse(items);
+        }, listener::onFailure);
+    }
+
+    private static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
             aggs = response.getAggregations().asList();
@@ -54,8 +98,10 @@ public final class RuntimeUtils {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
+        SearchHit[] hits = response.getHits().getHits();
+        int count = hits != null ? hits.length : 0;
         logger.trace("Got search response [hits {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
-                + "{} successful shards, {} total shards, took {}, timed out [{}]]", response.getHits().getTotalHits(), aggs.size(),
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]", count, aggs.size(),
                 aggsNames, response.getFailedShards(), response.getSkippedShards(), response.getSuccessfulShards(),
                 response.getTotalShards(), response.getTook(), response.isTimedOut());
     }
@@ -72,14 +118,14 @@ public final class RuntimeUtils {
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
-            return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(), false);
+            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
         }
 
         if (ref instanceof ComputedRef) {
             Pipe proc = ((ComputedRef) ref).processor();
             // collect hitNames
             Set<String> hitNames = new LinkedHashSet<>();
-            proc = proc.transformDown(l -> {
+            proc = proc.transformDown(ReferenceInput.class, l -> {
                 HitExtractor he = createExtractor(l.context(), cfg);
                 hitNames.add(he.hitName());
 
@@ -88,7 +134,7 @@ public final class RuntimeUtils {
                 }
 
                 return new HitExtractorInput(l.source(), l.expression(), he);
-            }, ReferenceInput.class);
+            });
             String hitName = null;
             if (hitNames.size() == 1) {
                 hitName = hitNames.iterator().next();
@@ -100,16 +146,16 @@ public final class RuntimeUtils {
     }
 
 
-    public static SearchRequest prepareRequest(Client client,
-                                               SearchSourceBuilder source,
+    public static SearchRequest prepareRequest(SearchSourceBuilder source,
                                                boolean includeFrozen,
                                                String... indices) {
-        return client.prepareSearch(indices)
-                .setSource(source)
-                .setAllowPartialSearchResults(false)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-                .request();
+        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
+        searchRequest.indices(indices);
+        searchRequest.source(source);
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.indicesOptions(
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+        return searchRequest;
     }
 
     public static List<SearchHit> searchHits(SearchResponse response) {
@@ -135,6 +181,37 @@ public final class RuntimeUtils {
             }
             if (filter != null) {
                 bool.filter(filter);
+            }
+
+            source.query(bool);
+        }
+        return source;
+    }
+
+    public static SearchSourceBuilder replaceFilter(List<QueryBuilder> oldFilters,
+                                                    List<QueryBuilder> newFilters,
+                                                    SearchSourceBuilder source) {
+        BoolQueryBuilder bool = null;
+        QueryBuilder query = source.query();
+
+        if (query instanceof BoolQueryBuilder) {
+            bool = (BoolQueryBuilder) query;
+            if (oldFilters != null) {
+                bool.filter().removeAll(oldFilters);
+            }
+
+            if (newFilters != null) {
+                bool.filter().addAll(newFilters);
+            }
+        }
+        // no bool query means no old filters
+        else {
+            bool = boolQuery();
+            if (query != null) {
+                bool.filter(query);
+            }
+            if (newFilters != null) {
+                bool.filter().addAll(newFilters);
             }
 
             source.query(bool);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
@@ -25,12 +26,15 @@ import static java.util.Collections.singletonList;
 
 public class DocValuesWhitelistExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(DocValuesWhitelistExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        DocValuesWhitelistExtension.class,
+        "org.elasticsearch.xpack.unsignedlong.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         List<Whitelist> whitelist = singletonList(WHITELIST);
-        Map<ScriptContext<?>, List<Whitelist>> contexts = Map.of(
+        return Map.of(
             FieldScript.CONTEXT,
             whitelist,
             ScoreScript.CONTEXT,
@@ -46,6 +50,5 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
             BucketAggregationSelectorScript.CONTEXT,
             whitelist
         );
-        return contexts;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /**
@@ -143,7 +144,7 @@
  * {@code instanceof} checks. Which is how many rules are implemented in
  * the SQL engine as well. Where possible though, one can use <i>typed</i>
  * traversal by passing a {@code Class} token to the lambdas (i.e.
- * {@link org.elasticsearch.xpack.ql.tree.Node#transformDown(java.util.function.Function, Class)
+ * {@link org.elasticsearch.xpack.ql.tree.Node#transformDown(Class, java.util.function.Function)
  * pre-order transformation}).
  *
  * <h2>Components</h2>

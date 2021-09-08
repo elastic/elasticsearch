@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action;
@@ -14,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -82,9 +83,10 @@ public final class TransportDelegatePkiAuthenticationAction
                     ActionListener.wrap(authentication -> {
                         assert authentication != null : "authentication should never be null at this point";
                         tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false,
-                                ActionListener.wrap(tuple -> {
+                                ActionListener.wrap(tokenResult -> {
                                     final TimeValue expiresIn = tokenService.getExpirationDelay();
-                                    listener.onResponse(new DelegatePkiAuthenticationResponse(tuple.v1(), expiresIn, authentication));
+                                    listener.onResponse(new DelegatePkiAuthenticationResponse(tokenResult.getAccessToken(), expiresIn,
+                                        authentication));
                                 }, listener::onFailure));
                     }, e -> {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated",

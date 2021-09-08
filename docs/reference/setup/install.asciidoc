@@ -31,7 +31,7 @@ The `zip` archive is suitable for installation on Windows.
 `deb`::
 
 The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
-systems.  Debian packages may be downloaded from the Elasticsearch website or
+systems. Debian packages may be downloaded from the Elasticsearch website or
 from our Debian repository.
 +
 <<deb>>
@@ -39,7 +39,7 @@ from our Debian repository.
 `rpm`::
 
 The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
-OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
+OpenSuSE and other RPM-based systems. RPMs may be downloaded from the
 Elasticsearch website or from our RPM repository.
 +
 <<rpm>>

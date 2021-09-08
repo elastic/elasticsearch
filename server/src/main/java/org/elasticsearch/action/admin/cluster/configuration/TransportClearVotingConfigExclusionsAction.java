@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
@@ -23,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
-    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
+    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
 
@@ -55,13 +45,13 @@ public class TransportClearVotingConfigExclusionsAction
                                                       ThreadPool threadPool, ActionFilters actionFilters,
                                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClearVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver, ClearVotingConfigExclusionsResponse::new,
+            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver, in -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.SAME);
     }
 
     @Override
     protected void masterOperation(Task task, ClearVotingConfigExclusionsRequest request, ClusterState initialState,
-                                   ActionListener<ClearVotingConfigExclusionsResponse> listener) throws Exception {
+                                   ActionListener<ActionResponse.Empty> listener) throws Exception {
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 
@@ -104,8 +94,10 @@ public class TransportClearVotingConfigExclusionsAction
     }
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
-                                                       ActionListener<ClearVotingConfigExclusionsResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+                                                       ActionListener<ActionResponse.Empty> listener) {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
+                TimeValue.timeValueMillis(
+                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final CoordinationMetadata newCoordinationMetadata =
@@ -121,13 +113,8 @@ public class TransportClearVotingConfigExclusionsAction
             }
 
             @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueMillis(request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis());
-            }
-
-            @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new ClearVotingConfigExclusionsResponse());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         });
     }

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -43,7 +33,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,13 +46,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -483,12 +473,13 @@ public class TranslogTests extends ESTestCase {
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
         translog.trimUnreferencedReaders();
         {
+            long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
-            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
         }
     }
 
@@ -515,15 +506,25 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testTotalTests() {
-        final TranslogStats total =
-            new TranslogStats(0, 0, 0, 0, 1);
-        final int n = randomIntBetween(0, 16);
+        final TranslogStats total = new TranslogStats();
+
+        assertThat(total.estimatedNumberOfOperations(), equalTo(0));
+        assertThat(total.getTranslogSizeInBytes(), equalTo(0L));
+        assertThat(total.getUncommittedOperations(), equalTo(0));
+        assertThat(total.getUncommittedSizeInBytes(), equalTo(0L));
+        assertThat(total.getEarliestLastModifiedAge(), equalTo(0L));
+
+        final int n = randomIntBetween(1, 16);
         final List<TranslogStats> statsList = new ArrayList<>(n);
+        long earliestLastModifiedAge = Long.MAX_VALUE;
         for (int i = 0; i < n; i++) {
             final TranslogStats stats = new TranslogStats(randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20),
                 randomIntBetween(1, 1 << 20), randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20));
             statsList.add(stats);
             total.add(stats);
+            if (earliestLastModifiedAge > stats.getEarliestLastModifiedAge()) {
+                earliestLastModifiedAge = stats.getEarliestLastModifiedAge();
+            }
         }
 
         assertThat(
@@ -540,7 +541,7 @@ public class TranslogTests extends ESTestCase {
             equalTo(statsList.stream().mapToLong(TranslogStats::getUncommittedSizeInBytes).sum()));
         assertThat(
             total.getEarliestLastModifiedAge(),
-            equalTo(1L));
+            equalTo(earliestLastModifiedAge));
     }
 
     public void testNegativeNumberOfOperations() {
@@ -1263,7 +1264,7 @@ public class TranslogTests extends ESTestCase {
             long seqNo;
             do {
                 seqNo = opsHaveValidSequenceNumbers ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
-                opsHaveValidSequenceNumbers = opsHaveValidSequenceNumbers || !rarely();
+                opsHaveValidSequenceNumbers = opsHaveValidSequenceNumbers || rarely() == false;
             } while (seenSeqNos.contains(seqNo));
             if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 seenSeqNos.add(seqNo);
@@ -1729,11 +1730,15 @@ public class TranslogTests extends ESTestCase {
         final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
         final TranslogCorruptedException translogCorruptedException = expectThrows(TranslogCorruptedException.class, () ->
             new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> { }));
-        assertThat(translogCorruptedException.getMessage(), endsWith(
-            "] is corrupted, checkpoint file translog-3.ckp already exists but has corrupted content: expected Checkpoint{offset=2750, " +
-                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} " +
-                "but got Checkpoint{offset=0, numOps=0, generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, " +
-                "minTranslogGeneration=0, trimmedAboveSeqNo=-2}"));
+        assertThat(
+            translogCorruptedException.getMessage(),
+            endsWith(
+                "] is corrupted, checkpoint file translog-3.ckp already exists but has corrupted content: expected Checkpoint{offset=2750, "
+                    + "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, "
+                    + "trimmedAboveSeqNo=-2} but got Checkpoint{offset=0, numOps=0, generation=0, minSeqNo=-1, maxSeqNo=-1, "
+                    + "globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveSeqNo=-2}"
+            )
+        );
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)),
             read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy,
@@ -2988,7 +2993,7 @@ public class TranslogTests extends ESTestCase {
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
         Field idField = new Field("_id", Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 1);
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
         document.add(idField);
         document.add(versionField);
@@ -3112,7 +3117,7 @@ public class TranslogTests extends ESTestCase {
             final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
             int expectedSnapshotOps = 0;
             for (long g = generation; g < translog.currentFileGeneration(); g++) {
-                if (!seqNoPerGeneration.containsKey(g)) {
+                if (seqNoPerGeneration.containsKey(g) == false) {
                     final Set<Tuple<Long, Long>> generationSeenSeqNos = new HashSet<>();
                     int opCount = 0;
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));

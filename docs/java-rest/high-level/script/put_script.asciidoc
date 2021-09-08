@@ -1,8 +1,8 @@
 [[java-rest-high-put-stored-script]]
-=== Put Stored Script API
+=== Create or update stored script API
 
 [[java-rest-high-put-stored-script-request]]
-==== Put Stored Script Request
+==== Request
 
 A `PutStoredScriptRequest` requires an `id` and `content`:
 
@@ -65,8 +65,9 @@ include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-
 [[java-rest-high-put-stored-script-async]]
 ==== Asynchronous Execution
 
-The asynchronous execution of a put stored script request requires both the `PutStoredScriptRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous method:
+The asynchronous execution of a create or update stored script request requires
+both the `PutStoredScriptRequest` instance and an `ActionListener` instance to
+be passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -94,7 +95,7 @@ provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-put-stored-script-response]]
-==== Put Stored Script Response
+==== Response
 
 The returned `AcknowledgedResponse` allows to retrieve information about the
 executed operation as follows:

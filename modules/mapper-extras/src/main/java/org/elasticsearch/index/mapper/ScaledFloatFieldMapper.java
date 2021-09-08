@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -33,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -41,7 +31,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -50,6 +40,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +48,7 @@ import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
-public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
+public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "scaled_float";
 
@@ -68,7 +59,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         return (ScaledFloatFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -79,7 +70,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<Double> scalingFactor = new Parameter<>("scaling_factor", false, () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o), m -> toType(m).scalingFactor)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v == null) {
                     throw new IllegalArgumentException("Field [scaling_factor] is required");
                 }
@@ -120,10 +111,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ScaledFloatFieldMapper build(BuilderContext context) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+        public ScaledFloatFieldMapper build(ContentPath contentPath) {
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                 hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue(), nullValue.getValue());
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -136,7 +127,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                     Map<String, String> meta, double scalingFactor, Double nullValue) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
         }
@@ -155,14 +146,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             long scaledValue = Math.round(scale(value));
             return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
@@ -173,7 +164,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm,
+                                boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
@@ -207,11 +200,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;
@@ -240,15 +233,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoTimeZone(timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
-            } else {
-                return new DocValueFormat.Decimal(format);
             }
+            return new DocValueFormat.Decimal(format);
         }
 
         /**
@@ -313,24 +302,17 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 
     @Override
-    protected ScaledFloatFieldMapper clone() {
-        return (ScaledFloatFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
+        if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
         } else if (coerce.value()
                 && parser.currentToken() == Token.VALUE_STRING
@@ -377,7 +359,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
@@ -530,9 +512,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+        public FormattedDocValues getFormattedValues(DocValueFormat format) {
             SortedNumericDoubleValues values = getDoubleValues();
-            return new DocValueFetcher.Leaf() {
+            return new FormattedDocValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     return values.advanceExact(docId);

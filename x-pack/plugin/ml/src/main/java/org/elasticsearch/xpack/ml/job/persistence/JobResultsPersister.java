@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -81,14 +81,11 @@ public class JobResultsPersister {
 
     private final OriginSettingClient client;
     private final ResultsPersisterService resultsPersisterService;
-    private final AnomalyDetectionAuditor auditor;
 
     public JobResultsPersister(OriginSettingClient client,
-                               ResultsPersisterService resultsPersisterService,
-                               AnomalyDetectionAuditor auditor) {
+                               ResultsPersisterService resultsPersisterService) {
         this.client = client;
         this.resultsPersisterService = resultsPersisterService;
-        this.auditor = auditor;
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
@@ -123,7 +120,7 @@ public class JobResultsPersister {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
-            if (!bucketWithoutRecords.getRecords().isEmpty()) {
+            if (bucketWithoutRecords.getRecords().isEmpty() == false) {
                 bucketWithoutRecords = new Bucket(bucket);
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }
@@ -242,9 +239,9 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
-            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, (msg) -> {
-                auditor.warning(jobId, "Bulk indexing of results failed " + msg);
-            });
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry,
+                retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
+            );
             bulkRequest = new BulkRequest();
         }
 
@@ -283,7 +280,7 @@ public class JobResultsPersister {
                 searchRequest,
                 jobId,
                 shouldRetry,
-                (msg) -> auditor.warning(jobId, quantilesDocId + " " + msg));
+                retryMessage -> logger.debug("[{}] {} {}", jobId, quantilesDocId, retryMessage));
         String indexOrAlias =
             searchResponse.getHits().getHits().length > 0
                 ? searchResponse.getHits().getHits()[0].getIndex()
@@ -494,13 +491,13 @@ public class JobResultsPersister {
                     id,
                     requireAlias,
                     shouldRetry,
-                    (msg) -> auditor.warning(jobId, id + " " + msg));
+                    retryMessage -> logger.debug("[{}] {} {}", jobId, id, retryMessage));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setResult(Result.NOOP);
                 return new BulkResponse(
-                    new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, notCreatedResponse.build())},
+                    new BulkItemResponse[]{BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, notCreatedResponse.build())},
                     0);
             }
         }
@@ -524,10 +521,12 @@ public class JobResultsPersister {
         }
 
         private void logCall(String indexName) {
-            if (id != null) {
-                logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);
-            } else {
-                logger.trace("[{}] ES API CALL: to index {} with auto-generated ID", jobId, indexName);
+            if (logger.isTraceEnabled()) {
+                if (id != null) {
+                    logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);
+                } else {
+                    logger.trace("[{}] ES API CALL: to index {} with auto-generated ID", jobId, indexName);
+                }
             }
         }
     }

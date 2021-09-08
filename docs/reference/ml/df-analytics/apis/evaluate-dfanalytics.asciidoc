@@ -10,8 +10,6 @@
 
 Evaluates the {dfanalytics} for an annotated index.
 
-experimental[]
-
 
 [[ml-evaluate-dfanalytics-request]]
 == {api-request-title}
@@ -22,13 +20,11 @@ experimental[]
 [[ml-evaluate-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and 
-{ml-docs-setup-privileges}.
+* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
+  privilege)
+* destination index: `read`
 
 
 [[ml-evaluate-dfanalytics-desc]]
@@ -212,7 +208,7 @@ belongs.
       `class_name` in the list of their top classes.
 
     `include_curve`::::
-      (Optional, boolean) Whether or not the curve should be returned in
+      (Optional, Boolean) Whether or not the curve should be returned in
       addition to the score. Default value is false.
 
   `multiclass_confusion_matrix`:::

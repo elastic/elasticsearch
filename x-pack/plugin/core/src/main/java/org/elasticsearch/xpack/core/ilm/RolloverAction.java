@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +34,7 @@ public class RolloverAction implements LifecycleAction {
     public static final String NAME = "rollover";
     public static final String INDEXING_COMPLETE_STEP_NAME = "set-indexing-complete";
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
+    public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
     public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
@@ -40,16 +42,23 @@ public class RolloverAction implements LifecycleAction {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
+        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3]));
+
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()), MAX_SIZE_FIELD, ValueType.VALUE);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()),
+            MAX_SIZE_FIELD, ValueType.VALUE);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()), MAX_AGE_FIELD, ValueType.VALUE);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName()),
+            MAX_PRIMARY_SHARD_SIZE_FIELD, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()),
+            MAX_AGE_FIELD, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
     }
 
     private final ByteSizeValue maxSize;
+    private final ByteSizeValue maxPrimaryShardSize;
     private final Long maxDocs;
     private final TimeValue maxAge;
 
@@ -57,11 +66,13 @@ public class RolloverAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverAction(@Nullable ByteSizeValue maxSize, @Nullable TimeValue maxAge, @Nullable Long maxDocs) {
-        if (maxSize == null && maxAge == null && maxDocs == null) {
+    public RolloverAction(@Nullable ByteSizeValue maxSize, @Nullable ByteSizeValue maxPrimaryShardSize, @Nullable TimeValue maxAge,
+                          @Nullable Long maxDocs) {
+        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
         this.maxSize = maxSize;
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
     }
@@ -72,12 +83,13 @@ public class RolloverAction implements LifecycleAction {
         } else {
             maxSize = null;
         }
-        maxAge = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            maxDocs = in.readVLong();
+            maxPrimaryShardSize = new ByteSizeValue(in);
         } else {
-            maxDocs = null;
+            maxPrimaryShardSize = null;
         }
+        maxAge = in.readOptionalTimeValue();
+        maxDocs = in.readOptionalVLong();
     }
 
     @Override
@@ -87,12 +99,13 @@ public class RolloverAction implements LifecycleAction {
         if (hasMaxSize) {
             maxSize.writeTo(out);
         }
-        out.writeOptionalTimeValue(maxAge);
-        boolean hasMaxDocs = maxDocs != null;
-        out.writeBoolean(hasMaxDocs);
-        if (hasMaxDocs) {
-            out.writeVLong(maxDocs);
+        boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
+        out.writeBoolean(hasMaxPrimaryShardSize);
+        if (hasMaxPrimaryShardSize) {
+            maxPrimaryShardSize.writeTo(out);
         }
+        out.writeOptionalTimeValue(maxAge);
+        out.writeOptionalVLong(maxDocs);
     }
 
     @Override
@@ -102,6 +115,10 @@ public class RolloverAction implements LifecycleAction {
 
     public ByteSizeValue getMaxSize() {
         return maxSize;
+    }
+
+    public ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
     }
 
     public TimeValue getMaxAge() {
@@ -117,6 +134,9 @@ public class RolloverAction implements LifecycleAction {
         builder.startObject();
         if (maxSize != null) {
             builder.field(MAX_SIZE_FIELD.getPreferredName(), maxSize.getStringRep());
+        }
+        if (maxPrimaryShardSize != null) {
+            builder.field(MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(), maxPrimaryShardSize.getStringRep());
         }
         if (maxAge != null) {
             builder.field(MAX_AGE_FIELD.getPreferredName(), maxAge.getStringRep());
@@ -144,7 +164,7 @@ public class RolloverAction implements LifecycleAction {
         StepKey setIndexingCompleteStepKey = new StepKey(phase, NAME, INDEXING_COMPLETE_STEP_NAME);
 
         WaitForRolloverReadyStep waitForRolloverReadyStep = new WaitForRolloverReadyStep(waitForRolloverReadyStepKey, rolloverStepKey,
-            client, maxSize, maxAge, maxDocs);
+            client, maxSize, maxPrimaryShardSize, maxAge, maxDocs);
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, waitForActiveShardsKey, client);
         WaitForActiveShardsStep waitForActiveShardsStep = new WaitForActiveShardsStep(waitForActiveShardsKey, updateDateStepKey);
         UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, setIndexingCompleteStepKey,
@@ -156,7 +176,7 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSize, maxAge, maxDocs);
+        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
@@ -169,8 +189,9 @@ public class RolloverAction implements LifecycleAction {
         }
         RolloverAction other = (RolloverAction) obj;
         return Objects.equals(maxSize, other.maxSize) &&
-                Objects.equals(maxAge, other.maxAge) &&
-                Objects.equals(maxDocs, other.maxDocs);
+            Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize) &&
+            Objects.equals(maxAge, other.maxAge) &&
+            Objects.equals(maxDocs, other.maxDocs);
     }
 
     @Override

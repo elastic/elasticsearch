@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
@@ -101,23 +90,26 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             return false;
         }
         final AtomicBoolean stopped = new AtomicBoolean(false);
-        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_delay",
+        clusterService.getClusterApplierService().runOnApplierThread(
+            "service_disruption_delay",
+            Priority.IMMEDIATE,
             currentState -> {
                 try {
                     long count = duration.millis() / 200;
                     // wait while checking for a stopped
-                    for (; count > 0 && !stopped.get(); count--) {
+                    for (; count > 0 && stopped.get() == false; count--) {
                         Thread.sleep(200);
                     }
-                    if (!stopped.get()) {
+                    if (stopped.get() == false) {
                         Thread.sleep(duration.millis() % 200);
                     }
                     countDownLatch.countDown();
                 } catch (InterruptedException e) {
                     ExceptionsHelper.reThrowIfNotNull(e);
                 }
-            }, (source, e) -> countDownLatch.countDown(),
-            Priority.IMMEDIATE);
+            },
+            e -> countDownLatch.countDown()
+        );
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {
@@ -146,7 +138,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             while (disrupting && disruptedNode != null) {
                 try {
                     TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
-                    if (!interruptClusterStateProcessing(duration)) {
+                    if (interruptClusterStateProcessing(duration) == false) {
                         continue;
                     }
                     if (intervalBetweenDelaysMax > 0) {

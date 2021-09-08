@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,8 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.index.analysis.AnalysisMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.Objects;
@@ -41,40 +32,76 @@ public final class TextParams {
         public final Parameter<NamedAnalyzer> indexAnalyzer;
         public final Parameter<NamedAnalyzer> searchAnalyzer;
         public final Parameter<NamedAnalyzer> searchQuoteAnalyzer;
+        public final Parameter<Integer> positionIncrementGap;
+        public final IndexAnalyzers indexAnalyzers;
 
-        public Analyzers(Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Analyzers(IndexAnalyzers indexAnalyzers,
+                         Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
+                         Function<FieldMapper, Integer> positionGapInitFunction) {
             this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> m.fieldType().indexAnalyzer(), defaultAnalyzer)
+                            analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
                 .setSerializerCheck((id, ic, a) -> id || ic ||
                     Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
+                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), indexAnalyzer::getValue)
+                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
+                    if (indexAnalyzer.isConfigured() == false) {
+                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
+                        if (defaultAnalyzer != null) {
+                            return defaultAnalyzer;
+                        }
+                    }
+                    return indexAnalyzer.get();
+                })
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.searchQuoteAnalyzer
                 = Parameter.analyzerParam("search_quote_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), searchAnalyzer::getValue)
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
+                    if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
+                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
+                        if (defaultAnalyzer != null) {
+                            return defaultAnalyzer;
+                        }
+                    }
+                    return searchAnalyzer.get();
+                })
+                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+            this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
+                        positionGapInitFunction, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+                .addValidator(v -> {
+                    if (v < 0) {
+                        throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
+                    }
+                });
+            this.indexAnalyzers = indexAnalyzers;
         }
 
         public NamedAnalyzer getIndexAnalyzer() {
-            return indexAnalyzer.getValue();
+            return wrapAnalyzer(indexAnalyzer.getValue());
         }
 
         public NamedAnalyzer getSearchAnalyzer() {
-            return searchAnalyzer.getValue();
+            return wrapAnalyzer(searchAnalyzer.getValue());
         }
 
         public NamedAnalyzer getSearchQuoteAnalyzer() {
-            return searchQuoteAnalyzer.getValue();
+            return wrapAnalyzer(searchQuoteAnalyzer.getValue());
+        }
+
+        private NamedAnalyzer wrapAnalyzer(NamedAnalyzer a) {
+            if (positionIncrementGap.isConfigured() == false) {
+                return a;
+            }
+            return new NamedAnalyzer(a, positionIncrementGap.get());
         }
     }
 
     public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
+        // norms can be updated from 'true' to 'false' but not vv
         return Parameter.boolParam("norms", true, initializer, defaultValue)
-            .setMergeValidator((o, n, c) -> o == n || (o && n == false));  // norms can be updated from 'true' to 'false' but not vv
+            .setMergeValidator((o, n, c) -> o == n || (o && n == false));
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {

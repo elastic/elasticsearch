@@ -26,7 +26,7 @@ this scenario:
 * The master rebalances the cluster by allocating shards to Node 5.
 
 If the master had just waited for a few minutes, then the missing shards could
-have been re-allocated to Node 5 with the minimum of network traffic.  This
+have been re-allocated to Node 5 with the minimum of network traffic. This
 process would be even quicker for idle shards (shards not receiving indexing
 requests) which have been automatically <<indices-flush, flushed>>.
 
@@ -65,7 +65,7 @@ Also, in case of a master failover situation, elapsed delay time is forgotten
 ==== Cancellation of shard relocation
 
 If delayed allocation times out, the master assigns the missing shards to
-another node which will start recovery.  If the missing node rejoins the
+another node which will start recovery. If the missing node rejoins the
 cluster, and its shards still have the same sync-id as the primary, shard
 relocation will be cancelled and the synced shard will be used for recovery
 instead.

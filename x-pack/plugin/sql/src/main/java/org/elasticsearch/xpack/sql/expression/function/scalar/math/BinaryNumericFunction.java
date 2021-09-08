@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathPro
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public abstract class BinaryNumericFunction extends BinaryScalarFunction {
@@ -35,16 +37,16 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isNumeric(left(), sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isNumeric(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
 
         }
-        return isNumeric(right(), sourceText(), ParamOrdinal.SECOND);
+        return isNumeric(right(), sourceText(), SECOND);
     }
 
     @Override

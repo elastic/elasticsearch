@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,6 +25,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
@@ -1007,7 +1009,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
 
-    public void testNonRetryableError() {
+    public void testNonRetryableError() throws Exception {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
         params.maxOutstandingReadRequests = 1;
@@ -1031,6 +1033,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.outstandingWriteRequests(), equalTo(1));
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
+        assertBusy(() -> assertNull(task.getRenewable()));
     }
 
     public void testMaxWriteRequestSize() {
@@ -1387,7 +1390,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             @Override
             protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
                 if (scheduleRetentionLeaseRenewal.get()) {
-                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
                     final ScheduledFuture<?> future = scheduler.scheduleWithFixedDelay(
                             () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
                             0,

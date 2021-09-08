@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -28,7 +17,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -40,7 +29,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
  */
-public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
+public class RankFeatureFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "rank_feature";
 
@@ -59,7 +48,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         return ((RankFeatureFieldMapper)in).fieldType();
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> positiveScoreImpact
             = Parameter.boolParam("positive_score_impact", false, m -> ft(m).positiveScoreImpact, true);
@@ -75,10 +64,10 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public RankFeatureFieldMapper build(BuilderContext context) {
+        public RankFeatureFieldMapper build(ContentPath contentPath) {
             return new RankFeatureFieldMapper(name,
-                new RankFeatureFieldType(buildFullName(context), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
+                new RankFeatureFieldType(buildFullName(contentPath), meta.getValue(), positiveScoreImpact.getValue()),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), positiveScoreImpact.getValue());
         }
     }
 
@@ -91,7 +80,6 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -104,7 +92,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return new TermQuery(new Term("_feature", name()));
         }
 
@@ -114,11 +102,11 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Float parseSourceValue(Object value) {
                     return objectToFloat(value);
@@ -127,7 +115,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Queries on [rank_feature] fields are not supported");
         }
     }
@@ -136,13 +124,8 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
 
     private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
-    }
-
-    @Override
-    protected RankFeatureFieldMapper clone() {
-        return (RankFeatureFieldMapper) super.clone();
     }
 
     @Override
@@ -151,12 +134,9 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         float value;
-        if (context.externalValueSet()) {
-            Object v = context.externalValue();
-            value = objectToFloat(v);
-        } else if (context.parser().currentToken() == Token.VALUE_NULL) {
+        if (context.parser().currentToken() == Token.VALUE_NULL) {
             // skip
             return;
         } else {
@@ -189,7 +169,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

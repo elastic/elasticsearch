@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -114,6 +115,9 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.featurePrefix = ExceptionsHelper.requireNonNull(featurePrefix, FEATURE_PREFIX);
         this.nGrams = ExceptionsHelper.requireNonNull(nGrams, NGRAMS);
+        if (nGrams.length == 0) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty", NGRAMS.getPreferredName());
+        }
         if (Arrays.stream(this.nGrams).anyMatch(i -> i < MIN_GRAM || i > MAX_GRAM)) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] is invalid [{}]; minimum supported value is [{}]; maximum supported value is [{}]",
@@ -133,6 +137,13 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         }
         if (length > MAX_LENGTH) {
             throw ExceptionsHelper.badRequestException("[{}] must be not be greater than [{}]", LENGTH.getPreferredName(), MAX_LENGTH);
+        }
+        if (Arrays.stream(this.nGrams).anyMatch(i -> i > length)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] and [{}] are invalid; all ngrams must be shorter than or equal to length [{}]",
+                NGRAMS.getPreferredName(),
+                LENGTH.getPreferredName(),
+                length);
         }
         this.custom = custom;
     }
@@ -292,6 +303,9 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         int totalNgrams = 0;
         for (int nGram : nGrams) {
             totalNgrams += (length - (nGram - 1));
+        }
+        if (totalNgrams <= 0) {
+            return Collections.emptyList();
         }
         List<String> ngramOutputs = new ArrayList<>(totalNgrams);
 

@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.test.rest.ESRestTestCase.expectWarnings;
 
 public class DataLoader {
 
@@ -66,11 +68,21 @@ public class DataLoader {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
         loadLogsDatasetIntoEs(client, "logs", "logs");
+        loadLogNanosDatasetIntoEs(client, "logs_nanos", "logs_nanos");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
         // frozen index
         loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
         freeze(client, "frozen_emp");
+        loadNoColsDatasetIntoEs(client, "empty_mapping");
+    }
+
+    private static void loadNoColsDatasetIntoEs(RestClient client, String index) throws Exception {
+        createEmptyIndex(client, index);
+        Request request = new Request("POST", "/" + index + "/_bulk");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"index\":{}\n{}\n" + "{\"index\":{}\n{}\n");
+        client.performRequest(request);
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
@@ -149,6 +161,20 @@ public class DataLoader {
                 }
             }
             createIndex.endObject();
+            // define the runtime field
+            createIndex.startObject("runtime");
+            {
+                createIndex.startObject("name").field("type", "keyword");
+                createIndex.startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['first_name.keyword'].size()==0) emit(' '.concat(doc['last_name.keyword'].value));"
+                            + " else emit(doc['first_name.keyword'].value.concat(' ').concat(doc['last_name.keyword'].value))"
+                    );
+                createIndex.endObject();
+                createIndex.endObject();
+            }
+            createIndex.endObject();
         }
         createIndex.endObject().endObject();
         request.setJsonEntity(Strings.toString(createIndex));
@@ -216,7 +242,7 @@ public class DataLoader {
 
             // append department
             List<List<String>> list = dep_emp.get(emp_no);
-            if (!list.isEmpty()) {
+            if (list.isEmpty() == false) {
                 bulk.append(", \"dep\" : [");
                 for (List<String> dp : list) {
                     bulk.append("{");
@@ -282,7 +308,50 @@ public class DataLoader {
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        Response response = client.performRequest(request);
+        client.performRequest(request);
+    }
+
+    protected static void loadLogNanosDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("@timestamp").field("type", "date_nanos").endObject();
+                createIndex.startObject("status").field("type", "keyword").endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
+
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        csvToLines(filename, (titles, fields) -> {
+            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
+            bulk.append("{");
+            for (int f = 0; f < titles.size(); f++) {
+                if (Strings.hasText(fields.get(f))) {
+                    if (f > 0) {
+                        bulk.append(",");
+                    }
+                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
+                }
+            }
+            bulk.append("}\n");
+        });
+        request.setJsonEntity(bulk.toString());
+        client.performRequest(request);
     }
 
     protected static void loadLibDatasetIntoEs(RestClient client, String index) throws Exception {
@@ -324,7 +393,7 @@ public class DataLoader {
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        Response response = client.performRequest(request);
+        client.performRequest(request);
     }
 
     public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
@@ -335,7 +404,14 @@ public class DataLoader {
 
     protected static void freeze(RestClient client, String... indices) throws Exception {
         for (String index : indices) {
-            client.performRequest(new Request("POST", "/" + index + "/_freeze"));
+            Request freezeRequest = new Request("POST", "/" + index + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given improvements in "
+                        + "heap memory utilization. They will be removed in a future release."
+                )
+            );
+            client.performRequest(freezeRequest);
         }
     }
 

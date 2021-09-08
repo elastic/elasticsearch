@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -16,9 +17,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -50,7 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class TransportGetJobsStatsAction extends TransportTasksAction<TransportOpenJobAction.JobTask, GetJobsStatsAction.Request,
+public class TransportGetJobsStatsAction extends TransportTasksAction<JobTask, GetJobsStatsAction.Request,
         GetJobsStatsAction.Response, QueryPage<JobStats>> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetJobsStatsAction.class);
@@ -107,8 +109,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     }
 
     @Override
-    protected void taskOperation(GetJobsStatsAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<QueryPage<JobStats>> listener) {
+    protected void taskOperation(GetJobsStatsAction.Request request, JobTask task, ActionListener<QueryPage<JobStats>> listener) {
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -212,6 +213,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds,
                                                         List<GetJobsStatsAction.Response.JobStats> stats) {
         Set<String> excludeJobIds = stats.stream().map(GetJobsStatsAction.Response.JobStats::getJobId).collect(Collectors.toSet());
-        return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId)).collect(Collectors.toList());
+        return requestedJobIds.stream().filter(jobId -> excludeJobIds.contains(jobId) == false).collect(Collectors.toList());
     }
 }

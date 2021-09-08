@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -20,7 +21,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -31,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -345,6 +347,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // we cancel expired search task even if they are still running
             cancelTask(() -> {}, "async search has expired");
         }
+    }
+
+    /**
+     * Returns the status from {@link AsyncSearchTask}
+     */
+    public static AsyncStatusResponse getStatusResponse(AsyncSearchTask asyncTask) {
+        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
+        assert mutableSearchResponse != null;
+        return mutableSearchResponse.toStatusResponse(
+            asyncTask.searchId.getEncoded(),
+            asyncTask.getStartTime(),
+            asyncTask.expirationTimeMillis
+        );
     }
 
     class Listener extends SearchProgressActionListener {

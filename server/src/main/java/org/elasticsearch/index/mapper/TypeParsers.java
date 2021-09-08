@@ -1,35 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -98,76 +84,25 @@ public class TypeParsers {
         return Collections.unmodifiableMap(sortedMeta);
     }
 
-    /**
-     * Parse common field attributes such as {@code doc_values} or {@code store}.
-     */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
-                                  Mapper.TypeParser.ParserContext parserContext) {
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
-            Map.Entry<String, Object> entry = iterator.next();
-            final String propName = entry.getKey();
-            final Object propNode = entry.getValue();
-            checkNull(propName, propNode);
-            if (propName.equals("store")) {
-                builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
-                iterator.remove();
-            } else if (propName.equals("meta")) {
-                builder.meta(parseMeta(name, propNode));
-                iterator.remove();
-            } else if (propName.equals("index")) {
-                builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
-                iterator.remove();
-            } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));
-                iterator.remove();
-            } else if (propName.equals("boost")) {
-                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecate(
-                        "boost",
-                        "Parameter [boost] on field [{}] is deprecated and has no effect",
-                        name);
-                    iterator.remove();
-                }
-                else {
-                    throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
-                }
-            } else if (propName.equals("index_options")) {
-                builder.indexOptions(nodeIndexOptionValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("similarity")) {
-                deprecationLogger.deprecate("similarity",
-                    "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
-                iterator.remove();
-            } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
-                iterator.remove();
-            } else if (propName.equals("copy_to")) {
-                if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] " +
-                        "which is within a multi field.");
-                } else {
-                    List<String> copyFields = parseCopyFields(propNode);
-                    FieldMapper.CopyTo.Builder cpBuilder = new FieldMapper.CopyTo.Builder();
-                    copyFields.forEach(cpBuilder::add);
-                    builder.copyTo(cpBuilder.build());
-                }
-                iterator.remove();
-            }
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
-                                          Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+    @SuppressWarnings({"unchecked"})
+    public static boolean parseMultiField(Consumer<FieldMapper.Builder> multiFieldsBuilder, String name,
+                                          MappingParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecate("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
-                        "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
-                        "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
-                        "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
-                        "[fields] blocks into a single level, or switching to [copy_to] if appropriate.");
+                    deprecationLogger.deprecate(
+                        DeprecationCategory.INDICES,
+                        "multifield_within_multifield",
+                        "At least one multi-field, ["
+                            + name
+                            + "], was encountered that itself contains a multi-field. Defining multi-fields within a multi-field "
+                            + "is deprecated and is not supported for indices created in 8.0 and later. To migrate the mappings, "
+                            + "all instances of [fields] that occur within a [fields] block should be removed from the mappings, "
+                            + "either by flattening the chained [fields] blocks into a single level, or switching to [copy_to] "
+                            + "if appropriate."
+                    );
                 } else {
                     throw new IllegalArgumentException("Encountered a multi-field [" + name + "] which itself contains a multi-field. " +
                         "Defining chained multi-fields is not supported.");
@@ -192,7 +127,7 @@ public class TypeParsers {
                     throw new MapperParsingException("Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot" +
                         " contain '.'");
                 }
-                if (!(multiFieldEntry.getValue() instanceof Map)) {
+                if ((multiFieldEntry.getValue() instanceof Map) == false) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
                 }
                 Map<String, Object> multiFieldNodes = (Map<String, Object>) multiFieldEntry.getValue();
@@ -204,38 +139,23 @@ public class TypeParsers {
                 } else {
                     throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
-                if (type.equals(ObjectMapper.CONTENT_TYPE)
-                        || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
-                        || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
-                    throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
-                }
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                multiFieldsBuilder.accept(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
+                if (typeParser instanceof FieldMapper.TypeParser == false) {
+                    throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
+                }
+
+                FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
+                multiFieldsBuilder.accept(fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
-                DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes, parserContext.indexVersionCreated());
+                MappingParser.checkNoRemainingFields(propName, multiFieldNodes);
             }
             return true;
         }
         return false;
-    }
-
-    private static IndexOptions nodeIndexOptionValue(final Object propNode) {
-        final String value = propNode.toString();
-        if (INDEX_OPTIONS_OFFSETS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
-        } else if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-        } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS;
-        } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS;
-        } else {
-            throw new ElasticsearchParseException("failed to parse index option [{}]", value);
-        }
     }
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
@@ -245,6 +165,7 @@ public class TypeParsers {
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
+    @SuppressWarnings("unchecked")
     public static List<String> parseCopyFields(Object propNode) {
         List<String> copyFields = new ArrayList<>();
         if (isArray(propNode)) {
@@ -257,7 +178,7 @@ public class TypeParsers {
         return copyFields;
     }
 
-    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, Object value) {
+    public static SimilarityProvider resolveSimilarity(MappingParserContext parserContext, String name, Object value) {
         if (value == null) {
             return null;    // use default
         }

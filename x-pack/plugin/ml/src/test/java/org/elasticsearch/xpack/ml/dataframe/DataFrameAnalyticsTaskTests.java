@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
@@ -15,11 +16,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.search.SearchHit;
@@ -30,10 +33,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.StartingState;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
+import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
+import org.elasticsearch.xpack.ml.dataframe.steps.StepResponse;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -115,6 +122,18 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         assertThat(startingState, equalTo(StartingState.RESUMING_ANALYZING));
     }
 
+    public void testDetermineStartingState_GivenInferenceIsIncomplete() {
+        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+            new PhaseProgress("loading_data", 100),
+            new PhaseProgress("analyzing", 100),
+            new PhaseProgress("writing_results", 100),
+            new PhaseProgress("inference", 40));
+
+        StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
+
+        assertThat(startingState, equalTo(StartingState.RESUMING_INFERENCE));
+    }
+
     public void testDetermineStartingState_GivenFinished() {
         List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 100),
@@ -148,7 +167,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new PhaseProgress(ProgressTracker.WRITING_RESULTS, 0));
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-            "task_id", Version.CURRENT, progress, false);
+            "task_id", Version.CURRENT, false);
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
@@ -163,8 +182,9 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, clusterService, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams, mock(XPackLicenseState.class));
         task.init(persistentTasksService, taskManager, "task-id", 42);
+        task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
 
         task.persistProgress(client, "task_id", runnable);
 
@@ -228,7 +248,6 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new StartDataFrameAnalyticsAction.TaskParams(
                 "job-id",
                 Version.CURRENT,
-                progress,
                 false);
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -240,9 +259,10 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, clusterService, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams, mock(XPackLicenseState.class));
         task.init(persistentTasksService, taskManager, "task-id", 42);
-        task.setReindexingFinished();
+        task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
+        task.setStep(new StubReindexingStep(task.getStatsHolder().getProgressTracker()));
         Exception exception = new Exception("some exception");
 
         task.setFailed(exception);
@@ -284,5 +304,33 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             listener.onResponse(response);
             return null;
         };
+    }
+
+    private static class StubReindexingStep implements DataFrameAnalyticsStep {
+
+        private final ProgressTracker progressTracker;
+
+        StubReindexingStep(ProgressTracker progressTracker) {
+            this.progressTracker = progressTracker;
+        }
+
+        @Override
+        public Name name() {
+            return Name.REINDEXING;
+        }
+
+        @Override
+        public void execute(ActionListener<StepResponse> listener) {
+        }
+
+        @Override
+        public void cancel(String reason, TimeValue timeout) {
+        }
+
+        @Override
+        public void updateProgress(ActionListener<Void> listener) {
+            progressTracker.updateReindexingProgress(100);
+            listener.onResponse(null);
+        }
     }
 }

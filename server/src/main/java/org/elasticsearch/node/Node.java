@@ -679,11 +679,23 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
-                networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState, rerouteService,
-                fsHealthService);
+            final DiscoveryModule discoveryModule = new DiscoveryModule(
+                settings,
+                threadPool,
+                bigArrays,
+                transportService,
+                namedWriteableRegistry,
+                networkService,
+                clusterService.getMasterService(),
+                clusterService.getClusterApplierService(),
+                clusterService.getClusterSettings(),
+                pluginsService.filterPlugins(DiscoveryPlugin.class),
+                clusterModule.getAllocationService(),
+                environment.configFile(),
+                gatewayMetaState,
+                rerouteService,
+                fsHealthService
+            );
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptService,
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,

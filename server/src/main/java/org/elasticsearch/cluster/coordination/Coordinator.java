@@ -15,8 +15,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
@@ -35,22 +35,23 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.ConfiguredHostsResolver;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -153,11 +154,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
      */
-    public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
-                       NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
-                       Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
-                       ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       RerouteService rerouteService, ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
+    public Coordinator(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        BigArrays bigArrays,
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        AllocationService allocationService,
+        MasterService masterService,
+        Supplier<CoordinationState.PersistedState> persistedStateSupplier,
+        SeedHostsProvider seedHostsProvider,
+        ClusterApplier clusterApplier,
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators,
+        Random random,
+        RerouteService rerouteService,
+        ElectionStrategy electionStrategy,
+        NodeHealthService nodeHealthService
+    ) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -182,8 +196,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
-        this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
-            this::handlePublishRequest, this::handleApplyCommit);
+        this.publicationHandler = new PublicationTransportHandler(
+            bigArrays,
+            transportService,
+            namedWriteableRegistry,
+            this::handlePublishRequest,
+            this::handleApplyCommit
+        );
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode,
             nodeHealthService);
@@ -1104,24 +1123,28 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final long publicationContextConstructionStartMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterStatePublicationEvent);
-                clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(
-                    transportService.getThreadPool().rawRelativeTimeInMillis() - publicationContextConstructionStartMillis);
+                try {
+                    clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(
+                        transportService.getThreadPool().rawRelativeTimeInMillis() - publicationContextConstructionStartMillis);
 
-                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
-                final CoordinatorPublication publication = new CoordinatorPublication(
-                    clusterStatePublicationEvent,
-                    publishRequest,
-                    publicationContext,
-                    new ListenableFuture<>(),
-                    ackListener,
-                    publishListener);
-                currentPublication = Optional.of(publication);
+                    final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
+                    final CoordinatorPublication publication = new CoordinatorPublication(
+                        clusterStatePublicationEvent,
+                        publishRequest,
+                        publicationContext,
+                        new ListenableFuture<>(),
+                        ackListener,
+                        publishListener);
+                    currentPublication = Optional.of(publication);
 
-                final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
-                leaderChecker.setCurrentNodes(publishNodes);
-                followersChecker.setCurrentNodes(publishNodes);
-                lagDetector.setTrackedNodes(publishNodes);
-                publication.start(followersChecker.getFaultyNodes());
+                    final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+                    leaderChecker.setCurrentNodes(publishNodes);
+                    followersChecker.setCurrentNodes(publishNodes);
+                    lagDetector.setTrackedNodes(publishNodes);
+                    publication.start(followersChecker.getFaultyNodes());
+                } finally {
+                    publicationContext.decRef();
+                }
             }
         } catch (Exception e) {
             logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);

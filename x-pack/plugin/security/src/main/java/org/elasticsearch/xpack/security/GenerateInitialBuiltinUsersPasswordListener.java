@@ -48,6 +48,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
                     elasticPassword.getChars(),
                     DocWriteRequest.OpType.CREATE,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
+                    this::outputOnError,
                     ActionListener.wrap(result -> {
                         nativeUsersStore
                             .updateReservedUser(
@@ -55,6 +56,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
                                 kibanaSystemPassword.getChars(),
                                 DocWriteRequest.OpType.CREATE,
                                 WriteRequest.RefreshPolicy.IMMEDIATE,
+                                this::outputOnError,
                                 ActionListener.wrap(
                                     r -> {
                                         outputOnSuccess(elasticPassword, kibanaSystemPassword);

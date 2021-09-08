@@ -65,7 +65,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType.INDEX;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -318,8 +317,8 @@ public class NativeUsersStore {
     }
 
     void storeAutoconfiguredElasticUser(ReservedUserInfo elasticUserInfo, ActionListener<ReservedUserInfo> listener) {
-        createOrUpdateReservedUser(ElasticUser.NAME, elasticUserInfo.passwordHash, WriteRequest.RefreshPolicy.IMMEDIATE,
-            DocWriteRequest.OpType.CREATE, (e) -> {
+        updateReservedUser(ElasticUser.NAME, elasticUserInfo.passwordHash, DocWriteRequest.OpType.CREATE,
+            WriteRequest.RefreshPolicy.IMMEDIATE, (e) -> {
             if (e instanceof VersionConflictEngineException) {
                 listener.onFailure(e);
             } else {

@@ -4,9 +4,11 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.security.tool;
+package org.elasticsearch.xpack.core.security;
 
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -23,9 +25,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,9 +39,16 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.security.MessageDigest;
+import java.security.PrivilegedExceptionAction;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -60,9 +72,16 @@ public class CommandLineHttpClient {
     private static final int READ_TIMEOUT = 35 * 1000;
 
     private final Environment env;
+    private final String pinnedCaCertFingerprint;
 
     public CommandLineHttpClient(Environment env) {
         this.env = env;
+        this.pinnedCaCertFingerprint = null;
+    }
+
+    public CommandLineHttpClient(Environment env, String pinnedCaCertFingerprint) {
+        this.env = env;
+        this.pinnedCaCertFingerprint = pinnedCaCertFingerprint;
     }
 
     /**
@@ -79,22 +98,55 @@ public class CommandLineHttpClient {
      *            handler of the response Input Stream.
      * @return HTTP protocol response code.
      */
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     public HttpResponse execute(String method, URL url, String user, SecureString password,
                                 CheckedSupplier<String, Exception> requestBodySupplier,
                                 CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
+
+        final String authorizationHeader = UsernamePasswordToken.basicAuthHeaderValue(user, password);
+        return execute(method, url, authorizationHeader, requestBodySupplier, responseHandler);
+    }
+
+    /**
+     * General purpose HTTP(S) call with JSON Content-Type and Authorization Header.
+     * SSL settings are read from the settings file, if any.
+     *
+     * @param apiKey
+     *            API key value to be used in the Authorization header
+     * @param requestBodySupplier
+     *            supplier for the JSON string body of the request.
+     * @param responseHandler
+     *            handler of the response Input Stream.
+     * @return HTTP protocol response code.
+     */
+    public HttpResponse execute(String method, URL url, SecureString apiKey,
+        CheckedSupplier<String, Exception> requestBodySupplier,
+        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
+        final String authorizationHeaderValue = apiKeyHeaderValue(apiKey);
+        return execute(method, url, authorizationHeaderValue, requestBodySupplier, responseHandler);
+    }
+
+    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
+    private HttpResponse execute(String method, URL url, String authorizationHeader,
+        CheckedSupplier<String, Exception> requestBodySupplier,
+        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
         final HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
         if ("https".equalsIgnoreCase(url.getProtocol())) {
             final SSLService sslService = new SSLService(env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                final SslConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
-                // Requires permission java.lang.RuntimePermission "setFactory";
-                httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
-                final boolean isHostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
-                if (isHostnameVerificationEnabled == false) {
-                    httpsConn.setHostnameVerifier((hostname, session) -> true);
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                if (pinnedCaCertFingerprint != null) {
+                    final SSLContext sslContext = SSLContext.getInstance("TLS");
+                    sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
+                    httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
+                } else {
+                    final SslConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                    // Requires permission java.lang.RuntimePermission "setFactory";
+                    httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
+                    final boolean isHostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
+                    if (isHostnameVerificationEnabled == false) {
+                        httpsConn.setHostnameVerifier((hostname, session) -> true);
+                    }
                 }
                 return null;
             });
@@ -105,8 +157,7 @@ public class CommandLineHttpClient {
         conn.setRequestMethod(method);
         conn.setReadTimeout(READ_TIMEOUT);
         // Add basic-auth header
-        String token = UsernamePasswordToken.basicAuthHeaderValue(user, password);
-        conn.setRequestProperty("Authorization", token);
+        conn.setRequestProperty("Authorization", authorizationHeader);
         conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
         String bodyString = requestBodySupplier.get();
         conn.setDoOutput(bodyString != null); // set true if we are sending a body
@@ -252,5 +303,49 @@ public class CommandLineHttpClient {
 
     public static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
         return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
+    }
+
+    public static String apiKeyHeaderValue(SecureString apiKey) {
+        CharBuffer chars = CharBuffer.allocate(apiKey.length());
+        byte[] charBytes = null;
+        try {
+            chars.put(apiKey.getChars());
+            charBytes = CharArrays.toUtf8Bytes(chars.array());
+
+            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
+            String apiKeyToken = Base64.getEncoder().encodeToString(charBytes);
+            return "ApiKey " + apiKeyToken;
+        } finally {
+            Arrays.fill(chars.array(), (char) 0);
+            if (charBytes != null) {
+                Arrays.fill(charBytes, (byte) 0);
+            }
+        }
+    }
+
+    /**
+     * Returns a TrustManager to be used in a client SSLContext, which trusts all certificates that are signed
+     * by a specific CA certificate ( identified by its SHA256 fingerprint, {@code pinnedCaCertFingerPrint} )
+     */
+    private TrustManager fingerprintTrustingTrustManager(String pinnedCaCertFingerprint) {
+        final TrustManager trustManager = new X509TrustManager() {
+            public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            }
+
+            public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                final Certificate caCertFromChain = chain[1];
+                MessageDigest sha256 = MessageDigests.sha256();
+                sha256.update(caCertFromChain.getEncoded());
+                if (MessageDigests.toHexString(sha256.digest()).equals(pinnedCaCertFingerprint) == false ) {
+                    throw new CertificateException();
+                }
+            }
+
+            @Override public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+        };
+
+        return trustManager;
     }
 }

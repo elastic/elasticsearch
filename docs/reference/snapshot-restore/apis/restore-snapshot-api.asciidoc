@@ -79,6 +79,10 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 <<create-index-template,matching index template>> with data stream enabled.
 Without a matching index template, a data stream can't roll over or create
 backing indices.
+
+* If your snapshot contains data from App Search or Workplace Search, ensure
+you've restored the {enterprise-search-ref}/encryption-keys.html[Enterprise
+Search encryption key] before restoring the snapshot.
 // end::restore-prereqs[]
 
 [[restore-snapshot-api-path-params]]

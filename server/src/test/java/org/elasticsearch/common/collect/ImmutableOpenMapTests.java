@@ -58,10 +58,9 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
         Map<Long, String> sortedMap = new TreeMap<>();
         for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key <= 0) {
-                continue;
+            if (cursor.key > 0) {
+                sortedMap.put(cursor.key, cursor.value);
             }
-            sortedMap.put(cursor.key, cursor.value);
         }
         int i = 0;
         Map<Long, List<String>> collectedIteratively = new HashMap<>();

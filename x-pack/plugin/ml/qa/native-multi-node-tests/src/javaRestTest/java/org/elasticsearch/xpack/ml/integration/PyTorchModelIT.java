@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -391,25 +389,12 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         Request request = new Request(
             "PUT",
-            "/" + InferenceIndexConstants.nativeDefinitionStore() + "/_doc/test_vocab?refresh=true"
+            "_ml/trained_models/" + modelId + "/vocabulary"
         );
         request.setJsonEntity("{  " +
-                "\"vocab\": [" + quotedWords + "]\n" +
+                "\"vocabulary\": [" + quotedWords + "]\n" +
             "}");
-        request.setOptions(expectInferenceIndexWarning());
         client().performRequest(request);
-    }
-
-    static RequestOptions expectInferenceIndexWarning() {
-        return RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(
-                w -> w.contains(
-                    "this request accesses system indices: ["
-                        + InferenceIndexConstants.nativeDefinitionStore()
-                        + "], but in a future major version, direct access to system indices will be prevented by default"
-                ) == false || w.size() != 1
-            )
-            .build();
     }
 
     private void createTrainedModel(String modelId) throws IOException {
@@ -419,10 +404,6 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    \"model_type\": \"pytorch\",\n" +
             "    \"inference_config\": {\n" +
             "        \"pass_through\": {\n" +
-            "            \"vocabulary\": {\n" +
-            "              \"index\": \"" + InferenceIndexConstants.nativeDefinitionStore() + "\",\n" +
-            "              \"id\": \"test_vocab\"\n" +
-            "            },\n" +
             "            \"tokenization\": {" +
             "              \"bert\": {\"with_special_tokens\": false}\n" +
             "            }\n" +

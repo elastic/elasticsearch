@@ -249,7 +249,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     }
 
     static ActionRequestValidationException validateSeqNoBasedCASParams(
-        DocWriteRequest request, ActionRequestValidationException validationException) {
+        DocWriteRequest<?> request, ActionRequestValidationException validationException) {
         final long version = request.version();
         final VersionType versionType = request.versionType();
         if (versionType.validateVersionForWrites(version) == false) {

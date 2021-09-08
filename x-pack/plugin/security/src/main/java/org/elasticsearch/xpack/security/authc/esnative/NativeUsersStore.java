@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -243,7 +244,8 @@ public class NativeUsersStore {
                     new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
                             clearRealmCache(request.username(), listener, null);
                         }
 
@@ -251,7 +253,13 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (isIndexNotFoundOrDocumentMissing(e)) {
                                 if (docType.equals(RESERVED_USER_TYPE)) {
-                                    createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
+                                    updateReservedUser(
+                                        username,
+                                        request.passwordHash(),
+                                        DocWriteRequest.OpType.INDEX,
+                                        request.getRefreshPolicy(),
+                                        listener
+                                    );
                                 } else {
                                     logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
                                             new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
@@ -268,17 +276,36 @@ public class NativeUsersStore {
     }
 
     /**
-     * Asynchronous method to create a reserved user with the given password hash. The cache for the user will be cleared after the document
-     * has been indexed
+     * Asynchronous method to create or update a reserved user with the given password hash. The cache for the user will be
+     * cleared after the document has been indexed
      */
-    private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
+    public void updateReservedUser(
+        String username,
+        char[] passwordHash,
+        DocWriteRequest.OpType opType,
+        RefreshPolicy refresh,
+        ActionListener<Void> listener
+    ) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForUser(RESERVED_USER_TYPE, username))
-                            .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
-                                    true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                            .setRefreshPolicy(refresh).request(),
-                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
+                    .setOpType(opType)
+                    .setId(getIdForUser(RESERVED_USER_TYPE, username))
+                    .setSource(
+                        Fields.PASSWORD.getPreferredName(),
+                        String.valueOf(passwordHash),
+                        Fields.ENABLED.getPreferredName(),
+                        true,
+                        Fields.TYPE.getPreferredName(),
+                        RESERVED_USER_TYPE
+                    )
+                    .setRefreshPolicy(refresh)
+                    .request(),
+                listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
+                client::index
+            );
         });
     }
 
@@ -611,6 +638,7 @@ public class NativeUsersStore {
         final String username = id.substring(USER_DOC_TYPE.length() + 1);
         try {
             String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
+            @SuppressWarnings("unchecked")
             String[] roles = ((List<String>) sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(Fields.FULL_NAME.getPreferredName());
             String email = (String) sourceMap.get(Fields.EMAIL.getPreferredName());
@@ -619,6 +647,7 @@ public class NativeUsersStore {
                 // fallback mechanism as a user from 2.x may not have the enabled field
                 enabled = Boolean.TRUE;
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {

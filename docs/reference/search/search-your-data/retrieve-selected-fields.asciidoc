@@ -49,14 +49,8 @@ The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
 `@timestamp` field.
 
-Using object notation, you can pass a `format` parameter for certain fields to
-apply a custom format for the field's values:
-
-* <<date,`date`>> and <<date_nanos,`date_nanos`>> fields accept a <<mapping-date-format,date format>>
-* <<spatial_datatypes, Spatial fields>> accept either `geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
-{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
-
-Other field types do not support the `format` parameter.
+Using object notation, you can pass a <<search-api-fields,`format`>> argument to
+customize the format of returned date or geospatial values.
 
 [source,console]
 ----

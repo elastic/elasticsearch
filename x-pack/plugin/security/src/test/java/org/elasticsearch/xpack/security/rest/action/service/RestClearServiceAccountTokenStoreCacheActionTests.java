@@ -45,7 +45,6 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
     public void init() {
         settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         requestHolder = new AtomicReference<>();
         controller().registerHandler(new RestClearServiceAccountTokenStoreCacheAction(settings, licenseState));
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {

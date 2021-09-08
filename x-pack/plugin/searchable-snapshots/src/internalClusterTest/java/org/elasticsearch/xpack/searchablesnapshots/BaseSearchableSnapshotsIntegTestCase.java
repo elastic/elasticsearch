@@ -40,13 +40,13 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
@@ -141,6 +141,15 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
     }
 
+    @Override
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        // add use for peer recovery setting randomly to verify that these features work together.
+        Settings.Builder newSettings = randomBoolean()
+            ? settings
+            : Settings.builder().put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true).put(settings.build());
+        super.createRepository(repoName, type, newSettings, verify);
+    }
+
     protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)
         throws Exception {
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -191,7 +200,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void populateIndex(String indexName, int maxIndexRequests) throws InterruptedException {
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         // This index does not permit dynamic fields, so we can only use defined field names
-        final String key = indexName.equals(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
+        final String key = indexName.equals(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
         for (int i = between(10, maxIndexRequests); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }

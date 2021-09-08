@@ -58,10 +58,11 @@
             GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
             GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
     publishers:
-      - junit:
-          results: "**/*Junit/*.xml, **/test-results/*/*.xml"
-          keep-long-stdio: true
-          allow-empty-results: true
+# Disable Junit publisher for now since it's causing OOME on our Jenkins instance
+#      - junit:
+#          results: "**/*Junit/*.xml, **/test-results/*/*.xml"
+#          keep-long-stdio: true
+#          allow-empty-results: true
       # Upload additional logs
       - google-cloud-storage:
           credentials-id: 'elasticsearch-ci-gcs-plugin'

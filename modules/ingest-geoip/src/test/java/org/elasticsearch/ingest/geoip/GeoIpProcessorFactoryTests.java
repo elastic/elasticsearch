@@ -9,10 +9,12 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -365,6 +368,26 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             GeoIpProcessor processor = factory.create(null, null, null, config);
             assertThat(processor, notNullValue());
         }
+    }
+
+    public void testDefaultDatabaseWithTaskPresent() throws Exception {
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.builder()
+            .addTask(GeoIpDownloader.GEOIP_DOWNLOADER, GeoIpDownloader.GEOIP_DOWNLOADER, null, null)
+            .updateTaskState(GeoIpDownloader.GEOIP_DOWNLOADER, GeoIpTaskState.EMPTY)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks))
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, clusterService);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        String processorTag = randomAlphaOfLength(10);
+
+        GeoIpProcessor processor = factory.create(null, processorTag, null, config);
+
+        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), Map.of("_field", "89.160.20.128")));
     }
 
     public void testFallbackUsingDefaultDatabasesWhileIngesting() throws Exception {

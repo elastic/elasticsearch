@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,7 +33,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Index created before 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "breaking-changes-8.0.html",
-            "This index was created using version: " + createdWith, null);
+            "This index was created using version: " + createdWith, false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertEquals(singletonList(expected), issues);
     }
@@ -48,7 +49,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "translog retention settings are ignored",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                 "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null)
+                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
+                false, null)
         ));
     }
 
@@ -76,6 +78,21 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "setting [index.data_path] is deprecated and will be removed in a future version",
                 expectedUrl,
                 "Found index data path configured. Discontinue use of this setting.",
-                null)));
+                false, null)));
+    }
+
+    public void testSimpleFSSetting() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "[simplefs] is deprecated and will be removed in future versions",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
+                    "as it offers superior or equivalent performance to [simplefs].", false, null)
+        ));
     }
 }

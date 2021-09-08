@@ -18,6 +18,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.FieldMaskingSpanQueryBuilder.NAME;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -57,7 +58,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +
-                "  \"field_masking_span\" : {\n" +
+                "  \"" + NAME.getPreferredName() + "\" : {\n" +
                 "    \"query\" : {\n" +
                 "      \"span_term\" : {\n" +
                 "        \"value\" : {\n" +
@@ -73,13 +74,13 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
                 "}";
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(),
-            equalTo("field_masking_span [query] as a nested span clause can't have non-default boost value [0.23]"));
+            equalTo(NAME.getPreferredName() + " [query] as a nested span clause can't have non-default boost value [0.23]"));
     }
 
     public void testJsonWithTopLevelBoost() throws IOException {
         String json =
             "{\n" +
-                "  \"field_masking_span\" : {\n" +
+                "  \"" + NAME.getPreferredName() + "\" : {\n" +
                 "    \"query\" : {\n" +
                 "      \"span_term\" : {\n" +
                 "        \"value\" : {\n" +
@@ -99,5 +100,25 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
                 42.0f),
             q
         );
+    }
+
+    public void testJsonWithDeprecatedName() throws IOException {
+        String json =
+            "{\n" +
+                "  \"field_masking_span\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"value\" : {\n" +
+                "          \"value\" : \"foo\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"field\" : \"mapped_geo_shape\",\n" +
+                "    \"boost\" : 42.0,\n" +
+                "    \"_name\" : \"KPI\"\n" +
+                "  }\n" +
+                "}";
+        Query q = parseQuery(json).toQuery(createSearchExecutionContext());
+        assertWarnings("Deprecated field [field_masking_span] used, expected [" + NAME.getPreferredName() + "] instead");
     }
 }

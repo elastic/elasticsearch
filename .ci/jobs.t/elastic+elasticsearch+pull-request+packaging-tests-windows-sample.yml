@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+packaging-tests-windows-sample"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request packaging-tests-windows-sample"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-windows-sample"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-windows-sample"
     description: "Testing of Elasticsearch pull requests - packaging-tests-windows-sample"
     # We use a hard-coded workspace directory here to avoid hitting windows path length limits
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
@@ -22,9 +22,7 @@
           status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true
           white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
-            - eql_multi_value_fields
+            - master
           excluded-regions:
             - ^docs/.*
           black-list-labels:
@@ -41,7 +39,6 @@
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
-            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Executable;
@@ -71,8 +70,4 @@ public class LocalRelation extends LeafPlan implements Executable {
         return Objects.equals(executable, other.executable);
     }
 
-    @Override
-    public String nodeString() {
-        return nodeName() + NodeUtils.limitedToString(output());
-    }
 }

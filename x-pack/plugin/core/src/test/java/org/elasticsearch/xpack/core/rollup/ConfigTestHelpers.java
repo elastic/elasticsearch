@@ -107,21 +107,6 @@ public class ConfigTestHelpers {
         }
     }
 
-    public static DateHistogramGroupConfig randomLegacyDateHistogramGroupConfig(final Random random) {
-        final String field = randomField(random);
-        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
-        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
-        if (random.nextBoolean()) {
-            return new DateHistogramGroupConfig(field, randomInterval(), delay, timezone);
-        } else {
-            int i = random.nextInt(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.size());
-            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
-            Collections.shuffle(units, random);
-            return new DateHistogramGroupConfig(field, new DateHistogramInterval(units.get(0)), delay, timezone);
-        }
-    }
-
-
     public static  List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
                 .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))

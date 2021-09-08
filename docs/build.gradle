@@ -64,9 +64,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
-    if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-      setting 'es.shutdown_feature_flag_enabled', 'true'
-    }
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }

@@ -18,7 +18,7 @@ You can query documents using this type using
 [discrete]
 ==== Mapping Options
 
-Like the <<geo-shape, geo_shape>> field type, the `shape` field mapping maps
+Like the <<geo-shape,`geo_shape`>> field type, the `shape` field mapping maps
 http://geojson.org[GeoJSON] or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) geometry objects to the shape type. To enable it, users must explicitly map
 fields to the shape type.
@@ -34,8 +34,8 @@ different ways. 1. Right-hand rule: `right`, `ccw`, `counterclockwise`,
 2. Left-hand rule: `left`, `cw`, `clockwise`. The default orientation
 (`counterclockwise`) complies with the OGC standard which defines
 outer ring vertices in counterclockwise order with inner ring(s) vertices (holes)
-in clockwise order. Setting this parameter in the geo_shape mapping explicitly
-sets vertex order for the coordinate list of a geo_shape field but can be
+in clockwise order. Setting this parameter in the `geo_shape` mapping explicitly
+sets vertex order for the coordinate list of a `geo_shape` field but can be
 overridden in each individual GeoJSON or WKT document.
 | `ccw`
 
@@ -46,7 +46,7 @@ entire document.
 
 |`ignore_z_value` |If `true` (default) three dimension points will be accepted (stored in source)
 but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,
-geo-points containing any more than latitude and longitude (two dimensions) values throw an exception
+geopoints containing any more than latitude and longitude (two dimensions) values throw an exception
 and reject the whole document.
 | `true`
 
@@ -279,7 +279,7 @@ POST /example/_doc
 [[multipoint]]
 ===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
-The following is an example of a list of geojson points:
+The following is an example of a list of GeoJSON points:
 
 [source,console]
 --------------------------------------------------
@@ -308,7 +308,7 @@ POST /example/_doc
 [[multilinestring]]
 ===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
-The following is an example of a list of geojson linestrings:
+The following is an example of a list of GeoJSON linestrings:
 
 [source,console]
 --------------------------------------------------
@@ -339,7 +339,7 @@ POST /example/_doc
 [[multipolygon]]
 ===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
-The following is an example of a list of geojson polygons (second polygon contains a hole):
+The following is an example of a list of GeoJSON polygons (second polygon contains a hole):
 
 [source,console]
 --------------------------------------------------
@@ -370,7 +370,7 @@ POST /example/_doc
 [[geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
-The following is an example of a collection of geojson geometry objects:
+The following is an example of a collection of GeoJSON geometry objects:
 
 [source,console]
 --------------------------------------------------

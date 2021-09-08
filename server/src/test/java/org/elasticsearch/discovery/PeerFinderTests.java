@@ -14,7 +14,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -202,7 +201,7 @@ public class PeerFinderTests extends ESTestCase {
         addressResolveDelay = 0L;
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
 
         localNode = newDiscoveryNode("local-node");
 

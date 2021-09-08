@@ -6,14 +6,12 @@
  */
 package org.elasticsearch.xpack.vectortile;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -35,20 +33,6 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
         return XPackPlugin.getSharedLicenseState();
     }
 
-    private static final Boolean VECTOR_TILE_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.vector_tile_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.vector_tile_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        VECTOR_TILE_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
-    }
-
-    public boolean isVectorTileEnabled() {
-        return Build.CURRENT.isSnapshot() || (VECTOR_TILE_FEATURE_FLAG_REGISTERED != null && VECTOR_TILE_FEATURE_FLAG_REGISTERED);
-    }
-
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -59,11 +43,7 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (isVectorTileEnabled()) {
-            return List.of(new RestVectorTileAction());
-        } else {
-            return List.of();
-        }
+        return List.of(new RestVectorTileAction());
     }
 
     @Override

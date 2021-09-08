@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -31,24 +30,25 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
@@ -120,7 +120,6 @@ import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
@@ -237,8 +236,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
 
         final List<ClusterNode> clusterNodes;
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(), random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         private boolean disruptStorage;
 
         final VotingConfiguration initialConfiguration;
@@ -733,6 +731,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             clusterNodes.forEach(ClusterNode::close);
         }
 
+        protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
+            return emptyList();
+        }
+
         class MockPersistedState implements CoordinationState.PersistedState {
             private final CoordinationState.PersistedState delegate;
             private final NodeEnvironment nodeEnvironment;
@@ -830,8 +832,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             }
                         }
 
-                        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
-                            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+                        final StreamInput inStream = new NamedWriteableAwareStreamInput(
+                            outStream.bytes().streamInput(),
+                            getNamedWriteableRegistry());
                         // adapt cluster state to new localNode instance and add blocks
                         delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(persistedCurrentTerm),
                             ClusterStateUpdaters.addStateNotRecoveredBlock(ClusterState.readFrom(inStream, newLocalNode)));
@@ -883,6 +886,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
+        private NamedWriteableRegistry getNamedWriteableRegistry() {
+            return new NamedWriteableRegistry(Stream.concat(
+                ClusterModule.getNamedWriteables().stream(),
+                extraNamedWriteables().stream()
+            ).collect(Collectors.toList()));
+        }
+
         public class ClusterNode {
             private final Logger logger = LogManager.getLogger(ClusterNode.class);
 
@@ -915,7 +925,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 assertTrue("must use a fresh PersistedState", openPersistedStates.add(persistedState));
                 boolean success = false;
                 try {
-                    onNodeLog(localNode, this::setUp).run();
+                    DeterministicTaskQueue.onNodeLog(localNode, this::setUp).run();
                     success = true;
                 } finally {
                     if (success == false) {
@@ -960,7 +970,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
+                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, getNamedWriteableRegistry(),
                     allocationService, masterService, this::getPersistedState,
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},
                     getElectionStrategy(), nodeHealthService);
@@ -1046,7 +1056,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             Runnable onNode(Runnable runnable) {
-                final Runnable wrapped = onNodeLog(localNode, runnable);
+                final Runnable wrapped = DeterministicTaskQueue.onNodeLog(localNode, runnable);
                 return new Runnable() {
                     @Override
                     public void run() {
@@ -1242,29 +1252,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return ElectionStrategy.DEFAULT_INSTANCE;
     }
 
-    public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
-
-    protected static String getNodeIdForLogContext(DiscoveryNode node) {
-        return "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
-    }
-
-    public static Runnable onNodeLog(DiscoveryNode node, Runnable runnable) {
-        final String nodeId = getNodeIdForLogContext(node);
-        return new Runnable() {
-            @Override
-            public void run() {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
-                    runnable.run();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return nodeId + ": " + runnable.toString();
-            }
-        };
-    }
-
     static class AckCollector implements ClusterStatePublisher.AckListener {
 
         private final Set<DiscoveryNode> ackedNodes = new HashSet<>();
@@ -1335,6 +1322,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     static class DisruptableClusterApplierService extends ClusterApplierService {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
+        private final ThreadPool threadPool;
         ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
         private boolean applicationMayFail;
 
@@ -1343,6 +1331,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             super(nodeName, settings, clusterSettings, threadPool);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
+            this.threadPool = threadPool;
             addStateApplier(event -> {
                 switch (clusterStateApplyResponse) {
                     case SUCCEED:
@@ -1368,7 +1357,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, (source1, e) -> {
+                    super.onNewClusterState(source, clusterStateSupplier, e -> {
                         // ignore result
                     });
                 }

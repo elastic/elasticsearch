@@ -227,18 +227,8 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                             }
                             logger.trace("unblocking field caps on " + nodeId);
                         };
-                        final Thread originalThread = Thread.currentThread();
                         chain.proceed(task, action, request,
-                            ActionListener.wrap(
-                                resp -> {
-                                    if (originalThread == Thread.currentThread()) {
-                                        // async if we never exited the original thread
-                                        executorService.execute(() -> actionWrapper.accept(resp));
-                                    } else {
-                                        actionWrapper.accept(resp);
-                                    }
-                                },
-                                listener::onFailure)
+                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
                         );
                     } else {
                         chain.proceed(task, action, request, listener);

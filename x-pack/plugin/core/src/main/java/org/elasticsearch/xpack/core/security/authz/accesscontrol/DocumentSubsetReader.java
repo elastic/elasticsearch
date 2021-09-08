@@ -86,7 +86,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
     private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws IOException, ExecutionException {
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper(); // this one takes deletes into account
         if (cacheHelper == null) {
-            throw new IllegalStateException("Reader " + reader + " does not support caching");
+            return computeNumDocs(reader, roleQueryBits);
         }
         final boolean[] added = new boolean[] { false };
         Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),

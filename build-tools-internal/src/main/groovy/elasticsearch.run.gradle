@@ -15,9 +15,9 @@ import org.elasticsearch.gradle.testclusters.RunTask
 
 testClusters {
   runTask {
-    testDistribution = System.getProperty('run.distribution', 'default')
-    if (System.getProperty('run.distribution', 'default') == 'default') {
-      String licenseType = System.getProperty("run.license_type", "basic")
+    testDistribution = providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get()
+    if (providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get() == 'default') {
+      String licenseType = providers.systemProperty("run.license_type").orElse("basic").forUseAtConfigurationTime().get()
       if (licenseType == 'trial') {
         setting 'xpack.ml.enabled', 'true'
         setting 'xpack.graph.enabled', 'true'
@@ -27,9 +27,6 @@ testClusters {
         throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
       }
       setting 'xpack.security.enabled', 'true'
-      if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-        setting 'es.shutdown_feature_flag_enabled', 'true'
-      }
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }

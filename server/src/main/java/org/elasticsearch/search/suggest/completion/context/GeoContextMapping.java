@@ -23,10 +23,10 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,7 +133,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
-    public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
+    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
+        throws IOException, ElasticsearchParseException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.START_ARRAY) {

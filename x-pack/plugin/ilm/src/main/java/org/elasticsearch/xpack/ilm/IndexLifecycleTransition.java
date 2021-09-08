@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -84,8 +85,13 @@ public final class IndexLifecycleTransition {
                 "], currently: [" + realKey + "]");
         }
 
-        // Always allow moving to the terminal step, even if it doesn't exist in the policy
-        if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false) {
+        final Set<Step.StepKey> cachedStepKeys =
+            stepRegistry.parseStepKeysFromPhase(lifecycleState.getPhaseDefinition(), lifecycleState.getPhase());
+        boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
+
+        // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
+        if (isNewStepCached == false &&
+            (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException("step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }

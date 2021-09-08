@@ -76,7 +76,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -333,6 +332,9 @@ public class InternalEngineTests extends EngineTestCase {
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
             // now, optimize and wait for merges, see that we have no merge flag
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+            // ensure that we have released the older segments with a refresh so they can be removed
+            assertFalse(engine.refreshNeeded());
 
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -917,10 +919,15 @@ public class InternalEngineTests extends EngineTestCase {
         MapperService mapperService = createMapperService();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         DocumentParser documentParser = mapperService.documentParser();
+        LongSupplier translogGetCount = engine.translogGetCount::get;
+        long translogGetCountExpected = 0;
+        LongSupplier translogInMemorySegmentCount = engine.translogInMemorySegmentsCount::get;
+        long translogInMemorySegmentCountExpected = 0;
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, randomSearcherWrapper())) {
             // we do not track the translog location yet
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
         // refresh triggered, as we did not track translog location until the first realtime get.
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
@@ -928,36 +935,53 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(createParsedDoc("1", null)));
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, searcher -> searcher)) {
             assertTrue(get.exists());
-            assertTrue(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L)); // no refresh; just read from translog
+
         if (randomBoolean()) {
             engine.index(indexForDoc(createParsedDoc("1", null)));
         }
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery())))) {
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchNoDocsQuery())))) {
             assertFalse(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("1")))))) {
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            // term query on _id field is properly faked
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("2")))))) {
             assertFalse(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            // term query on _id field is properly faked
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
         assertThat("no refresh, just read from translog or in-memory segment", engine.lastRefreshedCheckpoint(), equalTo(0L));
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader,
+                new TermQuery(new Term("other_field", Uid.encodeId("test"))))))) {
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            // term query on some other field needs in-memory index
+            assertEquals(++translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
+        }
     }
 
     public void testSearchResultRelease() throws Exception {
@@ -2579,7 +2603,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(null, logger);
+        CodecService codecService = new CodecService(null);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -2911,7 +2935,7 @@ public class InternalEngineTests extends EngineTestCase {
                 newMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null, logger),
+                new CodecService(null),
                 config.getEventListener(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -2924,7 +2948,8 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -5644,7 +5669,6 @@ public class InternalEngineTests extends EngineTestCase {
             indexer.join();
             refresher.join();
         }
-        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 
     public void testPruneAwayDeletedButRetainedIds() throws Exception {
@@ -5994,11 +6018,11 @@ public class InternalEngineTests extends EngineTestCase {
                 createTempDir(), config.getTranslogConfig().getIndexSettings(), config.getTranslogConfig().getBigArrays());
             EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, store, config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

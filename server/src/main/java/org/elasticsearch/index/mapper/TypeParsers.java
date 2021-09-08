@@ -92,12 +92,17 @@ public class TypeParsers {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES,
-                        "multifield_within_multifield", "At least one multi-field, [" + name + "], " +
-                        "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
-                        "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
-                        "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
-                        "[fields] blocks into a single level, or switching to [copy_to] if appropriate.");
+                    deprecationLogger.deprecate(
+                        DeprecationCategory.INDICES,
+                        "multifield_within_multifield",
+                        "At least one multi-field, ["
+                            + name
+                            + "], was encountered that itself contains a multi-field. Defining multi-fields within a multi-field "
+                            + "is deprecated and is not supported for indices created in 8.0 and later. To migrate the mappings, "
+                            + "all instances of [fields] that occur within a [fields] block should be removed from the mappings, "
+                            + "either by flattening the chained [fields] blocks into a single level, or switching to [copy_to] "
+                            + "if appropriate."
+                    );
                 } else {
                     throw new IllegalArgumentException("Encountered a multi-field [" + name + "] which itself contains a multi-field. " +
                         "Defining chained multi-fields is not supported.");
@@ -160,6 +165,7 @@ public class TypeParsers {
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
+    @SuppressWarnings("unchecked")
     public static List<String> parseCopyFields(Object propNode) {
         List<String> copyFields = new ArrayList<>();
         if (isArray(propNode)) {

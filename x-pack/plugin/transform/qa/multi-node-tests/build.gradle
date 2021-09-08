@@ -22,7 +22,7 @@ sourceSets.javaRestTest.resources.srcDir(keystoreDir)
 tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
 tasks.named("javaRestTest").configure { dependsOn "copyKeyCerts" }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

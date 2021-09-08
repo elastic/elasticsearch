@@ -12,10 +12,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -55,10 +55,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SparseVectorFieldMapper build(ContentPath contentPath) {
+        public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(buildFullName(contentPath), meta.getValue()),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build());
+                    name, new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
@@ -115,12 +115,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) {
+    public void parse(DocumentParserContext context) {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new IllegalStateException("parse is implemented directly");
     }
 

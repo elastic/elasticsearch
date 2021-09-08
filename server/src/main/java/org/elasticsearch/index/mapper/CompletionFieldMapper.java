@@ -11,7 +11,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -61,7 +60,7 @@ import java.util.Set;
  *  <li>"contexts" : CONTEXTS</li>
  * </ul>
  * see {@link ContextMappings#load(Object)} for CONTEXTS<br>
- * see {@link #parse(ParseContext)} for acceptable inputs for indexing<br>
+ * see {@link #parse(DocumentParserContext)} for acceptable inputs for indexing<br>
  * <p>
  *  This field type constructs completion queries that are run
  *  against the weighted FST index by the {@link CompletionSuggester}.
@@ -133,7 +132,7 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> builder(m).maxInputLength.get(), Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
-            .setValidator(Builder::validateInputLength)
+            .addValidator(Builder::validateInputLength)
             .alwaysSerialize();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -172,16 +171,16 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public CompletionFieldMapper build(ContentPath contentPath) {
+        public CompletionFieldMapper build(MapperBuilderContext context) {
             checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(this.searchAnalyzer.getValue().name(), AnalyzerScope.INDEX,
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue()));
 
             CompletionFieldType ft
-                = new CompletionFieldType(buildFullName(contentPath), completionAnalyzer, meta.getValue());
+                = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
             return new CompletionFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         private void checkCompletionContextsLimit() {
@@ -209,8 +208,6 @@ public class CompletionFieldMapper extends FieldMapper {
 
     public static final class CompletionFieldType extends TermBasedFieldType {
 
-        private static PostingsFormat postingsFormat;
-
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType(String name, NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
@@ -234,16 +231,6 @@ public class CompletionFieldMapper extends FieldMapper {
          */
         public ContextMappings getContextMappings() {
             return contextMappings;
-        }
-
-        /**
-         * @return postings format to use for this field-type
-         */
-        public static synchronized PostingsFormat postingsFormat() {
-            if (postingsFormat == null) {
-                postingsFormat = new Completion84PostingsFormat();
-            }
-            return postingsFormat;
         }
 
         /**
@@ -313,6 +300,10 @@ public class CompletionFieldMapper extends FieldMapper {
         return (CompletionFieldType) super.fieldType();
     }
 
+    static PostingsFormat postingsFormat() {
+        return PostingsFormat.forName("Completion84");
+    }
+
     @Override
     public boolean parsesArrayValue() {
         return true;
@@ -336,7 +327,7 @@ public class CompletionFieldMapper extends FieldMapper {
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
@@ -379,7 +370,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata: inputMap.values()) {
-            ParseContext externalValueContext = context.switchParser(new CompletionParser(metadata));
+            DocumentParserContext externalValueContext = context.switchParser(new CompletionParser(metadata));
             multiFields.parse(this, externalValueContext);
         }
     }
@@ -389,7 +380,7 @@ public class CompletionFieldMapper extends FieldMapper {
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      */
-    private void parse(ParseContext parseContext, Token token,
+    private void parse(DocumentParserContext documentParserContext, Token token,
                        XContentParser parser, Map<String, CompletionInputMetadata> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
@@ -460,7 +451,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                 } else {
                                     assert fieldName != null;
                                     assert contextsMap.containsKey(fieldName) == false;
-                                    contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
+                                    contextsMap.put(fieldName, contextMapping.parseContext(documentParserContext, parser));
                                 }
                             }
                         } else {
@@ -513,7 +504,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         // no-op
     }
 

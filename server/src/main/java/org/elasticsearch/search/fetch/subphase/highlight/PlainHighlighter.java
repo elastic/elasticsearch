@@ -135,8 +135,9 @@ public class PlainHighlighter implements Highlighter {
             }
         }
 
-        if (field.fieldOptions().scoreOrdered()) {
-            CollectionUtil.introSort(fragsList, (o1, o2) -> Math.round(o2.getScore() - o1.getScore()));
+        // fragments are ordered by score by default since we add them in best
+        if (field.fieldOptions().scoreOrdered() == false) {
+            CollectionUtil.introSort(fragsList, (o1, o2) -> o1.getFragNum() - o2.getFragNum());
         }
         String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field

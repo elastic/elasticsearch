@@ -79,7 +79,7 @@ public class ChunkedBlobOutputStreamTests extends ESTestCase {
             while (written < bytesToWrite) {
                 if (randomBoolean()) {
                     random().nextBytes(buffer);
-                    final int offset = randomInt(buffer.length - 2) + 1;
+                    final int offset = randomInt(buffer.length - 1);
                     final int length = Math.toIntExact(Math.min(bytesToWrite - written, buffer.length - offset));
                     stream.write(buffer, offset, length);
                     checksumIn.update(buffer, offset, length);
@@ -133,7 +133,7 @@ public class ChunkedBlobOutputStreamTests extends ESTestCase {
                     break;
                 } else if (randomBoolean()) {
                     random().nextBytes(buffer);
-                    final int offset = randomInt(buffer.length - 2) + 1;
+                    final int offset = randomInt(buffer.length - 1);
                     final int length = Math.toIntExact(Math.min(bytesToWrite - written, buffer.length - offset));
                     stream.write(buffer, offset, length);
                     written += length;

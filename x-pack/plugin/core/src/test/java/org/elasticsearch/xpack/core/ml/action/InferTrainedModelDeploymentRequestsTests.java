@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class InferTrainedModelDeploymentRequestsTests extends AbstractSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
     @Override
@@ -26,8 +29,11 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractSerializin
 
     @Override
     protected InferTrainedModelDeploymentAction.Request createTestInstance() {
+        List<Map<String, Object>> docs = randomList(5, () -> randomMap(1, 3,
+            () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7))));
+
         InferTrainedModelDeploymentAction.Request request =
-            new InferTrainedModelDeploymentAction.Request(randomAlphaOfLength(4), randomAlphaOfLength(6));
+            new InferTrainedModelDeploymentAction.Request(randomAlphaOfLength(4), docs);
         if (randomBoolean()) {
             request.setTimeout(randomTimeValue());
         }

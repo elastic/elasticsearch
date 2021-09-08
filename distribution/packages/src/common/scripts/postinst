@@ -9,11 +9,11 @@
 #       $1=1         : indicates an upgrade
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 IS_UPGRADE=false
 
@@ -23,7 +23,7 @@ case "$1" in
     configure)
 
         # If $1=configure and $2 is set, this is an upgrade
-        if [ -n $2 ]; then
+        if [ -n "$2" ]; then
             IS_UPGRADE=true
         fi
         PACKAGE=deb
@@ -79,7 +79,6 @@ if [ "$PACKAGE" = "deb" ]; then
         /usr/share/elasticsearch/bin/elasticsearch-keystore create
         chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
         chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
-        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
     else
         if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
           echo "### Warning: unable to upgrade encrypted keystore" 1>&2
@@ -90,4 +89,4 @@ if [ "$PACKAGE" = "deb" ]; then
     fi
 fi
 
-${scripts.footer}
+@scripts.footer@

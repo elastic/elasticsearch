@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Matchers.any;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -56,7 +56,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         TimeValue oneSecond = new TimeValue(1000);
         TimeValue oneMinute = TimeValue.timeValueMinutes(1);
         connectionProfile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, oneSecond, oneSecond,
-            oneMinute, false);
+            oneMinute, Compression.Enabled.FALSE, Compression.Scheme.DEFLATE);
     }
 
     @After
@@ -83,10 +83,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         Transport.Connection connection = new TestConnect(node);
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
             listener.onResponse(connection);
             return null;
-        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), anyActionListener());
 
         assertFalse(connectionManager.nodeConnected(node));
 
@@ -120,6 +121,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
 
             boolean success = randomBoolean();
@@ -135,7 +137,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
             }
             return null;
-        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), anyActionListener());
 
         assertFalse(connectionManager.nodeConnected(node));
 
@@ -237,10 +239,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         Transport.Connection connection = new TestConnect(node);
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
             listener.onResponse(connection);
             return null;
-        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), anyActionListener());
 
         assertFalse(connectionManager.nodeConnected(node));
 
@@ -276,10 +279,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
-            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            @SuppressWarnings("unchecked")
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>)invocationOnMock.getArguments()[2];
             listener.onFailure(new ConnectTransportException(node, ""));
             return null;
-        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), anyActionListener());
 
         assertFalse(connectionManager.nodeConnected(node));
 

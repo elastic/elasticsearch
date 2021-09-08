@@ -112,6 +112,8 @@ public interface XContentParser extends Closeable {
 
     XContentType contentType();
 
+    void allowDuplicateKeys(boolean allowDuplicateKeys);
+
     Token nextToken() throws IOException;
 
     void skipChildren() throws IOException;

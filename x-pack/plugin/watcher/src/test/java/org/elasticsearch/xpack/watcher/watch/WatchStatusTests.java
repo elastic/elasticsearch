@@ -73,6 +73,7 @@ public class WatchStatusTests extends ESTestCase {
                 Map<String, Object> fields = parser.map();
                 assertThat(fields, hasKey(WatchStatus.Field.HEADERS.getPreferredName()));
                 assertThat(fields.get(WatchStatus.Field.HEADERS.getPreferredName()), instanceOf(Map.class));
+                @SuppressWarnings("unchecked")
                 Map<String, Object> extractedHeaders = (Map<String, Object>) fields.get(WatchStatus.Field.HEADERS.getPreferredName());
                 assertThat(extractedHeaders, is(headers));
             }

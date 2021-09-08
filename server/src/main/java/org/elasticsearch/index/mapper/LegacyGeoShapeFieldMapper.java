@@ -17,21 +17,21 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -179,7 +179,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
 
-            this.pointsOnly.setValidator(v -> {
+            this.pointsOnly.addValidator(v -> {
                 if (v == null) {
                     return;
                 }
@@ -283,9 +283,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             ft.defaultPrefixTreeStrategy.setPointsOnly(ft.pointsOnly());
         }
 
-        private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, ContentPath contentPath) {
+        private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, MapperBuilderContext context) {
             GeoShapeFieldType ft =
-                new GeoShapeFieldType(buildFullName(contentPath), indexed.get(), orientation.get().value(), parser, meta.get());
+                new GeoShapeFieldType(context.buildFullName(name), indexed.get(), orientation.get().value(), parser, meta.get());
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft);
             return ft;
@@ -300,15 +300,15 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public LegacyGeoShapeFieldMapper build(ContentPath contentPath) {
+        public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             if (name.isEmpty()) {
                 // Check for an empty name early so we can throw a consistent error message
                 throw new IllegalArgumentException("name cannot be empty string");
             }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
-            GeoShapeFieldType ft = buildFieldType(parser, contentPath);
+            GeoShapeFieldType ft = buildFieldType(parser, context);
             return new LegacyGeoShapeFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
+                multiFieldsBuilder.build(this, context), copyTo.build(),
                 parser, this);
         }
     }
@@ -454,9 +454,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected Function<ShapeBuilder<?, ?, ?>, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
-            return (g) -> formatter.apply(g.buildGeometry());
+        protected Function<List<ShapeBuilder<?, ?, ?>>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, ShapeBuilder::buildGeometry);
         }
     }
 
@@ -484,7 +483,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void index(ParseContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
+    protected void index(DocumentParserContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
         if (shapeBuilder == null) {
             return;
         }

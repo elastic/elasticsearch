@@ -95,7 +95,7 @@ public class MultiOrdinals extends Ordinals {
         if (multiValued) {
             return new MultiDocs(this, values);
         } else {
-            return (SortedSetDocValues) DocValues.singleton(new SingleDocs(this, values));
+            return DocValues.singleton(new SingleDocs(this, values));
         }
     }
 

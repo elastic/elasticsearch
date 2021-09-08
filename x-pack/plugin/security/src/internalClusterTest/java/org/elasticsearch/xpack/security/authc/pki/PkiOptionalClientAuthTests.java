@@ -14,11 +14,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.SSLContext;
@@ -52,7 +52,7 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings())
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
+            .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL)
             .put("xpack.security.http.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("xpack.security.http.ssl.certificate",
@@ -68,7 +68,7 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("transport.profiles.want_client_auth.xpack.security.ssl.certificate",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
+            .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL);
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
             secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only");

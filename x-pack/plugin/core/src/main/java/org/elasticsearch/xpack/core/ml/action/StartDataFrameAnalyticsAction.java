@@ -10,22 +10,23 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -139,7 +140,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         }
     }
 
-    public static class TaskParams implements PersistentTaskParams {
+    public static class TaskParams implements PersistentTaskParams, MlTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
         public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
@@ -231,6 +232,11 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             return Objects.equals(id, other.id)
                 && Objects.equals(version, other.version)
                 && Objects.equals(allowLazyStart, other.allowLazyStart);
+        }
+
+        @Override
+        public String getMlId() {
+            return id;
         }
     }
 

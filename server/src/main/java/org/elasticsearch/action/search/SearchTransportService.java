@@ -76,11 +76,20 @@ public class SearchTransportService {
 
     private final TransportService transportService;
     private final NodeClient client;
-    private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
+    private final BiFunction<
+        Transport.Connection,
+        SearchActionListener<? super SearchPhaseResult>,
+        ActionListener<? super SearchPhaseResult>> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(TransportService transportService, NodeClient client,
-                                  BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
+    public SearchTransportService(
+        TransportService transportService,
+        NodeClient client,
+        BiFunction<
+            Transport.Connection,
+            SearchActionListener<? super SearchPhaseResult>,
+            ActionListener<? super SearchPhaseResult>> responseWrapper
+    ) {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
@@ -125,13 +134,13 @@ public class SearchTransportService {
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
-                                 final SearchActionListener<SearchPhaseResult> listener) {
+                                 final SearchActionListener<? super SearchPhaseResult> listener) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        final ActionListener handler = responseWrapper.apply(connection, listener);
+        final ActionListener<? super SearchPhaseResult> handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId()));
     }

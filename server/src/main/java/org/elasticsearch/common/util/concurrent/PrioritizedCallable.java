@@ -11,7 +11,7 @@ import org.elasticsearch.common.Priority;
 
 import java.util.concurrent.Callable;
 
-public abstract class PrioritizedCallable<T> implements Callable<T>, Comparable<PrioritizedCallable> {
+public abstract class PrioritizedCallable<T> implements Callable<T>, Comparable<PrioritizedCallable<T>> {
 
     private final Priority priority;
 
@@ -24,7 +24,7 @@ public abstract class PrioritizedCallable<T> implements Callable<T>, Comparable<
     }
 
     @Override
-    public int compareTo(PrioritizedCallable pc) {
+    public int compareTo(PrioritizedCallable<T> pc) {
         return priority.compareTo(pc.priority);
     }
 

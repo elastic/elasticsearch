@@ -16,11 +16,11 @@ err_exit() {
 }
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 case "$1" in
 
@@ -80,4 +80,4 @@ case "$1" in
     ;;
 esac
 
-${scripts.footer}
+@scripts.footer@

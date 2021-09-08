@@ -13,11 +13,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
@@ -89,7 +89,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        public GeoShapeFieldMapper build(ContentPath contentPath) {
+        public GeoShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
@@ -103,13 +103,13 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 ignoreZValue.get().value());
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
             GeoShapeFieldType ft = new GeoShapeFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.get(),
                 orientation.get().value(),
                 geoShapeParser,
                 meta.get());
-            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), buildFullName(contentPath)),
+            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(),
+                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), context.buildFullName(name)),
                 geoShapeParser, this);
         }
     }
@@ -141,8 +141,8 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        protected Function<Geometry, Object> getFormatter(String format) {
-            return GeoFormatterFactory.getFormatter(format);
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, Function.identity());
         }
     }
 
@@ -210,7 +210,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    protected void index(ParseContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
         if (geometry == null) {
             return;
         }

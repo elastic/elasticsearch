@@ -13,7 +13,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -31,7 +30,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74668")
+
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
     private static Double[] brokenDoubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
@@ -40,8 +39,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
-        // make sure that minX != maxX after geohash encoding
-        Rectangle box = randomValueOtherThanMany((r) -> Math.abs(r.getMaxX() - r.getMinX()) < 0.1, GeometryTestUtils::randomRectangle);
+        // make sure that minX != maxX and minY != maxY  after geohash encoding
+        Rectangle box = randomValueOtherThanMany((r) ->
+            Math.abs(r.getMaxX() - r.getMinX()) < 0.1 ||  Math.abs(r.getMaxY() - r.getMinY()) < 0.1, GeometryTestUtils::randomRectangle);
 
         if (randomBoolean()) {
             // check the top-left/bottom-right combination of setters

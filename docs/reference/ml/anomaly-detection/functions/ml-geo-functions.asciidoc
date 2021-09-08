@@ -1,5 +1,4 @@
-[role="xpack"]
-[[ml-geo-functions]]
+["appendix",role="exclude",id="ml-geo-functions"]
 = Geographic functions
 
 The geographic functions detect anomalies in the geographic location of the
@@ -71,9 +70,9 @@ For example, JSON data might contain the following transaction coordinates:
 // NOTCONSOLE
 
 In {es}, location data is likely to be stored in `geo_point` fields. For more
-information, see {ref}/geo-point.html[Geo-point data type]. This data type is
-supported natively in {ml-features}. Specifically, {dfeed} when pulling data from
-a `geo_point` field, will transform the data into the appropriate `lat,lon` string
-format before sending to the {anomaly-job}.
+information, see {ref}/geo-point.html[`geo_point` data type]. This data type is
+supported natively in {ml-features}. Specifically, when pulling data from a
+`geo_point` field, a {dfeed} will transform the data into the appropriate
+`lat,lon` string format before sending to the {anomaly-job}.
 
 For more information, see <<ml-configuring-transform>>.

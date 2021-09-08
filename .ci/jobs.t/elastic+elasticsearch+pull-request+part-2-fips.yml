@@ -1,9 +1,9 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+part-2-fips"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request part-2 fips"
+    name: "elastic+elasticsearch+pull-request+part-2-fips"
+    display-name: "elastic / elasticsearch - pull request part-2 fips"
     description: "Testing of Elasticsearch pull requests - part-2 fips"
-    workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+part-2-fips"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+part-2-fips"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
@@ -18,10 +18,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/part-2-fips
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
-            - eql_multi_value_fields
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:

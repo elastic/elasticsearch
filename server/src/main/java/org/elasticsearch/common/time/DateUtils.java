@@ -204,6 +204,8 @@ public class DateUtils {
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 
+    public static final long MAX_NANOSECOND = toLong(MAX_NANOSECOND_INSTANT);
+
     /**
      * convert a java time instant to a long value which is stored in lucene
      * the long value resembles the nanoseconds since the epoch

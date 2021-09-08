@@ -12,7 +12,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -20,13 +23,17 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,7 +42,9 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceAccountIT extends ESRestTestCase {
 
@@ -162,6 +171,18 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
             "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
+
+        final Request getServiceAccountRequestKibana = new Request("GET", "_security/service/elastic/kibana");
+        final Response getServiceAccountResponseKibana = client().performRequest(getServiceAccountRequestKibana);
+        assertOK(getServiceAccountResponseKibana);
+        assertServiceAccountRoleDescriptor(
+            getServiceAccountResponseKibana,
+            "elastic/kibana",
+            Strings.toString(
+                ReservedRolesStore.kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)
+                    .toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)
+            )
+        );
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);
@@ -299,7 +320,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap1.get("count"), equalTo(1));
         assertThat(getTokensResponseMap1.get("tokens"), equalTo(Map.of()));
-        assertThat(getTokensResponseMap1.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
+        assertNodesCredentials(getTokensResponseMap1);
 
         final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse1 = client().performRequest(createTokenRequest1);
@@ -314,11 +335,11 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap2 = responseAsMap(getTokensResponse2);
         assertThat(getTokensResponseMap2.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap2.get("count"), equalTo(3));
-        assertThat(getTokensResponseMap2.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
         assertThat(getTokensResponseMap2.get("tokens"), equalTo(Map.of(
             "api-token-1", Map.of(),
             "api-token-2", Map.of()
         )));
+        assertNodesCredentials(getTokensResponseMap2);
 
         final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
         final Response deleteTokenResponse1 = client().performRequest(deleteTokenRequest1);
@@ -330,10 +351,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap3 = responseAsMap(getTokensResponse3);
         assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap3.get("count"), equalTo(2));
-        assertThat(getTokensResponseMap3.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
         assertThat(getTokensResponseMap3.get("tokens"), equalTo(Map.of(
             "api-token-1", Map.of()
         )));
+        assertNodesCredentials(getTokensResponseMap3);
 
         final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
         final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(deleteTokenRequest2));
@@ -378,9 +399,29 @@ public class ServiceAccountIT extends ESRestTestCase {
         createApiKeyRequest1.setOptions(requestOptions);
         final Response createApiKeyResponse1 = client().performRequest(createApiKeyRequest1);
         assertOK(createApiKeyResponse1);
-        final String apiKeyId1 = (String) responseAsMap(createApiKeyResponse1).get("id");
+        final Map<String, Object> createApiKeyResponseMap1 = responseAsMap(createApiKeyResponse1);
+        final String apiKeyId1 = (String) createApiKeyResponseMap1.get("id");
 
         assertApiKeys(apiKeyId1, "key-1", false, requestOptions);
+
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (apiKeyId1 + ":" + createApiKeyResponseMap1.get("api_key")).getBytes(StandardCharsets.UTF_8));
+
+        // API key can monitor cluster
+        final Request mainRequest = new Request("GET", "/");
+        mainRequest.setOptions(mainRequest.getOptions().toBuilder().addHeader(
+            "Authorization", "ApiKey " + base64ApiKeyKeyValue
+        ));
+        assertOK(client().performRequest(mainRequest));
+
+        // API key cannot get user
+        final Request getUserRequest = new Request("GET", "_security/user");
+        getUserRequest.setOptions(getUserRequest.getOptions().toBuilder().addHeader(
+            "Authorization", "ApiKey " + base64ApiKeyKeyValue
+        ));
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getUserRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
         invalidateApiKeysRequest.setJsonEntity("{\"ids\":[\"" + apiKeyId1 + "\"],\"owner\":true}");
@@ -418,5 +459,20 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap, hasEntry(serviceAccountPrincipal, Map.of("role_descriptor",
             XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNodesCredentials(Map<String, Object> responseMap) {
+        final Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes_credentials");
+        assertThat(nodes, hasKey("_nodes"));
+        final Map<String, Object> header = (Map<String, Object>) nodes.get("_nodes");
+        assertThat(header.get("total"), equalTo(2));
+        assertThat(header.get("successful"), equalTo(2));
+        assertThat(header.get("failed"), equalTo(0));
+        assertThat(header.get("failures"), nullValue());
+        final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
+        assertThat(fileTokens, hasKey("token1"));
+        final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
+        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("javaRestTest-0", "javaRestTest-1")));
     }
 }

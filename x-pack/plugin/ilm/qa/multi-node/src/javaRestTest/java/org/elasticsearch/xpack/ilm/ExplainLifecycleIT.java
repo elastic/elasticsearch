@@ -15,8 +15,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -61,7 +61,6 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         alias = "alias-" + randomAlphaOfLength(5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71010")
     public void testExplainFilters() throws Exception {
         String goodIndex = index + "-good-000001";
         String errorIndex = index + "-error";
@@ -115,7 +114,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
             Map<String, Map<String, Object>> onlyErrorsResponse = explain(client(), index + "*", true, true);
             assertNotNull(onlyErrorsResponse);
-            assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyErrorsResponse, hasKey(nonexistantPolicyIndex));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
         });
     }

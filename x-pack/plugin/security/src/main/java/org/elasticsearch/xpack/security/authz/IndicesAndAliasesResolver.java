@@ -11,9 +11,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -28,11 +25,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
 import java.util.ArrayList;
@@ -74,7 +69,7 @@ class IndicesAndAliasesResolver {
      * that is consistent and does not change during the life of the request.
      * </p>
      * <p>
-     * If the provided <code>request</code> is of a type that {@link #allowsRemoteIndices(IndicesRequest) allows remote indices},
+     * If the provided <code>request</code> is of a type that {@link IndicesRequest#allowsRemoteIndices() allows remote indices},
      * then the index names will be categorized into those that refer to {@link ResolvedIndices#getLocal() local indices}, and those that
      * refer to {@link ResolvedIndices#getRemote() remote indices}. This categorization follows the standard
      * {@link RemoteClusterAware#buildRemoteIndexName(String, String) remote index-name format} and also respects the currently defined
@@ -147,7 +142,7 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 final ResolvedIndices split;
-                if (allowsRemoteIndices(indicesRequest)) {
+                if (indicesRequest.allowsRemoteIndices()) {
                     split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
@@ -297,13 +292,6 @@ class IndicesAndAliasesResolver {
         }
 
         return resolvedAliasOrIndex;
-    }
-
-    static boolean allowsRemoteIndices(IndicesRequest request) {
-        return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
-                || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request
-                || request instanceof OpenPointInTimeRequest
-                || request.getClass().getCanonicalName().equals("org.elasticsearch.xpack.eql.action.EqlSearchRequest");
     }
 
     private List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {

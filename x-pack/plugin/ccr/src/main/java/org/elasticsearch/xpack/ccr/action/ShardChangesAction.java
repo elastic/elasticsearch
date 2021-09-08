@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 
@@ -66,7 +67,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         super(NAME, ShardChangesAction.Response::new);
     }
 
-    public static class Request extends SingleShardRequest<Request> {
+    public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {
 
         private long fromSeqNo;
         private int maxOperationCount;

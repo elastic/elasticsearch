@@ -12,14 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -464,6 +462,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return;
             }
 
+            // searchResponse may be null if the search was optimized to a noop
+            if (searchResponse == null) {
+                logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
+                // execute finishing tasks
+                onFinish(ActionListener.wrap(
+                    r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                    e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
+                return;
+            }
+
             // allowPartialSearchResults is set to false, so we should never see shard failures here
             assert (searchResponse.getShardFailures().length == 0);
             stats.markStartProcessing();
@@ -487,13 +495,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return;
             }
 
-            final List<IndexRequest> docs = iterationResult.getToIndex();
+            final BulkRequest bulkRequest = new BulkRequest();
+            iterationResult.getToIndex().forEach(bulkRequest::add);
+            stats.markEndProcessing();
 
             // an iteration result might return an empty set of documents to be indexed
-            if (docs.isEmpty() == false) {
-                final BulkRequest bulkRequest = new BulkRequest();
-                docs.forEach(bulkRequest::add);
-                stats.markEndProcessing();
+            if (bulkRequest.numberOfActions() > 0) {
                 stats.markStartIndexing();
                 doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                     // TODO we should check items in the response and move after accordingly to
@@ -512,7 +519,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     onBulkResponse(bulkResponse, newPosition);
                 }, this::finishWithIndexingFailure));
             } else {
-                stats.markEndProcessing();
                 // no documents need to be indexed, continue with search
                 try {
                     JobPosition newPosition = iterationResult.getPosition();

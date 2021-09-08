@@ -20,6 +20,7 @@
       - inject:
           properties-file: '.ci/java-versions-aarch64.properties'
           properties-content: |
+            COMPOSE_HTTP_TIMEOUT=120
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA15_HOME=$HOME/.java/jdk15

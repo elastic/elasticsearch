@@ -39,6 +39,7 @@ public class ContainsAssertion extends Assertion {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         // add support for matching objects ({a:b}) against list of objects ([ {a:b, c:d} ])
         if(expectedValue instanceof Map && actualValue instanceof List) {

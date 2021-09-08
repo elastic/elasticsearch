@@ -77,6 +77,7 @@ public class DatafeedRunnerTests extends ESTestCase {
     private DatafeedJob datafeedJob;
     private DatafeedRunner datafeedRunner;
     private DatafeedContextProvider datafeedContextProvider;
+    private DatafeedJobBuilder datafeedJobBuilder;
     private long currentTime = 120000;
     private AnomalyDetectionAuditor auditor;
     private ArgumentCaptor<ClusterStateListener> capturedClusterStateListener = ArgumentCaptor.forClass(ClusterStateListener.class);
@@ -122,7 +123,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         when(datafeedJob.stop()).thenReturn(true);
         when(datafeedJob.getJobId()).thenReturn(job.getId());
         when(datafeedJob.getMaxEmptySearches()).thenReturn(null);
-        DatafeedJobBuilder datafeedJobBuilder = mock(DatafeedJobBuilder.class);
+        datafeedJobBuilder = mock(DatafeedJobBuilder.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
@@ -423,6 +424,24 @@ public class DatafeedRunnerTests extends ESTestCase {
         verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 
+    public void testDatafeedGetsStoppedWhileStarting() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(JOB_ID, "node_id", JobState.OPENED, tasksBuilder);
+        ClusterState cs = ClusterState.builder(clusterService.state())
+            .metadata(new Metadata.Builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build())).build();
+        when(clusterService.state()).thenReturn(cs);
+
+        Consumer<Exception> handler = mockConsumer();
+        DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, 60000L);
+        when(task.getStoppedOrIsolatedBeforeRunning()).thenReturn(DatafeedTask.StoppedOrIsolatedBeforeRunning.STOPPED);
+        datafeedRunner.run(task, handler);
+
+        // Verify datafeed aborted after creating context but before doing anything else
+        verify(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), any());
+        verify(datafeedJobBuilder, never()).build(any(), any(), any());
+        verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+    }
+
     public static DatafeedConfig.Builder createDatafeedConfig(String datafeedId, String jobId) {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, jobId);
         datafeedConfig.setIndices(Collections.singletonList("myIndex"));
@@ -453,6 +472,7 @@ public class DatafeedRunnerTests extends ESTestCase {
             listener.onResponse(mock(PersistentTask.class));
             return null;
         }).when(task).updatePersistentTaskState(any(), any());
+        when(task.getStoppedOrIsolatedBeforeRunning()).thenReturn(DatafeedTask.StoppedOrIsolatedBeforeRunning.NEITHER);
         return task;
     }
 

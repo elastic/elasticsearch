@@ -160,25 +160,25 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         // Adds the alternates versions of the query too
         candidates.addAll(getAlternateVersions().keySet());
 
-        List<Tuple<String, Boolean>> testQueries = alterateQueries(candidates, getObjectsHoldingArbitraryContent());
-        for (Tuple<String, Boolean> testQuery : testQueries) {
-            boolean expectedException = testQuery.v2();
+        List<Tuple<String, String>> testQueries = alterateQueries(candidates, getObjectsHoldingArbitraryContent());
+        for (Tuple<String, String> testQuery : testQueries) {
+            String expectedException = testQuery.v2();
             try {
                 parseQuery(testQuery.v1());
-                if (expectedException) {
+                if (expectedException != null) {
                     fail("some parsing exception expected for query: " + testQuery);
                 }
             } catch (ParsingException | ElasticsearchParseException | XContentParseException e) {
                 // different kinds of exception wordings depending on location
                 // of mutation, so no simple asserts possible here
-                if (expectedException == false) {
+                if (expectedException == null) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
             } catch (IllegalArgumentException e) {
-                if (expectedException == false) {
+                if (expectedException == null) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
-                assertThat(e.getMessage(), containsString("unknown field [newField]"));
+                assertThat(e.getMessage(), containsString(expectedException));
             }
         }
     }
@@ -221,8 +221,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * for the mutation. Some specific objects do not cause any exception as they can hold arbitrary content; they are passed using the
      * arbitraryMarkers parameter.
      */
-    static List<Tuple<String, Boolean>> alterateQueries(Set<String> queries, Set<String> arbitraryMarkers) throws IOException {
-        List<Tuple<String, Boolean>> results = new ArrayList<>();
+    static List<Tuple<String, String>> alterateQueries(Set<String> queries, Map<String, String> arbitraryMarkers) throws IOException {
+        List<Tuple<String, String>> results = new ArrayList<>();
 
         // Indicate if a part of the query can hold any arbitrary content
         boolean hasArbitraryContent = (arbitraryMarkers != null && arbitraryMarkers.isEmpty() == false);
@@ -232,7 +232,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             int mutation = 0;
 
             while (true) {
-                boolean expectException = true;
+                String exception = "unknown field [newField]";
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
@@ -262,9 +262,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 if (hasArbitraryContent) {
                                     // The query has one or more fields that hold arbitrary content. If the current
                                     // field is one (or a child) of those, no exception is expected when parsing the mutated query.
-                                    for (String marker : arbitraryMarkers) {
+                                    for (String marker : arbitraryMarkers.keySet()) {
                                         if (levels.contains(marker)) {
-                                            expectException = false;
+                                            exception = arbitraryMarkers.get(marker);
                                             break;
                                         }
                                     }
@@ -290,21 +290,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     }
                 }
 
-                results.add(new Tuple<>(out.bytes().utf8ToString(), expectException));
+                results.add(new Tuple<>(out.bytes().utf8ToString(), exception));
             }
         }
         return results;
     }
 
     /**
-     * Returns a set of object names that won't trigger any exception (uncluding their children) when testing that unknown
-     * objects cause parse exceptions through {@link #testUnknownObjectException()}. Default is an empty set. Can be overridden
-     * by subclasses that test queries which contain objects that get parsed on the data nodes (e.g. score functions) or objects
-     * that can contain arbitrary content (e.g. documents for percolate or more like this query, params for scripts). In such
-     * cases no exception would get thrown.
+     * Returns a map where the keys are object names that won't trigger a standard exception (an exception that contains the string
+     * "unknown field [newField]") through {@link #testUnknownObjectException()}. The value is a string that is contained in the thrown
+     * exception or null in the case that no exception is thrown (including their children).
+     * Default is an empty Map. Can be overridden by subclasses that test queries which contain objects that get parsed on the data nodes
+     * (e.g. score functions) or objects that can contain arbitrary content (e.g. documents for percolate or more like this query, params
+     * for scripts) and/or expect some content(e.g documents with geojson geometries).
      */
-    protected Set<String> getObjectsHoldingArbitraryContent() {
-        return Collections.emptySet();
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        return Collections.emptyMap();
     }
 
     /**

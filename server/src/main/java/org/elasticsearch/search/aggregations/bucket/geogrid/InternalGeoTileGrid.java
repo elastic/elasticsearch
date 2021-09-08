@@ -30,7 +30,7 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
+    public InternalGeoGrid<InternalGeoTileGridBucket> create(List<InternalGeoGridBucket> buckets) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
@@ -40,7 +40,12 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    InternalGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
+    InternalGeoGrid<InternalGeoTileGridBucket> create(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
@@ -50,7 +55,7 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    Reader getBucketReader() {
+    Reader<InternalGeoTileGridBucket> getBucketReader() {
         return InternalGeoTileGridBucket::new;
     }
 

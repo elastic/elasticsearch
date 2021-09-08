@@ -206,7 +206,7 @@ class InjectorImpl implements Injector, Lookups {
             final Provider<T> provider = providedBinding.getProvider();
             return new InternalFactory<Provider<T>>() {
                 @Override
-                public Provider<T> get(Errors errors, InternalContext context, Dependency dependency) {
+                public Provider<T> get(Errors errors, InternalContext context, Dependency<?> dependency) {
                     return provider;
                 }
             };
@@ -473,7 +473,7 @@ class InjectorImpl implements Injector, Lookups {
 
         InternalFactory<T> internalFactory = new InternalFactory<T>() {
             @Override
-            public T get(Errors errors, InternalContext context, Dependency dependency)
+            public T get(Errors errors, InternalContext context, Dependency<?> dependency)
                     throws ErrorsException {
                 errors = errors.withSource(providerKey);
                 Provider<?> provider = providerBinding.getInternalFactory().get(
@@ -585,7 +585,7 @@ class InjectorImpl implements Injector, Lookups {
             // These casts are safe. We know T extends Provider<X> and that given Key<Provider<X>>,
             // createProviderBinding() will return BindingImpl<Provider<X>>.
             @SuppressWarnings("unchecked")
-            BindingImpl binding = createProviderBinding((Key) key, errors);
+            BindingImpl<T> binding = (BindingImpl<T>) createProviderBinding((Key<Provider<T>>) key, errors);
             return binding;
         }
 
@@ -594,7 +594,7 @@ class InjectorImpl implements Injector, Lookups {
             // These casts are safe. T extends MembersInjector<X> and that given Key<MembersInjector<X>>,
             // createMembersInjectorBinding() will return BindingImpl<MembersInjector<X>>.
             @SuppressWarnings("unchecked")
-            BindingImpl binding = createMembersInjectorBinding((Key) key, errors);
+            BindingImpl<T> binding = (BindingImpl<T>) createMembersInjectorBinding((Key<MembersInjector<T>>) key, errors);
             return binding;
         }
 
@@ -701,9 +701,9 @@ class InjectorImpl implements Injector, Lookups {
     MembersInjectorStore membersInjectorStore;
 
     @Override
-    @SuppressWarnings("unchecked") // the members injector type is consistent with instance's type
     public void injectMembers(Object instance) {
-        MembersInjector membersInjector = getMembersInjector(instance.getClass());
+        @SuppressWarnings("unchecked") // the members injector type is consistent with instance's type
+        MembersInjector<Object> membersInjector = getMembersInjector((Class<Object>) instance.getClass());
         membersInjector.injectMembers(instance);
     }
 
@@ -733,9 +733,10 @@ class InjectorImpl implements Injector, Lookups {
         if (factory instanceof InternalFactory.Instance) {
             return new Provider<T>() {
                 @Override
+                @SuppressWarnings("unchecked")
                 public T get() {
                     try {
-                        return (T) ((InternalFactory.Instance) factory).get(null, null, null);
+                        return (T) ((InternalFactory.Instance<?>) factory).get(null, null, null);
                     } catch (ErrorsException e) {
                         // ignore
                     }

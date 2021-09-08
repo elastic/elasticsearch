@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_search_changes]]
-==== Search Changes
+==== Search changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -20,7 +20,22 @@ Aggregating and sorting on `_id` should be avoided. As an alternative, the
 `_id` field's contents can be duplicated into another field with docvalues
 enabled (note that this does not apply to auto-generated IDs).
 ====
-//end::notable-breaking-changes[]
+
+[[max_clause_count_change]]
+.The `indices.query.bool.max_clause_count` setting now limits all query clauses.
+[%collapsible]
+====
+*Details* +
+Previously, the `indices.query.bool.max_clause_count` would apply to the number
+of clauses of a single `bool` query. It now applies to the total number of
+clauses of the rewritten query. In order to reduce chances of breaks, its
+default value has been bumped from 1024 to 4096.
+
+*Impact* +
+Queries with many clauses should be avoided whenever possible. If you had bumped
+this setting already in order to accomodate for some heavy queries, you might
+need to bump it further so that these heavy queries keep working.
+====
 
 .Search-related REST API endpoints containing mapping types have been removed.
 [%collapsible]
@@ -186,3 +201,4 @@ been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
 Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
 this parameter will return an error.
 ====
+//end::notable-breaking-changes[]

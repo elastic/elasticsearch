@@ -35,8 +35,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -53,11 +56,17 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 }
                 connection.sendRequest(requestId, action, request, options);
             },
-            childNode -> new MockLogAppender.SeenEventExpectation(
-                "cannot send message",
-                TaskCancellationService.class.getName(),
-                Level.DEBUG,
-                "*cannot send ban for tasks*" + childNode.getId() + "*"));
+            childNode -> List.of(
+                new MockLogAppender.SeenEventExpectation(
+                    "cannot send ban",
+                    TaskCancellationService.class.getName(),
+                    Level.DEBUG,
+                    "*cannot send ban for tasks*" + childNode.getId() + "*"),
+                new MockLogAppender.SeenEventExpectation(
+                    "cannot remove ban",
+                    TaskCancellationService.class.getName(),
+                    Level.DEBUG,
+                    "*failed to remove ban for tasks*" + childNode.getId() + "*")));
     }
 
     @TestLogging(reason = "testing logging at DEBUG", value = "org.elasticsearch.tasks.TaskCancellationService:DEBUG")
@@ -70,20 +79,29 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 }
                 connection.sendRequest(requestId, action, request, options);
             },
-            childNode -> new MockLogAppender.SeenEventExpectation(
-                "cannot send message",
-                TaskCancellationService.class.getName(),
-                Level.DEBUG,
-                "*failed to remove ban for tasks*" + childNode.getId() + "*"));
+            childNode -> List.of(
+                new MockLogAppender.UnseenEventExpectation(
+                    "cannot send ban",
+                    TaskCancellationService.class.getName(),
+                    Level.DEBUG,
+                    "*cannot send ban for tasks*" + childNode.getId() + "*"),
+                new MockLogAppender.SeenEventExpectation(
+                    "cannot remove ban",
+                    TaskCancellationService.class.getName(),
+                    Level.DEBUG,
+                    "*failed to remove ban for tasks*" + childNode.getId() + "*")));
     }
 
     private void runTest(
         StubbableTransport.SendRequestBehavior sendRequestBehavior,
-        Function<DiscoveryNode, MockLogAppender.SeenEventExpectation> expectation) throws Exception {
+        Function<DiscoveryNode, List<MockLogAppender.LoggingExpectation>> expectations) throws Exception {
 
         final ArrayList<Closeable> resources = new ArrayList<>(3);
 
         try {
+
+            // the child task might not run, but if it does we must wait for it to be cancelled before shutting everything down
+            final ReentrantLock childTaskLock = new ReentrantLock();
 
             final MockTransportService parentTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
@@ -111,7 +129,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 },
                 (request, channel, task) -> {
                     final CancellableTask cancellableTask = (CancellableTask) task;
-                    assertBusy(() -> assertTrue(cancellableTask.isCancelled()));
+                    if (childTaskLock.tryLock()) {
+                        try {
+                            assertBusy(() -> assertTrue("task " + task.getId() + " should be cancelled", cancellableTask.isCancelled()));
+                        } finally {
+                            childTaskLock.unlock();
+                        }
+                    }
                     channel.sendResponse(new TaskCancelledException("task cancelled"));
                 });
 
@@ -141,18 +165,22 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             Loggers.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
             resources.add(() -> Loggers.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
 
-            appender.addExpectation(expectation.apply(childTransportService.getLocalDiscoNode()));
+            for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
+                appender.addExpectation(expectation);
+            }
 
             final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
             parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
             try {
-                cancellationFuture.actionGet(TimeValue.timeValueSeconds(5));
+                cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
             } catch (NodeDisconnectedException e) {
                 // acceptable; we mostly ignore the result of cancellation anyway
             }
 
             // assert busy since failure to remove a ban may be logged after cancellation completed
             assertBusy(appender::assertAllExpectationsMatched);
+
+            assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));
         } finally {
             Collections.reverse(resources);
             IOUtils.close(resources);

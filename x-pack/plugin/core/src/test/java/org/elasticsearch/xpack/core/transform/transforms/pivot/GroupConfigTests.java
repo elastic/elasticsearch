@@ -66,7 +66,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         return new GroupConfig(source, groups);
     }
 
-    private static SingleGroupSource randomSingleGroupSource(Version version) {
+    public static SingleGroupSource randomSingleGroupSource(Version version) {
         Type type = randomFrom(SingleGroupSource.Type.values());
         switch (type) {
             case TERMS:

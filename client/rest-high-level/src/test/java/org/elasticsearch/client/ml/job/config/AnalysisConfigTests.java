@@ -86,6 +86,9 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.setModelPruneWindow(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+        }
 
         builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
         return builder;
@@ -189,6 +192,19 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
 
         builder = createConfigBuilder();
         builder.setLatency(TimeValue.timeValueSeconds(1801));
+        AnalysisConfig config2 = builder.build();
+
+        assertFalse(config1.equals(config2));
+        assertFalse(config2.equals(config1));
+    }
+
+    public void testEquals_GivenDifferentModelPruneWindow() {
+        AnalysisConfig.Builder builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(30));
+        AnalysisConfig config1 = builder.build();
+
+        builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(60));
         AnalysisConfig config2 = builder.build();
 
         assertFalse(config1.equals(config2));

@@ -9,9 +9,9 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -198,8 +198,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testFailWhenCannotConsumeSecretStream() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
             CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
             SecureRandom random = Randomness.createSecure();
@@ -227,8 +229,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testFailWhenCannotConsumeEncryptedBytesStream() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
             CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
             SecureRandom random = Randomness.createSecure();
@@ -257,8 +261,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testFailWhenSecretStreamNotConsumed() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
             CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
             SecureRandom random = Randomness.createSecure();
@@ -285,8 +291,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testFailWhenEncryptedBytesStreamIsNotConsumed() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
             CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
             SecureRandom random = Randomness.createSecure();
@@ -372,8 +380,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testBackcompatV1() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
             CodecUtil.writeHeader(output, "elasticsearch.keystore", 1);
             output.writeByte((byte) 0); // hasPassword = false
             output.writeString("PKCS12");
@@ -403,10 +413,12 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testBackcompatV2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         byte[] fileBytes = new byte[20];
         random().nextBytes(fileBytes);
-        try (IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
 
             CodecUtil.writeHeader(output, "elasticsearch.keystore", 2);
             output.writeByte((byte) 0); // hasPassword = false

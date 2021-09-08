@@ -41,6 +41,7 @@ public class Maps {
         Objects.requireNonNull(value);
         assert checkIsImmutableMap(map, key, value);
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
+        @SuppressWarnings("rawtypes")
         final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
         map.entrySet().toArray(entries);
         entries[entries.length - 1] = Map.entry(key, value);

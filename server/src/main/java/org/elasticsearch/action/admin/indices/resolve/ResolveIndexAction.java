@@ -128,6 +128,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
+        public boolean allowsRemoteIndices() {
+            return true;
+        }
+
+        @Override
         public boolean includeDataStreams() {
             return true;
         }

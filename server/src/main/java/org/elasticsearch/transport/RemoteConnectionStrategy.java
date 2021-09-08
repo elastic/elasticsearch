@@ -125,6 +125,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setCompressionScheme(RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
+                .getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
                 TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)
@@ -276,7 +278,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (newMode.equals(strategyType()) == false) {
             return true;
         } else {
-            Boolean compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
+            Compression.Enabled compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(newSettings);
+            Compression.Scheme compressionScheme = RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
                 .getConcreteSettingForNamespace(clusterAlias)
                 .get(newSettings);
             TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
@@ -286,6 +291,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             ConnectionProfile oldProfile = connectionManager.getConnectionProfile();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
             builder.setCompressionEnabled(compressionEnabled);
+            builder.setCompressionScheme(compressionScheme);
             builder.setPingInterval(pingSchedule);
             ConnectionProfile newProfile = builder.build();
             return connectionProfileChanged(oldProfile, newProfile) || strategyMustBeRebuilt(newSettings);
@@ -354,7 +360,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
-            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
+            || Objects.equals(oldProfile.getCompressionScheme(), newProfile.getCompressionScheme()) == false;
     }
 
     static class StrategyValidator<T> implements Setting.Validator<T> {

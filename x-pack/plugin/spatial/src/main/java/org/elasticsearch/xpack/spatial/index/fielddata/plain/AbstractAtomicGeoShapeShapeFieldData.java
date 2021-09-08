@@ -12,12 +12,17 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.Field;
+import org.elasticsearch.script.FieldValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
 public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoShapeFieldData {
 
@@ -89,6 +94,16 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         }
 
         @Override
+        public double getMercatorWidth() {
+            return lonToSphericalMercator(boundingBox.right()) - lonToSphericalMercator(boundingBox.left());
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return latToSphericalMercator(boundingBox.top()) - latToSphericalMercator(boundingBox.bottom());
+        }
+
+        @Override
         public GeoBoundingBox getBoundingBox() {
             return value == null ? null : boundingBox;
         }
@@ -101,6 +116,17 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         @Override
         public int size() {
             return value == null ? 0 : 1;
+        }
+
+        @Override
+        public Field<GeoShapeValues.GeoShapeValue> toField(String fieldName) {
+            return new GeoShapeField(fieldName, this);
+        }
+    }
+
+    public static class GeoShapeField extends Field<GeoShapeValues.GeoShapeValue> {
+        public GeoShapeField(String name, FieldValues<GeoShapeValues.GeoShapeValue> values) {
+            super(name, values);
         }
     }
 }

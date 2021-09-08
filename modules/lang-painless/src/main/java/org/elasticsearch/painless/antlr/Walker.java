@@ -273,7 +273,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         }
 
         return new SFunction(nextIdentifier(), location(ctx),
-                rtnType, name, paramTypes, paramNames, new SBlock(nextIdentifier(), location(ctx), statements), false, true, false, false);
+                rtnType, name, paramTypes, paramNames, new SBlock(nextIdentifier(), location(ctx), statements), false, false, false, false);
     }
 
     @Override

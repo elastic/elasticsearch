@@ -59,7 +59,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
 
@@ -662,7 +662,6 @@ public class FrozenCacheService implements Releasable {
         volatile int sharedBytesPos = -1;
 
         CacheFileRegion(RegionKey regionKey, long regionSize) {
-            super("CacheFileRegion");
             this.regionKey = regionKey;
             assert regionSize > 0L;
             tracker = new SparseFileTracker("file", regionSize);

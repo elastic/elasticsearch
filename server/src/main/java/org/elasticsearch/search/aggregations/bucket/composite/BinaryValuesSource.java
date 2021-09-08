@@ -14,10 +14,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -37,9 +37,16 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private ObjectArray<BytesRefBuilder> valueBuilders;
     private BytesRef currentValue;
 
-    BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
-                       MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+    BinaryValuesSource(
+        BigArrays bigArrays,
+        LongConsumer breakerConsumer,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        int size,
+        int reverseMul
+    ) {
         super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
@@ -49,8 +56,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void copyCurrent(int slot) {
-        values =  bigArrays.grow(values, slot+1);
-        valueBuilders = bigArrays.grow(valueBuilders, slot+1);
+        values = bigArrays.grow(values, slot + 1);
+        valueBuilders = bigArrays.grow(valueBuilders, slot + 1);
         BytesRefBuilder builder = valueBuilders.get(slot);
         int byteSize = builder == null ? 0 : builder.bytes().length;
         if (builder == null) {
@@ -126,7 +133,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value.getClass() == String.class) {
@@ -138,7 +145,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) {
-       return values.get(slot);
+        return values.get(slot);
     }
 
     @Override
@@ -162,7 +169,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
@@ -177,9 +184,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

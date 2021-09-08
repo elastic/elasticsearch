@@ -29,7 +29,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class RestGetSnapshotsCancellationIT extends AbstractSnapshotRestTestCase {
 
     public void testGetSnapshotsCancellation() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode(SINGLE_THREADED_SNAPSHOT_META_SETTINGS);
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 

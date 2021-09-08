@@ -11,10 +11,13 @@ package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import org.elasticsearch.gradle.internal.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.FeatureInjector;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 
 import java.util.List;
 
@@ -26,6 +29,7 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final List<String> allowedWarnings;
+    private String testName;
     private final boolean isRegex;
 
     /**
@@ -40,8 +44,18 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
      * @param allowedWarnings The allowed warnings to inject
      */
     public InjectAllowedWarnings(boolean isRegex, List<String> allowedWarnings) {
+        this(isRegex, allowedWarnings, null);
+    }
+
+    /**
+     * @param isRegex true if should inject the regex variant of allowed warnings
+     * @param allowedWarnings The allowed warnings to inject
+     * @param testName The testName to inject
+     */
+    public InjectAllowedWarnings(boolean isRegex, List<String> allowedWarnings, String testName) {
         this.isRegex = isRegex;
         this.allowedWarnings = allowedWarnings;
+        this.testName = testName;
     }
 
     @Override
@@ -52,7 +66,7 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
             arrayWarnings = new ArrayNode(jsonNodeFactory);
             doNodeValue.set(getSkipFeatureName(), arrayWarnings);
         }
-        allowedWarnings.forEach(arrayWarnings::add);
+        this.allowedWarnings.forEach(arrayWarnings::add);
     }
 
     @Override
@@ -70,5 +84,16 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
     @Input
     public List<String> getAllowedWarnings() {
         return allowedWarnings;
+    }
+
+    @Override
+    public boolean shouldApply(RestTestContext testContext) {
+        return testName == null || testContext.getTestName().equals(testName);
+    }
+
+    @Input
+    @Optional
+    public String getTestName() {
+        return testName;
     }
 }

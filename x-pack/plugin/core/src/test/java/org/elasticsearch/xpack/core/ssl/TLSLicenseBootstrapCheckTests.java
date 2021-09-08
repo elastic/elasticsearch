@@ -66,10 +66,7 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
 
     public void testBootstrapSucceedsIfSecurityIsNotEnabledOnBasicLicense() throws Exception {
         final Settings.Builder settings = Settings.builder();
-        if (randomBoolean()) {
-            // randomise between default-false & explicit-false
-            settings.put("xpack.security.enabled", false);
-        }
+        settings.put("xpack.security.enabled", false);
         if (randomBoolean()) {
             // it does not matter whether or not this is set, as security is not enabled.
             settings.put("xpack.security.transport.ssl.enabled", randomBoolean());

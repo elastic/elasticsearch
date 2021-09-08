@@ -406,16 +406,15 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         while (it.hasNext()) {
                             badPhase = it.next();
                             error = error + ", the " + badPhase.getName() + " phase (min_age: "
-                                + badPhase.getMinimumAge()+ ")";
+                                + badPhase.getMinimumAge() + ")";
                         }
-                            //if multiple phases are cited
-                            //replace last occurrence of "," with " and"
-                            StringBuilder builder = new StringBuilder();
-                            int last_comma_index = error.lastIndexOf(",");
-                            builder.append(error, 0, last_comma_index);
-                            builder.append(" and");
-                            builder.append(error.substring(last_comma_index + 1));
-                            error = builder.toString();
+                        // if multiple phases are cited replace last occurrence of "," with " and"
+                        StringBuilder builder = new StringBuilder();
+                        int last_comma_index = error.lastIndexOf(",");
+                        builder.append(error, 0, last_comma_index);
+                        builder.append(" and");
+                        builder.append(error.substring(last_comma_index + 1));
+                        error = builder.toString();
                     }
                     error = error + " before the " + phaseName + " phase (min_age: " + phase.getMinimumAge() +
                         "). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold.";

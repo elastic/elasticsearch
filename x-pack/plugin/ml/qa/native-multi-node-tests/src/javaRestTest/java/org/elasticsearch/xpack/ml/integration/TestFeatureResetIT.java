@@ -21,6 +21,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -29,9 +30,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -190,67 +191,38 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     void createModelDeployment() {
-        String indexname = "model_store";
-        client().admin().indices().prepareCreate(indexname).setMapping(
-            "    {\"properties\": {\n" +
-                "        \"doc_type\":    { \"type\": \"keyword\"  },\n" +
-                "        \"model_id\":    { \"type\": \"keyword\"  },\n" +
-                "        \"definition_length\":     { \"type\": \"long\"  },\n" +
-                "        \"total_definition_length\":     { \"type\": \"long\"  },\n" +
-                "        \"compression_version\":     { \"type\": \"long\"  },\n" +
-                "        \"definition\":     { \"type\": \"binary\"  },\n" +
-                "        \"eos\":      { \"type\": \"boolean\" },\n" +
-                "        \"task_type\":      { \"type\": \"keyword\" },\n" +
-                "        \"vocab\":      { \"type\": \"keyword\" },\n" +
-                "        \"with_special_tokens\":      { \"type\": \"boolean\" },\n" +
-                "        \"do_lower_case\":      { \"type\": \"boolean\" }\n" +
-                "      }\n" +
-                "    }}"
-        ).get();
-        client().prepareIndex(indexname)
+        client().execute(
+            PutTrainedModelAction.INSTANCE,
+            new PutTrainedModelAction.Request(
+                TrainedModelConfig.builder()
+                    .setModelType(TrainedModelType.PYTORCH)
+                    .setInferenceConfig(
+                        new PassThroughConfig(
+                            new VocabularyConfig(
+                                InferenceIndexConstants.nativeDefinitionStore(),
+                                TRAINED_MODEL_ID + "_vocab"
+                            ),
+                            new BertTokenization(null, false, null)
+                        )
+                    )
+                    .setModelId(TRAINED_MODEL_ID)
+                    .build(),
+                false
+            )
+        ).actionGet();
+        client().execute(
+            PutTrainedModelDefinitionPartAction.INSTANCE,
+            new PutTrainedModelDefinitionPartAction.Request(TRAINED_MODEL_ID, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
+        ).actionGet();
+        client().prepareIndex(InferenceIndexConstants.nativeDefinitionStore())
             .setId(TRAINED_MODEL_ID + "_vocab")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource(
                 "{  " +
                     "\"vocab\": [\"these\", \"are\", \"my\", \"words\"]\n" +
                     "}",
                 XContentType.JSON
-            ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        client().prepareIndex(indexname)
-            .setId("trained_model_definition_doc-" + TRAINED_MODEL_ID + "-0")
-            .setSource(
-                "{  " +
-                    "\"doc_type\": \"trained_model_definition_doc\"," +
-                    "\"model_id\": \"" + TRAINED_MODEL_ID +"\"," +
-                    "\"doc_num\": 0," +
-                    "\"definition_length\":" + RAW_MODEL_SIZE + "," +
-                    "\"total_definition_length\":" + RAW_MODEL_SIZE + "," +
-                    "\"compression_version\": 1," +
-                    "\"definition\": \""  + BASE_64_ENCODED_MODEL + "\"," +
-                    "\"eos\": true" +
-                    "}",
-                XContentType.JSON
-            ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        client()
-            .execute(
-                PutTrainedModelAction.INSTANCE,
-                new PutTrainedModelAction.Request(
-                    TrainedModelConfig.builder()
-                        .setModelType(TrainedModelType.PYTORCH)
-                        .setInferenceConfig(
-                            new PassThroughConfig(
-                                new VocabularyConfig(indexname, TRAINED_MODEL_ID + "_vocab"),
-                                new BertTokenization(null, false, null)
-                            )
-                        )
-                        .setLocation(new IndexLocation(indexname))
-                        .setModelId(TRAINED_MODEL_ID)
-                        .build(),
-                    false
-                )
-            )
-            .actionGet();
+            ).get();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
             new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID)

@@ -47,7 +47,8 @@ public class ImmutableOpenMapTests extends ESTestCase {
     public void testStreamOperationsOnRandomMap() {
         ImmutableOpenMap<Long, String> map = Randomness.get().longs(1000)
             .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
-            .collect(() -> ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()), ImmutableOpenMap.Builder::putAll)
+            .collect(() -> ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()),
+                ImmutableOpenMap.Builder::putAll)
             .build();
 
         int limit = randomIntBetween(1, 1000);

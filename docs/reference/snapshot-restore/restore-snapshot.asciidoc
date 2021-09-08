@@ -102,7 +102,7 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 ==== Close and restore
 
 You can only restore an existing index if it's closed. Typically, you'd use this
-method if you've already closed the index for other reasons. Otherwise, the
+method if you've already closed an index for other reasons. Otherwise, the
 results are the same as the <<delete-restore,delete and restore>> method.
 
 You can close an index using the <<indices-close,close index API>>. You can't
@@ -302,13 +302,14 @@ a snapshot in one cluster and restore it in another
 <<snapshot-restore-version-compatibility,compatible cluster>>. The topology of
 the clusters doesn't need to match.
 
-You should ensure the new cluster has enough capacity for any data streams or
-indices you want to restore from the snapshot. If the new cluster has a smaller
-capacity, consider:
+Before you start a restore operation, ensure the new cluster has enough capacity
+for any data streams or indices you want to restore. If the new cluster has a
+smaller capacity, you can:
 
-* Restoring fewer indices and data streams.
-* Changing the index settings during the restore operation to reduce the
-<<dynamic-index-number-of-replicas,number of replicas>>.
+* Add nodes or upgrade your hardware to increase capacity.
+* Restore fewer indices and data streams.
+* Reduce the <<dynamic-index-number-of-replicas,number of replicas>> for
+restored indices.
 +
 For example, the following restore snapshot API request uses the
 `index_settings` option to set `index.number_of_replicas` to `1`.

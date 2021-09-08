@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
@@ -25,14 +26,13 @@ import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SnapshotRetentionConfiguration implements ToXContentObject, Writeable {
 
@@ -42,6 +42,8 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
     private static final ParseField MINIMUM_SNAPSHOT_COUNT = new ParseField("min_count");
     private static final ParseField MAXIMUM_SNAPSHOT_COUNT = new ParseField("max_count");
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionConfiguration.class);
+
+    private static final Set<SnapshotState> UNSUCCESSFUL_STATES = EnumSet.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
 
     private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER =
         new ConstructingObjectParser<>("snapshot_retention", true, a -> {
@@ -121,21 +123,21 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         final List<SnapshotInfo> sortedSnapshots = allSnapshots.stream()
             .sorted(Comparator.comparingLong(SnapshotInfo::startTime))
             .collect(Collectors.toList());
-        final long successfulSnapshotCount = allSnapshots.stream()
-            .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
-            .count();
-        final long newestSuccessfulTimestamp = allSnapshots.stream()
-            .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
-            .mapToLong(SnapshotInfo::startTime)
-            .max()
-            .orElse(Long.MIN_VALUE);
-        final Set<SnapshotState> unsuccessfulStates = Set.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
-
+        int successCount = 0;
+        long latestSuccessfulTimestamp = Long.MIN_VALUE;
+        for (SnapshotInfo snapshot : allSnapshots) {
+            if (snapshot.state() == SnapshotState.SUCCESS) {
+                successCount++;
+                latestSuccessfulTimestamp = Math.max(latestSuccessfulTimestamp, snapshot.startTime());
+            }
+        }
+        final long newestSuccessfulTimestamp = latestSuccessfulTimestamp;
+        final int successfulSnapshotCount = successCount;
         return si -> {
             final String snapName = si.snapshotId().getName();
 
             // First, if there's no expire_after and a more recent successful snapshot, we can delete all the failed ones
-            if (this.expireAfter == null && unsuccessfulStates.contains(si.state()) && newestSuccessfulTimestamp > si.startTime()) {
+            if (this.expireAfter == null && UNSUCCESSFUL_STATES.contains(si.state()) && newestSuccessfulTimestamp > si.startTime()) {
                 // There's no expire_after and there's a more recent successful snapshot, delete this failed one
                 logger.trace("[{}]: ELIGIBLE as it is {} and there is a more recent successful snapshot", snapName, si.state());
                 return true;
@@ -144,68 +146,69 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // Next, enforce the maximum count, if the size is over the maximum number of
             // snapshots, then allow the oldest N (where N is the number over the maximum snapshot
             // count) snapshots to be eligible for deletion
-            if (this.maximumSnapshotCount != null) {
-                if (successfulSnapshotCount > this.maximumSnapshotCount) {
-                    final long successfulSnapsToDelete = successfulSnapshotCount - this.maximumSnapshotCount;
-                    final Optional<SnapshotInfo> firstNonEligible = sortedSnapshots.stream()
-                        .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
-                        .skip(successfulSnapsToDelete)
-                        .findFirst();
-                    assert firstNonEligible.isPresent();
-                    final int snapsToDelete = sortedSnapshots.indexOf(firstNonEligible.get());
-                    final boolean eligible = sortedSnapshots.stream()
-                        .limit(snapsToDelete)
-                        .anyMatch(s -> s.equals(si));
-
-                    if (eligible) {
-                        logger.trace("[{}]: ELIGIBLE as it is one of the {} oldest snapshots with " +
-                                "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
-                        return true;
-                    } else {
-                        logger.trace("[{}]: SKIPPING as it is not one of the {} oldest snapshots with " +
-                                "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
+            if (this.maximumSnapshotCount != null && successfulSnapshotCount > this.maximumSnapshotCount) {
+                final long successfulSnapsToDelete = successfulSnapshotCount - this.maximumSnapshotCount;
+                boolean found = false;
+                int successfulSeen = 0;
+                for (SnapshotInfo s : sortedSnapshots) {
+                    if (s.state() == SnapshotState.SUCCESS) {
+                        successfulSeen++;
                     }
+                    if (successfulSeen > successfulSnapsToDelete) {
+                        break;
+                    }
+                    if (s.equals(si)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    logger.trace("[{}]: ELIGIBLE as it is one of the {} oldest snapshots with " +
+                        "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
+                        snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount
+                    );
+                    return true;
+                } else {
+                    logger.trace("[{}]: SKIPPING as it is not one of the {} oldest snapshots with " +
+                        "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
+                        snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount
+                    );
                 }
             }
 
             // Next check the minimum count, since that is a blanket requirement regardless of time,
             // if we haven't hit the minimum then we need to keep the snapshot regardless of
             // expiration time
-            if (this.minimumSnapshotCount != null) {
-                if (successfulSnapshotCount <= this.minimumSnapshotCount)
-                    if (unsuccessfulStates.contains(si.state()) == false) {
-                        logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
+            if (this.minimumSnapshotCount != null && successfulSnapshotCount <= this.minimumSnapshotCount) {
+                if (UNSUCCESSFUL_STATES.contains(si.state()) == false) {
+                    logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
                             snapName, successfulSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
-                        return false;
-                    } else {
-                        logger.trace("[{}]: SKIPPING minimum snapshot count check as this snapshot is {} and not counted " +
+                    return false;
+                } else {
+                    logger.trace("[{}]: SKIPPING minimum snapshot count check as this snapshot is {} and not counted " +
                             "towards the minimum snapshot count.", snapName, si.state());
-                    }
+                }
             }
 
             // Finally, check the expiration time of the snapshot, if it is past, then it is
             // eligible for deletion
             if (this.expireAfter != null) {
-                final TimeValue snapshotAge = new TimeValue(nowSupplier.getAsLong() - si.startTime());
-
                 if (this.minimumSnapshotCount != null) {
-                    final long eligibleForExpiration = Math.max(0, successfulSnapshotCount - minimumSnapshotCount);
-
                     // Only the oldest N snapshots are actually eligible, since if we went below this we
                     // would fall below the configured minimum number of snapshots to keep
-                    final Stream<SnapshotInfo> successfulSnapsEligibleForExpiration = sortedSnapshots.stream()
-                        .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
-                        .limit(eligibleForExpiration);
-                    final Stream<SnapshotInfo> unsucessfulSnaps = sortedSnapshots.stream()
-                        .filter(snap -> unsuccessfulStates.contains(snap.state()));
-
-                    final Set<SnapshotInfo> snapsEligibleForExpiration = Stream
-                        .concat(successfulSnapsEligibleForExpiration, unsucessfulSnaps)
-                        .collect(Collectors.toSet());
-
-                    if (snapsEligibleForExpiration.contains(si) == false) {
+                    final boolean maybeEligible;
+                    if (si.state() == SnapshotState.SUCCESS) {
+                        maybeEligible = sortedSnapshots.stream()
+                            .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
+                            .limit(Math.max(0, successfulSnapshotCount - minimumSnapshotCount))
+                            .anyMatch(si::equals);
+                    } else if (UNSUCCESSFUL_STATES.contains(si.state())) {
+                        maybeEligible = sortedSnapshots.contains(si);
+                    } else {
+                        logger.trace("[{}] INELIGIBLE because snapshot is in state [{}]", snapName, si.state());
+                        return false;
+                    }
+                    if (maybeEligible == false) {
                         // This snapshot is *not* one of the N oldest snapshots, so even if it were
                         // old enough, the other snapshots would be deleted before it
                         logger.trace("[{}]: INELIGIBLE as snapshot expiration would pass the " +
@@ -214,14 +217,14 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                         return false;
                     }
                 }
-
-                if (snapshotAge.compareTo(this.expireAfter) > 0) {
-                    logger.trace("[{}]: ELIGIBLE as snapshot age of {} is older than {}",
-                        snapName, snapshotAge.toHumanReadableString(3), this.expireAfter.toHumanReadableString(3));
+                final long snapshotAge = nowSupplier.getAsLong() - si.startTime();
+                if (snapshotAge > this.expireAfter.getMillis()) {
+                    logger.trace(() -> new ParameterizedMessage("[{}]: ELIGIBLE as snapshot age of {} is older than {}",
+                        snapName, new TimeValue(snapshotAge).toHumanReadableString(3), this.expireAfter.toHumanReadableString(3)));
                     return true;
                 } else {
-                    logger.trace("[{}]: INELIGIBLE as snapshot age of {} is newer than {}",
-                        snapName, snapshotAge.toHumanReadableString(3), this.expireAfter.toHumanReadableString(3));
+                    logger.trace(() -> new ParameterizedMessage("[{}]: INELIGIBLE as snapshot age of [{}ms] is newer than {}",
+                        snapName, new TimeValue(snapshotAge).toHumanReadableString(3), this.expireAfter.toHumanReadableString(3)));
                     return false;
                 }
             }

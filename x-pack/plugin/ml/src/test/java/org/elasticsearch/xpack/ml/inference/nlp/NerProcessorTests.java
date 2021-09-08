@@ -65,7 +65,7 @@ public class NerProcessorTests extends ESTestCase {
         };
 
         List<String> classLabels = Arrays.stream(tags).map(NerProcessor.IobTag::toString).collect(Collectors.toList());
-        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index", "vocab"), null, classLabels);
+        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index"), null, classLabels);
 
         ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), nerConfig));
         assertThat(ve.getMessage(),
@@ -74,7 +74,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testValidate_NotAEntityLabel() {
         List<String> classLabels = List.of("foo", NerProcessor.IobTag.B_MISC.toString());
-        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index", "vocab"), null, classLabels);
+        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index"), null, classLabels);
 
         ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), nerConfig));
         assertThat(ve.getMessage(), containsString("classification label [foo] is not an entity I-O-B tag"));
@@ -95,7 +95,8 @@ public class NerProcessorTests extends ESTestCase {
             Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
             "Many use Elasticsearch in London"
         );
-        double[][] scores = {
+
+        double[][][] scores = {{
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // many
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // use
             { 0.01, 0.01, 0, 0.01, 0, 7, 0, 3, 0}, // el
@@ -103,12 +104,12 @@ public class NerProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // ##search
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // in
             { 0, 0, 0, 0, 0, 0, 0, 6, 0} // london
-        };
+        }};
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
@@ -133,18 +134,18 @@ public class NerProcessorTests extends ESTestCase {
             "Elasticsearch in London"
         );
 
-        double[][] scores = {
+        double[][][] scores = {{
             { 0.01, 0.01, 0, 0.01, 0, 0, 7, 3, 0}, // el
             { 0.01, 0.01, 0, 0, 0, 0, 0, 0, 0}, // ##astic
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // ##search
             { 0, 0, 0, 0, 0, 0, 0, 0, 5}, // in
             { 6, 0, 0, 0, 0, 0, 0, 0, 0} // london
-        };
+        }};
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
@@ -169,7 +170,7 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(0).getWord(), equalTo("Sarah Jessica"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("location"));
         assertThat(entityGroups.get(1).getWord(), equalTo("Manchester"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
         assertThat(entityGroups.get(2).getWord(), equalTo("Elastic"));
     }
 
@@ -214,7 +215,7 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(0).getWord(), equalTo("FirstName SecondName"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("person"));
         assertThat(entityGroups.get(1).getWord(), equalTo("NextPerson NextPersonSecondName"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
     }
 
     private static TokenizationResult tokenize(List<String> vocab, String input) {
@@ -225,6 +226,6 @@ public class NerProcessorTests extends ESTestCase {
                 new DistilBertTokenization(true, false, null)
             )
         ).setDoLowerCase(true).setWithSpecialTokens(false).build();
-        return tokenizer.tokenize(input);
+        return tokenizer.tokenize(List.of(input));
     }
 }

@@ -267,6 +267,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return inactivePrimaryCount > 0;
     }
 
+    public boolean hasInactiveReplicas() {
+        return inactiveShardCount > inactivePrimaryCount;
+    }
+
     public boolean hasInactiveShards() {
         return inactiveShardCount > 0;
     }

@@ -566,7 +566,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         DiscoveryNode sourceNode = null;
         if (shardRouting.recoverySource().getType() == Type.PEER)  {
-            sourceNode = findSourceNodeForPeerRecovery(logger, routingTable, nodes, shardRouting);
+            sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
             if (sourceNode == null) {
                 logger.trace("ignoring initializing shard {} - no source node can be found.", shardRouting.shardId());
                 return;
@@ -637,7 +637,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Finds the routing source node for peer recovery, return null if its not found. Note, this method expects the shard
      * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to check if its needed or not.
      */
-    private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
+    private static DiscoveryNode findSourceNodeForPeerRecovery(RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {
         DiscoveryNode sourceNode = null;
         if (shardRouting.primary() == false) {

@@ -182,7 +182,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        normalized(result.output).contains("Unpacking $expectedArchiveName using $transformType") == false
+        result.output.contains("Unpacking $expectedArchiveName using $transformType") == false
 
         where:
         platform  | expectedArchiveName       | transformType
@@ -214,8 +214,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             return "/java/GA/" + versionPath + "/GPL/" + filename;
         } else if (vendor.equals(VENDOR_AZUL)) {
             final String module = isMac(platform) ? "macosx" : platform;
-            // we only test zulu 15 darwin aarch64 for now
-            return "/zulu${module.equals('linux') ? '-embedded' : ''}/bin/zulu16.28.11-ca-jdk16.0.0-${module}_${arch}.tar.gz";
+            // we only test zulu 16 darwin aarch64 for now
+            return "/zulu${module.equals('linux') ? '-embedded' : ''}/bin/zulu16.32.15-ca-jdk16.0.2-${module}_${arch}.tar.gz";
         }
     }
 

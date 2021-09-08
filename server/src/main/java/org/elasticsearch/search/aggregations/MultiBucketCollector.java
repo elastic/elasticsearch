@@ -98,7 +98,8 @@ public class MultiBucketCollector extends BucketCollector {
                     } catch (CollectionTerminatedException e) {
                         throw new IllegalStateException(
                             "getLeafCollector should return a noop collector instead of throw "
-                                + CollectionTerminatedException.class.getSimpleName(), e
+                                + CollectionTerminatedException.class.getSimpleName(),
+                            e
                         );
                     }
                     if (terminateIfNoop) {
@@ -230,7 +231,7 @@ public class MultiBucketCollector extends BucketCollector {
         public void collect(int doc, long bucket) throws IOException {
             final LeafBucketCollector[] collectors = this.collectors;
             int numCollectors = this.numCollectors;
-            for (int i = 0; i < numCollectors; ) {
+            for (int i = 0; i < numCollectors;) {
                 final LeafBucketCollector collector = collectors[i];
                 try {
                     collector.collect(doc, bucket);

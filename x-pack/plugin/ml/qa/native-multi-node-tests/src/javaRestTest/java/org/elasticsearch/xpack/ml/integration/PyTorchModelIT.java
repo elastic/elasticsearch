@@ -175,6 +175,20 @@ public class PyTorchModelIT extends ESRestTestCase {
         }
     }
 
+    public void testDeleteFailureDueToDeployment() throws IOException {
+        String modelId = "test_deployed_model_delete";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().performRequest(new Request("DELETE", "_ml/trained_models/" + modelId))
+        );
+        assertThat(ex.getMessage(), containsString("Cannot delete model [test_deployed_model_delete] as it is currently deployed"));
+        stopDeployment(modelId);
+    }
+
     @SuppressWarnings("unchecked")
     public void testDeploymentStats() throws IOException {
         String model = "model_starting_test";

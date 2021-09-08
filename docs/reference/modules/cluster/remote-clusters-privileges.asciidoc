@@ -15,20 +15,6 @@ You can manage users and roles from Stack Management in {kib} by selecting
 retrieve roles dynamically. When you use the APIs to manage roles in the
 `native` realm, the roles are stored in an internal {es} index.
 
-////
-[source,console]
-----
-POST /_security/user/alice1
-{
-  "password" : "l0ng-r4nd0m-p@ssw0rd",
-  "roles" : [ "admin" ],
-  "full_name" : "Alice Smith",
-  "email" : "asmith@example.com"
-}
-----
-// TESTSETUP
-////
-
 [[remote-clusters-privileges-ccr]]
 ==== Configure privileges for {ccr}
 The {ccr} user requires different cluster and index privileges on the remote
@@ -45,7 +31,7 @@ leader index.
 
 [source,console]
 ----
-POST /_security/role/ccr_user
+PUT /_security/role/ccr_user
 {
   "cluster": [
     "read_ccr"
@@ -78,7 +64,7 @@ cluster privilege.
 
 [source,console]
 ----
-POST /_security/role/ccr_user
+PUT /_security/role/ccr_user
 {
   "cluster": [
     "manage_ccr"
@@ -98,6 +84,7 @@ POST /_security/role/ccr_user
   ]
 }
 ----
+// TEST[setup:admin_role]
 
 After creating the `ccr_user` role on each cluster,
 <<security-api-put-role-mapping,map the role>> to each user that requires {ccr}
@@ -106,16 +93,17 @@ capabilities. For example, the following request assigns the
 
 [source,console]
 ----
-POST /_security/role_mapping/mapping1
+PUT /_security/role_mapping/mapping1
 {
   "roles": [ "ccr_user"],
   "enabled": true, 
   "rules": {
-    "field" : { "username" : "alice1" }
+    "field" : { "username" : "my_admin_role" }
   }
 }
 ----
 // TEST[continued]
+
 
 You can then <<ccr-getting-started,configure {ccr}>> to replicate your data
 across datacenters. 
@@ -135,7 +123,7 @@ On the *remote* cluster, the `ccs_user` requires the `read` and
 
 [source,console]
 ----
-POST /_security/role/ccs_user
+PUT /_security/role/ccs_user
 {
   "indices": [
     {
@@ -160,9 +148,10 @@ can be empty.
 
 [source,console]
 ----
-POST /_security/role/ccs_user
+PUT /_security/role/ccs_user
 {}
 ----
+// TEST[setup:admin_role]
 
 After creating the `ccs_user` role on each cluster,
 <<security-api-put-role-mapping,map the role>> to each user that requires {ccs}
@@ -171,12 +160,12 @@ a user named `alice1`:
 
 [source,console]
 ----
-POST /_security/role_mapping/mapping2
+PUT /_security/role_mapping/mapping2
 {
   "roles": [ "ccs_user"],
   "enabled": true, 
   "rules": {
-    "field" : { "username" : "alice1" }
+    "field" : { "username" : "my_admin_role" }
   }
 }
 ----

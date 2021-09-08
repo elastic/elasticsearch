@@ -21,6 +21,7 @@ import java.util.Map;
 
 public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77408")
     public void testSetupPasswordToolAutoSetup() throws Exception {
 
         MockTerminal mockTerminal = new MockTerminal();

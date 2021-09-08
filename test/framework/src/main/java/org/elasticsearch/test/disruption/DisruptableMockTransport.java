@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -33,10 +32,9 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.copyWriteable;
@@ -45,7 +43,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
     private final Logger logger;
     private final DeterministicTaskQueue deterministicTaskQueue;
-    private final List<Runnable> blackholedRequests = new ArrayList<>();
 
     public DisruptableMockTransport(DiscoveryNode localNode, Logger logger, DeterministicTaskQueue deterministicTaskQueue) {
         this.localNode = localNode;
@@ -104,7 +101,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
-        destinationTransport.execute(new RebootSensitiveRunnable() {
+        destinationTransport.execute(new Runnable() {
             @Override
             public void run() {
                 final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
@@ -128,28 +125,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
             }
 
             @Override
-            public void ifRebooted() {
-                deterministicTaskQueue.scheduleNow(() -> execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        handleRemoteError(
-                            requestId,
-                            new NodeNotConnectedException(destinationTransport.getLocalNode(), "node rebooted"));
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "error response (reboot) to " + internalToString();
-                    }
-                }));
-            }
-
-            @Override
             public String toString() {
-                return internalToString();
-            }
-
-            private String internalToString() {
                 return getRequestDescription(requestId, action, destinationTransport.getLocalNode());
             }
         });
@@ -170,23 +146,15 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     protected String getRequestDescription(long requestId, String action, DiscoveryNode destination) {
-        return new ParameterizedMessage("[{}][{}] from {} to {}", requestId, action, getLocalNode(), destination).getFormattedMessage();
+        return new ParameterizedMessage("[{}][{}] from {} to {}",
+            requestId, action, getLocalNode(), destination).getFormattedMessage();
     }
 
     protected void onBlackholedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
         logger.trace("dropping {}", getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
-        // Delaying the response until explicitly instructed, to simulate a very long delay
-        blackholedRequests.add(new Runnable() {
-            @Override
-            public void run() {
-                onDisconnectedDuringSend(requestId, action, destinationTransport);
-            }
-
-            @Override
-            public String toString() {
-                return "deferred handling of dropped " + getRequestDescription(requestId, action, destinationTransport.getLocalNode());
-            }
-        });
+        // Delaying the request for one day and then disconnect to simulate a very long pause
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + TimeUnit.DAYS.toMillis(1L),
+                () -> onDisconnectedDuringSend(requestId, action, destinationTransport));
     }
 
     protected void onDisconnectedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
@@ -294,16 +262,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
         }
     }
 
-    public boolean deliverBlackholedRequests() {
-        if (blackholedRequests.isEmpty()) {
-            return false;
-        } else {
-            blackholedRequests.forEach(deterministicTaskQueue::scheduleNow);
-            blackholedRequests.clear();
-            return true;
-        }
-    }
-
     /**
      * Response type from {@link DisruptableMockTransport#getConnectionStatus(DiscoveryNode)} indicating whether, and how, messages should
      * be disrupted on this transport.
@@ -328,16 +286,5 @@ public abstract class DisruptableMockTransport extends MockTransport {
          * Simulate an asymmetric partition: outbound messages are silently discarded, but inbound messages are delivered normally.
          */
         BLACK_HOLE_REQUESTS_ONLY
-    }
-
-    /**
-     * When simulating sending requests to another node which might have rebooted, it's not realistic just to drop the action if the node
-     * reboots; instead we need to simulate the error response that comes back.
-     */
-    public interface RebootSensitiveRunnable extends Runnable {
-        /**
-         * Cleanup action to run if the destination node reboots.
-         */
-        void ifRebooted();
     }
 }

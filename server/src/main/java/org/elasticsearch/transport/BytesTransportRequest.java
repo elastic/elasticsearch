@@ -32,8 +32,8 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
         version = in.getVersion();
     }
 
-    public BytesTransportRequest(ReleasableBytesReference bytes, Version version) {
-        this.bytes = bytes;
+    public BytesTransportRequest(BytesReference bytes, Version version) {
+        this.bytes = ReleasableBytesReference.wrap(bytes);
         this.version = version;
     }
 

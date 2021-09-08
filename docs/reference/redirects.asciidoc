@@ -5,6 +5,21 @@ The following pages have moved or been deleted.
 
 // [START] Remote clusters
 
+[role="exclude",id="ccs-clients-integrations"]
+== {ccs-cap}, clients, and integrations
+
+Refer to <<security-clients-integrations,Securing clients and integrations>>.
+
+[role="exclude",id="cross-cluster-configuring"]
+=== {ccs-cap} and security
+
+Refer to <<remote-clusters-security,configure remote clusters with security>>.
+
+[role="exclude",id="cross-cluster-kibana"]
+==== {ccs-cap} and {kib}
+
+Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
 

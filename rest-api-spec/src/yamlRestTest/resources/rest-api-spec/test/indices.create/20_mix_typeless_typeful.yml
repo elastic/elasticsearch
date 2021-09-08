@@ -100,7 +100,7 @@
                           type: keyword
 
  - do:
-      catch: /Invalid type/
+      catch: /Invalid type|final mapping would have more than 1 type/
       index:
           index: test-1
           type: my_type

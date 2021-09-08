@@ -139,6 +139,9 @@
             "type": "boolean"
           }
         }
+      },
+      "vocab": {
+        "enabled": false
       }
     }
   }

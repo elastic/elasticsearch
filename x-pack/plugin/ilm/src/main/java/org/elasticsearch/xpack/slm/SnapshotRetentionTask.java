@@ -49,7 +49,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD;
+import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
 /**
  * The {@code SnapshotRetentionTask} is invoked by the scheduled job from the
@@ -269,9 +269,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     static String getPolicyId(SnapshotInfo snapshotInfo) {
         return Optional.ofNullable(snapshotInfo.userMetadata())
-            .filter(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) != null)
-            .filter(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String)
-            .map(meta -> (String) meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD))
+            .filter(meta -> meta.get(POLICY_ID_METADATA_FIELD) != null)
+            .filter(meta -> meta.get(POLICY_ID_METADATA_FIELD) instanceof String)
+            .map(meta -> (String) meta.get(POLICY_ID_METADATA_FIELD))
             .orElseThrow(() -> new IllegalStateException("expected snapshot " + snapshotInfo +
                 " to have a policy in its metadata, but it did not"));
     }

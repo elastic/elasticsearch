@@ -212,12 +212,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
     }
 
-    public void testValidateWithNoDefinitionOrLocation() {
-        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
-            () -> TrainedModelConfig.builder().validate());
-        assertThat(ex.getMessage(), containsString("either a model [definition] or [location] must be defined."));
-    }
-
     public void testValidateWithBothDefinitionAndLocation() {
         ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()

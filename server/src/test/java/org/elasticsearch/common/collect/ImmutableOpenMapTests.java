@@ -18,9 +18,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,12 +36,12 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testStreamOperationsAreSupported() {
         assertThat(regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue)
-                .collect(Collectors.toSet()), equalTo(Set.of("£", "$")));
+                .collect(Collectors.toSet()), equalTo(Stream.of("£", "$").collect(Collectors.toSet())));
     }
 
     public void testSortedStream() {
         assertThat(regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
-            equalTo(List.of("€", "¥", "₩", "£", "$")));
+            equalTo(Stream.of("€", "¥", "₩", "£", "$").collect(Collectors.toList())));
     }
 
     public void testStreamOperationsOnRandomMap() {

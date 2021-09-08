@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -19,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
 
     int threads = 3;
-    String type = "cpu";
+    HotThreads.ReportType type = HotThreads.ReportType.CPU;
     TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
     int snapshots = 10;
     boolean ignoreIdleThreads = true;
@@ -29,7 +30,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         super(in);
         threads = in.readInt();
         ignoreIdleThreads = in.readBoolean();
-        type = in.readString();
+        type = in.readEnum(HotThreads.ReportType.class);
         interval = in.readTimeValue();
         snapshots = in.readInt();
     }
@@ -60,12 +61,12 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         return this;
     }
 
-    public NodesHotThreadsRequest type(String type) {
+    public NodesHotThreadsRequest type(HotThreads.ReportType type) {
         this.type = type;
         return this;
     }
 
-    public String type() {
+    public HotThreads.ReportType type() {
         return this.type;
     }
 
@@ -92,7 +93,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         super.writeTo(out);
         out.writeInt(threads);
         out.writeBoolean(ignoreIdleThreads);
-        out.writeString(type);
+        out.writeEnum(type);
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
     }

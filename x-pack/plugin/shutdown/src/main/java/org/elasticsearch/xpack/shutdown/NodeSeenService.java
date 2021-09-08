@@ -46,8 +46,10 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        if (event.nodesAdded() == false
-            && (event.previousState().nodes().isLocalNodeElectedMaster() == false && event.state().nodes().isLocalNodeElectedMaster())) {
+        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && event.state().nodes().isLocalNodeElectedMaster();
+        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
+            logger.error("GWB> Bailing early");
             // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
             return;
         }
@@ -68,6 +70,7 @@ public class NodeSeenService implements ClusterStateListener {
             .collect(Collectors.toUnmodifiableSet());
 
         if (nodesNotPreviouslySeen.isEmpty() == false) {
+            logger.error("GWB> Submitting update task for nodes [{}]", nodesNotPreviouslySeen);
             clusterService.submitStateUpdateTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -87,6 +90,7 @@ public class NodeSeenService implements ClusterStateListener {
 
                     final NodesShutdownMetadata newNodesMetadata = new NodesShutdownMetadata(newShutdownMetadataMap);
                     if (newNodesMetadata.equals(currentShutdownMetadata)) {
+                        logger.error("GWB> Bailing update task as it's a no-op");
                         // Turns out the update was a no-op
                         return currentState;
                     }

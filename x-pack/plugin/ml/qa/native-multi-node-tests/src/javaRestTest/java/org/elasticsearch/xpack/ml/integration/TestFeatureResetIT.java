@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -198,10 +199,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
                         new PassThroughConfig(
-                            new VocabularyConfig(
-                                InferenceIndexConstants.nativeDefinitionStore(),
-                                TRAINED_MODEL_ID + "_vocab"
-                            ),
+                            null,
                             new BertTokenization(null, false, null)
                         )
                     )
@@ -214,15 +212,10 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelDefinitionPartAction.INSTANCE,
             new PutTrainedModelDefinitionPartAction.Request(TRAINED_MODEL_ID, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
         ).actionGet();
-        client().prepareIndex(InferenceIndexConstants.nativeDefinitionStore())
-            .setId(TRAINED_MODEL_ID + "_vocab")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource(
-                "{  " +
-                    "\"vocab\": [\"these\", \"are\", \"my\", \"words\"]\n" +
-                    "}",
-                XContentType.JSON
-            ).get();
+        client().execute(
+            PutTrainedModelVocabularyAction.INSTANCE,
+            new PutTrainedModelVocabularyAction.Request(TRAINED_MODEL_ID, List.of("these", "are", "my", "words"))
+        ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
             new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID)

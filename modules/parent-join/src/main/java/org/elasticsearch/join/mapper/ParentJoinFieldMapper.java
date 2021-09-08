@@ -19,11 +19,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -72,9 +72,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    private static void checkObjectOrNested(ContentPath path, String name) {
-        if (path.pathAsText(name).contains(".")) {
-            throw new IllegalArgumentException("join field [" + path.pathAsText(name) + "] " +
+    private static void checkObjectOrNested(MapperBuilderContext context, String name) {
+        String fullName = context.buildFullName(name);
+        if (fullName.equals(name) == false) {
+            throw new IllegalArgumentException("join field [" + fullName + "] " +
                 "cannot be added inside an object or in a multi-field");
         }
     }
@@ -108,14 +109,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ParentJoinFieldMapper build(ContentPath contentPath) {
-            checkObjectOrNested(contentPath, name);
+        public ParentJoinFieldMapper build(MapperBuilderContext context) {
+            checkObjectOrNested(context, name);
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get().stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
-            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(contentPath), joiner, meta.get()),
+            return new ParentJoinFieldMapper(name, new JoinFieldType(context.buildFullName(name), joiner, meta.get()),
                 Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
         }
     }

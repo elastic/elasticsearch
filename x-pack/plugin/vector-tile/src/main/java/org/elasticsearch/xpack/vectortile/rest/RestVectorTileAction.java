@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -144,7 +144,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                             searchResponse.isTerminatedEarly(),
                             searchResponse.getProfileResults() == null
                                 ? null
-                                : new SearchProfileShardResults(searchResponse.getProfileResults()),
+                                : new SearchProfileResults(searchResponse.getProfileResults()),
                             searchResponse.getNumReducePhases()
                         ),
                         searchResponse.getScrollId(),

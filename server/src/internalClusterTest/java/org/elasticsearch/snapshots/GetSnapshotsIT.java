@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
@@ -38,21 +40,36 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSortBy() throws Exception {
-        final String repoName = "test-repo";
+        final String repoNameA = "test-repo-a";
         final Path repoPath = randomRepoPath();
-        createRepository(repoName, "fs", repoPath);
-        maybeInitWithOldSnapshotVersion(repoName, repoPath);
-        final List<String> snapshotNamesWithoutIndex = createNSnapshots(repoName, randomIntBetween(3, 20));
+        createRepository(repoNameA, "fs", repoPath);
+        maybeInitWithOldSnapshotVersion(repoNameA, repoPath);
+        final String repoNameB = "test-repo-b";
+        createRepository(repoNameB, "fs");
+
+        final List<String> snapshotNamesWithoutIndexA = createNSnapshots(repoNameA, randomIntBetween(3, 20));
+        final List<String> snapshotNamesWithoutIndexB = createNSnapshots(repoNameB, randomIntBetween(3, 20));
 
         createIndexWithContent("test-index");
 
-        final List<String> snapshotNamesWithIndex = createNSnapshots(repoName, randomIntBetween(3, 20));
+        final List<String> snapshotNamesWithIndexA = createNSnapshots(repoNameA, randomIntBetween(3, 20));
+        final List<String> snapshotNamesWithIndexB = createNSnapshots(repoNameB, randomIntBetween(3, 20));
 
-        final Collection<String> allSnapshotNames = new HashSet<>(snapshotNamesWithIndex);
-        allSnapshotNames.addAll(snapshotNamesWithoutIndex);
+        final Collection<String> allSnapshotNamesA = new HashSet<>(snapshotNamesWithIndexA);
+        final Collection<String> allSnapshotNamesB = new HashSet<>(snapshotNamesWithIndexB);
+        allSnapshotNamesA.addAll(snapshotNamesWithoutIndexA);
+        allSnapshotNamesB.addAll(snapshotNamesWithoutIndexB);
 
-        doTestSortOrder(repoName, allSnapshotNames, SortOrder.ASC);
-        doTestSortOrder(repoName, allSnapshotNames, SortOrder.DESC);
+        doTestSortOrder(repoNameA, allSnapshotNamesA, SortOrder.ASC);
+        doTestSortOrder(repoNameA, allSnapshotNamesA, SortOrder.DESC);
+
+        doTestSortOrder(repoNameB, allSnapshotNamesB, SortOrder.ASC);
+        doTestSortOrder(repoNameB, allSnapshotNamesB, SortOrder.DESC);
+
+        final Collection<String> allSnapshots = new HashSet<>(allSnapshotNamesA);
+        allSnapshots.addAll(allSnapshotNamesB);
+        doTestSortOrder("*", allSnapshots, SortOrder.ASC);
+        doTestSortOrder("*", allSnapshots, SortOrder.DESC);
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) {
@@ -86,6 +103,11 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.FAILED_SHARDS, order),
             GetSnapshotsRequest.SortBy.FAILED_SHARDS,
+            order
+        );
+        assertSnapshotListSorted(
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.REPOSITORY, order),
+            GetSnapshotsRequest.SortBy.REPOSITORY,
             order
         );
     }
@@ -186,6 +208,64 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .execute()
                 .actionGet()
         );
+    }
+
+    public void testFilterBySLMPolicy() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        createNSnapshots(repoName, randomIntBetween(1, 5));
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
+        final String snapshotWithPolicy = "snapshot-with-policy";
+        final String policyName = "some-policy";
+        final SnapshotInfo withPolicy = assertSuccessful(
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+
+        assertThat(getAllSnapshotsForPolicies(policyName), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("some-*"), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), empty());
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
+        assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
+
+        final String snapshotWithOtherPolicy = "snapshot-with-other-policy";
+        final String otherPolicyName = "other-policy";
+        final SnapshotInfo withOtherPolicy = assertSuccessful(
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+        assertThat(getAllSnapshotsForPolicies("*"), is(List.of(withOtherPolicy, withPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
+
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName), is(allSnapshots));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"), is(allSnapshots));
+    }
+
+    private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {
+        return clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setPolicies(policies)
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
     }
 
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {

@@ -193,7 +193,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final Parameter<Integer> ignoreAbove
             = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                 }

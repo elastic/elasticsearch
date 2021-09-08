@@ -12,11 +12,11 @@ import com.carrotsearch.hppc.ObjectArrayList;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -204,8 +204,7 @@ public class BinaryFieldMapper extends FieldMapper {
             try {
                 CollectionUtils.sortAndDedup(bytesList);
                 int size = bytesList.size();
-                final byte[] bytes = new byte[totalSize + (size + 1) * 5];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+                BytesStreamOutput out = new BytesStreamOutput(totalSize + (size + 1) * 5);
                 out.writeVInt(size);  // write total number of values
                 for (int i = 0; i < size; i ++) {
                     final byte[] value = bytesList.get(i);
@@ -213,7 +212,7 @@ public class BinaryFieldMapper extends FieldMapper {
                     out.writeVInt(valueLength);
                     out.writeBytes(value, 0, valueLength);
                 }
-                return new BytesRef(bytes, 0, out.getPosition());
+                return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
             }

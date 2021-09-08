@@ -124,7 +124,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
             }
             return parsedMetrics;
-        }, m -> toType(m).metrics).setValidator(v -> {
+        }, m -> toType(m).metrics).addValidator(v -> {
             if (v == null || v.isEmpty()) {
                 throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + name() + "].");
             }

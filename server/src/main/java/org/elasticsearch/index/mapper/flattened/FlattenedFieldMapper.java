@@ -113,7 +113,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         final Parameter<Integer> depthLimit
             = Parameter.intParam("depth_limit", true, m -> builder(m).depthLimit.get(), Defaults.DEPTH_LIMIT)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[depth_limit] must be positive, got [" + v + "]");
                 }

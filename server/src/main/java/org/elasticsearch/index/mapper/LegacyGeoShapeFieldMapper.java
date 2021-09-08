@@ -179,7 +179,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
 
-            this.pointsOnly.setValidator(v -> {
+            this.pointsOnly.addValidator(v -> {
                 if (v == null) {
                     return;
                 }

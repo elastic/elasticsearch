@@ -19,8 +19,8 @@
         {
           "path": "/{index}/_mvt/{field}/{zoom}/{x}/{y}",
           "methods": [
-            "GET",
-            "POST"
+            "POST",
+            "GET"
           ],
           "parts": {
             "index": {

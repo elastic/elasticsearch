@@ -213,7 +213,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         final Parameter<Integer> ignoreAbove
             = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                 }

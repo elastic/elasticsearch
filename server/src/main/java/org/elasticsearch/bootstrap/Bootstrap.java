@@ -316,7 +316,7 @@ final class Bootstrap {
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
-        BootstrapInfo.init();
+        BootstrapInfo.init(System.out);
 
         INSTANCE = new Bootstrap();
 

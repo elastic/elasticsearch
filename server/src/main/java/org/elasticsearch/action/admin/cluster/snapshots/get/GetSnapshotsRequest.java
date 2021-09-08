@@ -38,7 +38,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
+    public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
+
+    public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_8_0_0;
 
     public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
 
@@ -70,6 +73,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private String[] repositories;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
+
+    private String[] policies = Strings.EMPTY_ARRAY;
 
     private boolean ignoreUnavailable;
 
@@ -115,6 +120,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (in.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
                 offset = in.readVInt();
             }
+            if (in.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
+                policies = in.readStringArray();
+            }
         }
     }
 
@@ -157,6 +165,13 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
+        if (out.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
+            out.writeStringArray(policies);
+        } else if (policies.length > 0) {
+            throw new IllegalArgumentException(
+                "can't use slm policy filter in snapshots request with node version [" + out.getVersion() + "]"
+            );
+        }
     }
 
     @Override
@@ -184,6 +199,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (order != SortOrder.ASC) {
                 validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
             }
+            if (policies.length != 0) {
+                validationException = addValidationError("can't use slm policy filter with verbose=false", validationException);
+            }
         } else if (after != null && offset > 0) {
             validationException = addValidationError("can't use after and offset simultaneously", validationException);
         }
@@ -208,6 +226,26 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public String[] repositories() {
         return this.repositories;
+    }
+
+    /**
+     * Sets slm policy patterns
+     *
+     * @param policies policy patterns
+     * @return this request
+     */
+    public GetSnapshotsRequest policies(String... policies) {
+        this.policies = policies;
+        return this;
+    }
+
+    /**
+     * Returns policy patterns
+     *
+     * @return policy patterns
+     */
+    public String[] policies() {
+        return policies;
     }
 
     public boolean isSingleRepositoryRequest() {

@@ -17,35 +17,37 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 
-public class ResetElasticPasswordToolIT extends AbstractPasswordToolTestCase {
+public class ResetBuiltinPasswordToolIT extends AbstractPasswordToolTestCase {
 
     @SuppressWarnings("unchecked")
     public void testResetElasticPasswordTool() throws Exception {
+        final String userParameter = randomFrom("--elastic", "--kibana_system");
+        final String user = userParameter.substring(2);
         MockTerminal mockTerminal = new MockTerminal();
-        ResetElasticPasswordTool resetElasticPasswordTool = new ResetElasticPasswordTool();
+        ResetBuiltinPasswordTool resetBuiltinPasswordTool = new ResetBuiltinPasswordTool();
         final int status;
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetElasticPasswordTool.main(new String[] { "-a", "-b" }, mockTerminal);
+            status = resetBuiltinPasswordTool.main(new String[] { "-a", "-b", userParameter }, mockTerminal);
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetElasticPasswordTool.main(new String[] { "-i", "-b" }, mockTerminal);
+            status = resetBuiltinPasswordTool.main(new String[] { "-i", "-b", userParameter }, mockTerminal);
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);
-        final String basicHeader = "Basic " + Base64.getEncoder().encodeToString(("elastic:" + password).getBytes(StandardCharsets.UTF_8));
+        final String basicHeader = "Basic " + Base64.getEncoder().encodeToString((user + ":" + password).getBytes(StandardCharsets.UTF_8));
         try {
             Request request = new Request("GET", "/_security/_authenticate");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", basicHeader);
             request.setOptions(options);
             Map<String, Object> userInfoMap = entityAsMap(client().performRequest(request));
-            assertEquals("elastic", userInfoMap.get("username"));
+            assertEquals(user, userInfoMap.get("username"));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -278,16 +278,14 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            if (request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)) {
+            final boolean requestHasDlsFls =
+                request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity);
+            final boolean userHasDlsFls = userRoles.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity);
+            if (requestHasDlsFls || userHasDlsFls) {
                 if (false == licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)) {
                     listener.onFailure(
-                        LicenseUtils.newComplianceException("field and document level security in API key role descriptors"));
-                    return;
-                }
-            } else if (userRoles.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)) {
-                if (false == licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)) {
-                    listener.onFailure(
-                        LicenseUtils.newComplianceException("field and document level security in user roles"));
+                        LicenseUtils.newComplianceException("field and document level security in "
+                            + (requestHasDlsFls ? "API key role descriptors": "user roles")));
                     return;
                 }
             }

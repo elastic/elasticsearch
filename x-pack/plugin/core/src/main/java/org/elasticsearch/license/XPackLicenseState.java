@@ -470,10 +470,12 @@ public class XPackLicenseState {
     }
 
     void featureUsed(LicensedFeature feature) {
+        checkExpiry();
         usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
     }
 
     void enableUsageTracking(LicensedFeature feature, String contextName) {
+        checkExpiry();
         Objects.requireNonNull(contextName, "Context name cannot be null");
         usage.put(new FeatureUsage(feature, contextName), -1L);
     }

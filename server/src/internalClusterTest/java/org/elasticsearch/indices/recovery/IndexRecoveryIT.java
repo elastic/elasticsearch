@@ -54,9 +54,10 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -1343,8 +1344,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     public void testRecoverLocallyUpToGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        List<String> nodes = randomSubsetOf(2, StreamSupport.stream(clusterService().state().nodes().getDataNodes().spliterator(), false)
-            .map(node -> node.value.getName()).collect(Collectors.toSet()));
+        List<String> nodes = randomSubsetOf(2, clusterService().state().nodes().getDataNodes().stream()
+            .map(node -> node.getValue().getName()).collect(Collectors.toSet()));
         String indexName = "test-index";
         createIndex(indexName, Settings.builder()
             .put("index.number_of_shards", 1)

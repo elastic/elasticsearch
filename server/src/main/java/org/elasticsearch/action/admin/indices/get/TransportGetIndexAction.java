@@ -31,8 +31,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Get index action.
@@ -63,8 +63,9 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
-            .putAll(StreamSupport.stream(state.metadata().findDataStreams(concreteIndices).spliterator(), false)
-                .collect(Collectors.toMap(k -> k.key, v -> v.value.getName()))).build();
+            .putAll(state.metadata().findDataStreams(concreteIndices).stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName())))
+            .build();
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;

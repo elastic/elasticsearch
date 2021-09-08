@@ -286,11 +286,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testValidateNoCustomPath() {
         Settings indexSettings = Settings.builder().put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), "some/path").build();
-        List<String> validationErrors = MetadataCreateIndexService.validateNoCustomPath(indexSettings);
-        assertThat(validationErrors, contains(containsString("per-index custom data path")));
+        var e = expectThrows(IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateNoCustomPath(indexSettings));
+        assertThat(e.getMessage(), containsString("per-index custom data path"));
 
-        List<String> noErrors = MetadataCreateIndexService.validateNoCustomPath(Settings.EMPTY);
-        assertThat(noErrors, empty());
+        MetadataCreateIndexService.validateNoCustomPath(Settings.EMPTY);
     }
 
     public void testPrepareResizeIndexSettings() {

@@ -117,6 +117,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     public void testLockTryingToDelete() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -215,8 +220,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
+        Version createdVersion =
+            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
         Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");

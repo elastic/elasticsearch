@@ -13,6 +13,8 @@ ES_RUNTIME_JAVA:
   - openjdk13
   - openjdk14
   - openjdk15
+  - openjdk16
+  - openjdk17
   - zulu8
   - zulu11
   - zulu12

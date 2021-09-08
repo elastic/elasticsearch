@@ -5,7 +5,7 @@
 
 {es} generally allows you to quickly search across big amounts of data. There are
 situations where a search executes on many shards, possibly against
-indices spanning multiple <<modules-remote-clusters,remote clusters>>, for which
+large data sets or multiple <<modules-remote-clusters,remote clusters>>, for which
 results are not expected to be returned in milliseconds. When you need to
 execute long-running searches, synchronously
 waiting for its results to be returned is not ideal. Instead, Async search lets

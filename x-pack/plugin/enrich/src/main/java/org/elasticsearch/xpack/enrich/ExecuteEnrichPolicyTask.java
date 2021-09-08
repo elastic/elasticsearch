@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 
 import java.util.Map;
 
-public class ExecuteEnrichPolicyTask extends Task {
+public class ExecuteEnrichPolicyTask extends CancellableTask {
 
     private volatile ExecuteEnrichPolicyStatus status;
 
@@ -34,5 +34,14 @@ public class ExecuteEnrichPolicyTask extends Task {
 
     public void setStatus(ExecuteEnrichPolicyStatus status) {
         this.status = status;
+    }
+
+    @Override
+    protected void onCancelled() {
+        setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.CANCELLED));
+    }
+
+    public void setStep(String requestStep) {
+        setStatus(new ExecuteEnrichPolicyStatus(status, requestStep));
     }
 }

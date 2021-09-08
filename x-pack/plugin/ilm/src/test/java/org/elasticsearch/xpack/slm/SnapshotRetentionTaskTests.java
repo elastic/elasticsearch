@@ -53,7 +53,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -104,63 +103,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         final String repoName = "repo";
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
             repoName, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
-        SnapshotLifecyclePolicy policyWithNoRetention = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-            repoName, null, randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY);
         Map<String, SnapshotLifecyclePolicy> policyMap = Collections.singletonMap("policy", policy);
-        Map<String, SnapshotLifecyclePolicy> policyWithNoRetentionMap = Collections.singletonMap("policy", policyWithNoRetention);
         Function<SnapshotInfo, Map<String, List<SnapshotInfo>>> mkInfos = i ->
             Collections.singletonMap(repoName, Collections.singletonList(i));
 
-        // Test when user metadata is null
-        SnapshotInfo info = new SnapshotInfo(
-            new Snapshot(repoName, new SnapshotId("name", "uuid")),
-            Collections.singletonList("index"),
-            Collections.emptyList(),
-            Collections.emptyList(),
-            null,
-            1L,
-            1,
-            Collections.emptyList(),
-            true,
-            null,
-            0L,
-            Collections.emptyMap());
-        assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
-
-        // Test when no retention is configured
-        info = new SnapshotInfo(
-            new Snapshot(repoName, new SnapshotId("name", "uuid")),
-            Collections.singletonList("index"),
-            Collections.emptyList(),
-            Collections.emptyList(),
-            null,
-            1L,
-            1,
-            Collections.emptyList(),
-            true,
-            null,
-            0L,
-            Collections.emptyMap());
-        assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyWithNoRetentionMap), equalTo(false));
-
-        // Test when user metadata is a map that doesn't contain "policy"
-        info = new SnapshotInfo(
-            new Snapshot(repoName, new SnapshotId("name", "uuid")),
-            Collections.singletonList("index"),
-            Collections.emptyList(),
-            Collections.emptyList(),
-            null,
-            1L,
-            1,
-            Collections.emptyList(),
-            true,
-            Collections.singletonMap("foo", "bar"),
-            0L,
-            Collections.emptyMap());
-        assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
-
         // Test with an ancient snapshot that should be expunged
-        info = new SnapshotInfo(
+        SnapshotInfo info = new SnapshotInfo(
             new Snapshot(repoName, new SnapshotId("name", "uuid")),
             Collections.singletonList("index"),
             Collections.emptyList(),
@@ -335,7 +283,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     (historyItem) -> fail("should never write history")));
 
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
-            task.getAllRetainableSnapshots(Collections.singleton(repoId), new ActionListener<>() {
+            task.getAllRetainableSnapshots(Collections.singleton(repoId), Collections.singleton(policyId), new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, List<SnapshotInfo>> stringListMap) {
                     logger.info("--> forcing failure");
@@ -344,9 +292,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    fail("we have another err handler that should have been called");
+                    errHandlerCalled.set(e);
                 }
-            }, errHandlerCalled::set);
+            });
 
             assertNotNull(errHandlerCalled.get());
             assertThat(errHandlerCalled.get().getMessage(), equalTo("forced failure"));
@@ -527,9 +475,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void getAllRetainableSnapshots(Collection<String> repositories,
-                                       ActionListener<Map<String, List<SnapshotInfo>>> listener,
-                                       Consumer<Exception> errorHandler) {
+        void getAllRetainableSnapshots(Collection<String> repositories, Set<String> policies,
+                                       ActionListener<Map<String, List<SnapshotInfo>>> listener) {
             listener.onResponse(this.snapshotRetriever.get());
         }
 

@@ -34,12 +34,17 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         return buckets;
     }
 
-    private static final ObjectParser<ParsedBinaryRange, Void> PARSER =
-            new ObjectParser<>(ParsedBinaryRange.class.getSimpleName(), true, ParsedBinaryRange::new);
+    private static final ObjectParser<ParsedBinaryRange, Void> PARSER = new ObjectParser<>(
+        ParsedBinaryRange.class.getSimpleName(),
+        true,
+        ParsedBinaryRange::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedBinaryRange fromXContent(XContentParser parser, String name) throws IOException {
@@ -131,8 +136,12 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
                         bucket.to = parser.text();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

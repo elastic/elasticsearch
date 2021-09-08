@@ -24,20 +24,17 @@ import static org.mockito.Mockito.mock;
 public class RollupInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
-        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class));
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {
-        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class));
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
-        var usageAction = new RollupUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null);
+        var usageAction = new RollupUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage rollupUsage = future.get().getUsage();

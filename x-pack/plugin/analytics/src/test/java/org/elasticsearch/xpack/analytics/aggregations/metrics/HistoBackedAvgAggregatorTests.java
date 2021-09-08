@@ -52,8 +52,8 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] {3, 1.2, 10})));
-            iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] {5.3, 6, 20})));
+            iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 3, 1.2, 10 })));
+            iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 5.3, 6, 20 })));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
@@ -62,9 +62,9 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     public void testSimpleHistogram() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {3, 1.2, 10})));
-            iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
-            iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-10, 0.01, 1, 90})));
+            iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })));
+            iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 5.3, 6, 6, 20 })));
+            iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -10, 0.01, 1, 90 })));
         }, avg -> {
             assertEquals(12.0463d, avg.getValue(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -73,25 +73,35 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         testCase(new TermQuery(new Term("match", "yes")), iw -> {
-            iw.addDocument(Arrays.asList(
-                new StringField("match", "yes", Field.Store.NO),
-                histogramFieldDocValues(FIELD_NAME, new double[] {3, 1.2, 10}))
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("match", "yes", Field.Store.NO),
+                    histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })
+                )
             );
-            iw.addDocument(Arrays.asList(
-                new StringField("match", "yes", Field.Store.NO),
-                histogramFieldDocValues(FIELD_NAME, new double[] {5.3, 6, 20}))
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("match", "yes", Field.Store.NO),
+                    histogramFieldDocValues(FIELD_NAME, new double[] { 5.3, 6, 20 })
+                )
             );
-            iw.addDocument(Arrays.asList(
-                new StringField("match", "no", Field.Store.NO),
-                histogramFieldDocValues(FIELD_NAME, new double[] {3, 1.2, 10}))
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("match", "no", Field.Store.NO),
+                    histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })
+                )
             );
-            iw.addDocument(Arrays.asList(
-                new StringField("match", "no", Field.Store.NO),
-                histogramFieldDocValues(FIELD_NAME, new double[] {3, 1.2, 10}))
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("match", "no", Field.Store.NO),
+                    histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })
+                )
             );
-            iw.addDocument(Arrays.asList(
-                new StringField("match", "yes", Field.Store.NO),
-                histogramFieldDocValues(FIELD_NAME, new double[] {-10, 0.01, 1, 90}))
+            iw.addDocument(
+                Arrays.asList(
+                    new StringField("match", "yes", Field.Store.NO),
+                    histogramFieldDocValues(FIELD_NAME, new double[] { -10, 0.01, 1, 90 })
+                )
             );
         }, avg -> {
             assertEquals(12.651d, avg.getValue(), 0.01d);
@@ -99,9 +109,8 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void testCase(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalAvg> verify) throws IOException {
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalAvg> verify)
+        throws IOException {
         testCase(avg("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
     }
 

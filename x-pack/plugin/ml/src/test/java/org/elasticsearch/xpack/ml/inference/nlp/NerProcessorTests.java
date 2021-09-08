@@ -226,6 +226,6 @@ public class NerProcessorTests extends ESTestCase {
                 new DistilBertTokenization(true, false, null)
             )
         ).setDoLowerCase(true).setWithSpecialTokens(false).build();
-        return tokenizer.tokenize(List.of(input));
+        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input)));
     }
 }

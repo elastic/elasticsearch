@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
 
@@ -34,9 +35,19 @@ public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
             throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
                 " token in its vocabulary");
         }
+        TokenizationResult result = tokenizer.buildTokenizationResult(
+            inputs.stream().map(tokenizer::tokenize).collect(Collectors.toList())
+        );
+        return buildRequest(result, requestId);
+    }
 
-        TokenizationResult result = tokenizer.tokenize(inputs);
-        return new NlpTask.Request(result, jsonRequest(result, tokenizer.getPadToken().getAsInt(), requestId));
+    @Override
+    public NlpTask.Request buildRequest(TokenizationResult tokenization, String requestId) throws IOException {
+        if (tokenizer.getPadToken().isEmpty()) {
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
+                " token in its vocabulary");
+        }
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken().getAsInt(), requestId));
     }
 
     static BytesReference jsonRequest(TokenizationResult tokenization,

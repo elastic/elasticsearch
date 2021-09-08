@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.hasSize;
 
 public class BertTokenizerTests extends ESTestCase {
@@ -26,9 +26,8 @@ public class BertTokenizerTests extends ESTestCase {
             new BertTokenization(null, false, null)
         ).build();
 
-        TokenizationResult tr = tokenizer.tokenize(List.of("Elasticsearch fun"));
-        TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-        assertThat(tokenization.getTokens(), contains("Elastic", "##search", "fun"));
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch fun");
+        assertThat(tokenization.getTokens(), arrayContaining("Elastic", "##search", "fun"));
         assertArrayEquals(new int[] {0, 1, 2}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1}, tokenization.getTokenMap());
     }
@@ -39,9 +38,8 @@ public class BertTokenizerTests extends ESTestCase {
             Tokenization.createDefault()
         ).build();
 
-        TokenizationResult tr = tokenizer.tokenize(List.of("elasticsearch fun"));
-        TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-        assertThat(tokenization.getTokens(), contains("[CLS]", "elastic", "##search", "fun", "[SEP]"));
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("elasticsearch fun");
+        assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "elastic", "##search", "fun", "[SEP]"));
         assertArrayEquals(new int[] {3, 0, 1, 2, 4}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {-1, 0, 0, 1, -1}, tokenization.getTokenMap());
     }
@@ -56,9 +54,8 @@ public class BertTokenizerTests extends ESTestCase {
          .setWithSpecialTokens(false)
          .build();
 
-        TokenizationResult tr = tokenizer.tokenize(List.of("Elasticsearch " + specialToken + " fun"));
-        TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-        assertThat(tokenization.getTokens(), contains("Elastic", "##search", specialToken, "fun"));
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch " + specialToken + " fun");
+        assertThat(tokenization.getTokens(), arrayContaining("Elastic", "##search", specialToken, "fun"));
         assertArrayEquals(new int[] {0, 1, 3, 2}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1, 2}, tokenization.getTokenMap());
     }
@@ -72,15 +69,13 @@ public class BertTokenizerTests extends ESTestCase {
              .setWithSpecialTokens(false)
              .build();
 
-            TokenizationResult tr = tokenizer.tokenize(List.of("Elasticsearch fun"));
-            TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-            assertThat(tokenization.getTokens(), contains(BertTokenizer.UNKNOWN_TOKEN, "fun"));
+            TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch fun");
+            assertThat(tokenization.getTokens(), arrayContaining(BertTokenizer.UNKNOWN_TOKEN, "fun"));
             assertArrayEquals(new int[] {3, 2}, tokenization.getTokenIds());
             assertArrayEquals(new int[] {0, 1}, tokenization.getTokenMap());
 
-            tr = tokenizer.tokenize(List.of("elasticsearch fun"));
-            tokenization = tr.getTokenizations().get(0);
-            assertThat(tokenization.getTokens(), contains("elastic", "##search", "fun"));
+            tokenization = tokenizer.tokenize("elasticsearch fun");
+            assertThat(tokenization.getTokens(), arrayContaining("elastic", "##search", "fun"));
         }
 
         {
@@ -89,9 +84,8 @@ public class BertTokenizerTests extends ESTestCase {
                 .setWithSpecialTokens(false)
                 .build();
 
-            TokenizationResult tr = tokenizer.tokenize(List.of("Elasticsearch fun"));
-            TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-            assertThat(tokenization.getTokens(), contains("elastic", "##search", "fun"));
+            TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch fun");
+            assertThat(tokenization.getTokens(), arrayContaining("elastic", "##search", "fun"));
         }
     }
 
@@ -101,15 +95,13 @@ public class BertTokenizerTests extends ESTestCase {
             Tokenization.createDefault()
         ).setWithSpecialTokens(false).build();
 
-        TokenizationResult tr = tokenizer.tokenize(List.of("Elasticsearch, fun."));
-        TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-        assertThat(tokenization.getTokens(), contains("Elastic", "##search", ",", "fun", "."));
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch, fun.");
+        assertThat(tokenization.getTokens(), arrayContaining("Elastic", "##search", ",", "fun", "."));
         assertArrayEquals(new int[] {0, 1, 4, 2, 3}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1, 2, 3}, tokenization.getTokenMap());
 
-        tr = tokenizer.tokenize(List.of("Elasticsearch, fun [MASK]."));
-        tokenization = tr.getTokenizations().get(0);
-        assertThat(tokenization.getTokens(), contains("Elastic", "##search", ",", "fun", "[MASK]", "."));
+        tokenization = tokenizer.tokenize("Elasticsearch, fun [MASK].");
+        assertThat(tokenization.getTokens(), arrayContaining("Elastic", "##search", ",", "fun", "[MASK]", "."));
         assertArrayEquals(new int[] {0, 1, 4, 2, 5, 3}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1, 2, 3, 4}, tokenization.getTokenMap());
     }
@@ -124,30 +116,33 @@ public class BertTokenizerTests extends ESTestCase {
             new BertTokenization(null, false, null)
         ).build();
 
-        TokenizationResult tr = tokenizer.tokenize(List.of("Elasticsearch",
-            "my little red car",
-            "Godzilla day",
-            "Godzilla Pancake red car day"
-            ));
+        TokenizationResult tr = tokenizer.buildTokenizationResult(
+            List.of(
+                tokenizer.tokenize("Elasticsearch"),
+                tokenizer.tokenize("my little red car"),
+                tokenizer.tokenize("Godzilla day"),
+                tokenizer.tokenize("Godzilla Pancake red car day")
+            )
+        );
         assertThat(tr.getTokenizations(), hasSize(4));
 
         TokenizationResult.Tokenization tokenization = tr.getTokenizations().get(0);
-        assertThat(tokenization.getTokens(), contains("Elastic", "##search"));
+        assertThat(tokenization.getTokens(), arrayContaining("Elastic", "##search"));
         assertArrayEquals(new int[] {0, 1}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0}, tokenization.getTokenMap());
 
         tokenization = tr.getTokenizations().get(1);
-        assertThat(tokenization.getTokens(), contains("my", "little", "red", "car"));
+        assertThat(tokenization.getTokens(), arrayContaining("my", "little", "red", "car"));
         assertArrayEquals(new int[] {5, 6, 7, 8}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 1, 2, 3}, tokenization.getTokenMap());
 
         tokenization = tr.getTokenizations().get(2);
-        assertThat(tokenization.getTokens(), contains("God", "##zilla", "day"));
+        assertThat(tokenization.getTokens(), arrayContaining("God", "##zilla", "day"));
         assertArrayEquals(new int[] {9, 10, 4}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1}, tokenization.getTokenMap());
 
         tokenization = tr.getTokenizations().get(3);
-        assertThat(tokenization.getTokens(), contains("God", "##zilla", "Pancake", "red", "car", "day"));
+        assertThat(tokenization.getTokens(), arrayContaining("God", "##zilla", "Pancake", "red", "car", "day"));
         assertArrayEquals(new int[] {9, 10, 3, 7, 8, 4}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1, 2, 3, 4}, tokenization.getTokenMap());
     }

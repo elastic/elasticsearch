@@ -161,6 +161,7 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test delete model alias where alias points to different model',
     'ml/inference_crud/Test put with defer_definition_decompression with invalid compression definition and no memory estimate',
     'ml/inference_crud/Test put with defer_definition_decompression with invalid definition and no memory estimate',
+    'ml/inference_crud/Test put nlp model config with vocabulary set',
     'ml/inference_crud/Test put model model aliases with nlp model',
     'ml/inference_processor/Test create processor with missing mandatory fields',
     'ml/inference_stats_crud/Test get stats given missing trained model',

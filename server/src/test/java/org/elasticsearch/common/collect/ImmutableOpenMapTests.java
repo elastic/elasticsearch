@@ -47,13 +47,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
     public void testStreamOperationsOnRandomMap() {
         ImmutableOpenMap<Long, String> map = Randomness.get().longs(1000)
             .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
-            .reduce(ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()), (a, b) -> b)
+            .collect(() -> ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()), ImmutableOpenMap.Builder::putAll)
             .build();
 
+        int limit = randomIntBetween(1, 1000);
         Map<Long, List<String>> collectedViaStreams = map.stream()
             .filter(e -> e.getKey() > 0)
             .sorted(Map.Entry.comparingByKey())
-            .limit(10)
+            .limit(limit)
             .collect(Collectors.groupingBy(e -> e.getKey() % 2, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         Map<Long, String> sortedMap = new TreeMap<>();
@@ -65,7 +66,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         int i = 0;
         Map<Long, List<String>> collectedIteratively = new HashMap<>();
         for (Map.Entry<Long, String> e : sortedMap.entrySet()) {
-            if (i++ >= 10) {
+            if (i++ >= limit) {
                 break;
             }
             collectedIteratively.computeIfAbsent(e.getKey() % 2, k -> new ArrayList<>()).add(e.getValue());

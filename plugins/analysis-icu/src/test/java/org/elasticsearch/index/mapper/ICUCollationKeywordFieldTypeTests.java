@@ -14,20 +14,20 @@ import java.util.Collections;
 public class ICUCollationKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(new ContentPath());
+        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
         assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper.fieldType(), 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper.fieldType(), true));
 
         ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .ignoreAbove(4)
-            .build(new ContentPath());
+            .build(MapperBuilderContext.ROOT);
         assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper.fieldType(), "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper.fieldType(), 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper.fieldType(), true));
 
         ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .nullValue("NULL")
-            .build(new ContentPath());
+            .build(MapperBuilderContext.ROOT);
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper.fieldType(), null));
     }
 }

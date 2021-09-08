@@ -23,11 +23,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -157,7 +157,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AggregateDoubleMetricFieldMapper build(ContentPath context) {
+        public AggregateDoubleMetricFieldMapper build(MapperBuilderContext context) {
             if (defaultMetric.isConfigured() == false) {
                 // If a single metric is contained, this should be the default
                 if (metrics.getValue().size() == 1) {
@@ -216,7 +216,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     )
                 );
 
-            AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(buildFullName(context), meta.getValue());
+            AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
+                context.buildFullName(name),
+                meta.getValue()
+            );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 

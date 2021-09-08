@@ -1126,6 +1126,7 @@ public class RecoverySourceHandler {
                         cancellableThreads.checkForCancel();
                         if (currentInput == null) {
                             // no input => reading directly from the metadata
+                            assert md.hashEqualsContents();
                             return new FileChunk(md, new BytesArray(md.hash()), 0, true, () -> {});
                         }
                         final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[bufferSize]);

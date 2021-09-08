@@ -330,7 +330,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("observability-annotations")
-                    .privileges("read", "view_index_metadata", "write").build(),
+                    .privileges("read", "view_index_metadata", "write", "create_index").build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".siem-signals-*", ".lists-*", ".items-*")

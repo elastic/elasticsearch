@@ -88,7 +88,7 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-By default, {es-sql} doesn't search frozen indices. To
+By default, {es-sql} doesn't search <<unfreeze-index-api,frozen indices>>. To
 search frozen indices, use one of the following features:
 
 dedicated configuration parameter::

@@ -106,7 +106,7 @@ public class TransportDeleteTrainedModelAction
         }
         if (TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
             listener.onFailure(new ElasticsearchStatusException(
-                "Cannot delete model [{}] as is currently deployed",
+                "Cannot delete model [{}] as it is currently deployed",
                 RestStatus.CONFLICT,
                 id));
             return;

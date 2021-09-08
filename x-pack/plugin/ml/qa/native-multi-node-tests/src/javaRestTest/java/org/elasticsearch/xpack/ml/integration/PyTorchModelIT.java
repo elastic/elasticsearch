@@ -185,7 +185,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             Exception.class,
             () -> client().performRequest(new Request("DELETE", "_ml/trained_models/" + modelId))
         );
-        assertThat(ex.getMessage(), containsString("Cannot delete model [test_deployed_model_delete] as is currently deployed"));
+        assertThat(ex.getMessage(), containsString("Cannot delete model [test_deployed_model_delete] as it is currently deployed"));
         stopDeployment(modelId);
     }
 

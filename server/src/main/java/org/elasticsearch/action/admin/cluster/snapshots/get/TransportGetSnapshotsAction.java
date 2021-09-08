@@ -297,43 +297,41 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         final Set<Snapshot> toResolve = new HashSet<>();
-        final Set<Snapshot> toExclude = new HashSet<>();
-        boolean seenWildcard = false;
-        if (isAllSnapshots(snapshots)) {
+        if (TransportGetRepositoriesAction.isMatchAll(snapshots)) {
             toResolve.addAll(allSnapshotIds.values());
         } else {
+            final List<String> includePatterns = new ArrayList<>();
+            final List<String> excludePatterns = new ArrayList<>();
+            boolean seenWildcard = false;
             for (String snapshotOrPattern : snapshots) {
                 if (seenWildcard && snapshotOrPattern.length() > 1 && snapshotOrPattern.startsWith("-")) {
-                    final String positivePattern = snapshotOrPattern.substring(1);
-                    if (Regex.isSimpleMatchPattern(positivePattern)) {
-                        for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
-                            if (Regex.simpleMatch(positivePattern, entry.getKey())) {
-                                toExclude.add(entry.getValue());
-                            }
-                        }
-                    } else {
-                        if (allSnapshotIds.containsKey(positivePattern)) {
-                            toExclude.add(allSnapshotIds.get(positivePattern));
-                        }
-                    }
-                } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
-                    toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshot).collect(Collectors.toList()));
-                } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
-                    if (allSnapshotIds.containsKey(snapshotOrPattern)) {
-                        toResolve.add(allSnapshotIds.get(snapshotOrPattern));
-                    } else if (ignoreUnavailable == false) {
-                        throw new SnapshotMissingException(repo, snapshotOrPattern);
-                    }
+                    excludePatterns.add(snapshotOrPattern.substring(1));
                 } else {
-                    seenWildcard = true;
-                    for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
-                        if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
-                            toResolve.add(entry.getValue());
+                    if (Regex.isSimpleMatchPattern(snapshotOrPattern)) {
+                        seenWildcard = true;
+                        includePatterns.add(snapshotOrPattern);
+                    } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
+                        toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshot).collect(Collectors.toList()));
+                    } else {
+                        final Snapshot found = allSnapshotIds.get(snapshotOrPattern);
+                        if (found != null) {
+                            toResolve.add(found);
+                        } else if (ignoreUnavailable == false) {
+                            throw new SnapshotMissingException(repo, snapshotOrPattern);
                         }
                     }
                 }
             }
-            toResolve.removeAll(toExclude);
+            final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
+            final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
+            for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
+                final Snapshot snapshot = entry.getValue();
+                if (toResolve.contains(snapshot) == false
+                    && Regex.simpleMatch(includes, entry.getKey())
+                    && Regex.simpleMatch(excludes, entry.getKey()) == false) {
+                    toResolve.add(snapshot);
+                }
+            }
             if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly(snapshots) == false) {
                 throw new SnapshotMissingException(repo, snapshots[0]);
             }
@@ -454,10 +452,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 }, () -> allDoneListener.onResponse(null)) : allDoneListener
             )
         );
-    }
-
-    private boolean isAllSnapshots(String[] snapshots) {
-        return (snapshots.length == 0) || (snapshots.length == 1 && GetSnapshotsRequest.ALL_SNAPSHOTS.equalsIgnoreCase(snapshots[0]));
     }
 
     private boolean isCurrentSnapshotsOnly(String[] snapshots) {

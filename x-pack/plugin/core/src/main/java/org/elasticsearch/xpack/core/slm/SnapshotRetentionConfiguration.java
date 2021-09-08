@@ -43,6 +43,8 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
     private static final ParseField MAXIMUM_SNAPSHOT_COUNT = new ParseField("max_count");
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionConfiguration.class);
 
+    private static final Set<SnapshotState> UNSUCCESSFUL_STATES = EnumSet.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
+
     private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER =
         new ConstructingObjectParser<>("snapshot_retention", true, a -> {
             TimeValue expireAfter = a[0] == null ? null : TimeValue.parseTimeValue((String) a[0], EXPIRE_AFTER.getPreferredName());
@@ -110,8 +112,6 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
     public Integer getMaximumSnapshotCount() {
         return this.maximumSnapshotCount;
     }
-
-    private static final Set<SnapshotState> UNSUCCESSFUL_STATES = EnumSet.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
 
     /**
      * Return a predicate by which a SnapshotInfo can be tested to see
@@ -205,7 +205,8 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     } else if (UNSUCCESSFUL_STATES.contains(si.state())) {
                         maybeEligible = sortedSnapshots.contains(si);
                     } else {
-                        maybeEligible = false;
+                        logger.trace("[{}] INELIGIBLE because snapshot is in state [{}]", snapName, si.state());
+                        return false;
                     }
                     if (maybeEligible == false) {
                         // This snapshot is *not* one of the N oldest snapshots, so even if it were
@@ -218,12 +219,12 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 }
                 final long snapshotAge = nowSupplier.getAsLong() - si.startTime();
                 if (snapshotAge > this.expireAfter.getMillis()) {
-                    logger.trace(() -> new ParameterizedMessage("[{}]: ELIGIBLE as snapshot age of [{}ms] is older than {}",
-                        snapName, snapshotAge, this.expireAfter.toHumanReadableString(3)));
+                    logger.trace(() -> new ParameterizedMessage("[{}]: ELIGIBLE as snapshot age of {} is older than {}",
+                        snapName, new TimeValue(snapshotAge).toHumanReadableString(3), this.expireAfter.toHumanReadableString(3)));
                     return true;
                 } else {
                     logger.trace(() -> new ParameterizedMessage("[{}]: INELIGIBLE as snapshot age of [{}ms] is newer than {}",
-                        snapName, snapshotAge, this.expireAfter.toHumanReadableString(3)));
+                        snapName, new TimeValue(snapshotAge).toHumanReadableString(3), this.expireAfter.toHumanReadableString(3)));
                     return false;
                 }
             }

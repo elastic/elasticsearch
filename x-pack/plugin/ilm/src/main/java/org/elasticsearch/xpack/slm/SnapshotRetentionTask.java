@@ -61,6 +61,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionTask.class);
 
+    private static final Set<SnapshotState> RETAINABLE_STATES =
+        EnumSet.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
+
     private final Client client;
     private final ClusterService clusterService;
     private final LongSupplier nowNanoSupplier;
@@ -220,9 +223,6 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             repository, snapshot.snapshotId(), eligible ? "ELIGIBLE" : "INELIGIBLE");
         return eligible;
     }
-
-    private static final Set<SnapshotState> RETAINABLE_STATES =
-        EnumSet.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
 
     void getAllRetainableSnapshots(Collection<String> repositories,
                                    Set<String> policies,

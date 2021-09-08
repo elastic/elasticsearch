@@ -39,8 +39,10 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
     @Override
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         final PrintStream out = BootstrapInfo.getOriginalStandardOut();
-        if (null == out) {
-            outputOnError(new IllegalStateException("Stashed standard output stream is not available."));
+        // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
+        out.println();
+        if (out.checkError()) {
+            outputOnError(new IllegalStateException("Stashed standard output stream is closed."));
             return;
         }
         if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
@@ -99,19 +101,14 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
             LOGGER.info("");
             LOGGER.info("-----------------------------------------------------------------");
             LOGGER.info("");
-            LOGGER.info("");
-            LOGGER.info("");
             LOGGER.info("Failed to set the password for the elastic and kibana-system users ");
             LOGGER.info("automatically");
             LOGGER.info("");
             LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password'");
             LOGGER.info("in order to set the password for the elastic user.");
             LOGGER.info("");
-            LOGGER.info("");
             LOGGER.info("You can use 'bin/elasticsearch-reset-kibana-system-password'");
             LOGGER.info("in order to set the password for the kibana_system user.");
-            LOGGER.info("");
-            LOGGER.info("");
             LOGGER.info("");
             LOGGER.info("-----------------------------------------------------------------");
             LOGGER.info("");

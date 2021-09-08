@@ -309,6 +309,7 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
+    @SuppressForbidden(reason = "Retain reference for System.out")
     static void init(
             final boolean foreground,
             final Path pidFile,

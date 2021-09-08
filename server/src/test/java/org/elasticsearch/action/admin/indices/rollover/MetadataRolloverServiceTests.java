@@ -563,7 +563,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                Version.CURRENT).build(MapperBuilderContext.root());
+                Version.CURRENT).build(MapperBuilderContext.ROOT);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
@@ -574,7 +574,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root()),
+                root.build(MapperBuilderContext.ROOT),
                 new MetadataFieldMapper[] {dtfm},
                 Collections.emptyMap());
             MappingLookup mappingLookup = MappingLookup.fromMappers(

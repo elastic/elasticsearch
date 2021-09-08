@@ -126,7 +126,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name), meta.getValue());
             // TODO should percolator even allow multifields?
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            context = context.childContext(name);
+            context = context.createChildContext(name);
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
             fieldType.queryTermsField = extractedTermsField.fieldType();
             KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);

@@ -424,7 +424,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return empty();
                 } else {
                     Map<String, FieldMapper> mappers = new HashMap<>();
-                    context = context.childContext(mainFieldBuilder.name());
+                    context = context.createChildContext(mainFieldBuilder.name());
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         String key = entry.getKey();
                         FieldMapper mapper = entry.getValue().apply(context);

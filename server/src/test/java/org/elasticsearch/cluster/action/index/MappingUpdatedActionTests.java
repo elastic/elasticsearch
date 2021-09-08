@@ -143,7 +143,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         mua.setClient(client);
 
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(MapperBuilderContext.root());
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(MapperBuilderContext.ROOT);
         Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));

@@ -294,7 +294,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
             new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
-                .build(MapperBuilderContext.root());
+                .build(MapperBuilderContext.ROOT);
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());

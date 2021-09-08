@@ -20,7 +20,7 @@ public class JoinFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field")
-            .build(MapperBuilderContext.root())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
 
         Map<String, String> parentValue = Map.of("relation", "parent");

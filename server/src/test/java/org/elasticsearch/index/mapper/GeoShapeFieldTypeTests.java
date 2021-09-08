@@ -16,7 +16,7 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new GeoShapeFieldMapper.Builder("field", true, true)
-            .build(MapperBuilderContext.root())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",

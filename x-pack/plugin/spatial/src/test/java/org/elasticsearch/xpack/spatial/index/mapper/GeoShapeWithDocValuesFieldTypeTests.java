@@ -29,7 +29,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper
             = new GeoShapeFieldMapper.Builder("field", true, true)
-            .build(MapperBuilderContext.root())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
@@ -96,7 +96,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
         final MappedFieldType mapper
             = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
-            .build(MapperBuilderContext.root())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

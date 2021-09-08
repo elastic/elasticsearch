@@ -399,7 +399,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(MapperBuilderContext.root());
+        Mapper mapper = builder.build(MapperBuilderContext.ROOT);
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }
@@ -444,7 +444,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(MapperBuilderContext.root()).fieldType();
+            return builder.build(MapperBuilderContext.ROOT).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }

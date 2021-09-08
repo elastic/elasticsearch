@@ -177,7 +177,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT)
-            .build(MapperBuilderContext.root())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
@@ -185,7 +185,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT)
             .nullValue("2001:db8:0:0:0:0:2:7")
-            .build(MapperBuilderContext.root())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }

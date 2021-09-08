@@ -219,7 +219,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(MapperBuilderContext.root());
+            .build(MapperBuilderContext.ROOT);
     }
 
     private static TestMapper fromMapping(String mapping, Version version) {

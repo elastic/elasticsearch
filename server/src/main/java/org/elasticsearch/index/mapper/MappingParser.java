@@ -93,9 +93,9 @@ public final class MappingParser {
     }
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
-        MapperBuilderContext context = MapperBuilderContext.root();
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(context);
+        RootObjectMapper rootObjectMapper
+            = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
@@ -114,7 +114,8 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext).build(context);
+                MetadataFieldMapper metadataFieldMapper
+                    = typeParser.parse(fieldName, fieldNodeMap, parserContext).build(MapperBuilderContext.ROOT);
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap);

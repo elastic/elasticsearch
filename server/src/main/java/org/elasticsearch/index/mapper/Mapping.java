@@ -35,7 +35,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root()),
+        new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.ROOT),
         new MetadataFieldMapper[0],
         null);
 

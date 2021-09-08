@@ -72,7 +72,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
-        MapperBuilderContext context = MapperBuilderContext.root();
+        MapperBuilderContext context = MapperBuilderContext.ROOT;
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, "test", () -> {
@@ -136,7 +136,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
 
-        final MapperBuilderContext context = MapperBuilderContext.root();
+        final MapperBuilderContext context = MapperBuilderContext.ROOT;
         final MappedFieldType mapper1
             = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true).build(context).fieldType();
         final MappedFieldType mapper2
@@ -202,7 +202,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
                 indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
 
-        final MapperBuilderContext context = MapperBuilderContext.root();
+        final MapperBuilderContext context = MapperBuilderContext.ROOT;
         final MappedFieldType mapper1
             = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));

@@ -88,7 +88,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
             if (root == false) {
-                context = context.childContext(name);
+                context = context.createChildContext(name);
             }
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {

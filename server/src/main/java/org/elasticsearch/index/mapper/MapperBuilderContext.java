@@ -10,11 +10,15 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 
+/**
+ * Holds context for building Mapper objects from their Builders
+ */
 public class MapperBuilderContext {
 
-    public static MapperBuilderContext root() {
-        return new MapperBuilderContext(null);
-    }
+    /**
+     * The root context, to be used when building a tree of mappers
+     */
+    public static final MapperBuilderContext ROOT = new MapperBuilderContext(null);
 
     // TODO remove this
     public static MapperBuilderContext forPath(ContentPath path) {
@@ -31,7 +35,12 @@ public class MapperBuilderContext {
         this.path = path;
     }
 
-    public MapperBuilderContext childContext(String name) {
+    /**
+     * Creates a new MapperBuilderContext that is a child of this context
+     * @param name the name of the child context
+     * @return a new MapperBuilderContext with this context as its parent
+     */
+    public MapperBuilderContext createChildContext(String name) {
         return new MapperBuilderContext(buildFullName(name));
     }
 

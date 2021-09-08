@@ -296,7 +296,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test", false, true)
                 .ignoreZValue(false)
-                .build(MapperBuilderContext.root());
+                .build(MapperBuilderContext.ROOT);
 
         // test store z disabled
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
@@ -330,7 +330,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
             new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
-                .build(MapperBuilderContext.root());
+                .build(MapperBuilderContext.ROOT);
 
         // test store z disabled
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -355,7 +355,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
             new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
-                .build(MapperBuilderContext.root());
+                .build(MapperBuilderContext.ROOT);
 
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
         assertEquals(shapeBuilder.numDimensions(), 3);
@@ -371,14 +371,14 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder =
             new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
-                .coerce(false).build(MapperBuilderContext.root());
+                .coerce(false).build(MapperBuilderContext.ROOT);
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder));
         assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder =
             new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true)
-                .coerce(true).build(MapperBuilderContext.root());
+                .coerce(true).build(MapperBuilderContext.ROOT);
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
         assertNotNull(shapeBuilder);
         assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());

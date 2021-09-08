@@ -1070,7 +1070,6 @@ public class MetadataCreateIndexService {
      * Validates an index data path is not specified.
      *
      * @param settings the index configured settings
-     * @return a list containing validation errors or an empty list if there aren't any errors
      */
     static void validateNoCustomPath(Settings settings) {
         if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_8_0_0) &&

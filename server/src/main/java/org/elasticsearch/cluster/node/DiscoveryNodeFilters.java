@@ -8,14 +8,15 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +54,10 @@ public class DiscoveryNodeFilters {
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
             if (values.length > 0) {
-                bFilters.put(entry.getKey(), values);
+                bFilters.put(entry.getKey(), Arrays.stream(values)
+                    .map(ipOrHost -> InetAddresses.isInetAddress(ipOrHost) ?
+                        NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost)
+                    .toArray(String[]::new));
             }
         }
         if (bFilters.isEmpty()) {

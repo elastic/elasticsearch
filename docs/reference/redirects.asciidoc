@@ -3,6 +3,28 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="freeze-index-api"]
+=== Freeze index API
+
+The freeze index API was removed in 8.0.
+// tag::frozen-removal-explanation[]
+Frozen indices are no longer useful due to
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
+improvements in heap memory usage].
+// end::frozen-removal-explanation[]
+
+[role="exclude",id="ilm-freeze"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
+[role="exclude",id="ilm-freeze-action"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
 [role="exclude",id="alias"]
 === Aliases
 

@@ -817,7 +817,13 @@ public class CCSDuelIT extends ESRestTestCase {
             List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
             for (Map<String, Object> shard : shards) {
                 replaceProfileTime(shard);
-                // Fetch profiling will be significantly different in fan out mode
+                /*
+                 * The way we try to reduce round trips is by fetching all
+                 * of the results we could possibly need from the remote
+                 * cluster and then merging *those* together locally. This
+                 * will end up fetching more documents total. So we can't
+                 * really compare the fetch profiles here.
+                 */
                 shard.remove("fetch");
             }
         }

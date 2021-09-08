@@ -136,8 +136,8 @@ class VectorTileRequest {
             Integer.parseInt(restRequest.param(X_PARAM)),
             Integer.parseInt(restRequest.param(Y_PARAM))
         );
-        if (restRequest.hasContent()) {
-            try (XContentParser contentParser = restRequest.contentParser()) {
+        if (restRequest.hasContentOrSourceParam()) {
+            try (XContentParser contentParser = restRequest.contentOrSourceParamParser()) {
                 PARSER.parse(contentParser, request, restRequest);
             }
         }

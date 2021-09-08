@@ -1405,6 +1405,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
         assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));
         logger.info("queryProfileShardResult=" + Strings.toString(queryProfileShardResult));
+        // NOCOMMIT check on this
 //        ProfileResult profileResult = queryProfileShardResult.getQueryResults().get(0);
 //        assertThat(profileResult.getLuceneDescription(), equalTo("(other_field:value)^0.8"));
 

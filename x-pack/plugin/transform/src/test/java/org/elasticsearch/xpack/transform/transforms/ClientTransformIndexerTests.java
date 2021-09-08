@@ -68,32 +68,8 @@ import static org.mockito.Mockito.when;
 
 public class ClientTransformIndexerTests extends ESTestCase {
 
-    public void testAudiOnFinishFrequency() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
-
-        ClientTransformIndexer indexer = new ClientTransformIndexer(
-            mock(ThreadPool.class),
-            new TransformServices(
-                mock(IndexBasedTransformConfigManager.class),
-                mock(TransformCheckpointService.class),
-                mock(TransformAuditor.class),
-                mock(SchedulerEngine.class)
-            ),
-            mock(CheckpointProvider.class),
-            new AtomicReference<>(IndexerState.STOPPED),
-            null,
-            mock(Client.class),
-            mock(TransformIndexerStats.class),
-            mock(TransformConfig.class),
-            null,
-            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
-            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
-            new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-            mock(TransformContext.class),
-            false
-        );
-
+    public void testAuditOnFinishFrequency() {
+        ClientTransformIndexer indexer = createTestIndexer();
         List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).collect(Collectors.toList());
 
         // Audit every checkpoint for the first 10
@@ -123,6 +99,17 @@ public class ClientTransformIndexerTests extends ESTestCase {
         assertTrue(shouldAudit.get(11_000));
         assertFalse(shouldAudit.get(11_001));
         assertFalse(shouldAudit.get(11_999));
+    }
+
+    public void testDoSearchGivenNoIndices() {
+        ClientTransformIndexer indexer = createTestIndexer();
+        SearchRequest searchRequest = new SearchRequest(new String[0]);
+        Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test", searchRequest);
+        indexer.doSearch(namedSearchRequest, ActionListener.wrap(
+            // A search of zero indices should return null rather than attempt to search all indices
+            ESTestCase::assertNull,
+            e -> fail(e.getMessage())
+        ));
     }
 
     public void testPitInjection() throws InterruptedException {
@@ -334,7 +321,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         @Override
         protected Tuple<String, SearchRequest> buildSearchRequest() {
-            return new Tuple<>("mock", new SearchRequest().source(new SearchSourceBuilder()));
+            return new Tuple<>("mock", new SearchRequest("source_index").source(new SearchSourceBuilder()));
         }
     }
 
@@ -426,5 +413,32 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         function.accept(listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+    }
+
+    private ClientTransformIndexer createTestIndexer() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        return new ClientTransformIndexer(
+            mock(ThreadPool.class),
+            new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                mock(SchedulerEngine.class)
+            ),
+            mock(CheckpointProvider.class),
+            new AtomicReference<>(IndexerState.STOPPED),
+            null,
+            mock(Client.class),
+            mock(TransformIndexerStats.class),
+            mock(TransformConfig.class),
+            null,
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+            mock(TransformContext.class),
+            false
+        );
     }
 }

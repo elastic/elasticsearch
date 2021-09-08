@@ -20,7 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 
 import java.util.List;
 import java.util.function.Function;

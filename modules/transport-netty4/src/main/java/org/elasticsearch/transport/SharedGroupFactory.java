@@ -85,11 +85,9 @@ public final class SharedGroupFactory {
 
     private static class RefCountedGroup extends AbstractRefCounted {
 
-        public static final String NAME = "ref-counted-event-loop-group";
         private final EventLoopGroup eventLoopGroup;
 
         private RefCountedGroup(EventLoopGroup eventLoopGroup) {
-            super(NAME);
             this.eventLoopGroup = eventLoopGroup;
         }
 

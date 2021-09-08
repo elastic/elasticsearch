@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -53,6 +54,7 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
     private final Set<String> shadowedFields;
+    private final Set<String> completionFields = new HashSet<>();
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -148,6 +150,9 @@ public final class MappingLookup {
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
+            if (mapper instanceof CompletionFieldMapper) {
+                completionFields.add(mapper.name());
+            }
         }
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
@@ -211,6 +216,15 @@ public final class MappingLookup {
      */
     public boolean isShadowed(String field) {
         return shadowedFields.contains(field);
+    }
+
+    /**
+     * Gets the postings format for a particular field
+     * @param field the field to retrieve a postings format for
+     * @return the postings format for the field, or {@code null} if the default format should be used
+     */
+    public PostingsFormat getPostingsFormat(String field) {
+        return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
     }
 
     void checkLimits(IndexSettings settings) {

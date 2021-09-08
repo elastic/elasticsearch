@@ -337,8 +337,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
@@ -453,7 +455,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         scriptServiceReference.set(scriptService);
-
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
@@ -495,6 +496,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
+        GenerateInitialBuiltinUsersPasswordListener generateInitialBuiltinUsersPasswordListener =
+            new GenerateInitialBuiltinUsersPasswordListener(nativeUsersStore, securityIndex.get());
+        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false && SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
+            securityIndex.get().addStateListener(generateInitialBuiltinUsersPasswordListener);
+        }
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);

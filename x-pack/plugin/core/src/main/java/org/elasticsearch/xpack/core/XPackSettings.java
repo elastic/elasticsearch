@@ -105,6 +105,9 @@ public class XPackSettings {
     public static final Setting<Boolean> ENROLLMENT_ENABLED =
         Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
 
+    public static final Setting<Boolean> SECURITY_AUTOCONFIGURATION_ENABLED =
+        Setting.boolSetting("xpack.security.autoconfiguration.enabled", true, Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
@@ -232,6 +235,7 @@ public class XPackSettings {
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
+        settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

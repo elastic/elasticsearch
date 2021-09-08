@@ -27,8 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A container class to hold all the profile results across all shards.  Internally
- * holds a map of shard ID -&gt; Profiled results
+ * Profile results for the query phase run on all shards.
  */
 public final class SearchProfileQueryPhaseResults implements Writeable { // This is Writeable for backwards compatibility
     private Map<String, SearchProfileQueryPhaseResult> shardResults;

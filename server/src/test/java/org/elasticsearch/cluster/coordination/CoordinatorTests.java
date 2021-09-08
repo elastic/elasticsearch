@@ -786,6 +786,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING));
             assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
             assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
+
+            follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         }
     }
 
@@ -1388,6 +1390,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.bootstrapIfNecessary();
             cluster.runFor(10000, "failing join validation");
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.extraJoinValidators.clear();
+            }
         }
     }
 
@@ -1565,6 +1571,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 + 7 * delayVariabilityMillis, "stabilising");
 
             assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
+
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
         }
     }
 
@@ -1704,6 +1712,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     Loggers.removeAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.stop();
                 }
+            }
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.heal();
             }
         }
     }

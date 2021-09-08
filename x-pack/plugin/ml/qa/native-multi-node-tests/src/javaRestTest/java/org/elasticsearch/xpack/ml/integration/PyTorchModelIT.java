@@ -12,10 +12,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
@@ -40,7 +43,11 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This test uses a tiny hardcoded base64 encoded PyTorch TorchScript model.
@@ -169,13 +176,45 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testDeploymentStats() throws IOException {
+        String model = "model_starting_test";
+        String modelPartial = "model_partially_started";
+        String modelStarted = "model_started";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        createTrainedModel(modelPartial);
+        putVocabulary(List.of("once", "twice"), modelPartial);
+        putModelDefinition(modelPartial);
+        createTrainedModel(modelStarted);
+        putVocabulary(List.of("once", "twice"), modelStarted);
+        putModelDefinition(modelStarted);
+
+        CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
+            startDeployment(modelId, state.toString());
+            Response response = getDeploymentStats(modelId);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            String statusState = (String)XContentMapValues.extractValue("allocation_status.state", stats.get(0));
+            assertThat(stats.toString(), statusState, is(not(nullValue())));
+            assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            stopDeployment(model);
+        };
+
+        assertAtLeast.accept(model, AllocationStatus.State.STARTING);
+        assertAtLeast.accept(modelPartial, AllocationStatus.State.STARTED);
+        assertAtLeast.accept(modelStarted, AllocationStatus.State.FULLY_ALLOCATED);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
+    @SuppressWarnings("unchecked")
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";
 
         createTrainedModel(modelA);
         putVocabulary(List.of("once", "twice"), modelA);
         putModelDefinition(modelA);
-        startDeployment(modelA);
+        startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
         infer("once", modelA);
         infer("twice", modelA);
         Response response = getDeploymentStats(modelA);
@@ -209,8 +248,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo);
-        startDeployment(modelBar);
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
         infer("once", modelFoo);
         infer("once", modelBar);
         {
@@ -266,8 +305,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo);
-        startDeployment(modelBar);
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
         infer("once", modelFoo);
         infer("once", modelBar);
 
@@ -380,7 +419,11 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s");
+        return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
+    }
+
+    private Response startDeployment(String modelId, String waitForState) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s&wait_for=" + waitForState);
         return client().performRequest(request);
     }
 

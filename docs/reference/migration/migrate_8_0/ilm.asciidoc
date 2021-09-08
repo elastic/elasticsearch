@@ -39,7 +39,7 @@ Update your workflow and applications to use the `ilm` package in place of
 `indexlifecycle`.
 ====
 
-[[ilm-freeze-zoop]]
+[[ilm-freeze-noop]]
 .The ILM `freeze` action is now a no-op.
 [%collapsible]
 ====

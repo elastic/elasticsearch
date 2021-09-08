@@ -133,6 +133,9 @@ setup:
 
 ---
 "Script query":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/77397"
   - do:
       search:
         index: test1

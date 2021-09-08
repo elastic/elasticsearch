@@ -246,7 +246,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             GetSnapshotsRequest.SortBy.REPOSITORY,
             order
         );
-        assertThat(allSorted.subList(0, allSnapshotNamesWithoutOther.size()), is(allSortedWithoutOther));
+        assertThat(allSortedWithoutOther, is(allSorted.subList(0, allSnapshotNamesWithoutOther.size())));
 
         final List<SnapshotInfo> allInOther = allSnapshotsSorted(
             namesOtherRepo,
@@ -254,7 +254,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             GetSnapshotsRequest.SortBy.REPOSITORY,
             order
         );
-        assertThat(allSorted.subList(allSnapshotNamesWithoutOther.size(), allSorted.size()), is(allInOther));
+        assertThat(allInOther, is(allSorted.subList(allSnapshotNamesWithoutOther.size(), allSorted.size())));
 
         final String otherPrefixSnapshot1 = "other-prefix-snapshot-1";
         createFullSnapshot(otherRepo, otherPrefixSnapshot1);
@@ -280,6 +280,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             "-" + otherPrefixSnapshot2
         );
         assertThat(allInOtherWithoutOtherExplicit, is(allInOther));
+
+        assertThat(clusterAdmin().prepareGetSnapshots(matchAllPattern()).setSnapshots("other*", "-o*").get().getSnapshots(), empty());
+        assertThat(clusterAdmin().prepareGetSnapshots("other*", "-o*").setSnapshots(matchAllPattern()).get().getSnapshots(), empty());
     }
 
     public void testNamesStartingInDash() {

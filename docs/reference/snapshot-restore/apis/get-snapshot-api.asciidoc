@@ -60,7 +60,7 @@ Use the get snapshot API to return information about one or more snapshots, incl
 `<repository>`::
 (Required, string)
 Comma-separated list of snapshot repository names used to limit the request.
-Wildcard (`*`) expressions are supported including combining wildcards with exclude patterns starting in `-`.
+Wildcard (`*`) expressions are supported including combining wildcards with exclude patterns starting with `-`.
 +
 To get information about all snapshot repositories registered in the
 cluster, omit this parameter or use `*` or `_all`.
@@ -68,7 +68,7 @@ cluster, omit this parameter or use `*` or `_all`.
 `<snapshot>`::
 (Required, string)
 Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`) as well as combining wildcards and exclude patterns
-starting in `-`.
+starting with `-`.
 +
 * To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
 * To get information about any snapshots that are currently running, use `_current`.
@@ -152,8 +152,8 @@ exclusive with using the `after` parameter. Defaults to `0`.
 `slm_policy_filter`::
 (Optional, string)
 Filter snapshots by a comma-separated list of SLM policy names that snapshots belong to. Also accepts wildcards (`\*`) and combinations
-of wildcards followed by exclude patterns starting in `-`. For example, the pattern `*,-policy-a-\*` will return all snapshots except
-for those that were created by an SLM policy with a name starting in `policy-a-`. Note that the wildcard pattern `*` matches all snapshots
+of wildcards followed by exclude patterns starting with `-`. For example, the pattern `*,-policy-a-\*` will return all snapshots except
+for those that were created by an SLM policy with a name starting with `policy-a-`. Note that the wildcard pattern `*` matches all snapshots
 created by an SLM policy but not those snapshots that were not created by an SLM policy. To include snapshots not created by an SLM
 policy you can use the special pattern `_none` that will match all snapshots without an SLM policy.
 

@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShapeQueryOverShapeIT extends ShapeQueryTestCase {
+public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     private static String INDEX = "test";
     private static String IGNORE_MALFORMED_INDEX = INDEX + "_ignore_malformed";

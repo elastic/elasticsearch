@@ -25,7 +25,7 @@ import org.hamcrest.CoreMatchers;
 
 import java.util.List;
 
-public class ShapeQueryOverPointIT extends ShapeQueryTestCase {
+public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
     @Override
     protected XContentBuilder createDefaultMapping() throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()

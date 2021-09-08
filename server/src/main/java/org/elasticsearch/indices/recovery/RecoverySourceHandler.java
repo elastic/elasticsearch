@@ -1096,7 +1096,7 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
         // use a smaller buffer than the configured chunk size if we only have files smaller than the chunk size
-        final int bufferSize = (int) Math.min(chunkSizeInBytes, files[files.length - 1].length());
+        final int bufferSize = files.length == 0 ? 0 : (int) Math.min(chunkSizeInBytes, files[files.length - 1].length());
         Releasable temporaryStoreRef = acquireStore(store);
         try {
             final Releasable storeRef = temporaryStoreRef;

@@ -259,12 +259,6 @@ POST /example/_doc
 A polygon's orientation indicates the order of its vertices: `RIGHT`
 (counterclockwise) or `LEFT` (clockwise).
 
-{es} only uses a polygon's orientation to determine if it crosses the
-international dateline (+/-180° longitude). If so, {es} splits the polygon at
-the dateline. If the difference between a polygon's minimum longitude and the
-maximum longitude is less than 180°, its orientation is not considered and has
-no effect.
-
 You can set a default orientation for a `geo_shape` field using the
 <<geo-shape-mapping-options,`orientation` mapping parameter>>. You can override
 this default for specific polygons using the document-level `orientation`
@@ -286,6 +280,17 @@ POST /example/_doc
   }
 }
 ----
+
+{es} only uses a polygon’s orientation to determine if it crosses the
+international dateline (+/-180° longitude). If the difference between a
+polygon’s minimum longitude and the maximum longitude is less than 180°, the
+polygon doesn't cross the dateline and its orientation has no effect.
+
+If the difference between a polygon’s minimum longitude and the maximum
+longitude is 180° or greater, {es} checks whether the polygon's document-level
+`orientation` differs from the default in the `orientation` mapping parameter.
+If the orientation differs, {es} considers the polygon to cross the
+international dateline and splits the polygon at the dateline.
 
 [discrete]
 [[geo-multipoint]]

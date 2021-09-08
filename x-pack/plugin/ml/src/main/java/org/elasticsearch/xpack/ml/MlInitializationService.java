@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -20,14 +23,21 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
-class MlInitializationService implements ClusterStateListener {
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+
+public class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
     private final Client client;
+    private final ThreadPool threadPool;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
@@ -37,6 +47,7 @@ class MlInitializationService implements ClusterStateListener {
     MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
                             MlAssignmentNotifier mlAssignmentNotifier) {
         this(client,
+            threadPool,
             new MlDailyMaintenanceService(
                 settings,
                 Objects.requireNonNull(clusterService).getClusterName(),
@@ -49,8 +60,10 @@ class MlInitializationService implements ClusterStateListener {
     }
 
     // For testing
-    MlInitializationService(Client client, MlDailyMaintenanceService dailyMaintenanceService, ClusterService clusterService) {
+    public MlInitializationService(Client client, ThreadPool threadPool, MlDailyMaintenanceService dailyMaintenanceService,
+                                   ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
+        this.threadPool = threadPool;
         this.mlDailyMaintenanceService = dailyMaintenanceService;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
@@ -71,6 +84,7 @@ class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlIndicesHidden);
     }
 
     public void offMaster() {
@@ -112,5 +126,33 @@ class MlInitializationService implements ClusterStateListener {
         return mlDailyMaintenanceService;
     }
 
+    private void makeMlIndicesHidden() {
+        String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
+        GetSettingsResponse getSettingsResponse =
+            client.admin().indices().prepareGetSettings()
+                .setIndices(mlHiddenIndexPatterns)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .get();
+        String[] nonHiddenIndices =
+            getSettingsResponse.getIndexToSettings().stream()
+                .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
+                .map(Map.Entry::getKey)
+                .toArray(String[]::new);
+        if (nonHiddenIndices.length == 0) {
+            logger.info("There are no indices that need to be made hidden, " + getSettingsResponse);
+            return;
+        }
+        String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
+        logger.info("The following indices will now be made hidden: {}", nonHiddenIndicesString);
+        AcknowledgedResponse updateSettingsResponse =
+            client.admin().indices().prepareUpdateSettings()
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .setIndices(nonHiddenIndices)
+                .setSettings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true))
+                .get();
+        if (updateSettingsResponse.isAcknowledged() == false) {
+            logger.error("One or more of the following indices could not be made hidden: {}", nonHiddenIndicesString);
+        }
+    }
 }
 

@@ -377,7 +377,7 @@ public class IndexDeprecationChecks {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         return LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream()
             .filter(deprecatedParameter -> value.containsKey(deprecatedParameter))
-            .map(deprecatedParameter -> String.format(Locale.ROOT, "parameter [%s] in field [%s]", type, deprecatedParameter, fieldName))
+            .map(deprecatedParameter -> String.format(Locale.ROOT, "parameter [%s] in field [%s]", deprecatedParameter, fieldName))
             .collect(Collectors.joining("; "));
     }
 

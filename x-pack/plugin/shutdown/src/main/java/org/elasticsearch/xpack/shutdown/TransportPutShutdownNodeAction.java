@@ -86,6 +86,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     .setStartedAtMillis(System.currentTimeMillis())
                     .setNodeSeen(nodeSeen)
                     .setAllocationDelay(request.getAllocationDelay())
+                    .setTargetNodeName(request.getTargetNodeName())
                     .build();
 
                 return ClusterState.builder(currentState)

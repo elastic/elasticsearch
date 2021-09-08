@@ -55,7 +55,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
 
     @Override
     public FetchSubPhaseProcessor profile(String type, String description, FetchSubPhaseProcessor delegate) {
-        FetchSubPhaseProfileBreakdown breakdown = new FetchSubPhaseProfileBreakdown(type, description);
+        FetchSubPhaseProfileBreakdown breakdown = new FetchSubPhaseProfileBreakdown(type, description, delegate);
         current.subPhases.add(breakdown);
         return new FetchSubPhaseProcessor() {
             @Override
@@ -78,11 +78,6 @@ public class FetchProfiler implements FetchPhase.Profiler {
                 } finally {
                     timer.stop();
                 }
-            }
-
-            @Override
-            public void done() {
-                breakdown.debug = delegate.getDebugInfo();
             }
         };
     }
@@ -123,11 +118,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
 
         ProfileResult result(long stop) {
-            List<ProfileResult> subPhases = this.subPhases.stream()
+            List<ProfileResult> children = subPhases.stream()
                 .sorted(Comparator.comparing(b -> b.type))
                 .map(FetchSubPhaseProfileBreakdown::result)
                 .collect(toList());
-            return new ProfileResult("fetch", "fetch", toBreakdownMap(), toDebugMap(), stop - start, subPhases);
+            return new ProfileResult("fetch", "fetch", toBreakdownMap(), toDebugMap(), stop - start, children);
         }
     }
 
@@ -144,21 +139,22 @@ public class FetchProfiler implements FetchPhase.Profiler {
     static class FetchSubPhaseProfileBreakdown extends AbstractProfileBreakdown<FetchSubPhaseTiming> {
         private final String type;
         private final String description;
-        private Map<String, Object> debug;
+        private final FetchSubPhaseProcessor processor;
 
-        FetchSubPhaseProfileBreakdown(String type, String description) {
+        FetchSubPhaseProfileBreakdown(String type, String description, FetchSubPhaseProcessor processor) {
             super(FetchSubPhaseTiming.class);
             this.type = type;
             this.description = description;
+            this.processor = processor;
         }
 
         @Override
         protected Map<String, Object> toDebugMap() {
-            return debug;
+            return processor.getDebugInfo();
         }
 
         ProfileResult result() {
-            return new ProfileResult(type, description, toBreakdownMap(), toDebugMap(), toNodeTime(), List.of());
+            return new ProfileResult(type, description, toBreakdownMap(), toDebugMap(), toNodeTime(), processor.childProfiles());
         }
     }
 

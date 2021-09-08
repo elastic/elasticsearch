@@ -69,6 +69,10 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context) {
+        execute(context, context.getProfilers() == null ? null : context.getProfilers().getFetchProfiler());
+    }
+
+    public void execute(SearchContext context, FetchProfiler fetchProfiler) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -84,7 +88,7 @@ public class FetchPhase {
             return;
         }
 
-        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : context.getProfilers().getFetchProfiler();
+        Profiler profiler = fetchProfiler == null ? Profiler.NOOP : fetchProfiler;
         profiler.start();
         SearchHits hits = null;
         try {
@@ -171,9 +175,6 @@ public class FetchPhase {
             } catch (Exception e) {
                 throw new FetchPhaseExecutionException(context.shardTarget(), "Error running fetch phase for doc [" + docId + "]", e);
             }
-        }
-        for (FetchSubPhaseProcessor processor : processors) {
-            processor.done();
         }
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled");

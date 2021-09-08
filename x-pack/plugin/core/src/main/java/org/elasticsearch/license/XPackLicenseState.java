@@ -501,16 +501,14 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowed(Feature feature) {
-        return isAllowed(feature.feature, false);
+        return isAllowed(feature.feature);
     }
 
     // Package protected: Only allowed to be called by LicensedFeature
-    boolean isAllowed(LicensedFeature feature, boolean checkExpiry) {
-        if (checkExpiry) {
-            String warning = status.expiryWarning;
-            if (warning != null) {
-                HeaderWarning.addWarning(warning);
-            }
+    boolean isAllowed(LicensedFeature feature) {
+        String warning = status.expiryWarning;
+        if (warning != null) {
+            HeaderWarning.addWarning(warning);
         }
         return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
     }

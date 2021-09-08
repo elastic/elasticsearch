@@ -28,6 +28,7 @@ public abstract class LicensedFeature {
          * updates the last time the feature was used.
          */
         public boolean check(XPackLicenseState state) {
+            state.checkExpiry();
             if (state.isAllowed(this)) {
                 state.featureUsed(this);
                 return true;
@@ -50,6 +51,7 @@ public abstract class LicensedFeature {
          * begins tracking the feature as "on" for the given context.
          */
         public boolean checkAndStartTracking(XPackLicenseState state, String contextName) {
+            state.checkExpiry();
             if (state.isAllowed(this)) {
                 startTracking(state, contextName);
                 return true;

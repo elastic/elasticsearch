@@ -72,7 +72,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
     static int indexDocs(RestHighLevelClient client, String index, int numDocs, boolean expectWarnings) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             Request indexDoc = new Request("PUT", index + "/type/" + i);
-            indexDoc.setJsonEntity("{\"field\":" + i + ", \"array\": [1, 2, 3] , \"obj\": { \"innerObj\" : \"foo\" } }");
+            indexDoc.setJsonEntity("{\"field\": \"f" + i + "\", \"array\": [1, 2, 3] , \"obj\": { \"innerObj\" : \"foo\" } }");
             if (expectWarnings) {
                 indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             }
@@ -138,6 +138,15 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                         Map<String, DocumentField> fields = hit.getFields();
                         assertNotNull(fields);
                         assertNotNull("Field `field` not found, hit was: " + hit.toString(), fields.get("field"));
+                        if (hit.getIndex().equals(localIndex) || UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_10_0)) {
+                            assertNotNull("Field `field.keyword` not found, hit was: " + hit.toString(), fields.get("field.keyword"));
+                        } else {
+                            // we won't be able to get multi-field for remote indices below V7.10
+                            assertNull(
+                                "Field `field.keyword` should not be returned, hit was: " + hit.toString(),
+                                fields.get("field.keyword")
+                            );
+                        }
                         DocumentField arrayField = fields.get("array");
                         assertNotNull("Field `array` not found, hit was: " + hit.toString(), arrayField);
                         assertEquals(3, ((List<?>) arrayField.getValues()).size());

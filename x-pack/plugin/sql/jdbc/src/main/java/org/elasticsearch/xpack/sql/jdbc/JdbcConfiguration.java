@@ -65,6 +65,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     static final String FIELD_MULTI_VALUE_LENIENCY = "field.multi.value.leniency";
     static final String FIELD_MULTI_VALUE_LENIENCY_DEFAULT = "true";
 
+    // TODO: remove this setting in 9.0 when frozen indices are removed
     static final String INDEX_INCLUDE_FROZEN = "index.include.frozen";
     static final String INDEX_INCLUDE_FROZEN_DEFAULT = "false";
 

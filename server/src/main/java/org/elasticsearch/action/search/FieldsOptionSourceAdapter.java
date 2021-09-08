@@ -41,10 +41,10 @@ interface FieldsOptionSourceAdapter {
     String FIELDS_EMULATION_ERROR_MSG = "Cannot specify both 'fields' and '_source' 'includes' or 'excludes' in"
         + "a search request that is targeting pre version 7.10 nodes.";
 
-    static FieldsOptionSourceAdapter create(Connection connection, SearchSourceBuilder ccsSearchSource) {
+    static FieldsOptionSourceAdapter create(Connection connection, SearchSourceBuilder searchSource) {
         Version version = connection.getVersion();
         if (version.before(Version.V_7_10_0)) {
-            List<FieldAndFormat> fetchFields = ccsSearchSource.fetchFields();
+            List<FieldAndFormat> fetchFields = searchSource.fetchFields();
             if (fetchFields != null && fetchFields.isEmpty() == false) {
                 String[] includes = fetchFields.stream().map(ff -> ff.field).toArray(i -> new String[i]);
                 CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
@@ -67,7 +67,7 @@ interface FieldsOptionSourceAdapter {
                     unmappedConcreteFields
                 );
 
-                FetchSourceContext fetchSource = ccsSearchSource.fetchSource();
+                FetchSourceContext fetchSource = searchSource.fetchSource();
                 final boolean removeSourceOnResponse;
                 final SearchSourceBuilder adaptedSource;
 
@@ -76,7 +76,7 @@ interface FieldsOptionSourceAdapter {
                     if (fetchSource == null || fetchSource.includes().length == 0 && fetchSource.excludes().length == 0) {
                         // change nothing, we can get everything from source and can leave it when translating the response
                         removeSourceOnResponse = false;
-                        adaptedSource = ccsSearchSource;
+                        adaptedSource = searchSource;
                     } else {
                         // original request has source includes/excludes set. In this case we don't want to silently
                         // overwrite the source parameter with something else, so we error instead
@@ -84,7 +84,7 @@ interface FieldsOptionSourceAdapter {
                     }
                 } else {
                     // case 2: original request has source: false
-                    adaptedSource = ccsSearchSource.shallowCopy();
+                    adaptedSource = searchSource.shallowCopy();
                     adaptedSource.fetchSource(new FetchSourceContext(true));
                     adaptedSource.fetchSource(includes, null);
                     removeSourceOnResponse = true;

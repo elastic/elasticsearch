@@ -51,5 +51,7 @@ See <<java-rest-high-stop-transform>>.
 [role="exclude",id="java-rest-high-freeze-index"]
 === Freeze index API
 
-The freeze index API was removed in 8.0.
-include::../reference/redirects.asciidoc[tag=frozen-removal-explanation]
+The freeze index API was removed in 8.0. Frozen indices are no longer useful due
+to
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
+improvements in heap memory usage].

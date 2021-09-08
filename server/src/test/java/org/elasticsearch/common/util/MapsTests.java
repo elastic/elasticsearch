@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +29,7 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 
 public class MapsTests extends ESTestCase {
@@ -148,19 +148,19 @@ public class MapsTests extends ESTestCase {
     }
 
     public void testCollectRandomListToUnmodifiableSortedMap() {
-        List<Tuple<String, String>> tuples = randomList(0, 100,
-            () -> new Tuple<>(randomAlphaOfLength(10), randomAlphaOfLength(10)))
+        List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10))
             .stream()
             .distinct()
+            .map(key -> Tuple.tuple(key, randomAlphaOfLength(10)))
             .collect(Collectors.toList());
-        Collections.shuffle(tuples, Randomness.get());
+        Randomness.shuffle(tuples);
 
         SortedMap<String, String> sortedTuplesMap = tuples.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
 
         assertThat(sortedTuplesMap.keySet(), equalTo(tuples.stream().map(Tuple::v1).collect(Collectors.toSet())));
         String previous = "";
         for (String key : sortedTuplesMap.keySet()) {
-            assertThat(key.compareTo(previous) >= 0, equalTo(true));
+            assertThat(key, greaterThan(previous));
             previous = key;
         }
     }

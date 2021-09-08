@@ -18,6 +18,11 @@ apply plugin: 'elasticsearch.rest-resources'
 String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
+// If we're performing a release build, but `build.id` hasn't been set, we can
+// infer that we're not at the Docker building stage of the build, and therefore
+// we should skip the beats part of the build.
+boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
+
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
   // is only used to fetch the `tini` binary, when building the Iron Bank docker image
@@ -74,8 +79,11 @@ dependencies {
   tini "krallin:tini:0.19.0:${tiniArch}"
   repositoryPlugins project(path: ':plugins', configuration: 'repositoryPlugins')
   nonRepositoryPlugins project(path: ':plugins', configuration: 'nonRepositoryPlugins')
-  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
-  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+
+  if (includeBeats) {
+    filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+    metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+  }
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->

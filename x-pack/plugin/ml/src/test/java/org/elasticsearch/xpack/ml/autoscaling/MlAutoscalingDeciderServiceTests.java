@@ -50,7 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
@@ -74,7 +74,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private NodeLoadDetector nodeLoadDetector;
     private ClusterService clusterService;
     private Settings settings;
-    private Supplier<Long> timeSupplier;
+    private LongSupplier timeSupplier;
     private MlMemoryTracker mlMemoryTracker;
 
     @Before

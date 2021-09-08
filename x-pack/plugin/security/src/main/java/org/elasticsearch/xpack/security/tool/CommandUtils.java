@@ -20,7 +20,7 @@ public class CommandUtils {
      * @return the char array with the password
      */
     public static char[] generatePassword(int passwordLength) {
-        final char[] passwordChars = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
+        final char[] passwordChars = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789*-_=+").toCharArray();
         char[] characters = new char[passwordLength];
         for (int i = 0; i < passwordLength; ++i) {
             characters[i] = passwordChars[SECURE_RANDOM.nextInt(passwordChars.length)];

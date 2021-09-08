@@ -36,6 +36,7 @@ public class ReleaseNotesGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
         );
+
         final Map<QualifiedVersion, Set<ChangelogEntry>> entries = getEntries();
 
         // when:

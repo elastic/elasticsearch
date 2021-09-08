@@ -25,7 +25,7 @@ setup:
       index:
         index: test
         id: 2
-        routing: 1
+        routing: "1"
         body: { "join_field": { "name": "answer", "parent": 1} , "entity_type": "answer" }
 
   - do:
@@ -37,7 +37,7 @@ setup:
   - do:
       index:
         index: test
-        routing: 3
+        routing: "3"
         id: 4
         body: { "join_field": { "name": "address", "parent": 3 }, "entity_type": "address" }
 

@@ -11,7 +11,6 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,42 +30,41 @@ import java.util.TreeSet;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
- * A container class to hold all the profile results across all shards.  Internally
- * holds a map of shard ID -&gt; Profiled results
+ * Profile results for all shards.
  */
-public final class SearchProfileShardResults implements Writeable, ToXContentFragment {
+public final class SearchProfileResults implements Writeable, ToXContentFragment {
 
     private static final String SEARCHES_FIELD = "searches";
     private static final String ID_FIELD = "id";
     private static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
 
-    private Map<String, ProfileShardResult> shardResults;
+    private Map<String, SearchProfileQueryPhaseResult> shardResults;
 
-    public SearchProfileShardResults(Map<String, ProfileShardResult> shardResults) {
+    public SearchProfileResults(Map<String, SearchProfileQueryPhaseResult> shardResults) {
         this.shardResults =  Collections.unmodifiableMap(shardResults);
     }
 
-    public SearchProfileShardResults(StreamInput in) throws IOException {
+    public SearchProfileResults(StreamInput in) throws IOException {
         int size = in.readInt();
         shardResults = new HashMap<>(size);
 
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            ProfileShardResult shardResult = new ProfileShardResult(in);
+            SearchProfileQueryPhaseResult shardResult = new SearchProfileQueryPhaseResult(in);
             shardResults.put(key, shardResult);
         }
         shardResults = Collections.unmodifiableMap(shardResults);
     }
 
-    public Map<String, ProfileShardResult> getShardResults() {
+    public Map<String, SearchProfileQueryPhaseResult> getShardResults() {
         return this.shardResults;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(shardResults.size());
-        for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> entry : shardResults.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
@@ -82,7 +80,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             builder.startObject();
             builder.field(ID_FIELD, key);
             builder.startArray(SEARCHES_FIELD);
-            ProfileShardResult profileShardResult = shardResults.get(key);
+            SearchProfileQueryPhaseResult profileShardResult = shardResults.get(key);
             for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
                 result.toXContent(builder, params);
             }
@@ -94,10 +92,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         return builder;
     }
 
-    public static SearchProfileShardResults fromXContent(XContentParser parser) throws IOException {
+    public static SearchProfileResults fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
+        Map<String, SearchProfileQueryPhaseResult> searchProfileResults = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_ARRAY) {
                 if (SHARDS_FIELD.equals(parser.currentName())) {
@@ -111,11 +109,11 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                 parser.skipChildren();
             }
         }
-        return new SearchProfileShardResults(searchProfileResults);
+        return new SearchProfileResults(searchProfileResults);
     }
 
     private static void parseSearchProfileResultsEntry(XContentParser parser,
-            Map<String, ProfileShardResult> searchProfileResults) throws IOException {
+            Map<String, SearchProfileQueryPhaseResult> searchProfileResults) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
@@ -145,7 +143,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                 parser.skipChildren();
             }
         }
-        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult));
+        searchProfileResults.put(id, new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult));
     }
 
     /**
@@ -154,10 +152,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
      *
      * @param profilers
      *            The {@link Profilers} to convert into results
-     * @return A {@link ProfileShardResult} representing the results for this
+     * @return A {@link SearchProfileQueryPhaseResult} representing the results for this
      *         shard
      */
-    public static ProfileShardResult buildShardResults(Profilers profilers) {
+    public static SearchProfileQueryPhaseResult buildShardResults(Profilers profilers) {
         List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
         AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
         List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
@@ -167,6 +165,6 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
-        return new ProfileShardResult(queryResults, aggResults);
+        return new SearchProfileQueryPhaseResult(queryResults, aggResults);
     }
 }

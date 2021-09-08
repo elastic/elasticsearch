@@ -182,6 +182,7 @@ setup:
                 script:
                   script:
                     source: "field('ul').as(Field.BigInteger).as(Field.UnsignedLong).getDouble(-2.2d) > 9E18"
+          sort: [ { ul: asc } ]
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "3" }

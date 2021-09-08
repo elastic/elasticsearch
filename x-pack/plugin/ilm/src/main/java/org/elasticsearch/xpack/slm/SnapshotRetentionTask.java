@@ -137,7 +137,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             // Finally, asynchronously retrieve all the snapshots, deleting them serially,
             // before updating the cluster state with the new metrics and setting 'running'
             // back to false
-            getAllRetainableSnapshots(repositioriesToFetch, new ActionListener<>() {
+            getAllRetainableSnapshots(repositioriesToFetch, policiesWithRetention.keySet(), new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                     if (logger.isTraceEnabled()) {
@@ -232,7 +232,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         return eligible;
     }
 
-    void getAllRetainableSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
+    void getAllRetainableSnapshots(Collection<String> repositories, Set<String> policies,
+                                   ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                    Consumer<Exception> errorHandler) {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
@@ -245,6 +246,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setIgnoreUnavailable(true)
+            .setPolicies(policies.toArray(Strings.EMPTY_ARRAY))
             .execute(ActionListener.wrap(resp -> {
                     if (logger.isTraceEnabled()) {
                         logger.trace("retrieved snapshots: {}",

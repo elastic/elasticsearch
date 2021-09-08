@@ -335,7 +335,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     (historyItem) -> fail("should never write history")));
 
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
-            task.getAllRetainableSnapshots(Collections.singleton(repoId), new ActionListener<>() {
+            task.getAllRetainableSnapshots(Collections.singleton(repoId), Set.of(policyId), new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, List<SnapshotInfo>> stringListMap) {
                     logger.info("--> forcing failure");
@@ -528,6 +528,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         @Override
         void getAllRetainableSnapshots(Collection<String> repositories,
+                                       Set<String> policies,
                                        ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                        Consumer<Exception> errorHandler) {
             listener.onResponse(this.snapshotRetriever.get());

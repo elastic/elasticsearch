@@ -236,7 +236,7 @@ public class HotThreads {
             }
             double percent = (((double) time) / interval.nanos()) * 100;
             sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                percent, TimeValue.timeValueNanos(time), interval, type, threadName));
+                percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
             // for each snapshot (2nd array index) find later snapshot for same thread with max number of
             // identical StackTraceElements (starting from end of each)
             boolean[] done = new boolean[threadElementsSnapshotCount];

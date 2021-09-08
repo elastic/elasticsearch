@@ -881,6 +881,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long startTime = System.nanoTime();
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY :
             "dynamic_templates parameter can only be associated with primary operations";
+        mapperService.validateType(type);
         DocumentMapper documentMapper = mapperService.documentMapper(type);
         Mapping mapping = null;
         if (documentMapper == null) {

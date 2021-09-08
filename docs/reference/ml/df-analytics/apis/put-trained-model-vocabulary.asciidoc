@@ -9,6 +9,7 @@
 
 Creates a trained model vocabulary.
 This is only supported on NLP type models.
+
 experimental::[]
 
 [[ml-put-trained-model-vocabulary-request]]

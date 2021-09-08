@@ -1122,8 +1122,8 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "index request targeting data stream [logs-foobar] specifies a custom routing. "
-                    + "allow_custom_routing within data_stream field must be true when custom routing is enabled."
+                "index request targeting data stream [logs-foobar] specifies a custom routing "
+                    + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
             )
         );
 
@@ -1144,8 +1144,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 responseItem.getFailureMessage(),
                 is(
                     "java.lang.IllegalArgumentException: index request targeting data stream "
-                        + "[logs-foobar] specifies a custom routing. allow_custom_routing within "
-                        + "data_stream field must be true when custom routing is enabled."
+                        + "[logs-foobar] specifies a custom routing "
+                        + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
                 )
             );
         }

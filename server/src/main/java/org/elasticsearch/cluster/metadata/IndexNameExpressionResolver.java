@@ -676,6 +676,9 @@ public class IndexNameExpressionResolver {
                 }
             } else if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
+                if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+                    continue;
+                }
                 if (dataStream.getIndices() != null) {
                     for (IndexMetadata indexMetadata : dataStream.getIndices()) {
                         String concreteIndex = indexMetadata.getIndex().getName();

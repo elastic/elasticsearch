@@ -92,7 +92,7 @@ public final class DataStream {
         return system;
     }
 
-    public boolean isAllowCustomRouting() {
+    public boolean allowsCustomRouting() {
         return allowCustomRouting;
     }
 

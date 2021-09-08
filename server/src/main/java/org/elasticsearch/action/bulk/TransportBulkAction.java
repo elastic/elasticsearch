@@ -350,8 +350,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 throw new IllegalArgumentException(
                     "index request targeting data stream ["
                         + dataStream.getName()
-                        + "] specifies a custom routing. allow_custom_routing within "
-                        + "data_stream field must be true when custom routing is enabled."
+                        + "] specifies a custom routing but the [allow_custom_routing] setting was "
+                        + "not enabled in the data stream's template."
                 );
             }
         }

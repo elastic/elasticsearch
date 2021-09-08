@@ -882,10 +882,6 @@ setup:
             "model_type": "pytorch",
             "inference_config": {
               "ner": {
-                "vocabulary": {
-                  "index": ".ml-inference-native",
-                  "id": "vocab_doc"
-                }
               }
             }
           }
@@ -1051,5 +1047,23 @@ setup:
                     ]
                   }
                }
+            }
+          }
+---
+"Test put nlp model config with vocabulary set":
+  - do:
+      catch: /illegal setting \[vocabulary\] on inference model creation/
+      ml.put_trained_model:
+        model_id: distilbert-finetuned-sst
+        body: >
+          {
+            "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
+            "model_type": "pytorch",
+            "inference_config": {
+              "ner": {
+                "vocabulary": {
+                  "index": ".ml-inference-native"
+                }
+              }
             }
           }

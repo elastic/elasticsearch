@@ -11,7 +11,6 @@ package org.elasticsearch.common.util;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -31,7 +30,10 @@ public class LazyMap<K, V> implements Map<K, V> {
         if (map == null) {
             synchronized (this) {
                 if (map == null) {
-                    map = Objects.requireNonNullElse(mapSupplier.get(), Collections.emptyMap());
+                    map = mapSupplier.get();
+                }
+                if (map == null) {
+                    map = Collections.emptyMap();
                 }
             }
         }

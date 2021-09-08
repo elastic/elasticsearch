@@ -90,6 +90,6 @@ connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
 
 include::cluster/remote-clusters-connect.asciidoc[]
-include::cluster/remote-clusters-privileges.asciidoc[]
+include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[]
 include::cluster/remote-clusters-security.asciidoc[]
 include::cluster/remote-clusters-settings.asciidoc[]

@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ccr-getting-started]]
+[[ccr-getting-started-tutorial]]
 === Tutorial: Set up {ccr}
 ++++
 <titleabbrev>Set up {ccr}</titleabbrev>

@@ -15,10 +15,6 @@ allowed to access.
 Before using {ccr} or {ccs} with secure {es} clusters, complete the following 
 configuration tasks:
 
-. Connect <<remote-clusters-connect,remote clusters>> to a local cluster.
-
-. Configure <<remote-clusters-privileges,remote cluster privileges>>.
-
 . Enable the {es} {security-features} on every node in each connected cluster by
 setting `xpack.security.enabled` to `true`. Refer to the
 <<general-security-settings,{es} security settings>>.
@@ -31,6 +27,10 @@ steps to configure security.
 NOTE: This procedure uses the same CA to generate certificates for all nodes.
 Alternatively, you can add the CA certificates from the local cluster as a
 trusted CA in each remote cluster. 
+
+. Connect <<remote-clusters-connect,remote clusters>> to a local cluster.
+
+. Configure <<remote-clusters-privileges,remote cluster privileges>>.
 
 [[remote-clusters-security-ccr]]
 ==== {ccr-cap} and security

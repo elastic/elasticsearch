@@ -1,4 +1,4 @@
-[[remote-cluster-settings]]
+[[remote-clusters-settings]]
 === Remote cluster settings
 You can modify the following settings for remote clusters.
 

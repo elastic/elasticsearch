@@ -51,7 +51,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
                 ImmutableOpenMap.Builder::putAll)
             .build();
 
-        int limit = randomIntBetween(1, 1000);
+        int limit = randomIntBetween(0, map.size());
         Map<Long, List<String>> collectedViaStreams = map.stream()
             .filter(e -> e.getKey() > 0)
             .sorted(Map.Entry.comparingByKey())

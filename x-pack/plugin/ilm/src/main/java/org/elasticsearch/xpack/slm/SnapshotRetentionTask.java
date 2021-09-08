@@ -253,10 +253,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
                     for (SnapshotInfo info : resp.getSnapshots()) {
                         if (RETAINABLE_STATES.contains(info.state()) && info.userMetadata() != null) {
-                            final Object policy = info.userMetadata().get(POLICY_ID_METADATA_FIELD);
-                            if (policy instanceof String && policies.contains(policy)) {
-                                snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
-                            }
+                            snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
                         }
                     }
                     listener.onResponse(snapshots);

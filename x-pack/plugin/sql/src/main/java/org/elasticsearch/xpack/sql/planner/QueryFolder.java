@@ -710,7 +710,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     Order order = it.previous();
 
                     Direction direction = Direction.from(order.direction());
-                    Missing missing = Missing.from(order.nullsPosition());
+                    Missing missing = Missing.fromWithPreferred(order.nullsPosition(), direction);
 
                     // check whether sorting is on an group (and thus nested agg) or field
                     Expression orderExpression = order.child();
@@ -735,8 +735,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     // scalar functions typically require script ordering
                     else if (orderExpression instanceof ScalarFunction) {
                         ScalarFunction sf = (ScalarFunction) orderExpression;
-                        // nope, use scripted sorting
-                        qContainer = qContainer.prependSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
+                        // for performance reasons and to not introduce breaking changes, script sorting does only use an explicit nulls
+                        // order if specified explicitly in the query.
+                        Missing optionalMissing = Missing.from(order.nullsPosition());
+                        qContainer = qContainer.prependSort(
+                            lookup,
+                            new ScriptSort(sf.asScript(), direction, optionalMissing)
+                        );
                     }
                     // histogram
                     else if (orderExpression instanceof Histogram) {

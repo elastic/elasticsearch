@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.xpack.ql.expression.function.scalar.NullSafeSort;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
@@ -44,6 +45,10 @@ public class InternalQlScriptUtils {
 
     public static boolean nullSafeFilter(Boolean filter) {
         return filter == null ? false : filter.booleanValue();
+    }
+
+    public static String nullSafeSort(Object o, boolean nullsLeast) {
+        return NullSafeSort.nullableToOrderPreservingString(o, nullsLeast);
     }
 
     public static double nullSafeSortNumeric(Number sort) {

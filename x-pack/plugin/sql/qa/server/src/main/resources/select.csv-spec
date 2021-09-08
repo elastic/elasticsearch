@@ -243,54 +243,83 @@ Valter         |VALTER
 Valdiodio      |VALDIODIO
 ;
 
-//
-// SELECT with ORDER BY numeric field
-// (only queries with implicit NULLS FIRST/LAST in CSV specs as H2 uses different defaults)
-//
-orderByDerivedNumericField
-SELECT IFNULL(languages - 2, -99) l FROM test_emp WHERE salary > 73000 ORDER BY languages - 2;
- l
-----
- -1
-  0
-  1
-  2
--99
--99
-;
+// Nulls order of derived fields without explicit NULLS FIRST/LAST
+// The behavior of the following queries is not consistent with null ordering in general and it's probably desirable to
+// align the behavior in the future (see also https://github.com/elastic/elasticsearch/issues/77068).
+orderByDerivedNumericFieldWithoutNullsOrder
+SELECT languages - 2 l FROM test_emp WHERE salary > 73000 ORDER BY 1;
 
-orderByDerivedNumericFieldDesc
-SELECT IFNULL(languages - 2, -99) l FROM test_emp WHERE salary > 73000 ORDER BY languages - 2 DESC;
- l
-----
--99
--99
-  2
-  1
-  0
- -1
-;
-
-orderByDerivedKeywordericField
-SELECT IFNULL(LCASE(gender), '-') l FROM test_emp WHERE salary > 73000 ORDER BY LCASE(gender);
        l
 ---------------
-f
-f
-f
-m
-m
--
+-1
+null
+null
+0
+1
+2
 ;
 
-orderByDerivedKeywordFieldDesc
-SELECT IFNULL(LCASE(gender), '-') l FROM test_emp WHERE salary > 73000 ORDER BY LCASE(gender) DESC;
+orderByDerivedNumericFieldWithoutNullsOrderAsc
+SELECT languages - 2 l FROM test_emp WHERE salary > 73000 ORDER BY 1 ASC;
+
        l
 ---------------
--
+-1
+null
+null
+0
+1
+2
+;
+
+orderByDerivedNumericFieldWithoutNullsOrderDesc
+SELECT languages - 2 l FROM test_emp WHERE salary > 73000 ORDER BY 1 DESC;
+
+       l
+---------------
+2
+1
+null
+null
+0
+-1
+;
+
+orderByDerivedKeywordFieldWithoutNullsOrder
+SELECT LCASE(gender) l FROM test_emp WHERE salary > 73000 ORDER BY 1;
+
+       l:s
+---------------
+null
+f
+f
+f
+m
+m
+;
+
+orderByDerivedKeywordFieldWithoutNullsOrderAsc
+SELECT LCASE(gender) l FROM test_emp WHERE salary > 73000 ORDER BY 1 ASC;
+
+       l:s
+---------------
+null
+f
+f
+f
+m
+m
+;
+
+orderByDerivedKeywordFieldWithoutNullsOrderDesc
+SELECT LCASE(gender) l FROM test_emp WHERE salary > 73000 ORDER BY 1 DESC;
+
+       l:s
+---------------
 m
 m
 f
 f
 f
+null
 ;

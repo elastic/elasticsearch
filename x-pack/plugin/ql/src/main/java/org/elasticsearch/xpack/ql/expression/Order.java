@@ -34,7 +34,7 @@ public class Order extends Expression {
         super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
-        this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;
+        this.nulls = nulls;
     }
 
     @Override

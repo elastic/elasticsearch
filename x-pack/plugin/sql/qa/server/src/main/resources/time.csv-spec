@@ -47,11 +47,11 @@ timeAsOrderBy
 SELECT last_name FROM "test_emp" ORDER BY birth_date::TIME, emp_no LIMIT 5;
 
 last_name:s
-Facello
-Simmel
-Bamford
-Koblick
-Maliniak
+Meriste
+Lenart
+Stamatiou
+Tzvieli
+Casley
 ;
 
 timeAndFunctionAsGroupingKey

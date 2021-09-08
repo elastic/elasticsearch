@@ -34,7 +34,14 @@ public abstract class Sort {
         }
 
         public static Missing from(NullsPosition pos) {
-            return pos == null || pos == NullsPosition.FIRST ? FIRST : LAST;
+            return pos == null ? null : pos == NullsPosition.FIRST ? FIRST : LAST;
+        }
+
+        /**
+         * Like `from` but returns the preferred Missing order if `pos` is `null`.
+         */
+        public static Missing fromWithPreferred(NullsPosition pos, Direction direction) {
+            return pos == null ? (direction == Direction.DESC ? FIRST : LAST) : from(pos);
         }
 
         public String position() {

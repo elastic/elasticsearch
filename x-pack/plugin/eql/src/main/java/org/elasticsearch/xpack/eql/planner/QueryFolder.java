@@ -86,7 +86,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             for (Order order : plan.order()) {
                 Direction direction = Direction.from(order.direction());
-                Missing missing = Missing.from(order.nullsPosition());
+                Missing missing = Missing.fromWithPreferred(order.nullsPosition(), direction);
 
                 // check whether sorting is on an group (and thus nested agg) or field
                 Expression orderExpression = order.child();

@@ -78,12 +78,14 @@ public final class Scripts {
                 DataTypes.BOOLEAN);
     }
 
-    public static ScriptTemplate nullsSort(ScriptTemplate script, Sort.Missing missing) {
-        int nullOrd = missing == Sort.Missing.FIRST ? -1 : 1;
-        return new ScriptTemplate(
-            format(Locale.ROOT, "(%s) == null ? %d : %d", script.template(), nullOrd, nullOrd * -1),
+    public static ScriptTemplate nullSafeSortWithNullsOrder(ScriptTemplate script, Sort.Direction direction, Sort.Missing missing) {
+        boolean nullsLeast = direction == Sort.Direction.ASC && missing == Sort.Missing.FIRST
+            || direction == Sort.Direction.DESC && missing == Sort.Missing.LAST;
+
+        return new ScriptTemplate(formatTemplate(
+            format(Locale.ROOT, "{ql}.nullSafeSort(%s, %b)", script.template(), nullsLeast)),
             script.params(),
-            DataTypes.INTEGER
+            DataTypes.KEYWORD
         );
     }
 

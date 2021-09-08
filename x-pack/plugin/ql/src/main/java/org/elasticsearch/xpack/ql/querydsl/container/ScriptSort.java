@@ -13,26 +13,25 @@ import java.util.Objects;
 
 public class ScriptSort extends Sort {
 
-    private final ScriptTemplate nullsSortScript;
-    private final ScriptTemplate valueSortScript;
+    private final ScriptTemplate script;
 
     public ScriptSort(ScriptTemplate script, Direction direction, Missing missing) {
         super(direction, missing);
-        this.nullsSortScript = Scripts.nullsSort(script, missing);
-        this.valueSortScript = Scripts.nullSafeSort(script);
+        if (missing == null) {
+            // if nulls order is not specified explicitly, use the legacy sort function to not break existing behavior.
+            this.script = Scripts.nullSafeSort(script);
+        } else {
+            this.script = Scripts.nullSafeSortWithNullsOrder(script, direction, missing);
+        }
     }
 
-    public ScriptTemplate nullsSortScript() {
-        return nullsSortScript;
-    }
-
-    public ScriptTemplate valueSortScript() {
-        return valueSortScript;
+    public ScriptTemplate script() {
+        return script;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(direction(), missing(), valueSortScript);
+        return Objects.hash(direction(), missing(), script);
     }
 
     @Override
@@ -48,6 +47,6 @@ public class ScriptSort extends Sort {
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing())
-                && Objects.equals(valueSortScript, other.valueSortScript);
+                && Objects.equals(script(), other.script());
     }
 }

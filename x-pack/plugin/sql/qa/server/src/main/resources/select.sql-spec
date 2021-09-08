@@ -194,18 +194,27 @@ SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY DAY(hire_date
 // ORDER BY derived fields
 //
 orderByDerivedNumericFieldNullsFirst
-SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS LAST;
+SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS FIRST;
 orderByDerivedNumericFieldNullsLast
 SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedNumericFieldAscNullsFirst
+SELECT languages - 2 l FROM test_emp ORDER BY 1 ASC NULLS FIRST;
+orderByDerivedNumericFieldAscNullsLast
+SELECT languages - 2 l FROM test_emp ORDER BY 1 ASC NULLS LAST;
 orderByDerivedNumericFieldDescNullsFirst
-SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS FIRST;
 orderByDerivedNumericFieldDescNullsLast
 SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+
 orderByDerivedKeywordFieldNullsFirst
-SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS LAST;
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS FIRST;
 orderByDerivedKeywordFieldNullsLast
 SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedKeywordFieldAscNullsFirst
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 ASC NULLS FIRST;
+orderByDerivedKeywordFieldAscNullsLast
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 ASC NULLS LAST;
 orderByDerivedKeywordFieldDescNullsFirst
-SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS FIRST;
 orderByDerivedKeywordFieldDescNullsLast
 SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS LAST;

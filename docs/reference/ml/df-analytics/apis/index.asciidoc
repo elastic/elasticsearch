@@ -3,6 +3,7 @@ include::ml-df-analytics-apis.asciidoc[leveloffset=+1]
 include::put-dfanalytics.asciidoc[leveloffset=+2]
 include::put-trained-models-aliases.asciidoc[leveloffset=+2]
 include::put-trained-models.asciidoc[leveloffset=+2]
+include::put-trained-model-definition-part.asciidoc[leveloffset=+2]
 //UPDATE
 include::update-dfanalytics.asciidoc[leveloffset=+2]
 //DELETE

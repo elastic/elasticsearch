@@ -11,14 +11,9 @@
             "inference_config": {
               "ner": {
                 "vocabulary": {
-                  "index": "vocab_index",
+                  "index": ".ml-inference-native",
                   "id": "vocab_doc"
                 }
-              }
-            },
-            "location": {
-              "index": {
-                "name": "big_model"
               }
             }
           }

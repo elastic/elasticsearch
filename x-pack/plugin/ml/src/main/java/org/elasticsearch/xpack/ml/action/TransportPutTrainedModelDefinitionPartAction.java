@@ -90,7 +90,6 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
             }
             final boolean isEos = request.getPart() == request.getTotalParts() - 1;
             final String indexName = ((IndexLocation) location).getIndexName();
-            logger.info("[{}] put part [{}]", request.getModelId(), request.getPart());
             trainedModelProvider.storeTrainedModelDefinitionDoc(
                 new TrainedModelDefinitionDoc.Builder().setModelId(request.getModelId())
                     .setDocNum(request.getPart())

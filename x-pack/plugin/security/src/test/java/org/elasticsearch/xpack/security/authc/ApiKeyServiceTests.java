@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
@@ -1260,6 +1263,30 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("authentication type must be [api_key]"));
     }
 
+    public void testCreateApiKeyWithDlsFlsWillFailIfLicenseIsIncompatible() {
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(false);
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY, licenseState);
+        final RoleDescriptor roleDescriptorWithDlsFls = mock(RoleDescriptor.class);
+        when(roleDescriptorWithDlsFls.isUsingDocumentOrFieldLevelSecurity()).thenReturn(true);
+        final RoleDescriptor roleDescriptor = mock(RoleDescriptor.class);
+        when(roleDescriptor.isUsingDocumentOrFieldLevelSecurity()).thenReturn(false);
+
+        final CreateApiKeyRequest createApiKeyRequest1 =
+            new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), List.of(roleDescriptorWithDlsFls), null);
+        final PlainActionFuture<CreateApiKeyResponse> future1 = new PlainActionFuture<>();
+        service.createApiKey(mock(Authentication.class), createApiKeyRequest1, Set.of(roleDescriptor), future1);
+        final ElasticsearchSecurityException e1 = expectThrows(ElasticsearchSecurityException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("field and document level security in API key role descriptors"));
+
+        final CreateApiKeyRequest createApiKeyRequest2 =
+            new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), List.of(roleDescriptor), null);
+        final PlainActionFuture<CreateApiKeyResponse> future2 = new PlainActionFuture<>();
+        service.createApiKey(mock(Authentication.class), createApiKeyRequest2, Set.of(roleDescriptorWithDlsFls), future2);
+        final ElasticsearchSecurityException e2 = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
+        assertThat(e2.getMessage(), containsString("field and document level security in user roles"));
+    }
+
     public static class Utils {
 
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
@@ -1321,6 +1348,12 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        return createApiKeyService(baseSettings, licenseState);
+    }
+
+    private ApiKeyService createApiKeyService(Settings baseSettings, XPackLicenseState licenseState) {
         final Settings settings = Settings.builder()
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(baseSettings)
@@ -1328,7 +1361,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKeyService service = new ApiKeyService(
             settings, Clock.systemUTC(), client, securityIndex,
             ClusterServiceUtils.createClusterService(threadPool),
-            cacheInvalidatorRegistry, threadPool);
+            cacheInvalidatorRegistry, threadPool, licenseState);
         if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
             verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());
         } else {

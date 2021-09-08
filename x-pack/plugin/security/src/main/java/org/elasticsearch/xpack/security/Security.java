@@ -543,7 +543,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(),
-            clusterService, cacheInvalidatorRegistry, threadPool);
+            clusterService, cacheInvalidatorRegistry, threadPool, getLicenseState());
         components.add(apiKeyService);
 
         final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);

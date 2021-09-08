@@ -72,6 +72,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -204,6 +206,7 @@ public class ApiKeyService {
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
+    private final XPackLicenseState licenseState;
     private final ApiKeyDocCache apiKeyDocCache;
 
     private volatile long lastExpirationRunMs;
@@ -215,7 +218,8 @@ public class ApiKeyService {
     private final LongAdder evictionCounter = new LongAdder();
 
     public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
-                         ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
+                         ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry,
+                         ThreadPool threadPool, XPackLicenseState licenseState) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -226,6 +230,7 @@ public class ApiKeyService {
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
         this.threadPool = threadPool;
+        this.licenseState = licenseState;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         final int maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
@@ -273,6 +278,19 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
+            if (request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)) {
+                if (false == licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)) {
+                    listener.onFailure(
+                        LicenseUtils.newComplianceException("field and document level security in API key role descriptors"));
+                    return;
+                }
+            } else if (userRoles.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)) {
+                if (false == licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)) {
+                    listener.onFailure(
+                        LicenseUtils.newComplianceException("field and document level security in user roles"));
+                    return;
+                }
+            }
             createApiKeyAndIndexIt(authentication, request, userRoles, listener);
         }
     }

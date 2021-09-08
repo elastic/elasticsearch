@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -93,7 +94,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), mock(SecurityIndexManager.class), clusterService,
-                                          mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
+                                          mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class), mock(XPackLicenseState.class));
     }
 
     public void testPolicyDoesNotMatchNullValuesInEvent() throws Exception {

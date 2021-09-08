@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -298,7 +299,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndexManager, clusterService,
-                                          mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
+                                          mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class), mock(XPackLicenseState.class));
     }
 
     @After

@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -63,6 +64,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertAuthenticateWithApiKey(keyAndId, true);
             assertAddRoleWithDLS(true);
             assertAddRoleWithFLS(true);
+            createUserWithDlsOrFlsRole();
+            assertCreateApiKeyWithDlsFls(true);
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -70,6 +73,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertFailToGetToken();
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
+            assertCreateApiKeyWithDlsFls(false);
         }
     }
 
@@ -270,7 +274,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertAddRoleWithFLS(boolean shouldSucceed) throws IOException {
-        final Request addRole = new Request("POST", "/_security/role/dlsrole");
+        final Request addRole = new Request("POST", "/_security/role/flsrole");
         addRole.setJsonEntity("{\n" +
             "  \"cluster\": [\"all\"],\n" +
             "  \"indices\": [\n" +
@@ -294,6 +298,43 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(addRole));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security]"));
+        }
+    }
+
+    private void createUserWithDlsOrFlsRole() throws IOException {
+        final Request request = new Request("PUT", "/_security/user/dls_fls_user");
+        request.setJsonEntity("{\"password\":\"superstrongpassword\"," +
+            "\"roles\":[\"superuser\",\"" + (randomBoolean() ? "dlsrole" : "flsrole") + "\"]}");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private void assertCreateApiKeyWithDlsFls(boolean shouldSucceed) throws IOException {
+        final Request request = new Request("POST", "/_security/api_key");
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                request.setJsonEntity("{\"name\":\"my-key\",\"role_descriptors\":" +
+                    "{\"a\":{\"indices\":[{\"names\":[\"index1\"],\"privileges\":[\"read\"]," +
+                    "\"query\":{\"term\":{\"tag\":{\"value\":\"prod\"}}}}]}}}");
+            } else {
+                request.setJsonEntity(
+                    "{\"name\":\"my-key\",\"role_descriptors\":" +
+                        "{\"a\":{\"indices\":[{\"names\":[\"index1\"],\"privileges\":[\"read\"]," +
+                        "\"field_security\":{\"grant\":[\"tag\"]}}]}}}");
+            }
+        } else {
+            request.setJsonEntity("{\"name\":\"my-key\",\"role_descriptors\":" +
+                "{\"a\":{\"indices\":[{\"names\":[\"index1\"],\"privileges\":[\"read\"]}]}}}");
+            request.setOptions(request.getOptions().toBuilder().addHeader("Authorization",
+                basicAuthHeaderValue("dls_fls_user", new SecureString("superstrongpassword".toCharArray()))));
+        }
+
+        if (shouldSucceed) {
+            assertOK(adminClient().performRequest(request));
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+            System.out.println(e.getMessage());
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security"));
         }
     }
 }

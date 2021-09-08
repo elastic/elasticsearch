@@ -1087,7 +1087,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
+                mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class), mock(XPackLicenseState.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -1143,7 +1143,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
+                mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class), mock(XPackLicenseState.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

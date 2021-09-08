@@ -21,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
@@ -127,7 +128,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
         final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, securityIndex, clusterService,
-                                                              mock(CacheInvalidatorRegistry.class),threadPool);
+            mock(CacheInvalidatorRegistry.class), threadPool, mock(XPackLicenseState.class));
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

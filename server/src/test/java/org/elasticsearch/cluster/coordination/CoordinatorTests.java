@@ -1394,6 +1394,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             for (ClusterNode clusterNode : cluster.clusterNodes) {
                 clusterNode.extraJoinValidators.clear();
             }
+
+            cluster.stabilise();
         }
     }
 

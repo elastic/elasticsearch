@@ -121,6 +121,12 @@ field `path`.
 [[nested-query-notes]]
 ==== Notes
 
+[[nested-query-script-notes]]
+===== Context of script queries
+When you are running a <<query-dsl-script-query,`script` query>> within a
+nested query, you will only be able to access doc values from the nested
+document, but not from the parent or root document.
+
 [[multi-level-nested-query-ex]]
 ===== Multi-level nested queries
 

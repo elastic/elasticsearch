@@ -2038,8 +2038,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
-        List<String> enrichFields = List.of("field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        List<String> enrichFields = Arrays.asList("field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, singletonList(sourceIndex), "field1", enrichFields);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();

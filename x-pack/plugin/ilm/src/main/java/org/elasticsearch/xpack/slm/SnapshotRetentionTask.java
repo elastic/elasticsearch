@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -58,6 +60,9 @@ import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FI
 public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionTask.class);
+
+    private static final Set<SnapshotState> RETAINABLE_STATES =
+        EnumSet.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -137,7 +142,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             // Finally, asynchronously retrieve all the snapshots, deleting them serially,
             // before updating the cluster state with the new metrics and setting 'running'
             // back to false
-            getAllRetainableSnapshots(repositioriesToFetch, new ActionListener<>() {
+            getAllRetainableSnapshots(repositioriesToFetch, policiesWithRetention.keySet(), new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                     if (logger.isTraceEnabled()) {
@@ -168,7 +173,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 public void onFailure(Exception e) {
                     failureHandler.accept(e);
                 }
-            }, failureHandler);
+            });
         } catch (Exception e) {
             failureHandler.accept(e);
         }
@@ -187,24 +192,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     static boolean snapshotEligibleForDeletion(SnapshotInfo snapshot, Map<String, List<SnapshotInfo>> allSnapshots,
                                                Map<String, SnapshotLifecyclePolicy> policies) {
-        if (snapshot.userMetadata() == null) {
-            // This snapshot has no metadata, it is not eligible for deletion
-            return false;
-        }
-
-        final String policyId;
-        try {
-            policyId = (String) snapshot.userMetadata().get(POLICY_ID_METADATA_FIELD);
-        } catch (Exception e) {
-            logger.debug("unable to retrieve policy id from snapshot metadata [" + snapshot.userMetadata() + "]", e);
-            return false;
-        }
-
-        if (policyId == null) {
-            // policyId was null in the metadata, so it's not eligible
-            return false;
-        }
-
+        assert snapshot.userMetadata() != null : "snapshots without user metadata should have gotten filtered by the caller but saw ["
+            + snapshot + "]";
+        final Object policyId = snapshot.userMetadata().get(POLICY_ID_METADATA_FIELD);
+        assert policyId instanceof String
+            : "snapshots without a policy id should have gotten filtered by the caller but saw [" + snapshot + "]";
         SnapshotLifecyclePolicy policy = policies.get(policyId);
         if (policy == null) {
             // This snapshot was taking by a policy that doesn't exist, so it's not eligible
@@ -232,8 +224,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         return eligible;
     }
 
-    void getAllRetainableSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
-                                   Consumer<Exception> errorHandler) {
+    void getAllRetainableSnapshots(Collection<String> repositories,
+                                   Set<String> policies,
+                                   ActionListener<Map<String, List<SnapshotInfo>>> listener) {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
             listener.onResponse(Collections.emptyMap());
@@ -257,20 +250,21 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                 ).collect(Collectors.toList()));
                     }
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
-                    final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
-                    repositories.forEach(repo -> {
-                        snapshots.put(repo,
-                            // Only return snapshots in the SUCCESS state
-                            resp.getSnapshots().stream()
-                                .filter(info -> repo.equals(info.repository()) && retainableStates.contains(info.state()))
-                                .collect(Collectors.toList()));
-                    });
+                    for (SnapshotInfo info : resp.getSnapshots()) {
+                        if (RETAINABLE_STATES.contains(info.state()) && info.userMetadata() != null) {
+                            final Object policy = info.userMetadata().get(POLICY_ID_METADATA_FIELD);
+                            if (policy instanceof String && policies.contains(policy)) {
+                                snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
+                            }
+                        }
+                    }
                     listener.onResponse(snapshots);
                 },
                 e -> {
                     logger.debug(new ParameterizedMessage("unable to retrieve snapshots for [{}] repositories", repositories), e);
-                    errorHandler.accept(e);
-                }));
+                    listener.onFailure(e);
+                })
+            );
     }
 
     static String getPolicyId(SnapshotInfo snapshotInfo) {

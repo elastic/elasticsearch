@@ -195,6 +195,14 @@ public class TrainedModelProvider {
     }
 
     public void storeTrainedModelDefinitionDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc, ActionListener<Void> listener) {
+        storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, InferenceIndexConstants.LATEST_INDEX_NAME, listener);
+    }
+
+    public void storeTrainedModelDefinitionDoc(
+        TrainedModelDefinitionDoc trainedModelDefinitionDoc,
+        String index,
+        ActionListener<Void> listener
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelDefinitionDoc.getModelId())) {
             listener.onFailure(new ResourceAlreadyExistsException(
                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelDefinitionDoc.getModelId())));
@@ -204,7 +212,7 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelDefinitionDoc.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelDefinitionDoc),
+            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc),
             ActionListener.wrap(
                 indexResponse -> listener.onResponse(null),
                 e -> {
@@ -216,11 +224,19 @@ public class TrainedModelProvider {
                     } else {
                         listener.onFailure(
                             new ElasticsearchStatusException(
-                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelDefinitionDoc.getModelId()),
-                                RestStatus.INTERNAL_SERVER_ERROR, e));
+                                Messages.getMessage(
+                                    Messages.INFERENCE_FAILED_TO_STORE_MODEL_DEFINITION,
+                                    trainedModelDefinitionDoc.getModelId(),
+                                    trainedModelDefinitionDoc.getDocNum()
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
                     }
                 }
-            ));
+            )
+        );
     }
 
     public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {

@@ -71,7 +71,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             if ((inferenceConfig instanceof NlpConfig) == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "cannot put vocabulary for model [{}] as it is not an nlp model",
+                        "cannot put vocabulary for model [{}] as it is not an NLP model",
                         RestStatus.BAD_REQUEST,
                         request.getModelId()
                     )
@@ -81,7 +81,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             trainedModelProvider.storeTrainedModelVocabulary(
                 request.getModelId(),
                 ((NlpConfig)inferenceConfig).getVocabularyConfig(),
-                new Vocabulary(request.getVocabulary()),
+                new Vocabulary(request.getVocabulary(), request.getModelId()),
                 ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
             );
         }, listener::onFailure);

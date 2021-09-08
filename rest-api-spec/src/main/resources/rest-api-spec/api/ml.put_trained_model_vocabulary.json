@@ -20,7 +20,7 @@
           "parts":{
             "model_id":{
               "type":"string",
-              "description":"The ID of the trained model for this definition part"
+              "description":"The ID of the trained model for this vocabulary"
             }
           }
         }

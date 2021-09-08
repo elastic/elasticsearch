@@ -57,7 +57,9 @@ public class TextClassificationProcessorTests extends ESTestCase {
         NlpTokenizer tokenizer = NlpTokenizer.build(
             new Vocabulary(
                 Arrays.asList("Elastic", "##search", "fun",
-                    BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN)),
+                    BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
+                randomAlphaOfLength(10)
+            ),
             new DistilBertTokenization(null, null, 512));
 
         TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index"), null, null, null);

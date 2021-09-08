@@ -15,16 +15,13 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class VocabularyConfig implements ToXContentObject, Writeable {
 
-    private static final String NAME = "vocabulary";
     private static final ParseField INDEX = new ParseField("index");
 
     public static String docId(String modelId) {
@@ -68,9 +65,6 @@ public class VocabularyConfig implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX.getPreferredName(), index);
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
-        }
         builder.endObject();
         return builder;
     }

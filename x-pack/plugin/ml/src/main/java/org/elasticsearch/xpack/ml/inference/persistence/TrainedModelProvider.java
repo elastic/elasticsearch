@@ -211,6 +211,7 @@ public class TrainedModelProvider {
                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId)));
             return;
         }
+        logger.info("[{}] storing vocab", modelId);
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,

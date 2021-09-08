@@ -11,22 +11,25 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class TextClassificationConfigTests extends InferenceConfigItemTestCase<TextClassificationConfig> {
 
-    private boolean lenient;
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
     protected TextClassificationConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? TextClassificationConfig.fromXContentLenient(parser) : TextClassificationConfig.fromXContentStrict(parser);
+        return TextClassificationConfig.fromXContentLenient(parser);
     }
 
     @Override

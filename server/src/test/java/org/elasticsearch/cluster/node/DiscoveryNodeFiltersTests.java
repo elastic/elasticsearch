@@ -305,6 +305,16 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
+    public void testHostnameGetMatchedAndNotAffectedByIpFormatting() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx._host", "test-host")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "test-host", "192.168.0.1", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(true));
+    }
+
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.builder();
         List<String> keys = new ArrayList<>(source.keySet());

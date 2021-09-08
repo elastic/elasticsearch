@@ -1,7 +1,7 @@
-# Security Properties for JDK 8, with BouncyCastle FIPS provider and SunJSSE in FIPS mode
+# Security Properties for JDK 8, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
 
 security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
-security.provider.2=com.sun.net.ssl.internal.ssl.Provider BCFIPS
+security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
 security.provider.3=sun.security.provider.Sun
 security.provider.4=sun.security.jgss.SunProvider
 security.provider.5=sun.security.rsa.SunRsaSign
@@ -97,7 +97,7 @@ package.definition=sun.,\
                    jdk.xml.internal.,\
                    com.sun.activation.registries.
 
-ssl.KeyManagerFactory.algorithm=SunX509
+ssl.KeyManagerFactory.algorithm=PKIX
 ssl.TrustManagerFactory.algorithm=PKIX
 networkaddress.cache.negative.ttl=10
 krb5.kdc.bad.policy = tryLast

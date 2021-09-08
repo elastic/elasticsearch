@@ -267,7 +267,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            bigArrays = usually()
+            bigArrays = usually() && false
                     ? BigArrays.NON_RECYCLING_INSTANCE
                     : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);

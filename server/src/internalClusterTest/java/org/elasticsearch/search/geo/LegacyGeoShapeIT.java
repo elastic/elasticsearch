@@ -32,7 +32,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Version getVersion() {
+    protected Version randomSupportedVersion() {
         // legacy shapes can only be created in version lower than 8.x
         return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
     }
@@ -44,7 +44,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
 
     public void testMappingUpdate() {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(getVersion()).build())
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
             .setMapping("shape", "type=geo_shape,strategy=recursive").get());
         ensureGreen();
 
@@ -67,7 +67,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
      */
     public void testLegacyCircle() throws Exception {
         // create index
-        assertAcked(prepareCreate("test").setSettings(settings(getVersion()).build())
+        assertAcked(prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
             .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 

@@ -333,4 +333,26 @@ public class ServerUtils {
         }
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
+
+    public static void disableSecurityAutoConfiguration(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: false");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+        }
+        lines.addAll(addedLines);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void enableSecurityAutoConfiguration(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: true");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+        }
+        lines.addAll(addedLines);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
 }

@@ -8,10 +8,10 @@ rem 2.0.
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.elasticsearch.xpack.security.authc.esnative.tool.ResetElasticPasswordTool
+set ES_MAIN_CLASS=org.elasticsearch.xpack.security.authc.esnative.tool.ResetBuiltinPasswordTool
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
 set ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
-call "%~dp0elasticsearch-cli.bat" ^
+call "%~dp0elasticsearch-cli.bat --elastic" ^
   %%* ^
   || goto exit
 

@@ -54,6 +54,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
@@ -2550,7 +2551,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private for testing
     long readSnapshotIndexLatestBlob() throws IOException {
-        return Numbers.bytesToLong(Streams.readFully(blobContainer().readBlob(INDEX_LATEST_BLOB)).toBytesRef());
+        final BytesReference content = Streams.readFully(Streams.limitStream(blobContainer().readBlob(INDEX_LATEST_BLOB), Long.BYTES + 1));
+        if (content.length() != Long.BYTES) {
+            throw new RepositoryException(
+                metadata.name(),
+                "exception reading blob ["
+                    + INDEX_LATEST_BLOB
+                    + "]: expected 8 bytes but blob was "
+                    + (content.length() < Long.BYTES ? content.length() + " bytes" : "longer")
+            );
+        }
+        return Numbers.bytesToLong(content.toBytesRef());
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {

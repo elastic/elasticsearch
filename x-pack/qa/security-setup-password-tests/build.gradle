@@ -16,6 +16,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  // Setup passwords doesn't work when there is a password auto-configured on first start
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: "test_admin", password: "x-pack-test-password"
 }

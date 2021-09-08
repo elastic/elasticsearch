@@ -49,6 +49,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -76,6 +77,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -1405,9 +1407,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
         assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));
         logger.info("queryProfileShardResult=" + Strings.toString(queryProfileShardResult));
-        // NOCOMMIT check on this
-//        ProfileResult profileResult = queryProfileShardResult.getQueryResults().get(0);
-//        assertThat(profileResult.getLuceneDescription(), equalTo("(other_field:value)^0.8"));
+        assertThat(
+            queryProfileShardResult.getQueryResults().stream().map(ProfileResult::getLuceneDescription).sorted().collect(toList()),
+            equalTo(List.of("(other_field:value)^0.8"))
+        );
 
         final String[] indices =
             randomFrom(List.of(new String[] { "test" }, new String[] { "fls-index", "test" }, new String[] { "test", "fls-index" }));

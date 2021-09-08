@@ -871,6 +871,30 @@ setup:
   - match: { trained_model_configs.0.metadata.model_aliases.0: "regression-model" }
   - match: { trained_model_configs.0.metadata.model_aliases.1: "regression-model-again" }
 ---
+"Test put model model aliases with nlp model":
+
+  - do:
+      ml.put_trained_model:
+        model_id: my-nlp-model
+        body: >
+          {
+            "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
+            "model_type": "pytorch",
+            "inference_config": {
+              "ner": {
+                "vocabulary": {
+                  "index": ".ml-inference-native",
+                  "id": "vocab_doc"
+                }
+              }
+            }
+          }
+  - do:
+      catch: /model_alias is not supported on pytorch models/
+      ml.put_trained_model_alias:
+        model_alias: "nlp-model"
+        model_id: "my-nlp-model"
+---
 "Test update model alias with model id referring to missing model":
   - do:
       catch: missing

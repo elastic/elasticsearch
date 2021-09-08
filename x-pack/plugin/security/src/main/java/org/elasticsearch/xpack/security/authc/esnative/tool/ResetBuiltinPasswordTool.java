@@ -23,15 +23,15 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {

@@ -59,7 +59,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
-import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -882,7 +881,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path pluginZipPath = Path.of(URI.create(pluginZip.getUrl()));
         InstallPluginAction action = new InstallPluginAction(terminal, env.v2()) {
             @Override
-            Path downloadZip(String urlString, Proxy proxy, Path tmpDir) throws IOException {
+            Path downloadZip(String urlString, Path tmpDir) throws IOException {
                 assertEquals(url, urlString);
                 Path downloadedPath = tmpDir.resolve("downloaded.zip");
                 Files.copy(pluginZipPath, downloadedPath);
@@ -890,9 +889,9 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            URL openUrl(String urlString, Proxy proxy) throws IOException {
+            URL openUrl(String urlString) throws IOException {
                 if ((url + shaExtension).equals(urlString)) {
-                    // calc sha an return file URL to it
+                    // calc sha and return file URL to it
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
                     byte[] zipbytes = Files.readAllBytes(pluginZipPath);
                     String checksum = shaCalculator.apply(zipbytes);
@@ -911,14 +910,14 @@ public class InstallPluginActionTests extends ESTestCase {
             @Override
             @SuppressForbidden(reason = "We need to open a stream")
             // Overrides super to ignore the proxy
-            InputStream urlOpenStream(URL url, Proxy proxy) throws IOException {
+            InputStream urlOpenStream(URL url) throws IOException {
                 return url.openStream();
             }
 
             @Override
-            void verifySignature(Path zip, String urlString, Proxy proxy) throws IOException, PGPException {
+            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
                 if (InstallPluginAction.OFFICIAL_PLUGINS.contains(pluginId)) {
-                    super.verifySignature(zip, urlString, proxy);
+                    super.verifySignature(zip, urlString);
                 } else {
                     throw new UnsupportedOperationException("verify signature should not be called for unofficial plugins");
                 }

@@ -62,7 +62,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
-            deprecationLogger.compatibleApiWarning("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (request.hasContent()) {

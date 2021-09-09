@@ -42,7 +42,7 @@ public class FetchProfilerTests extends ESTestCase {
         assertMap(copy.getDebugInfo(), matchesMap().entry("stored_fields", List.of("_id", "_routing", "_source")));
     }
 
-    static class FixedTimeProfiler extends FetchProfiler {
+    private static class FixedTimeProfiler extends FetchProfiler {
         long nanoTime = randomLongBetween(0, Long.MAX_VALUE / 2);
 
         @Override

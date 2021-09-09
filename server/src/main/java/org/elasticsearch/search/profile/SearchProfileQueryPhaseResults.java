@@ -13,17 +13,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
-import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
-import org.elasticsearch.search.profile.query.QueryProfileShardResult;
-import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -97,27 +91,5 @@ public final class SearchProfileQueryPhaseResults implements Writeable { // This
     @Override
     public int hashCode() {
         return shardResults.hashCode();
-    }
-
-    /**
-     * Helper method to convert Profiler into InternalProfileShardResults, which
-     * can be serialized to other nodes, emitted as JSON, etc.
-     *
-     * @param profilers
-     *            The {@link Profilers} to convert into results
-     * @return A {@link SearchProfileQueryPhaseResult} representing the results for this
-     *         shard
-     */
-    public static SearchProfileQueryPhaseResult buildShardResults(Profilers profilers) {
-        List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
-        AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
-        List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
-        for (QueryProfiler queryProfiler : queryProfilers) {
-            QueryProfileShardResult result = new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(),
-                    queryProfiler.getCollector());
-            queryResults.add(result);
-        }
-        AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
-        return new SearchProfileQueryPhaseResult(queryResults, aggResults);
     }
 }

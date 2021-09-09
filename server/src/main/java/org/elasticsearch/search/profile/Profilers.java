@@ -10,7 +10,9 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.search.fetch.FetchProfiler;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.util.ArrayList;
@@ -60,5 +62,22 @@ public final class Profilers {
 
     public FetchProfiler getFetchProfiler() {
         return fetchProfiler;
+    }
+
+    /**
+     * Build the results for the query phase.
+     */
+    public SearchProfileQueryPhaseResult buildQueryPhaseResults() {
+        List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
+        for (QueryProfiler queryProfiler : queryProfilers) {
+            QueryProfileShardResult result = new QueryProfileShardResult(
+                queryProfiler.getTree(),
+                queryProfiler.getRewriteTime(),
+                queryProfiler.getCollector()
+            );
+            queryResults.add(result);
+        }
+        AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
+        return new SearchProfileQueryPhaseResult(queryResults, aggResults);
     }
 }

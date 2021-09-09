@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
+ * A logger that logs deprecation notices. Logger should be initialized with a class or name which will be used
  * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.elasticsearch.test.SomeClass")</code> will
  * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use a
  * <code>deprecation</code> logger defined in log4j2.properties.
@@ -88,7 +88,7 @@ public class DeprecationLogger {
 
     /**
      * Logs a message at the {@link Level#WARN} level for less critical deprecations
-     * that likely won't break in next version.
+     * that won't break in next version.
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
@@ -110,7 +110,7 @@ public class DeprecationLogger {
 
     /**
      * Used for handling previous version RestApiCompatible logic.
-     * Logs a message at the {@link DeprecationLogger#CRITICAL} level for critical deprecations
+     * Logs a message at the {@link DeprecationLogger#CRITICAL} level
      * that have been broken in previous version.
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.

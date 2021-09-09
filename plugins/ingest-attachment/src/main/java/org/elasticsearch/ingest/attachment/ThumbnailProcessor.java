@@ -10,10 +10,10 @@ package org.elasticsearch.ingest.attachment;
 import co.elastic.thumbnails4j.core.Dimensions;
 import co.elastic.thumbnails4j.core.Thumbnailer;
 import co.elastic.thumbnails4j.doc.DOCThumbnailer;
-//import co.elastic.thumbnails4j.docx.DOCXThumbnailer;
+import co.elastic.thumbnails4j.docx.DOCXThumbnailer;
 import co.elastic.thumbnails4j.image.ImageThumbnailer;
 import co.elastic.thumbnails4j.pdf.PDFThumbnailer;
-//import co.elastic.thumbnails4j.pptx.PPTXThumbnailer;
+import co.elastic.thumbnails4j.pptx.PPTXThumbnailer;
 import co.elastic.thumbnails4j.xls.XLSThumbnailer;
 import co.elastic.thumbnails4j.xlsx.XLSXThumbnailer;
 
@@ -92,13 +92,13 @@ public class ThumbnailProcessor extends AbstractProcessor {
                     thumbnailer = new XLSXThumbnailer();
                     break;
                 // not working; xdocreport is causing issues with poi-ooxml-schemas somehow
-                // case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                //    thumbnailer = new DOCXThumbnailer();
-                //    break;
+                 case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    thumbnailer = new DOCXThumbnailer();
+                    break;
                 // not working; java.security.AccessControlException: access denied ("java.lang.RuntimePermission" "getClassLoader")
-                // case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-                //    thumbnailer = new PPTXThumbnailer();
-                //    break;
+                 case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+                    thumbnailer = new PPTXThumbnailer();
+                    break;
                 case "image/gif":
                 case "image/jpeg":
                 case "image/png":

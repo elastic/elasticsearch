@@ -19,8 +19,15 @@ versions << [
   'tika'  : '1.27',
   'pdfbox': '2.0.24',
   'poi'   : '4.1.2',
-  'mime4j': '0.8.5'
+  'mime4j': '0.8.5',
+  'thumbnails4j': '1.0.0-SNAPSHOT'
 ]
+
+repositories {
+  maven {
+    url '/Users/seanstory/.m2/repository'
+  }
+}
 
 dependencies {
   // mandatory for tika
@@ -66,14 +73,13 @@ dependencies {
   // POIs dependency
   api 'com.zaxxer:SparseBitSet:1.2'
 
-  api files("thumbnails4j/thumbnails4j-xlsx-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-xls-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-pptx-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-pdf-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-image-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-docx-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-doc-1.0.0-SNAPSHOT.jar")
-  api files("thumbnails4j/thumbnails4j-core-1.0.0-SNAPSHOT.jar")
+  api ("co.elastic:thumbnails4j-xlsx:${versions.thumbnails4j}")
+  api ("co.elastic:thumbnails4j-xls:${versions.thumbnails4j}")
+  api ("co.elastic:thumbnails4j-pptx:${versions.thumbnails4j}")
+  api ("co.elastic:thumbnails4j-pdf:${versions.thumbnails4j}")
+  api ("co.elastic:thumbnails4j-image:${versions.thumbnails4j}")
+  api ("co.elastic:thumbnails4j-docx:${versions.thumbnails4j}")
+  api ("co.elastic:thumbnails4j-doc:${versions.thumbnails4j}")
 }
 
 restResources {

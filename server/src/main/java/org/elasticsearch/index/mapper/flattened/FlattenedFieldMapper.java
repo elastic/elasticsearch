@@ -16,10 +16,10 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -44,12 +44,12 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -151,8 +151,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FlattenedFieldMapper build(ContentPath contentPath) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+        public FlattenedFieldMapper build(MapperBuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
@@ -161,7 +161,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),

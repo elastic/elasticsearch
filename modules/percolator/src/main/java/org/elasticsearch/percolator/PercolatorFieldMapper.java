@@ -35,7 +35,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -46,17 +45,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -67,9 +67,9 @@ import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.io.ByteArrayOutputStream;
@@ -129,54 +129,56 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public PercolatorFieldMapper build(ContentPath contentPath) {
-            PercolatorFieldType fieldType = new PercolatorFieldType(buildFullName(contentPath), meta.getValue());
-            contentPath.add(name());
-            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, contentPath);
+        public PercolatorFieldMapper build(MapperBuilderContext context) {
+            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name), meta.getValue());
+            // TODO should percolator even allow multifields?
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            context = context.createChildContext(name);
+            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
             fieldType.queryTermsField = extractedTermsField.fieldType();
-            KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, contentPath);
+            KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);
             fieldType.extractionResultField = extractionResultField.fieldType();
-            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(contentPath);
+            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
             fieldType.queryBuilderField = queryBuilderField.fieldType();
             // Range field is of type ip, because that matches closest with BinaryRange field. Otherwise we would
             // have to introduce a new field type...
-            RangeFieldMapper rangeFieldMapper = createExtractedRangeFieldBuilder(RANGE_FIELD_NAME, RangeType.IP, contentPath);
+            RangeFieldMapper rangeFieldMapper = createExtractedRangeFieldBuilder(RANGE_FIELD_NAME, RangeType.IP, context);
             fieldType.rangeField = rangeFieldMapper.fieldType();
-            NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(contentPath);
+            NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context);
             fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
             fieldType.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
 
-            contentPath.remove();
             return new PercolatorFieldMapper(name(), fieldType,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), searchExecutionContext, extractedTermsField,
+                multiFields, copyTo.build(), searchExecutionContext, extractedTermsField,
                 extractionResultField, queryBuilderField, rangeFieldMapper, minimumShouldMatchFieldMapper,
                 mapUnmappedFieldsAsText);
         }
 
-        static KeywordFieldMapper createExtractQueryFieldBuilder(String name, ContentPath contentPath) {
+        static KeywordFieldMapper createExtractQueryFieldBuilder(String name, MapperBuilderContext context) {
             KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name);
             queryMetadataFieldBuilder.docValues(false);
-            return queryMetadataFieldBuilder.build(contentPath);
+            return queryMetadataFieldBuilder.build(context);
         }
 
-        static BinaryFieldMapper createQueryBuilderFieldBuilder(ContentPath contentPath) {
+        static BinaryFieldMapper createQueryBuilderFieldBuilder(MapperBuilderContext context) {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, true);
-            return builder.build(contentPath);
+            return builder.build(context);
         }
 
-        static RangeFieldMapper createExtractedRangeFieldBuilder(String name, RangeType rangeType, ContentPath contentPath) {
-            // version here is used to detect which date parser to use, but we're not using dates
-            // so we can just pass Version.CURRENT
-            RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(name, rangeType, false, Version.CURRENT);
+        static RangeFieldMapper createExtractedRangeFieldBuilder(String name, RangeType rangeType, MapperBuilderContext context) {
+                // version here is used to detect which date parser to use, but we're not using dates
+                // so we can just pass Version.CURRENT
+
+            RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(name, rangeType, true, Version.CURRENT);
             // For now no doc values, because in processQuery(...) only the Lucene range fields get added:
             builder.docValues(false);
-            return builder.build(contentPath);
+            return builder.build(context);
         }
 
-        static NumberFieldMapper createMinimumShouldMatchField(ContentPath contentPath) {
+        static NumberFieldMapper createMinimumShouldMatchField(MapperBuilderContext context) {
             NumberFieldMapper.Builder builder =
                     NumberFieldMapper.Builder.docValuesOnly(MINIMUM_SHOULD_MATCH_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
-            return builder.build(contentPath);
+            return builder.build(context);
         }
 
     }

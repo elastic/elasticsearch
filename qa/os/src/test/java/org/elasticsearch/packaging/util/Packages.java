@@ -247,12 +247,18 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) {
         if (isSystemd()) {
+            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
-            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            Result exitCode = sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            if (exitCode.isSuccess() == false) {
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout);
+                logger.warn(journald.getLogs().stdout);
+            }
+            return exitCode;
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
     }

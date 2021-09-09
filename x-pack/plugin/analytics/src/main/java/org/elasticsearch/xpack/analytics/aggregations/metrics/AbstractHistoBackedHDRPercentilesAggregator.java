@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -41,9 +41,17 @@ abstract class AbstractHistoBackedHDRPercentilesAggregator extends NumericMetric
     protected final int numberOfSignificantValueDigits;
     protected final boolean keyed;
 
-    AbstractHistoBackedHDRPercentilesAggregator(String name, ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-                                     double[] keys, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
-                                     Map<String, Object> metadata) throws IOException {
+    AbstractHistoBackedHDRPercentilesAggregator(
+        String name,
+        ValuesSource valuesSource,
+        AggregationContext context,
+        Aggregator parent,
+        double[] keys,
+        int numberOfSignificantValueDigits,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
@@ -59,12 +67,11 @@ abstract class AbstractHistoBackedHDRPercentilesAggregator extends NumericMetric
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final HistogramValues values = ((HistogramValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
+        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(ctx);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override

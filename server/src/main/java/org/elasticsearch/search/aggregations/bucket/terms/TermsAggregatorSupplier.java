@@ -18,17 +18,19 @@ import java.io.IOException;
 import java.util.Map;
 
 interface TermsAggregatorSupplier {
-    Aggregator build(String name,
-                     AggregatorFactories factories,
-                     ValuesSourceConfig valuesSourceConfig,
-                     BucketOrder order,
-                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                     IncludeExclude includeExclude,
-                     String executionHint,
-                     AggregationContext context,
-                     Aggregator parent,
-                     Aggregator.SubAggCollectionMode subAggCollectMode,
-                     boolean showTermDocCountError,
-                     CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        BucketOrder order,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        IncludeExclude includeExclude,
+        String executionHint,
+        AggregationContext context,
+        Aggregator parent,
+        Aggregator.SubAggCollectionMode subAggCollectMode,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

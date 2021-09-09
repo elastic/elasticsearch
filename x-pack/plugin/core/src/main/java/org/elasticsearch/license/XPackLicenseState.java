@@ -77,8 +77,6 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_LINE(OperationMode.GOLD, true),
 
-        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
-
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
 
         AUTOSCALING(OperationMode.ENTERPRISE, true);
@@ -511,7 +509,7 @@ public class XPackLicenseState {
 
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
-        if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
+        if (isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive())) {
             return true;
         }
         return false;
@@ -521,7 +519,7 @@ public class XPackLicenseState {
         final long licenseExpiryDate = getLicenseExpiryDate();
         // TODO: this should use epochMillisProvider to avoid a system call + testability
         final long diff = licenseExpiryDate - System.currentTimeMillis();
-        if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
+        if (feature.getMinimumOperationMode().compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
             final String expiryMessage = (days == 0 && diff > 0)? "expires today":
@@ -640,7 +638,7 @@ public class XPackLicenseState {
 
         @Override
         public String toString() {
-            return context == null ? feature.name : feature.name + ":" + context;
+            return context == null ? feature.getName() : feature.getName() + ":" + context;
         }
 
         @Override

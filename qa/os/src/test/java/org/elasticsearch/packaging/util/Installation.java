@@ -187,6 +187,7 @@ public class Installation {
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable securityConfigTool = new Executable("elasticsearch-security-config");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
+        public final Executable resetElasticPasswordTool = new Executable("elasticsearch-reset-elastic-password");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");

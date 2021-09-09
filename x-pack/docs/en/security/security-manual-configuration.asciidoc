@@ -1,3 +1,4 @@
+[[manually-configure-security]]
 == Manually configure security
 ++++
 <titleabbrev>Configure security</titleabbrev>

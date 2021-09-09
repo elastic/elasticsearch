@@ -69,8 +69,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setEstimatedHeapMemory(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(),
-                License.OperationMode.ENTERPRISE.description(),
-                License.OperationMode.GOLD.description(),
                 License.OperationMode.BASIC.description()))
             .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig()))
@@ -212,12 +210,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> TrainedModelConfig.fromXContent(parser, true));
             assertThat(ex.getCause().getMessage(), equalTo("both [compressed_definition] and [definition] cannot be set."));
         }
-    }
-
-    public void testValidateWithNoDefinitionOrLocation() {
-        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
-            () -> TrainedModelConfig.builder().validate());
-        assertThat(ex.getMessage(), containsString("either a model [definition] or [location] must be defined."));
     }
 
     public void testValidateWithBothDefinitionAndLocation() {

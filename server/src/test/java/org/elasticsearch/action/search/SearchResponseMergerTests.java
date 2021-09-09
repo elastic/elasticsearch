@@ -28,8 +28,8 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -212,9 +212,9 @@ public class SearchResponseMergerTests extends ESTestCase {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         SearchResponseMerger merger = new SearchResponseMerger(0, 0, SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider, emptyReduceContextBuilder());
-        Map<String, ProfileShardResult> expectedProfile = new HashMap<>();
+        Map<String, SearchProfileQueryPhaseResult> expectedProfile = new HashMap<>();
         for (int i = 0; i < numResponses; i++) {
-            SearchProfileShardResults profile = SearchProfileShardResultsTests.createTestItem();
+            SearchProfileResults profile = SearchProfileShardResultsTests.createTestItem();
             expectedProfile.putAll(profile.getShardResults());
             SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);

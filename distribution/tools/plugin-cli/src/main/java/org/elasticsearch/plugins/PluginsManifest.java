@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.plugins.ProxyUtils.validateProxy;
-
 /**
  * This class models the contents of the {@code elasticsearch-plugins.yml} file. This file specifies all the plugins
  * that ought to be installed in an Elasticsearch instance, and where to find them if they are not an official
@@ -48,7 +46,7 @@ public class PluginsManifest {
      * Validate this instance. For example:
      * <ul>
      *     <li>All {@link PluginDescriptor}s must have IDs</li>
-     *     <li>Proxies must be well-formed.</li>
+     *     <li>Any proxy must be well-formed.</li>
      *     <li>Unofficial plugins must have URLs</li>
      * </ul>
      *
@@ -77,12 +75,22 @@ public class PluginsManifest {
 
         for (PluginDescriptor plugin : this.plugins) {
             if (InstallPluginAction.OFFICIAL_PLUGINS.contains(plugin.getId()) == false && plugin.getUrl() == null) {
-                throw new UserException(ExitCodes.CONFIG, "Must specify URL for non-official plugin [" + plugin.getId() + "]");
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Must specify URL for non-official plugin [" + plugin.getId() + "] in " + manifestPath
+                );
             }
         }
 
         if (this.proxy != null) {
-            validateProxy(this.proxy, null, manifestPath);
+            final String[] parts = this.proxy.split(":");
+            if (parts.length != 2) {
+                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + manifestPath);
+            }
+
+            if (ProxyUtils.validateData(parts[0], parts[1]) == false) {
+                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + manifestPath);
+            }
         }
 
         for (PluginDescriptor p : plugins) {
@@ -100,7 +108,7 @@ public class PluginsManifest {
      * Constructs a {@link PluginsManifest} instance from the specified YAML file, and validates the contents.
      * @param env the environment to use in order to locate the config file.
      * @return a validated manifest
-     * @throws UserException if problems are found finding, parsing or validating the file
+     * @throws UserException if there is a problem finding, parsing or validating the file
      */
     public static PluginsManifest parseManifest(Environment env) throws UserException {
         final Path manifestPath = env.configFile().resolve("elasticsearch-plugins.yml");

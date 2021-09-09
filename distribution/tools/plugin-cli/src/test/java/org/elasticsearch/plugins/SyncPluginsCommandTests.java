@@ -62,6 +62,12 @@ public class SyncPluginsCommandTests extends ESTestCase {
     private Tuple<Path, Environment> env;
     private final String javaIoTmpdir;
 
+    /**
+     * Configures the test class to use particular type of filesystem, and use a particular temporary directory.
+     *
+     * @param fs the filesystem to use.
+     * @param temp the temp directory to use.
+     */
     @SuppressForbidden(reason = "sets java.io.tmpdir")
     public SyncPluginsCommandTests(FileSystem fs, Function<String, Path> temp) {
         this.temp = temp;
@@ -193,44 +199,6 @@ public class SyncPluginsCommandTests extends ESTestCase {
         yaml.add("plugins:");
         yaml.add("  - id: analysis-icu");
         yaml.add("proxy: example.com:8080");
-
-        Files.writeString(pluginsFile, yaml.toString());
-
-        SyncPluginsCommand command = new SyncPluginsCommand();
-        command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
-
-        verify(removePluginAction, never()).execute(any());
-        verify(installPluginAction).setProxy(argThat(matchesProxy(Proxy.Type.HTTP, "example.com", 8080)));
-        verify(installPluginAction).execute(List.of(new PluginDescriptor("analysis-icu")));
-    }
-
-    /**
-     * Check that the sync tool will run successfully with an official plugin and an HTTP proxy explicitly configured.
-     */
-    public void testSync_withPluginAndHttpProxy_succeeds() throws Exception {
-        StringJoiner yaml = new StringJoiner("\n", "", "\n");
-        yaml.add("plugins:");
-        yaml.add("  - id: analysis-icu");
-        yaml.add("proxy: https://example.com:8080");
-
-        Files.writeString(pluginsFile, yaml.toString());
-
-        SyncPluginsCommand command = new SyncPluginsCommand();
-        command.execute(terminal, env.v2(), false, removePluginAction, installPluginAction);
-
-        verify(removePluginAction, never()).execute(any());
-        verify(installPluginAction).setProxy(argThat(matchesProxy(Proxy.Type.HTTP, "example.com", 8080)));
-        verify(installPluginAction).execute(List.of(new PluginDescriptor("analysis-icu")));
-    }
-
-    /**
-     * Check that the sync tool will run successfully with an official plugin and a SOCKS proxy explicitly configured.
-     */
-    public void testSync_withPluginAndSocksProxy_succeeds() throws Exception {
-        StringJoiner yaml = new StringJoiner("\n", "", "\n");
-        yaml.add("plugins:");
-        yaml.add("  - id: analysis-icu");
-        yaml.add("proxy: https://example.com:8080");
 
         Files.writeString(pluginsFile, yaml.toString());
 

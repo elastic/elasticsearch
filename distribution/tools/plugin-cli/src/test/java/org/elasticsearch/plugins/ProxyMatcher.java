@@ -24,6 +24,10 @@ class ProxyMatcher extends TypeSafeMatcher<Proxy> {
         return new ProxyMatcher(type, hostname, port);
     }
 
+    public static ProxyMatcher matchesProxy(Proxy.Type type) {
+        return new ProxyMatcher(type, null, -1);
+    }
+
     ProxyMatcher(Proxy.Type type, String hostname, int port) {
         this.type = type;
         this.hostname = hostname;
@@ -35,6 +39,10 @@ class ProxyMatcher extends TypeSafeMatcher<Proxy> {
     protected boolean matchesSafely(Proxy proxy) {
         if (proxy.type() != this.type) {
             return false;
+        }
+
+        if (hostname == null) {
+            return true;
         }
 
         InetSocketAddress address = (InetSocketAddress) proxy.address();

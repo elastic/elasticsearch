@@ -11,95 +11,71 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
 
 import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
 import java.net.Proxy;
-import java.net.URL;
-import java.nio.file.Path;
+import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * Utilities for working with HTTP proxies.
  */
 public class ProxyUtils {
-
     /**
-     * Checks that the supplied string can be used to configure a proxy.
-     *
-     * @param proxy the URI string to use
-     * @param pluginId the ID of the plugin, or null for a global proxy, for constructing error messages
-     * @param manifestPath the path to the config, for constructing error messages
-     * @throws UserException when passed an invalid URI
-     */
-    static void validateProxy(String proxy, String pluginId, Path manifestPath) throws UserException {
-        String pluginDescription = pluginId == null ? "" : " for plugin [" + pluginId + "]";
-        String message = "Malformed [proxy]" + pluginDescription + ", expected [host:port] in " + manifestPath;
-
-        try {
-            String proxyUrl;
-            if (proxy.matches("^(?:https?|socks[45]?)://.*")) {
-                proxyUrl = proxy;
-            } else {
-                String[] parts = proxy.split(":");
-                if (parts.length != 2) {
-                    throw new UserException(ExitCodes.CONFIG, message);
-                }
-                proxyUrl = "http://" + proxy;
-            }
-            URL url = new URL(proxyUrl);
-            if (url.getHost().isBlank()) {
-                throw new UserException(ExitCodes.CONFIG, message);
-            }
-            if (url.getPort() == -1) {
-                throw new UserException(ExitCodes.CONFIG, message);
-            }
-        } catch (MalformedURLException e) {
-            throw new UserException(ExitCodes.CONFIG, message);
-        }
-    }
-
-    /**
-     * Constructs a proxy from the given string. Assumes that the string has already been validated using
-     * {@link #validateProxy(String, String, Path)}. If {@code null} is passed, then either a proxy will
+     * Constructs a proxy from the given string. If {@code null} is passed, then either a proxy will
      * be returned using the system proxy settings, or {@link Proxy#NO_PROXY} will be returned.
      *
-     * @param proxy the string to use, which must either be a well-formed HTTP or SOCKS URL, or have the form "host:port"
+     * @param proxy the string to use, in the form "host:port"
      * @return a proxy
      */
-    @SuppressForbidden(reason = "Proxy constructor uses InetSocketAddress")
+    @SuppressForbidden(reason = "Proxy constructor requires a SocketAddress")
     static Proxy buildProxy(String proxy) throws UserException {
         if (proxy == null) {
             return getSystemProxy();
         }
 
-        final String proxyUrl = proxy.matches("^(?:https?|socks[45]?)://.*") ? proxy : "http://" + proxy;
-
-        try {
-            URL url = new URL(proxyUrl);
-            return new Proxy(
-                url.getProtocol().startsWith("socks") ? Proxy.Type.SOCKS : Proxy.Type.HTTP,
-                new InetSocketAddress(url.getHost(), url.getPort())
-            );
-        } catch (MalformedURLException e) {
-            throw new UserException(ExitCodes.CONFIG, "Malformed proxy value : [" + proxy + "]");
+        final String[] parts = proxy.split(":");
+        if (parts.length != 2) {
+            throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port]");
         }
+
+        if (validateData(parts[0], parts[1]) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port]");
+        }
+
+        return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(parts[0], Integer.parseUnsignedInt(parts[1])));
     }
 
-    @SuppressForbidden(reason = "Proxy constructor uses InetSocketAddress")
+    @SuppressForbidden(reason = "Proxy constructor requires a SocketAddress")
     private static Proxy getSystemProxy() {
-        String proxyHost = System.getProperty("http.proxyHost");
-        String proxyPort = System.getProperty("http.proxyPort");
-        if (Strings.isNullOrEmpty(proxyHost) == false && Strings.isNullOrEmpty(proxyPort) == false) {
+        String proxyHost = System.getProperty("https.proxyHost");
+        String proxyPort = Objects.requireNonNullElse(System.getProperty("https.proxyPort"), "443");
+        if (validateData(proxyHost, proxyPort)) {
+            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
+        }
+
+        proxyHost = System.getProperty("http.proxyHost");
+        proxyPort = Objects.requireNonNullElse(System.getProperty("http.proxyPort"), "80");
+        if (validateData(proxyHost, proxyPort)) {
             return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
         }
 
         proxyHost = System.getProperty("socks.proxyHost");
-        proxyPort = System.getProperty("socks.proxyPort");
-        if (Strings.isNullOrEmpty(proxyHost) == false && Strings.isNullOrEmpty(proxyPort) == false) {
+        proxyPort = Objects.requireNonNullElse(System.getProperty("socks.proxyPort"), "1080");
+        if (validateData(proxyHost, proxyPort)) {
             return new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
         }
 
         return Proxy.NO_PROXY;
+    }
+
+    private static final Predicate<String> HOST_PATTERN = Pattern.compile(
+        "^ (?!-)[a-z0-9-]+ (?: \\. (?!-)[a-z0-9-]+ )* $",
+        Pattern.CASE_INSENSITIVE | Pattern.COMMENTS
+    ).asMatchPredicate();
+
+    static boolean validateData(String hostname, String port) {
+        return hostname != null && port != null && HOST_PATTERN.test(hostname) && port.matches("^\\d+$") != false;
     }
 }

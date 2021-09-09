@@ -89,10 +89,14 @@ public class AvgBucketIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
-        histoName = randomBoolean() ?
-            randomAlphaOfLengthBetween(3, 12) : randomAlphaOfLengthBetween(3, 6) + "." + randomAlphaOfLengthBetween(3, 6);
-        termsName = randomBoolean() ?
-            randomAlphaOfLengthBetween(3, 12) : randomAlphaOfLengthBetween(3, 6) + "." + randomAlphaOfLengthBetween(3, 6);
+        histoName = randomName();
+        termsName = randomName();
+    }
+
+    private static String randomName() {
+        return randomBoolean() ?
+            randomAlphaOfLengthBetween(3, 12) :
+            randomAlphaOfLengthBetween(3, 6) + "." + randomAlphaOfLengthBetween(3, 6);
     }
 
     public void testDocCountTopLevel() throws Exception {

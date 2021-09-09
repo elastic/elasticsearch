@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -191,7 +192,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
 
     public void testLogicallyEquivalentSnapshotIsUsedEvenIfFilesAreDifferent() throws Exception {
         createStore(store -> {
-            Store.MetadataSnapshot targetSourceMetadata = generateRandomTargetState(store);
+            boolean shareFilesWithSource = randomBoolean();
+            Store.MetadataSnapshot targetSourceMetadata = generateRandomTargetState(store, shareFilesWithSource);
 
             writeRandomDocs(store, randomIntBetween(10, 100));
             Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
@@ -218,21 +220,28 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 true
             );
 
-            assertPlanIsValid(shardRecoveryPlan, latestSnapshot.getMetadataSnapshot());
-            assertUsesExpectedSnapshot(shardRecoveryPlan, latestSnapshot);
-            assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(empty()));
-            assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetSourceMetadata);
-            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
-            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
+            if (shareFilesWithSource) {
+                assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
+                assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
+                assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetSourceMetadata);
+                assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
+            } else {
+                assertPlanIsValid(shardRecoveryPlan, latestSnapshot.getMetadataSnapshot());
+                assertUsesExpectedSnapshot(shardRecoveryPlan, latestSnapshot);
+                assertThat(shardRecoveryPlan.getSourceFilesToRecover(), is(empty()));
+                assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetSourceMetadata);
+                assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
+                assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
 
-            assertThat(shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode(), is(equalTo(false)));
-            ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
-            assertThat(fallbackPlan, is(notNullValue()));
+                assertThat(shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode(), is(equalTo(false)));
+                ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
+                assertThat(fallbackPlan, is(notNullValue()));
 
-            assertPlanIsValid(fallbackPlan, sourceMetadata);
-            assertAllSourceFilesAreAvailableInSource(fallbackPlan, sourceMetadata);
-            assertAllIdenticalFilesAreAvailableInTarget(fallbackPlan, targetSourceMetadata);
-            assertThat(fallbackPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
+                assertPlanIsValid(fallbackPlan, sourceMetadata);
+                assertAllSourceFilesAreAvailableInSource(fallbackPlan, sourceMetadata);
+                assertAllIdenticalFilesAreAvailableInTarget(fallbackPlan, targetSourceMetadata);
+                assertThat(fallbackPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
+            }
         });
     }
 
@@ -504,8 +513,12 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private Store.MetadataSnapshot generateRandomTargetState(Store store) throws IOException {
+        return generateRandomTargetState(store, randomBoolean());
+    }
+
+    private Store.MetadataSnapshot generateRandomTargetState(Store store, boolean shareFilesWithSource) throws IOException {
         final Store.MetadataSnapshot targetMetadataSnapshot;
-        if (randomBoolean()) {
+        if (shareFilesWithSource) {
             // The target can share some files with the source
             writeRandomDocs(store, randomIntBetween(20, 50));
             targetMetadataSnapshot = store.getMetadata(null);
@@ -577,7 +590,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         ShardSnapshotInfo shardSnapshotInfo =
             new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier, clock.incrementAndGet());
 
-        return new ShardSnapshot(shardSnapshotInfo, snapshotFiles);
+        return new ShardSnapshot(shardSnapshotInfo, snapshotFiles, Collections.singletonMap(ES_VERSION, Version.CURRENT.toString()));
     }
 
     private StoreFileMetadata randomStoreFileMetadata() {

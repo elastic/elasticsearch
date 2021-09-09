@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -21,17 +22,23 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
+
 public class ShardSnapshot {
     private final ShardSnapshotInfo shardSnapshotInfo;
     // Segment file name -> file info
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles;
     private final Store.MetadataSnapshot metadataSnapshot;
+    private final Map<String, String> luceneCommitUserData;
 
-    ShardSnapshot(ShardSnapshotInfo shardSnapshotInfo, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
+    ShardSnapshot(ShardSnapshotInfo shardSnapshotInfo,
+                  List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
+                  Map<String, String> luceneCommitUserData) {
         this.shardSnapshotInfo = shardSnapshotInfo;
         this.snapshotFiles = snapshotFiles.stream()
             .collect(Collectors.toMap(snapshotFile -> snapshotFile.metadata().name(), Function.identity()));
         this.metadataSnapshot = convertToMetadataSnapshot(snapshotFiles);
+        this.luceneCommitUserData = luceneCommitUserData;
     }
 
     public String getShardStateIdentifier() {
@@ -40,6 +47,11 @@ public class ShardSnapshot {
 
     public boolean isLogicallyEquivalent(@Nullable String shardStateIdentifier) {
         return shardStateIdentifier != null && shardStateIdentifier.equals(shardSnapshotInfo.getShardStateIdentifier());
+    }
+
+    public boolean hasDifferentPhysicalFiles(Store.MetadataSnapshot sourceSnapshot) {
+        Store.RecoveryDiff recoveryDiff = metadataSnapshot.recoveryDiff(sourceSnapshot);
+        return recoveryDiff.different.isEmpty() == false || recoveryDiff.missing.isEmpty() == false;
     }
 
     public String getRepository() {
@@ -62,10 +74,24 @@ public class ShardSnapshot {
         return shardSnapshotInfo;
     }
 
-    public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles(List<StoreFileMetadata> segmentFiles) {
+    public Map<String, String> getLuceneCommitUserData() {
+        return luceneCommitUserData;
+    }
+
+    @Nullable
+    public Version getVersion() {
+        String version = luceneCommitUserData.get(ES_VERSION);
+        return version == null ? null : Version.fromString(version);
+    }
+
+    public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFilesMatching(List<StoreFileMetadata> segmentFiles) {
         return segmentFiles.stream()
             .map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name()))
             .collect(Collectors.toList());
+    }
+
+    public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {
+        return List.copyOf(snapshotFiles.values());
     }
 
     static Store.MetadataSnapshot convertToMetadataSnapshot(List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {

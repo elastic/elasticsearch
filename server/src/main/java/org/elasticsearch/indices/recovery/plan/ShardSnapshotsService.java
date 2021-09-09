@@ -11,6 +11,13 @@ package org.elasticsearch.indices.recovery.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.BaseDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
@@ -22,8 +29,11 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
@@ -31,8 +41,13 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
@@ -108,7 +123,16 @@ public class ShardSnapshotsService {
             BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot =
                 blobStoreRepository.loadShardSnapshot(blobContainer, snapshot.getSnapshotId());
 
-            return Optional.of(new ShardSnapshot(latestShardSnapshot, blobStoreIndexShardSnapshot.indexFiles()));
+            Map<String, StoreFileMetadata> snapshotFiles = blobStoreIndexShardSnapshot.indexFiles()
+                .stream()
+                .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
+                .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));
+
+            InMemoryDirectory directory = new InMemoryDirectory(snapshotFiles);
+            SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(directory);
+            Map<String, String> userData = segmentCommitInfos.userData;
+
+            return Optional.of(new ShardSnapshot(latestShardSnapshot, blobStoreIndexShardSnapshot.indexFiles(), userData));
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", latestShardSnapshot), e);
             return Optional.empty();
@@ -117,5 +141,85 @@ public class ShardSnapshotsService {
 
     protected boolean masterSupportsFetchingLatestSnapshots() {
         return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
+    }
+
+    static final class InMemoryDirectory extends BaseDirectory {
+        private final Map<String, StoreFileMetadata> files;
+
+        InMemoryDirectory(Map<String, StoreFileMetadata> files) {
+            super(new SingleInstanceLockFactory());
+            this.files = files;
+        }
+
+        @Override
+        public String[] listAll() {
+            return files.keySet().toArray(new String[0]);
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            StoreFileMetadata storeFileMetadata = getStoreFileMetadata(name);
+            if (storeFileMetadata.hashEqualsContents() == false) {
+                throw new IOException("Unable to open " + name);
+            }
+
+            final BytesRef data = storeFileMetadata.hash();
+            return new ByteArrayIndexInput(name, data.bytes, data.offset, data.length);
+        }
+
+        @Override
+        public void deleteFile(String name) {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public long fileLength(String name) throws IOException {
+            final StoreFileMetadata storeFileMetadata = getStoreFileMetadata(name);
+            return storeFileMetadata.length();
+        }
+
+
+        @Override
+        public IndexOutput createOutput(String name, IOContext context) {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public void sync(Collection<String> names) {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public void syncMetaData() {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public void rename(String source, String dest) {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public void close() {
+            // no-op
+        }
+
+        @Override
+        public Set<String> getPendingDeletions() {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        private StoreFileMetadata getStoreFileMetadata(String name) throws IOException {
+            final StoreFileMetadata storeFileMetadata = files.get(name);
+            if (storeFileMetadata == null) {
+                throw new IOException("Unable to find " + name);
+            }
+            return storeFileMetadata;
+        }
     }
 }

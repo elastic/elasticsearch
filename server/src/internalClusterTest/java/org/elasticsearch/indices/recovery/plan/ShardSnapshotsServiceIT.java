@@ -50,9 +50,11 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     @Override
@@ -184,6 +186,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
 
             assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
+            assertThat(shardSnapshotData.getLuceneCommitUserData(), is(not(anEmptyMap())));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));

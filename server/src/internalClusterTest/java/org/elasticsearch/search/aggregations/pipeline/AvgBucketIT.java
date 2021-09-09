@@ -135,7 +135,8 @@ public class AvgBucketIT extends ESIntegTestCase {
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
                     )
                     .subAggregation(avgBucket("avg_bucket", histoName + ">_count"))
             )
@@ -350,7 +351,8 @@ public class AvgBucketIT extends ESIntegTestCase {
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
                     )
                     .subAggregation(avgBucket("avg_histo_bucket", histoName + ">_count"))
             )

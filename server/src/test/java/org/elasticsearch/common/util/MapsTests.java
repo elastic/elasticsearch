@@ -158,6 +158,9 @@ public class MapsTests extends ESTestCase {
         SortedMap<String, String> sortedTuplesMap = tuples.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
 
         assertThat(sortedTuplesMap.keySet(), equalTo(tuples.stream().map(Tuple::v1).collect(Collectors.toSet())));
+        for (Tuple<String, String> tuple : tuples) {
+            assertThat(sortedTuplesMap.get(tuple.v1()), equalTo(tuple.v2()));
+        }
         String previous = "";
         for (String key : sortedTuplesMap.keySet()) {
             assertThat(key, greaterThan(previous));

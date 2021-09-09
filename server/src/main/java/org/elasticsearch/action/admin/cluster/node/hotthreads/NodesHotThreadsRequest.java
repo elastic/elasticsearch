@@ -30,7 +30,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         super(in);
         threads = in.readInt();
         ignoreIdleThreads = in.readBoolean();
-        type = in.readEnum(HotThreads.ReportType.class);
+        type = HotThreads.ReportType.of(in.readString());
         interval = in.readTimeValue();
         snapshots = in.readInt();
     }
@@ -93,7 +93,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         super.writeTo(out);
         out.writeInt(threads);
         out.writeBoolean(ignoreIdleThreads);
-        out.writeEnum(type);
+        out.writeString(type.getTypeValue());
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
     }

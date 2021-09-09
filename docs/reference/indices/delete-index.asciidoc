@@ -43,7 +43,7 @@ previous write index.
 <<aliases,index aliases>>.
 +
 By default, this parameter does not support wildcards (`*`) or `_all`. To use
-wildcards or `_all`, change the
+wildcards or `_all`, set the
 <<action-destructive-requires-name,`action.destructive_requires_name`>> cluster
 setting to `false`.
 

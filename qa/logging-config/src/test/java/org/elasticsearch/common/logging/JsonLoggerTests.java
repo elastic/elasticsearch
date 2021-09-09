@@ -47,7 +47,8 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
- * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
+ * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>.
+ * When running from IDE set -Dtests.security.manager=false
  */
 public class JsonLoggerTests extends ESTestCase {
 
@@ -73,6 +74,55 @@ public class JsonLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
+    public void testDeprecationWarnMessage() throws IOException {
+        final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
+
+        testLogger.warn(DeprecationCategory.OTHER, "a key", "deprecated warn message1");
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("log.level", "WARN"),
+                    hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
+                    hasEntry("elasticsearch.event.category", "other"),
+                    hasEntry("message", "deprecated warn message1")
+                    ))
+            );
+        }
+
+        assertWarnings("deprecated warn message1");
+    }
+
+    public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
+        final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
+        testLogger.critical(DeprecationCategory.OTHER, "a key", "deprecated message1");
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "deprecation.elasticsearch"),
+                    hasEntry("level", "DEPRECATION"),
+                    hasEntry("component", "o.e.d.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "deprecated message1"),
+                    not(hasKey("x-opaque-id"))
+                )
+            ));
+        }
+        assertWarnings("deprecated message1");
+    }
 
 
     public void testParseFieldEmittingDeprecatedLogs() throws Exception {
@@ -135,7 +185,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
-            testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
+            testLogger.critical(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -150,7 +200,7 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
-                            hasEntry("level", "DEPRECATION"),
+                            hasEntry("level", "CRITICAL"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -166,30 +216,62 @@ public class JsonLoggerTests extends ESTestCase {
         });
     }
 
-    public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
-        final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
-        testLogger.deprecate(DeprecationCategory.OTHER, "a key", "deprecated message1");
-
-        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") + "_deprecated.json");
-        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-            List<Map<String, String>> jsonLogs = stream
-                .collect(Collectors.toList());
-
-            assertThat(jsonLogs, contains(
-                allOf(
-                    hasEntry("type", "deprecation.elasticsearch"),
-                    hasEntry("level", "DEPRECATION"),
-                    hasEntry("component", "o.e.d.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message1"),
-                    not(hasKey("x-opaque-id"))
-                )
-            ));
-        }
-        assertWarnings("deprecated message1");
-    }
+//    public void testBuildingMessage() throws IOException {
+//
+//        final Logger testLogger = LogManager.getLogger("test");
+//
+//        testLogger.info(new ESLogMessage("some message {} {}", "value0")
+//                                    .argAndField("key1","value1")
+//                                    .field("key2","value2"));
+//
+//        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+//            System.getProperty("es.logs.cluster_name") + ".json");
+//        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+//            List<Map<String, String>> jsonLogs = stream
+//                .collect(Collectors.toList());
+//
+//            assertThat(jsonLogs, contains(
+//                allOf(
+//                    hasEntry("event.dataset", "elasticsearch.file"),
+//                    hasEntry("log.level", "INFO"),
+//                    hasEntry("log.logger", "test"),
+//                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+//                    hasEntry("elasticsearch.node.name", "sample-name"),
+//                    hasEntry("message", "some message value0 value1"),
+//                    hasEntry("key1", "value1"),
+//                    hasEntry("key2", "value2"))
+//                )
+//            );
+//        }
+//    }
+//
+//    public void testCustomMessageWithMultipleFields() throws IOException {
+//        // If a field is defined to be overridden, it has to always be overridden in that appender.
+//        final Logger testLogger = LogManager.getLogger("test");
+//        testLogger.info(new ESLogMessage("some message")
+//                                    .with("field1","value1")
+//                                    .with("field2","value2"));
+//
+//        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+//            System.getProperty("es.logs.cluster_name") + ".json");
+//        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+//            List<Map<String, String>> jsonLogs = stream
+//                .collect(Collectors.toList());
+//
+//            assertThat(jsonLogs, contains(
+//                allOf(
+//                    hasEntry("event.dataset", "elasticsearch.file"),
+//                    hasEntry("log.level", "INFO"),
+//                    hasEntry("log.logger", "test"),
+//                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+//                    hasEntry("elasticsearch.node.name", "sample-name"),
+//                    hasEntry("field1", "value1"),
+//                    hasEntry("field2", "value2"),
+//                    hasEntry("message", "some message"))
+//                )
+//            );
+//        }
+//    }
 
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
@@ -303,15 +385,14 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-
     public void testDuplicateLogMessages() throws Exception {
         final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
 
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -323,7 +404,7 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation.elasticsearch"),
-                        hasEntry("level", "DEPRECATION"),
+                        hasEntry("level", "CRITICAL"),
                         hasEntry("component", "o.e.d.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
@@ -341,8 +422,8 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
@@ -357,7 +438,7 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
-                            hasEntry("level", "DEPRECATION"),
+                            hasEntry("level", "CRITICAL"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -366,7 +447,7 @@ public class JsonLoggerTests extends ESTestCase {
                         ),
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
-                            hasEntry("level", "DEPRECATION"),
+                            hasEntry("level", "CRITICAL"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),

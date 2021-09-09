@@ -239,7 +239,7 @@ public final class IndicesPermission {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
-                                        deprecationLogger.deprecate(
+                                        deprecationLogger.critical(
                                             DeprecationCategory.SECURITY,
                                             "[" + indexOrAlias + "] mapping update for ingest privilege [" + privilegeName + "]",
                                             "the index privilege ["

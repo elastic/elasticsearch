@@ -102,7 +102,7 @@ public class IpFieldMapper extends FieldMapper {
             try {
                 return InetAddresses.forString(nullValueAsString);
             } catch (Exception e) {
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
+                DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
                     + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                 return null;
             }

@@ -544,7 +544,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
                     } else {
                         if (indexAbstraction.isSystem()) {
-                            deprecationLogger.deprecate(DeprecationCategory.INDICES,
+                            deprecationLogger.critical(DeprecationCategory.INDICES,
                                 "ccr_auto_follow_system_indices",
                                 "Auto following a leader system index " + indexToFollow.getName() +
                                     " will not work in the next major version"

@@ -560,7 +560,7 @@ public class Setting<T> implements ToXContentObject {
             DeprecationCategory category = this.isSecure(settings) ? DeprecationCategory.SECURITY : DeprecationCategory.SETTINGS;
 
             Settings.DeprecationLoggerHolder.deprecationLogger
-                .deprecate(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                .critical(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                     + "See the breaking changes documentation for the next major version.", key);
         }
     }

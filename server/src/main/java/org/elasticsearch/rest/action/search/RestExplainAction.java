@@ -55,7 +55,7 @@ public class RestExplainAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ExplainRequest explainRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "explain_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "explain_with_types", TYPES_DEPRECATION_MESSAGE);
             explainRequest = new ExplainRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

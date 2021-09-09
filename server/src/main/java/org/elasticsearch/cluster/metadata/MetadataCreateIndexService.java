@@ -208,7 +208,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.INDICES, "index_name_starts_with_dot",
+                DEPRECATION_LOGGER.critical(DeprecationCategory.INDICES, "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -366,7 +366,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
+                    DEPRECATION_LOGGER.critical(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -844,7 +844,7 @@ public class MetadataCreateIndexService {
          */
         shardLimitValidator.validateShardLimit(indexSettings, currentState);
         if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "soft_deletes_disabled",
+            DEPRECATION_LOGGER.critical(DeprecationCategory.SETTINGS, "soft_deletes_disabled",
                 "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
                     "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
@@ -1338,7 +1338,7 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            DEPRECATION_LOGGER.deprecate(
+            DEPRECATION_LOGGER.critical(
                 DeprecationCategory.SETTINGS,
                 "translog_retention",
                 "Translog retention settings [index.translog.retention.age] "
@@ -1350,7 +1350,7 @@ public class MetadataCreateIndexService {
     public static void validateStoreTypeSetting(Settings indexSettings) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+            DEPRECATION_LOGGER.critical(DeprecationCategory.SETTINGS, "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
                     "or equivalent performance to [simplefs].");

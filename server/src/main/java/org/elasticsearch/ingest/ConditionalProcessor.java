@@ -38,7 +38,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = org.elasticsearch.core.Map.of(
             "_type", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "conditional-processor__type",
+                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });

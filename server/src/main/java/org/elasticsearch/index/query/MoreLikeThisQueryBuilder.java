@@ -958,7 +958,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         if (moreLikeThisQueryBuilder.isTypeless() == false) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.API, "more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         return moreLikeThisQueryBuilder;
     }

@@ -206,8 +206,8 @@ class InstallPluginAction implements Closeable {
         }
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
-        for (final PluginDescriptor plugin : plugins) {
-            final String pluginId = plugin.getId();
+        for (final PluginDescriptor descriptor : plugins) {
+            final String pluginId = descriptor.getId();
             terminal.println("-> Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
@@ -217,10 +217,10 @@ class InstallPluginAction implements Closeable {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(plugin, env.tmpFile());
+                final Path pluginZip = download(descriptor, env.tmpFile());
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
-                final PluginInfo pluginInfo = installPlugin(extractedZip, deleteOnFailure);
+                final PluginInfo pluginInfo = installPlugin(descriptor, extractedZip, deleteOnFailure);
                 terminal.println("-> Installed " + pluginInfo.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
@@ -859,13 +859,23 @@ class InstallPluginAction implements Closeable {
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
-    private PluginInfo installPlugin(Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
+    private PluginInfo installPlugin(PluginDescriptor descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginInfo info = loadPluginInfo(tmpRoot);
         checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
             Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
             PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
+        }
+
+        // Validate that the downloaded plugin's ID matches what we expect from the descriptor. The
+        // exception is if we install a plugin via `InstallPluginCommand` by specifying a URL or
+        // Maven coordinates, because then we can't know in advance what the plugin ID ought to be.
+        if (descriptor.getId().contains(":") == false && descriptor.getId().equals(info.getName()) == false) {
+            throw new UserException(
+                ExitCodes.DATA_ERROR,
+                "Expected downloaded plugin to have ID [" + descriptor.getId() + "] but found [" + info.getName() + "]"
+            );
         }
 
         final Path destination = env.pluginsFile().resolve(info.getName());

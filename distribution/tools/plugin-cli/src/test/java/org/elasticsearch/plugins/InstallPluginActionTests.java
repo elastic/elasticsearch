@@ -828,6 +828,18 @@ public class InstallPluginActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Check that if the installer action finds a mismatch between what it expects a plugin's ID to be and what
+     * the ID actually is from the plugin's properties, then the installation fails.
+     */
+    public void testPluginHasDifferentNameThatDescriptor() throws Exception {
+        PluginDescriptor descriptor = createPluginZip("fake", pluginDir);
+        PluginDescriptor modifiedDescriptor = new PluginDescriptor("other-fake", descriptor.getUrl());
+
+        final UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedDescriptor));
+        assertThat(e.getMessage(), equalTo("Expected downloaded plugin to have ID [other-fake] but found [fake]"));
+    }
+
     private void installPlugin(boolean isBatch, String... additionalProperties) throws Exception {
         // if batch is enabled, we also want to add a security policy
         if (isBatch) {

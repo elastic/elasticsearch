@@ -40,7 +40,7 @@ public class ProxyUtils {
             throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port]");
         }
 
-        if (validateData(parts[0], parts[1]) == false) {
+        if (validateProxy(parts[0], parts[1]) == false) {
             throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port]");
         }
 
@@ -51,19 +51,19 @@ public class ProxyUtils {
     private static Proxy getSystemProxy() {
         String proxyHost = System.getProperty("https.proxyHost");
         String proxyPort = Objects.requireNonNullElse(System.getProperty("https.proxyPort"), "443");
-        if (validateData(proxyHost, proxyPort)) {
+        if (validateProxy(proxyHost, proxyPort)) {
             return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
         }
 
         proxyHost = System.getProperty("http.proxyHost");
         proxyPort = Objects.requireNonNullElse(System.getProperty("http.proxyPort"), "80");
-        if (validateData(proxyHost, proxyPort)) {
+        if (validateProxy(proxyHost, proxyPort)) {
             return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
         }
 
         proxyHost = System.getProperty("socks.proxyHost");
         proxyPort = Objects.requireNonNullElse(System.getProperty("socks.proxyPort"), "1080");
-        if (validateData(proxyHost, proxyPort)) {
+        if (validateProxy(proxyHost, proxyPort)) {
             return new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
         }
 
@@ -75,7 +75,7 @@ public class ProxyUtils {
         Pattern.CASE_INSENSITIVE | Pattern.COMMENTS
     ).asMatchPredicate();
 
-    static boolean validateData(String hostname, String port) {
+    static boolean validateProxy(String hostname, String port) {
         return hostname != null && port != null && HOST_PATTERN.test(hostname) && port.matches("^\\d+$") != false;
     }
 }

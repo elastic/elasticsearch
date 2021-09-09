@@ -22,10 +22,10 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  * This class models the contents of the {@code elasticsearch-plugins.yml} file. This file specifies all the plugins
@@ -58,19 +58,11 @@ public class PluginsManifest {
             throw new RuntimeException("Cannot have null or empty plugin IDs in: " + manifestPath);
         }
 
-        final Map<String, Long> counts = this.plugins.stream()
-            .map(PluginDescriptor::getId)
-            .collect(Collectors.groupingBy(e -> e, Collectors.counting()));
-
-        final List<String> duplicatePluginNames = counts.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue() > 1)
-            .map(Map.Entry::getKey)
-            .sorted()
-            .collect(Collectors.toList());
-
-        if (duplicatePluginNames.isEmpty() == false) {
-            throw new RuntimeException("Duplicate plugin names " + duplicatePluginNames + " found in: " + manifestPath);
+        final Set<String> uniquePluginIds = new HashSet<>();
+        for (final PluginDescriptor plugin : plugins) {
+            if (uniquePluginIds.add(plugin.getId()) == false) {
+                throw new UserException(ExitCodes.USAGE, "Duplicate plugin ID [" + plugin.getId() + "] found in: " + manifestPath);
+            }
         }
 
         for (PluginDescriptor plugin : this.plugins) {
@@ -88,7 +80,7 @@ public class PluginsManifest {
                 throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + manifestPath);
             }
 
-            if (ProxyUtils.validateData(parts[0], parts[1]) == false) {
+            if (ProxyUtils.validateProxy(parts[0], parts[1]) == false) {
                 throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + manifestPath);
             }
         }

@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 public class NodesHotThreadsRequestTests extends ESTestCase {
-    // Simple override of BaseNodesRequest to ensure we read the common
-    // fields of the nodes request.
+
+    /** Simple override of BaseNodesRequest to ensure we read the
+     * common fields of the nodes request.
+     */
     static class NodesHotThreadsRequestHelper extends BaseNodesRequest<NodesHotThreadsRequestHelper> {
         NodesHotThreadsRequestHelper(StreamInput in) throws IOException {
             super(in);

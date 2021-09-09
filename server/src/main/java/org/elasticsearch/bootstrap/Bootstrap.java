@@ -309,7 +309,6 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    @SuppressForbidden(reason = "Retain reference for System.out")
     static void init(
             final boolean foreground,
             final Path pidFile,
@@ -317,7 +316,7 @@ final class Bootstrap {
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
-        BootstrapInfo.init(System.out);
+        BootstrapInfo.init(getSysOutReference());
 
         INSTANCE = new Bootstrap();
 
@@ -423,6 +422,11 @@ final class Bootstrap {
 
             throw e;
         }
+    }
+
+    @SuppressForbidden(reason = "Retain reference for System.out")
+    private static PrintStream getSysOutReference() {
+        return System.out;
     }
 
     @SuppressForbidden(reason = "System#out")

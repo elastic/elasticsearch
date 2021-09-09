@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
@@ -28,8 +29,8 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
 public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
 
     private static final Logger LOGGER  = LogManager.getLogger(GenerateInitialBuiltinUsersPasswordListener.class);
-    private NativeUsersStore nativeUsersStore;
-    private SecurityIndexManager securityIndexManager;
+    private final NativeUsersStore nativeUsersStore;
+    private final SecurityIndexManager securityIndexManager;
 
     public GenerateInitialBuiltinUsersPasswordListener(NativeUsersStore nativeUsersStore, SecurityIndexManager securityIndexManager) {
         this.nativeUsersStore = nativeUsersStore;
@@ -42,7 +43,7 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
         out.println();
         if (out.checkError()) {
-            outputOnError(new IllegalStateException("Stashed standard output stream is closed."));
+            outputOnError(null);
             return;
         }
         if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
@@ -96,13 +97,13 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
         out.println();
     }
 
-    private void outputOnError(Exception e) {
+    private void outputOnError(@Nullable Exception e) {
         if (e instanceof VersionConflictEngineException == false) {
             LOGGER.info("");
             LOGGER.info("-----------------------------------------------------------------");
             LOGGER.info("");
-            LOGGER.info("Failed to set the password for the elastic and kibana-system users ");
-            LOGGER.info("automatically");
+            LOGGER.info("Unable set the password for the elastic and kibana_system users ");
+            LOGGER.info("automatically.");
             LOGGER.info("");
             LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password'");
             LOGGER.info("in order to set the password for the elastic user.");
@@ -112,6 +113,9 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
             LOGGER.info("");
             LOGGER.info("-----------------------------------------------------------------");
             LOGGER.info("");
+        }
+        if (null != e)  {
+            LOGGER.warn("Error initializing passwords for elastic and kibana_system users", e);
         }
     }
 }

@@ -47,7 +47,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
@@ -1400,7 +1400,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertNoFailures(response);
 
         assertThat(response.getProfileResults().size(), equalTo(1));
-        ProfileShardResult shardResult = response.getProfileResults().get(response.getProfileResults().keySet().toArray()[0]);
+        SearchProfileQueryPhaseResult shardResult = response.getProfileResults().get(response.getProfileResults().keySet().toArray()[0]);
         assertThat(shardResult.getQueryProfileResults().size(), equalTo(1));
         QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
         assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));

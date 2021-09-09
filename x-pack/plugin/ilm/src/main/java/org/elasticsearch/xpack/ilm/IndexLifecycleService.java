@@ -54,10 +54,10 @@ import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
@@ -429,15 +429,16 @@ public class IndexLifecycleService
             return Collections.emptySet();
         }
 
-        Set<String> indicesPreventingShutdown = StreamSupport.stream(state.metadata().indices().spliterator(), false)
+        Set<String> indicesPreventingShutdown = state.metadata().indices().stream()
             // Filter out to only consider managed indices
-            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.value.getSettings())))
+            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(
+                indexToMetadata.getValue().getSettings())))
             // Only look at indices in the shrink action
             .filter(indexToMetadata ->
-                ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getAction()))
+                ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getAction()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
             .filter(indexToMetadata -> {
-                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getStep();
+                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getStep();
                 return SetSingleNodeAllocateStep.NAME.equals(step) ||
                     CheckShrinkReadyStep.NAME.equals(step) ||
                     ShrinkStep.NAME.equals(step) ||
@@ -445,11 +446,11 @@ public class IndexLifecycleService
             })
             // Only look at indices where the node picked for the shrink is the node marked as shutting down
             .filter(indexToMetadata -> {
-                String nodePicked = indexToMetadata.value.getSettings()
+                String nodePicked = indexToMetadata.getValue().getSettings()
                     .get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id");
                 return nodeId.equals(nodePicked);
             })
-            .map(indexToMetadata -> indexToMetadata.key)
+            .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         logger.trace("with nodes marked as shutdown for removal {}, indices {} are preventing shutdown",
             shutdownNodes, indicesPreventingShutdown);

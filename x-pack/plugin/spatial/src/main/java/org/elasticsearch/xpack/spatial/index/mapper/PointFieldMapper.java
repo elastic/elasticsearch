@@ -20,11 +20,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
@@ -90,7 +90,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        public FieldMapper build(ContentPath contentPath) {
+        public FieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
@@ -109,8 +109,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 nullValue.get(),
                 ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft
-                = new PointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
-            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+                = new PointFieldType(context.buildFullName(name), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
+            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), parser, this);
         }
 

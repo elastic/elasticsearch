@@ -68,7 +68,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -77,6 +76,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -835,7 +835,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
-            FieldMapper mapper = (FieldMapper) builder.build(new ContentPath());
+            FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.ROOT);
 
             MappedFieldType fieldType = mapper.fieldType();
 

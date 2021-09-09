@@ -904,6 +904,8 @@ error includes field name:
       indices.create:
         index:  test
         body:
+          settings:
+            index.number_of_shards: 1
           mappings:
             properties:
               keyword:

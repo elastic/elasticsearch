@@ -27,7 +27,7 @@ or `manage` <<privileges-list-indices,index privilege>> for the target index.
 ==== {api-description-title}
 
 Deleting an index deletes its documents, shards, and metadata. It does not
-delete related {kib} components, such as index patterns, visualizations, or
+delete related {kib} components, such as {data-sources}, visualizations, or
 dashboards.
 
 You cannot delete the current write index of a data stream. To delete the

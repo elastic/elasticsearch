@@ -73,9 +73,6 @@ can <<modules-cross-cluster-search,search across clusters>> and set up {ccr}.
 To complete this tutorial, you need:
 
 * A license on both clusters that includes {ccr}. {kibana-ref}/managing-licenses.html[Activate a free 30-day trial].
-* At least one <<remote-clusters-connect,connected remote cluster>>.
-* Configured <<remote-clusters-privileges-ccr,user privileges>> on both the
-remote and local cluster.
 * An index on the remote cluster that contains the data you want to replicate.
 This tutorial uses the sample eCommerce orders data set.
 {kibana-ref}/get-started.html#gs-get-data-into-kibana[Load sample data].
@@ -102,7 +99,8 @@ example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
 [%collapsible%open]
 .API example
 ====
-Use the <<cluster-update-settings,cluster update settings API>> to add a remote cluster:
+You can also use the <<cluster-update-settings,cluster update settings API>> to 
+add a remote cluster:
 
 [source,console]
 ----
@@ -169,6 +167,8 @@ soft deletes enabled, you must reindex it and use the new index as the leader
 index. Soft deletes are enabled by default on new indices
 created with {es} 7.0.0 and later.
 
+include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[tag=configure-ccr-privileges]
+
 [[ccr-getting-started-follower-index]]
 ==== Create a follower index to replicate a specific index
 When you create a follower index, you reference the remote cluster and the
@@ -200,10 +200,9 @@ image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib
 [%collapsible%open]
 .API example
 ====
-Use the <<ccr-put-follow,create follower API>> to create follower indices.
-When you create a follower index, you must reference the remote cluster and the
-leader index that you created in the
-remote cluster.
+You can also use the <<ccr-put-follow,create follower API>> to create follower 
+indices. When you create a follower index, you must reference the remote cluster 
+and the leader index that you created in the remote cluster.
 
 When initiating the follower request, the response returns before the
 <<ccr-remote-recovery, remote recovery>> process completes. To wait for the process

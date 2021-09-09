@@ -2,15 +2,14 @@
 == Remote clusters
 
 You can connect a local cluster to other {es} clusters, known as _remote
-clusters_. Once connected, you can search remote clusters using
+clusters_. To register a remote cluster,
+<<remote-clusters-connect,connect the local cluster>> to nodes in the
+remote cluster using <<sniff-mode,sniff mode>> (default) or
+<<proxy-mode,proxy mode>>. 
+
+Once connected, you can search remote clusters using
 <<modules-cross-cluster-search,{ccs}>>. You can also sync data between clusters
 using <<xpack-ccr,{ccr}>>.
-
-To register a remote cluster, connect the local cluster to nodes in the
-remote cluster using one of two connection modes:
-
-* <<sniff-mode,Sniff mode>>
-* <<proxy-mode,Proxy mode>>
 
 Your local cluster uses the <<modules-network,transport layer>> to establish
 communication with remote clusters. The coordinating nodes in the local cluster
@@ -18,8 +17,8 @@ establish <<long-lived-connections,long-lived>> TCP connections with specific
 nodes in the remote cluster. {es} requires these connections to remain open,
 even if the connections are idle for an extended period.
 
-You can use the <<cluster-remote-info, remote cluster info API>> to get
-information about registered remote clusters. If you're enabling and configuring
+Use the <<cluster-remote-info, remote cluster info API>> to get information
+about registered remote clusters. If you're enabling and configuring
 security for {es}, refer to 
 <<remote-clusters-security,remote clusters and security>>.
 
@@ -40,7 +39,7 @@ The _gateway nodes_ selection depends on the following criteria:
 
 * *version*: Remote nodes must be compatible with the cluster they are
 registered to, similar to the rules for
-<<rolling-upgrades>>:
+<<rolling-upgrades,rolling upgrades>>:
 ** Any node can communicate with another node on the same
 major version. For example, 7.0 can talk to any 7.x node.
 ** Only nodes on the last minor version of a certain major version can
@@ -51,7 +50,7 @@ symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
 communicate with 6.7. The following table depicts version compatibility between
 local and remote nodes.
 +
-[%collapsible]
+[%collapsible%open]
 .Version compatibility table
 ====
 // tag::remote-cluster-compatibility-matrix[]
@@ -72,7 +71,7 @@ h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 
 * *role*: Dedicated master nodes are never selected as gateway nodes.
 * *attributes*: You can tag which nodes should be selected
-(see <<remote-cluster-settings>>), though such tagged nodes still have
+(see <<remote-clusters-settings,remote cluster settings>>), though such tagged nodes still have
 to satisfy the two above requirements.
 
 [[proxy-mode]]
@@ -87,7 +86,7 @@ nodes to have accessible publish addresses.
 The proxy mode is not the default connection mode and must be configured. Similar
 to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
-<<rolling-upgrades>>.
+<<rolling-upgrades,rolling upgrades>>.
 
 include::cluster/remote-clusters-connect.asciidoc[]
 include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[]

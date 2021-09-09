@@ -1,10 +1,10 @@
 [[remote-clusters-security]]
 === Configure remote clusters with security
-To use remote clusters with {ccr} or {ccs}, all clusters must have the {es} 
+To use {ccr} or {ccs} with secured clusters, all clusters must have the {es} 
 security features enabled.
 
 The local cluster must be allowed to connect to the remote clusters, which means 
-that the certificate authority (CA) used to sign the TLS key of the local
+that the certificate authority (CA) used to sign the keystore of the local
 cluster must be trusted by the remote clusters.
 
 User authentication is performed on the local cluster and the user and user’s 
@@ -19,8 +19,9 @@ configuration tasks:
 setting `xpack.security.enabled` to `true`. Refer to the
 <<general-security-settings,{es} security settings>>.
 
-. Encrypt internode communications with TLS on every node to establish a trust 
-relationship between the local cluster and all remote clusters. Refer to 
+. Encrypt internode communications with Transport Layer Security (TLS) on every
+node to establish a trust relationship between the local cluster and all remote
+clusters. Refer to 
 <<security-basic-setup,set up basic security for the {stack}>> for the required
 steps to configure security.
 +

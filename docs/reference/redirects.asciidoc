@@ -1143,7 +1143,7 @@ For other information, see:
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
-* <<modules-remote-clusters>>
+* <<remote-clusters>>
 
 [role="exclude",id="modules-http"]
 === HTTP

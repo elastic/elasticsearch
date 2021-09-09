@@ -5,7 +5,7 @@
 clusters. For example, you can use a {ccs} to filter and analyze log data stored
 on clusters in different data centers.
 
-IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
+IMPORTANT: {ccs-cap} requires <<remote-clusters,remote clusters>>.
 
 [discrete]
 [[ccs-supported-apis]]

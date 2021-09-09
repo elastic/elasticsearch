@@ -18,7 +18,9 @@ retrieve roles dynamically. When you use the APIs to manage roles in the
 The following requests use the
 <<security-api-put-role,create or update roles API>>.
 
+
 [[remote-clusters-privileges-ccr]]
+//tag::configure-ccr-privileges[]
 ==== Configure privileges for {ccr}
 The {ccr} user requires different cluster and index privileges on the remote
 cluster and local cluster. If necessary,
@@ -26,7 +28,6 @@ cluster and local cluster. If necessary,
 to.
 
 [discrete]
-[[clusters-privileges-ccr-remote]]
 ===== Remote cluster
 On the remote cluster that contains the leader index, the `ccr_user` requires
 the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
@@ -58,7 +59,6 @@ PUT /_security/role/ccr_user
 ----
 
 [discrete]
-[[clusters-privileges-ccr-local]]
 ===== Local cluster
 On the local cluster that contains the follower index, the `ccr_user` requires
 the `manage_ccr` cluster privilege, and `monitor`, `read`, `write`, and
@@ -96,7 +96,7 @@ PUT /_security/role/ccr_user
 After creating the `ccr_user` role on each cluster,
 <<security-api-put-role-mapping,map the role>> to each user that requires {ccr}
 capabilities. For example, the following request assigns the
-`ccr_user` role to a user named `alice1`:
+`ccr_user` role to a user named `my_admin_role`:
 
 [source,console]
 ----
@@ -111,8 +111,9 @@ PUT /_security/role_mapping/mapping1
 ----
 // TEST[continued]
 
+//end::configure-ccr-privileges[]
 
-You can then <<ccr-getting-started,configure {ccr}>> to replicate your data
+You can then <<ccr-getting-started-tutorial,configure {ccr}>> to replicate your data
 across datacenters. 
 
 [[remote-clusters-privileges-ccs]]
@@ -123,7 +124,6 @@ cluster and local cluster. If necessary,
 to.
 
 [discrete]
-[[clusters-privileges-ccs-remote]]
 ===== Remote cluster
 On the remote cluster, the `ccs_user` requires the `read` and
 `read_cross_cluster` privileges for the target indices.
@@ -151,7 +151,6 @@ PUT /_security/role/ccs_user
 ----
 
 [discrete]
-[[clusters-privileges-ccs-local]]
 ===== Local cluster
 On the local cluster, which is the cluster used to initiate cross cluster
 search, a user only needs the `ccs_user` role. The role privileges for this user
@@ -167,7 +166,7 @@ PUT /_security/role/ccs_user
 After creating the `ccs_user` role on each cluster,
 <<security-api-put-role-mapping,map the role>> to each user that requires {ccs}
 capabilities. For example, the following request assigns the `ccs_user` role to
-a user named `alice1`:
+a user named `my_admin_role`:
 
 [source,console]
 ----

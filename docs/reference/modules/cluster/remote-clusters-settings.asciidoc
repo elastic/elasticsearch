@@ -27,7 +27,7 @@ described separately.
   targeting remote clusters must be sent to a node that is allowed to act as a
   cross-cluster client. Other features such as {ml} <<general-ml-settings,data
   feeds>>, <<general-transform-settings,transforms>>, and
-  <<ccr-getting-started,{ccr}>> require the `remote_cluster_client` role.
+  <<ccr-getting-started-tutorial,{ccr}>> require the `remote_cluster_client` role.
 
 `cluster.remote.<cluster_alias>.skip_unavailable`::
 

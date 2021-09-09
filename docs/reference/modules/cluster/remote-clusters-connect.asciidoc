@@ -1,6 +1,7 @@
 [[remote-clusters-connect]]
 === Connect to remote clusters
-To replicate an index on a remote cluster (Cluster A) to a local cluster (Cluster B), you configure Cluster A as a remote on Cluster B.
+To connect a remote cluster (Cluster A) to a local cluster (Cluster B), you
+configure Cluster A as a remote on Cluster B.
 
 image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and ClusterB contains the follower index]
 
@@ -13,7 +14,9 @@ example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
 `192.168.1.1:9300`.
 
 Alternatively, use the <<cluster-update-settings,cluster update settings API>>
-to add a remote cluster:
+to add a remote cluster. You can also use this API to 
+<<configure-remote-clusters-dynamic,dynamically configure>> remote settings on
+every node in the cluster:
 
 [source,console]
 ----
@@ -37,8 +40,8 @@ PUT /_cluster/settings
 <1> Specifies the hostname and transport port of a seed node in the remote
     cluster.
 
-You can verify that the local cluster is successfully connected to the remote
-cluster.
+You can use the <<cluster-remote-info,remote cluster info API>> to verify that
+the local cluster is successfully connected to the remote cluster:
 
 [source,console]
 ----
@@ -80,7 +83,7 @@ settings <<configure-remote-clusters-static,on individual nodes>> in the
 ==== Dynamically configure remote clusters
 Use the <<cluster-update-settings,cluster update settings API>> to dynamically
 configure remote settings on every node in the cluster. The following request
-adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`:
+adds three remote clusters: `cluster_one`, `cluster_two`, and `cluster_three`:
 
 [source,console]
 ----

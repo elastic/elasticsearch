@@ -7,6 +7,8 @@
       features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my_ds] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
         body:

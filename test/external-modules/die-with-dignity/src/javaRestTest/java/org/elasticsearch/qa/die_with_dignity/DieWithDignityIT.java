@@ -8,7 +8,6 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -17,49 +16,32 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77282")
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
         // there should be an Elasticsearch process running with the die.with.dignity.test system property
         {
-            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
-
-            boolean found = false;
-            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-                String line;
-                while ((line = in.readLine()) != null) {
-                    if (line.contains("-Ddie.with.dignity.test=true")) {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            assertTrue(found);
+            final Map<String, String> jvmCommandLines = getJvmCommandLines();
+            final boolean found = jvmCommandLines.values().stream().anyMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
+            assertTrue(String.join(",", jvmCommandLines.values()), found);
         }
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
-            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
-
-            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-                String line;
-                while ((line = in.readLine()) != null) {
-                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test=true")));
-                }
-            }
+            final Map<String, String> jvmCommandLines = getJvmCommandLines();
+            final boolean notFound = jvmCommandLines.values().stream().noneMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
+            assertTrue(String.join(",", jvmCommandLines.values()), notFound);
         });
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
@@ -93,6 +75,44 @@ public class DieWithDignityIT extends ESRestTestCase {
             debugLogs(path);
             throw ae;
         }
+    }
+
+    private Map<String, String> getJvmCommandLines() throws IOException {
+        /*
+         * jps will truncate the command line to 1024 characters; so we collect the pids and then run jcmd <pid> VM.command_line to get the
+         * full command line.
+         */
+        final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
+        final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
+
+        final List<String> pids = new ArrayList<>();
+        try (
+            InputStream is = process.getInputStream();
+            BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
+        ) {
+            String line;
+            while ((line = in.readLine()) != null) {
+                pids.add(line.substring(0, line.indexOf(' ')));
+            }
+        }
+
+        final String jcmdPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jcmd").toString();
+        final Map<String, String> jvmCommandLines = new HashMap<>();
+        for (final String pid : pids) {
+            final Process jcmdProcess = new ProcessBuilder().command(jcmdPath, pid, "VM.command_line").start();
+            try (
+                InputStream is = jcmdProcess.getInputStream();
+                BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
+            ) {
+                String line;
+                while ((line = in.readLine()) != null) {
+                    if (line.startsWith("jvm_args")) {
+                        jvmCommandLines.put(pid, line);
+                    }
+                }
+            }
+        }
+        return jvmCommandLines;
     }
 
     private boolean containsAll(String line, String... subStrings) {

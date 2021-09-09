@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -224,19 +226,31 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
 
             private final String modelId;
+            private AllocationState state;
+            private AllocationStatus allocationStatus;
+            private String reason;
             private final ByteSizeValue modelSize;
             private final List<NodeStats> nodeStats;
 
-            public AllocationStats(String modelId, ByteSizeValue modelSize, List<NodeStats> nodeStats) {
+            public AllocationStats(
+                String modelId,
+                ByteSizeValue modelSize,
+                List<NodeStats> nodeStats
+            ) {
                 this.modelId = modelId;
                 this.modelSize = modelSize;
                 this.nodeStats = nodeStats;
+                this.state = null;
+                this.reason = null;
             }
 
             public AllocationStats(StreamInput in) throws IOException {
                 modelId = in.readString();
                 modelSize = in.readOptionalWriteable(ByteSizeValue::new);
                 nodeStats = in.readList(NodeStats::new);
+                state = in.readOptionalEnum(AllocationState.class);
+                reason = in.readOptionalString();
+                allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
             }
 
             public String getModelId() {
@@ -251,12 +265,44 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 return nodeStats;
             }
 
+            public AllocationState getState() {
+                return state;
+            }
+
+            public AllocationStats setState(AllocationState state) {
+                this.state = state;
+                return this;
+            }
+
+            public AllocationStats setAllocationStatus(AllocationStatus allocationStatus) {
+                this.allocationStatus = allocationStatus;
+                return this;
+            }
+
+            public String getReason() {
+                return reason;
+            }
+
+            public AllocationStats setReason(String reason) {
+                this.reason = reason;
+                return this;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field("model_id", modelId);
                 if (modelSize != null) {
                     builder.field("model_size", modelSize);
+                }
+                if (state != null) {
+                    builder.field("state", state);
+                }
+                if (reason != null) {
+                    builder.field("reason", reason);
+                }
+                if (allocationStatus != null) {
+                    builder.field("allocation_status", allocationStatus);
                 }
                 builder.startArray("nodes");
                 for (NodeStats nodeStat : nodeStats){
@@ -272,6 +318,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 out.writeString(modelId);
                 out.writeOptionalWriteable(modelSize);
                 out.writeList(nodeStats);
+                out.writeOptionalEnum(state);
+                out.writeOptionalString(reason);
+                out.writeOptionalWriteable(allocationStatus);
             }
 
             @Override
@@ -281,12 +330,15 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 AllocationStats that = (AllocationStats) o;
                 return Objects.equals(modelId, that.modelId) &&
                     Objects.equals(modelSize, that.modelSize) &&
+                    Objects.equals(state, that.state) &&
+                    Objects.equals(reason, that.reason) &&
+                    Objects.equals(allocationStatus, that.allocationStatus) &&
                     Objects.equals(nodeStats, that.nodeStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, modelSize, nodeStats);
+                return Objects.hash(modelId, modelSize, nodeStats, state, reason, allocationStatus);
             }
         }
 
@@ -346,12 +398,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
          *
          * @param tasksResponse All the responses from the tasks
          * @param nonStartedModelRoutes Non-started routes
+         * @param nodes current cluster nodes
          * @return The result of merging tasksResponse and the non-started routes
          */
         public static GetDeploymentStatsAction.Response addFailedRoutes(
             GetDeploymentStatsAction.Response tasksResponse,
             Map<String, Map<String, RoutingStateAndReason>> nonStartedModelRoutes,
-            DiscoveryNodes nodes) {
+            DiscoveryNodes nodes
+        ) {
 
             List<GetDeploymentStatsAction.Response.AllocationStats> updatedAllocationStats = new ArrayList<>();
 

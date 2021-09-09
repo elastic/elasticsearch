@@ -27,6 +27,7 @@ dependencies {
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
+  api project(":libs:elasticsearch-lz4")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 
@@ -49,9 +50,6 @@ dependencies {
   // utilities
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
-
-  // LZ4
-  api 'org.lz4:lz4-java:1.8.0'
 
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
@@ -249,11 +247,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-
-    ignoreViolations(
-      // from java-lz4
-      'net.jpountz.util.UnsafeUtils'
-    )
 }
 
 tasks.named("dependencyLicenses").configure {

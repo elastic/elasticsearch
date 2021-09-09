@@ -24,8 +24,6 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.hamcrest.CoreMatchers;
 
-import java.util.List;
-
 public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
     @Override
     protected XContentBuilder createDefaultMapping() throws Exception {

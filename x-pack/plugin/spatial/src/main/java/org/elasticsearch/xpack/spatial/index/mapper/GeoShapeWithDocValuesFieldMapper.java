@@ -25,7 +25,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -114,7 +114,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public GeoShapeWithDocValuesFieldMapper build(ContentPath contentPath) {
+        public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
@@ -128,7 +128,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 ignoreZValue.get().value());
             GeoShapeParser parser = new GeoShapeParser(geometryParser);
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
@@ -136,7 +136,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 meta.get());
             return new GeoShapeWithDocValuesFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
+                multiFieldsBuilder.build(this, context), copyTo.build(),
                 new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()), parser, this);
         }
 

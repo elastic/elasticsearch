@@ -1,5 +1,5 @@
 {
-  "nodes.get_metering_info":{
+  "nodes.get_repositories_metering_info":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-repositories-metering-api.html",
       "description":"Returns cluster repositories metering information."

@@ -13,11 +13,15 @@ into the following two groups and upgrade the groups in this order:
 . Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
 of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
 configured with `node.master: false`.
+.. If you are using data tiers, you should
+upgrade the nodes by tier starting with frozen, cold, warm then hot-content tier.
+This is to ensure ILM can continue to move between the phases and ensure version
+compatibility.
+.. If you are not using data tiers, you may upgrade the nodes within the group in any order.
+
 
 . Master-eligible nodes, which are the remaining nodes. You can retrieve a list
 of these nodes with `GET /_nodes/master:true`.
-
-You may upgrade the nodes within each of these groups in any order.
 
 Upgrading the nodes in this order ensures that the master-ineligible nodes are
 always running a version at least as new as the master-eligible nodes. Newer

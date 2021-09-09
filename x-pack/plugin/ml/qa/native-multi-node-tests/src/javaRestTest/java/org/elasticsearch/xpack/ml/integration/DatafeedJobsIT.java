@@ -402,7 +402,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             );
             updateDatafeed(new DatafeedUpdate.Builder()
                 .setId(compositeDatafeedConfig.getId())
-                // Set to auto to speed up and finish the job
                 .setParsedAggregations(aggs)
                 .build());
             startDatafeed(
@@ -416,7 +415,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         List<Bucket> scrollBuckets = getBuckets(scrollJobId);
         List<Bucket> compositeBuckets = getBuckets(compositeJobId);
         assertThat(
-            "composite bucket size " + scrollBuckets + " does not equal scroll bucket size" + compositeBuckets,
+            "scroll bucket size " + scrollBuckets + " does not equal composite bucket size" + compositeBuckets,
             compositeBuckets.size(),
             equalTo(scrollBuckets.size())
         );

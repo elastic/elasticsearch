@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.PrintStream;
 import java.util.Dictionary;
 import java.util.Enumeration;
 
@@ -18,6 +19,8 @@ import java.util.Enumeration;
  */
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
+
+    private static PrintStream originalStandardOut;
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -45,6 +48,11 @@ public final class BootstrapInfo {
     public static boolean isSystemCallFilterInstalled() {
         return Natives.isSystemCallFilterInstalled();
     }
+
+    /**
+     * Returns a reference to the original System.out
+     */
+    public static PrintStream getOriginalStandardOut() { return originalStandardOut; }
 
     /**
      * codebase location for untrusted scripts (provide some additional safety)
@@ -110,7 +118,8 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init() {
+    public static void init(PrintStream originalStandardOut) {
+        BootstrapInfo.originalStandardOut = originalStandardOut;
     }
 
 }

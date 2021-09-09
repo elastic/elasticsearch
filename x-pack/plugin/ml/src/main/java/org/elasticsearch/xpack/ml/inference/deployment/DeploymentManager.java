@@ -132,12 +132,12 @@ public class DeploymentManager {
                 assert modelConfig.getInferenceConfig() instanceof NlpConfig;
                 NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
 
-                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig());
+                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
                     searchVocabResponse -> {
                         if (searchVocabResponse.getHits().getHits().length == 0) {
                             listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
-                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), nlpConfig.getVocabularyConfig().getId())));
+                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), VocabularyConfig.docId(modelConfig.getModelId()))));
                             return;
                         }
 
@@ -161,9 +161,9 @@ public class DeploymentManager {
             getModelListener);
     }
 
-    private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig) {
+    private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
         return client.prepareSearch(vocabularyConfig.getIndex())
-            .setQuery(new IdsQueryBuilder().addIds(vocabularyConfig.getId()))
+            .setQuery(new IdsQueryBuilder().addIds(VocabularyConfig.docId(modelId)))
             .setSize(1)
             .setTrackTotalHits(false)
             .request();

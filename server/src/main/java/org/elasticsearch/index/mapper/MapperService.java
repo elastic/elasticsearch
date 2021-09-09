@@ -548,11 +548,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return null;
     }
 
+    /**
+     * Check that the resolved type can be used for indexing or deletions
+     */
     public void validateType(String type) {
         if (mapper == null) {
-            return;
-        }
-        if (DEFAULT_MAPPING.equals(type)) {
             return;
         }
         if (type.equals(mapper.type()) == false) {

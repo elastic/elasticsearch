@@ -299,15 +299,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotInfo snapshotInRepo1 = createFullSnapshot(repoName1, snapshotName);
         final SnapshotInfo weirdSnapshot1InRepo1 = createFullSnapshot(repoName1, weirdSnapshot1);
-        createFullSnapshot(repoName1, weirdSnapshot2);
+        final SnapshotInfo weirdSnapshot2InRepo1 = createFullSnapshot(repoName1, weirdSnapshot2);
 
         final SnapshotInfo snapshotInWeird1 = createFullSnapshot(weirdRepo1, snapshotName);
         final SnapshotInfo weirdSnapshot1InWeird1 = createFullSnapshot(weirdRepo1, weirdSnapshot1);
-        createFullSnapshot(weirdRepo1, weirdSnapshot2);
+        final SnapshotInfo weirdSnapshot2InWeird1 = createFullSnapshot(weirdRepo1, weirdSnapshot2);
 
         final SnapshotInfo snapshotInWeird2 = createFullSnapshot(weirdRepo2, snapshotName);
         final SnapshotInfo weirdSnapshot1InWeird2 = createFullSnapshot(weirdRepo2, weirdSnapshot1);
-        createFullSnapshot(weirdRepo2, weirdSnapshot2);
+        final SnapshotInfo weirdSnapshot2InWeird2 = createFullSnapshot(weirdRepo2, weirdSnapshot2);
 
         final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSort(GetSnapshotsRequest.SortBy.REPOSITORY)
@@ -338,6 +338,34 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     snapshotInWeird2,
                     weirdSnapshot1InRepo1,
                     snapshotInRepo1
+                )
+            )
+        );
+        assertThat(getAllByPatterns(matchAllPattern(), new String[] { "non-existing*", weirdSnapshot1 }), empty());
+        assertThat(
+            getAllByPatterns(matchAllPattern(), new String[] { "*", "--weird-snapshot-1" }),
+            is(
+                List.of(
+                    weirdSnapshot2InWeird1,
+                    snapshotInWeird1,
+                    weirdSnapshot2InWeird2,
+                    snapshotInWeird2,
+                    weirdSnapshot2InRepo1,
+                    snapshotInRepo1
+                )
+            )
+        );
+        assertThat(
+            getAllByPatterns(matchAllPattern(), new String[] { "-*" }),
+            is(
+                List.of(
+                    weirdSnapshot1InWeird1,
+                    weirdSnapshot2InWeird1,
+                    weirdSnapshot1InWeird2,
+                    weirdSnapshot2InWeird2,
+                    weirdSnapshot1InRepo1,
+                    weirdSnapshot2InRepo1
+
                 )
             )
         );

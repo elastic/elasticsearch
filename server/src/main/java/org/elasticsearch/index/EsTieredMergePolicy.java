@@ -41,7 +41,7 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext) throws IOException {
-        return forcedMergePolicy.findForcedDeletesMerges(infos, mergeContext);
+        return regularMergePolicy.findForcedDeletesMerges(infos, mergeContext);
     }
 
     public void setForceMergeDeletesPctAllowed(double forceMergeDeletesPctAllowed) {

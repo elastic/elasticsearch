@@ -34,7 +34,6 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
         return new FetchSubPhaseProcessor() {
             private int fastPath;
-            private int loadedNested;
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
@@ -68,7 +67,6 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 // Otherwise, filter the source and add it to the hit.
                 Object value = source.filter(fetchSourceContext);
                 if (nestedHit) {
-                    loadedNested++;
                     value = getNestedSource((Map<String, Object>) value, hitContext);
                 }
 
@@ -95,7 +93,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
             @Override
             public Map<String, Object> getDebugInfo() {
-                return Map.of("fast_path", fastPath, "loaded_nested", loadedNested);
+                return Map.of("fast_path", fastPath);
             }
         };
     }

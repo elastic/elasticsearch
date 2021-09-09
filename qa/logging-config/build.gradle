@@ -6,14 +6,8 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.standalone-test'
 
-testClusters.all {
-  setting 'xpack.security.enabled', 'false'
-}
 
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'

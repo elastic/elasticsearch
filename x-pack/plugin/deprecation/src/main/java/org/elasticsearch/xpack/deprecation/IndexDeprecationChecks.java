@@ -180,7 +180,7 @@ public class IndexDeprecationChecks {
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Multi-fields within multi-fields",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.3.html" +
                     "#_defining_multi_fields_within_multi_fields",
                 "The names of fields that contain chained multi-fields: " + issues, false, null);
         }
@@ -208,8 +208,7 @@ public class IndexDeprecationChecks {
         if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "Index mapping contains explicit `_field_names` enabling settings.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                            "#fieldnames-enabling",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names",
                     "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
                 false, null);
         }
@@ -270,7 +269,8 @@ public class IndexDeprecationChecks {
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "translog retention settings are ignored",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/index-modules-translog.html" +
+                        "#index-modules-translog-retention",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
                         "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false, null);
@@ -302,8 +302,8 @@ public class IndexDeprecationChecks {
         if (setting.exists(indexMetadata.getSettings())) {
             final String message = String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version", setting.getKey());
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html" +
-                "#slow-log-level-removal";
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/migrating-7.13.html" +
+                "#breaking_713_infra_core_deprecations";
 
             final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
                 setting.getKey());
@@ -317,7 +317,7 @@ public class IndexDeprecationChecks {
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "[simplefs] is deprecated and will be removed in future versions",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/index-modules-store.html#file-system",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
                     "as it offers superior or equivalent performance to [simplefs].", false, null);
@@ -344,7 +344,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_REQUIRE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -352,7 +352,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_INCLUDE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -360,7 +360,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_EXCLUDE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             DeprecationIssue.Level.CRITICAL
         );
     }

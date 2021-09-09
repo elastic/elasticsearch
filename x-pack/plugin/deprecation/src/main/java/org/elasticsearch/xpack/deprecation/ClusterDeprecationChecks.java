@@ -68,8 +68,7 @@ public class ClusterDeprecationChecks {
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "User-Agent ingest plugin will always use ECS-formatted output",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#ingest-user-agent-ecs-always",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/user-agent-processor.html#user-agent-processor",
                 "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig +
                     " uses the [ecs] option which needs to be removed to work in 8.0", false, null);
         }
@@ -133,7 +132,7 @@ public class ClusterDeprecationChecks {
 
         if (templatesContainingFieldNames.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names",
                     "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
                             + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
                                     + "in the next major version and needs to be removed from existing mappings and templates.",
@@ -194,7 +193,7 @@ public class ClusterDeprecationChecks {
         }
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Some index templates contain multiple mapping types",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/removal-of-types.html",
             "Index templates " + templatesWithMultipleTypes
             + " define multiple types and so will cause errors when used in index creation",
             false,
@@ -204,7 +203,7 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
         return checkRemovedSetting(clusterState.metadata().settings(),
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
             DeprecationIssue.Level.WARNING
         );
     }

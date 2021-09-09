@@ -7,18 +7,18 @@
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.elasticsearch.Version;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -363,7 +363,6 @@ public class TestUtils {
     public static class AssertingLicenseState extends XPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
-        public final List<Version> trialVersionUpdates = new ArrayList<>();
         public final List<Long> expirationDateUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
@@ -371,16 +370,15 @@ public class TestUtils {
         }
 
         @Override
-        protected void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+        protected void update(License.OperationMode mode, boolean active, long expirationDate) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
             expirationDateUpdates.add(expirationDate);
-            trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, long, Version)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, long)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -393,8 +391,8 @@ public class TestUtils {
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
-            super.update(mode, active, expirationDate, mostRecentTrialVersion);
+        public void update(License.OperationMode mode, boolean active, long expirationDate) {
+            super.update(mode, active, expirationDate);
         }
     }
 

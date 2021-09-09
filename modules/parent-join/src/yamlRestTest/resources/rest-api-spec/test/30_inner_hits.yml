@@ -146,6 +146,3 @@ profile fetch:
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.0.children.0.type: question }
-  - match: { profile.shards.0.fetch.children.0.children.0.children.0.type: source }
-  - match: { profile.shards.0.fetch.children.0.children.0.children.0.debug.loaded_nested: 0 }

@@ -54,12 +54,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -226,12 +226,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public WildcardFieldMapper build(ContentPath contentPath) {
+        public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 name,
-                new WildcardFieldType(buildFullName(contentPath), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
-                multiFieldsBuilder.build(this, contentPath),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 nullValue.get(),
                 indexVersionCreated

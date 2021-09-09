@@ -12,10 +12,10 @@ import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import org.hamcrest.Matchers;
@@ -28,7 +28,9 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper
-            = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
+            = new GeoShapeFieldMapper.Builder("field", true, true)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
             List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
@@ -94,7 +96,8 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
         final MappedFieldType mapper
             = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
-            .build(new ContentPath()).fieldType();
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);

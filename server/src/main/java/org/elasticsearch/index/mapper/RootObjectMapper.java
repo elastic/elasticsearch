@@ -95,8 +95,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public RootObjectMapper build(ContentPath contentPath) {
-            return new RootObjectMapper(name, enabled, dynamic, buildMappers(contentPath),
+        public RootObjectMapper build(MapperBuilderContext context) {
+            return new RootObjectMapper(name, enabled, dynamic, buildMappers(true, context),
                 runtimeFields == null ? Collections.emptyMap() : runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -425,8 +425,8 @@ public class RootObjectMapper extends ObjectMapper {
                     if (typeParser == null) {
                         throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
-                    validate(template, dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(new ContentPath(1)));
+                    validate(template, dynamicType, (name, mapping) ->
+                        typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT));
                 }
                 lastError = null; // ok, the template is valid for at least one type
                 break;
@@ -443,7 +443,7 @@ public class RootObjectMapper extends ObjectMapper {
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template",
+                DEPRECATION_LOGGER.critical(DeprecationCategory.TEMPLATES, "invalid_dynamic_template",
                     "{}, last error: [{}]", message, lastError.getMessage());
             }
         }

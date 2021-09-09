@@ -20,6 +20,7 @@ You can use the following APIs to perform {infer} operations:
 
 * <<put-trained-models>>
 * <<put-trained-model-definition-part>>
+* <<put-trained-model-vocabulary>>
 * <<put-trained-models-aliases>>
 * <<delete-trained-models>>
 * <<delete-trained-models-aliases>>

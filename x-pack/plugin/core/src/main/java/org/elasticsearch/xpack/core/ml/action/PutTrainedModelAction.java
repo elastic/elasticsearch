@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -65,11 +64,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TrainedModelConfig(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.deferDefinitionDecompression = in.readBoolean();
-            } else {
-                this.deferDefinitionDecompression = false;
-            }
+            this.deferDefinitionDecompression = in.readBoolean();
         }
 
         public TrainedModelConfig getTrainedModelConfig() {
@@ -100,9 +95,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             config.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBoolean(deferDefinitionDecompression);
-            }
+            out.writeBoolean(deferDefinitionDecompression);
         }
 
         @Override

@@ -10,9 +10,9 @@ package org.elasticsearch.search.lookup;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -62,7 +62,8 @@ public class LeafDocLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(new ContentPath(1));
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field")
+            .build(MapperBuilderContext.ROOT);
         DynamicFieldType fieldType = fieldMapper.fieldType();
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");

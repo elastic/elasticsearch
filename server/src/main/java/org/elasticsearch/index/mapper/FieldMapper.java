@@ -350,7 +350,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(Builder.parentPath(name()));
+        return builder.build(MapperBuilderContext.forPath(Builder.parentPath(name())));
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -394,7 +394,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public static class Builder {
 
-            private final Map<String, Function<ContentPath, FieldMapper>> mapperBuilders = new HashMap<>();
+            private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
 
             public Builder add(FieldMapper.Builder builder) {
                 mapperBuilders.put(builder.name(), builder::build);
@@ -406,11 +406,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
-            public Builder update(FieldMapper toMerge, ContentPath contentPath) {
+            public Builder update(FieldMapper toMerge, MapperBuilderContext context) {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
                     add(toMerge);
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(contentPath);
+                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context);
                     add(existing.merge(toMerge));
                 }
                 return this;
@@ -420,18 +420,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return mapperBuilders.isEmpty() == false;
             }
 
-            public MultiFields build(Mapper.Builder mainFieldBuilder, ContentPath contentPath) {
+            public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
                     Map<String, FieldMapper> mappers = new HashMap<>();
-                    contentPath.add(mainFieldBuilder.name());
-                    for (Map.Entry<String, Function<ContentPath, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
+                    context = context.createChildContext(mainFieldBuilder.name());
+                    for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         String key = entry.getKey();
-                        FieldMapper mapper = entry.getValue().apply(contentPath);
+                        FieldMapper mapper = entry.getValue().apply(context);
                         mappers.put(key, mapper);
                     }
-                    contentPath.remove();
                     return new MultiFields(Collections.unmodifiableMap(mappers));
                 }
             }
@@ -1112,7 +1111,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 param.merge(in, conflicts);
             }
             for (FieldMapper newSubField : in.multiFields) {
-                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
+                multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
             }
             this.copyTo.reset(in.copyTo);
             validate();
@@ -1130,14 +1129,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected abstract List<Parameter<?>> getParameters();
 
         @Override
-        public abstract FieldMapper build(ContentPath context);
-
-        /**
-         * Builds the full name of the field, taking into account parent objects
-         */
-        protected String buildFullName(ContentPath contentPath) {
-            return contentPath.pathAsText(name);
-        }
+        public abstract FieldMapper build(MapperBuilderContext context);
 
         protected void addScriptValidation(
             Parameter<Script> scriptParam,
@@ -1201,7 +1193,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (Objects.equals("boost", propName)) {
                     if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                        deprecationLogger.deprecate(
+                        deprecationLogger.critical(
                             DeprecationCategory.API,
                             "boost",
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
@@ -1214,14 +1206,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecate(DeprecationCategory.API, propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                    deprecationLogger.critical(DeprecationCategory.API, propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
+                        deprecationLogger.critical(DeprecationCategory.API, propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;
@@ -1229,7 +1221,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
-                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
+                        deprecationLogger.critical(DeprecationCategory.API, propName,
                             "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
                             + "Usage will result in an error in future major versions and should be removed.",
                             propName,
@@ -1243,7 +1235,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     );
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.deprecate(DeprecationCategory.API, propName,
+                    deprecationLogger.critical(DeprecationCategory.API, propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName);
                 }

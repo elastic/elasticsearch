@@ -635,7 +635,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, false, true)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
@@ -643,7 +643,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
             .nullValue(2.71f)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
@@ -651,7 +651,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchHalfFloatFromSource() throws IOException {
         MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, false, true)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but

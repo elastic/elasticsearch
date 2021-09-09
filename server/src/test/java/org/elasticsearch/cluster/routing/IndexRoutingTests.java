@@ -7,8 +7,12 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -18,9 +22,69 @@ import java.util.TreeMap;
 import static org.hamcrest.Matchers.hasSize;
 
 public class IndexRoutingTests extends ESTestCase{
+    public void testGenerateShardId() {
+        int[][] possibleValues = new int[][] {
+            {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}
+        };
+        for (int i = 0; i < 10; i++) {
+            int[] shardSplits = randomFrom(possibleValues);
+            assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
+            assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
+            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
+                .numberOfReplicas(1).build();
+            String term = randomAlphaOfLength(10);
+            final int shard = IndexRouting.fromIndexMetadata(metadata).shardId(term, null);
+            IndexMetadata shrunk = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[0]).build();
+            int shrunkShard = IndexRouting.fromIndexMetadata(shrunk).shardId(term, null);
+
+            Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(shrunkShard, metadata, shrunk.getNumberOfShards());
+            assertEquals(1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
+
+            shrunk = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[0]).build();
+            shrunkShard = IndexRouting.fromIndexMetadata(shrunk).shardId(term, null);
+            shardIds = IndexMetadata.selectShrinkShards(shrunkShard, metadata, shrunk.getNumberOfShards());
+            assertEquals(Arrays.toString(shardSplits), 1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
+        }
+    }
+
+    public void testGenerateShardIdSplit() {
+        int[][] possibleValues = new int[][] {
+            {2,4,8}, {2, 10, 20}, {3, 12, 36}, {1,5,15}
+        };
+        for (int i = 0; i < 10; i++) {
+            int[] shardSplits = randomFrom(possibleValues);
+            assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
+            assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
+            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
+                .numberOfReplicas(1).setRoutingNumShards(shardSplits[2]).build();
+            String term = randomAlphaOfLength(10);
+            final int shard = IndexRouting.fromIndexMetadata(metadata).shardId(term, null);
+            IndexMetadata split = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2]).build();
+            int shrunkShard = IndexRouting.fromIndexMetadata(split).shardId(term, null);
+
+            ShardId shardId = IndexMetadata.selectSplitShard(shrunkShard, metadata, split.getNumberOfShards());
+            assertNotNull(shardId);
+            assertEquals(shard, shardId.getId());
+
+            split = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2]).build();
+            shrunkShard = IndexRouting.fromIndexMetadata(split).shardId(term, null);
+            shardId = IndexMetadata.selectSplitShard(shrunkShard, metadata, split.getNumberOfShards());
+            assertNotNull(shardId);
+            assertEquals(shard, shardId.getId());
+        }
+    }
+
     public void testCollectSearchShardsInStandardIndex() {
         for (int shards = 1; shards < 5; shards++) {
-            IndexRouting indexRouting = IndexRouting.build(shards, 1, 1);
+            IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+                IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shards).numberOfReplicas(1).build()
+            );
 
             for (int i = 0; i < 20; i++) {
                 String routing = randomUnicodeOfLengthBetween(1, 50);
@@ -34,9 +98,16 @@ public class IndexRoutingTests extends ESTestCase{
 
     public void testPartitionedIndex() {
         // make sure the same routing value always has each _id fall within the configured partition size
-        for (int shards = 3; shards < 5; shards++) {
-            for (int partitionSize = 2; partitionSize < shards; partitionSize++) {
-                IndexRouting indexRouting = IndexRouting.build(shards, 1, partitionSize);
+        for (int shards = 1; shards < 5; shards++) {
+            for (int partitionSize = 1; partitionSize == 1 || partitionSize < shards; partitionSize++) {
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+                    IndexMetadata.builder("test")
+                        .settings(settings(Version.CURRENT))
+                        .numberOfShards(shards)
+                        .routingPartitionSize(partitionSize)
+                        .numberOfReplicas(1)
+                        .build()
+                );
 
                 for (int i = 0; i < 20; i++) {
                     String routing = randomUnicodeOfLengthBetween(1, 50);
@@ -95,7 +166,15 @@ public class IndexRoutingTests extends ESTestCase{
         routingD.put("d_5", 3);
         routingIdToShard.put("d", routingD);
 
-        IndexRouting indexRouting = IndexRouting.build(8, 2, 3);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .setRoutingNumShards(8)
+                .numberOfShards(4)
+                .routingPartitionSize(3)
+                .numberOfReplicas(1)
+                .build()
+        );
 
         for (Map.Entry<String, Map<String, Integer>> routingIdEntry : routingIdToShard.entrySet()) {
             String routing = routingIdEntry.getKey();
@@ -140,7 +219,14 @@ public class IndexRoutingTests extends ESTestCase{
         routingD.put("d_3", 4);
         routingIdToShard.put("d", routingD);
 
-        IndexRouting indexRouting = IndexRouting.build(6, 1, 2);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(6)
+                .routingPartitionSize(2)
+                .numberOfReplicas(1)
+                .build()
+        );
 
         for (Map.Entry<String, Map<String, Integer>> routingIdEntry : routingIdToShard.entrySet()) {
             String routing = routingIdEntry.getKey();
@@ -258,7 +344,9 @@ public class IndexRoutingTests extends ESTestCase{
         termToShard.put("wRZXPSoEgd", 3);
         termToShard.put("nGzpgwsSBc", 4);
         termToShard.put("AITyyoyLLs", 4);
-        IndexRouting indexRouting = IndexRouting.build(8, 1, 1);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(8).numberOfReplicas(1).build()
+        );
         for (Map.Entry<String, Integer> entry : termToShard.entrySet()) {
             String key = entry.getKey();
             int shard = randomBoolean() ? indexRouting.shardId(key, null) : indexRouting.shardId(randomAlphaOfLength(5), key);

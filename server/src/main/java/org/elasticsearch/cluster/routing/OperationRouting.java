@@ -45,14 +45,30 @@ public class OperationRouting {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
-    public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        return shards(clusterState, index, id, routing).shardsIt();
+    public ShardIterator indexShards(
+        ClusterState clusterState,
+        String index,
+        IndexRouting indexRouting,
+        String id,
+        @Nullable String routing
+    ) {
+        return shards(clusterState, index, indexRouting, id, routing).shardsIt();
     }
 
+    /**
+     * Shards to use for a {@code GET} operation.
+     */
     public ShardIterator getShards(ClusterState clusterState, String index, String id, @Nullable String routing,
                                    @Nullable String preference) {
-        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(),
-            clusterState.nodes(), preference, null, null);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
+        return preferenceActiveShardIterator(
+            shards(clusterState, index, indexRouting, id, routing),
+            clusterState.nodes().getLocalNodeId(),
+            clusterState.nodes(),
+            preference,
+            null,
+            null
+        );
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
@@ -100,15 +116,16 @@ public class OperationRouting {
         final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
-            final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+            final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
             final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
             final Set<String> indexSearchRouting = routing.get(index);
             if (indexSearchRouting != null) {
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
                 for (String r : indexSearchRouting) {
-                    indexMetadata.getIndexRouting().collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRouting, s)));
+                    indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
             } else {
-                for (IndexShardRoutingTable indexShard : indexRouting) {
+                for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                     set.add(indexShard);
                 }
             }
@@ -195,7 +212,7 @@ public class OperationRouting {
         return indexRouting;
     }
 
-    protected IndexMetadata indexMetadata(ClusterState clusterState, String index) {
+    private IndexMetadata indexMetadata(ClusterState clusterState, String index) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);
@@ -203,17 +220,12 @@ public class OperationRouting {
         return indexMetadata;
     }
 
-    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
-        int shardId = generateShardId(indexMetadata(clusterState, index), id, routing);
-        return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
+    private IndexShardRoutingTable shards(ClusterState clusterState, String index, IndexRouting indexRouting, String id, String routing) {
+        return clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.shardId(id, routing));
     }
 
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
-        return new ShardId(indexMetadata.getIndex(), generateShardId(indexMetadata, id, routing));
-    }
-
-    public static int generateShardId(IndexMetadata indexMetadata, @Nullable String id, @Nullable String routing) { // TODO remove?
-        return indexMetadata.getIndexRouting().shardId(id, routing);
+        return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).shardId(id, routing));
     }
 }

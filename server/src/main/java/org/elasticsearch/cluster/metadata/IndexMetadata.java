@@ -392,8 +392,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final IndexLongFieldRange timestampRange;
 
-    private final IndexRouting indexRouting;
-
     private IndexMetadata(
             final Index index,
             final long version,
@@ -452,7 +450,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         this.timestampRange = timestampRange;
-        this.indexRouting = IndexRouting.build(routingNumShards, routingFactor, routingPartitionSize);
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -626,10 +623,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public IndexLongFieldRange getTimestampRange() {
         return timestampRange;
-    }
-
-    public IndexRouting getIndexRouting() {
-        return indexRouting;
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
 
 import java.util.function.IntConsumer;
@@ -17,13 +18,17 @@ import java.util.function.IntConsumer;
  */
 public abstract class IndexRouting {
     /**
-     * Build the routing.
+     * Build the routing from {@link IndexMetadata}.
      */
-    public static IndexRouting build(int routingNumShards, int routingFactor, int routingPartitionSize) {
-        if (routingPartitionSize == 1) {
-            return new Unpartitioned(routingNumShards, routingFactor);
+    public static IndexRouting fromIndexMetadata(IndexMetadata indexMetadata) {
+        if (indexMetadata.getRoutingPartitionSize() == 1) {
+            return new Unpartitioned(indexMetadata.getRoutingNumShards(), indexMetadata.getRoutingFactor());
         }
-        return new Partitioned(routingNumShards, routingFactor, routingPartitionSize);
+        return new Partitioned(
+            indexMetadata.getRoutingNumShards(),
+            indexMetadata.getRoutingFactor(),
+            indexMetadata.getRoutingPartitionSize()
+        );
     }
 
     private final int routingNumShards;

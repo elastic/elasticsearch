@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.network;
@@ -35,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for network utils. Please avoid using any methods that cause DNS lookups!
  */
 public class NetworkUtilsTests extends ESTestCase {
-    
+
     /**
      * test sort key order respects PREFER_IPV4
      */
@@ -45,7 +34,7 @@ public class NetworkUtilsTests extends ESTestCase {
         assertTrue(NetworkUtils.sortKey(localhostv4, false) < NetworkUtils.sortKey(localhostv6, false));
         assertTrue(NetworkUtils.sortKey(localhostv6, true) < NetworkUtils.sortKey(localhostv4, true));
     }
-    
+
     /**
      * test ordinary addresses sort before private addresses
      */
@@ -55,14 +44,14 @@ public class NetworkUtilsTests extends ESTestCase {
         InetAddress ordinary = InetAddress.getByName("192.192.192.192");
         assertTrue(NetworkUtils.sortKey(ordinary, true) < NetworkUtils.sortKey(siteLocal, true));
         assertTrue(NetworkUtils.sortKey(ordinary, false) < NetworkUtils.sortKey(siteLocal, false));
-        
+
         InetAddress siteLocal6 = InetAddress.getByName("fec0::1");
         assert siteLocal6.isSiteLocalAddress();
         InetAddress ordinary6 = InetAddress.getByName("fddd::1");
         assertTrue(NetworkUtils.sortKey(ordinary6, true) < NetworkUtils.sortKey(siteLocal6, true));
         assertTrue(NetworkUtils.sortKey(ordinary6, false) < NetworkUtils.sortKey(siteLocal6, false));
     }
-    
+
     /**
      * test private addresses sort before link local addresses
      */
@@ -73,7 +62,7 @@ public class NetworkUtilsTests extends ESTestCase {
         assertTrue(NetworkUtils.sortKey(ordinary, true) < NetworkUtils.sortKey(linkLocal, true));
         assertTrue(NetworkUtils.sortKey(ordinary, false) < NetworkUtils.sortKey(linkLocal, false));
     }
-    
+
     /**
      * Test filtering out ipv4/ipv6 addresses
      */
@@ -96,10 +85,14 @@ public class NetworkUtilsTests extends ESTestCase {
 
     public void testNonExistingInterface() throws Exception {
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix" , "non-existing"));
+            () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix", "non-existing"));
         assertThat(exception.getMessage(), containsString("setting [settingValue] matched no network interfaces; valid values include"));
-        for (NetworkInterface anInterface : getInterfaces()) {
-            assertThat(exception.getMessage(), containsString(anInterface.getName() + ":suffix"));
-        }
+        final boolean atLeastOneInterfaceIsPresentInExceptionMessage = getInterfaces().stream()
+            .anyMatch(anInterface -> exception.getMessage().contains(anInterface.getName() + ":suffix"));
+
+        assertThat("Expected to get at least one interface name in the exception but got none: " + exception.getMessage(),
+            atLeastOneInterfaceIsPresentInExceptionMessage,
+            equalTo(true)
+        );
     }
 }

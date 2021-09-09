@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.literal.interval;
@@ -19,7 +20,7 @@ import java.util.Objects;
 
 /**
  * Interval value.
- * 
+ *
  * As SQL defines two main types, YearMonth and DayToHour/Minute/Second, the interval has to be split accordingly
  * mainly to differentiate between a period (which is relative) for the former and duration (which is exact)
  * for the latter.
@@ -54,7 +55,7 @@ public abstract class Interval<I extends TemporalAmount> implements ConstantName
     public int hashCode() {
         return Objects.hash(interval, intervalType);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

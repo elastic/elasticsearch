@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,25 +35,26 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -65,15 +66,20 @@ import static org.mockito.Mockito.when;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
 
+    @BeforeClass
+    public static void checkEnabled() {
+        assumeFalse("Should only run when encrypted repo is enabled", EncryptedRepositoryPlugin.isDisabled());
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateEncryptedRepositoryPlugin.class);
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
             .build();
     }
@@ -541,7 +547,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         internalCluster().startNodes(2, Settings.builder().setSecureSettings(secureSettingsWithPassword).build());
         ensureStableCluster(2);
         createRepository(repositoryName, repositorySettings, true);
-        // create empty smapshot
         final String snapshotName = randomName();
         logger.info("-->  create empty snapshot {}:{}", repositoryName, snapshotName);
         CreateSnapshotResponse createSnapshotResponse = client().admin()
@@ -567,14 +572,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
             wrongPassword
         );
-        Set<String> nodesWithWrongPassword = new HashSet<>();
-        do {
-            String masterNodeName = internalCluster().getMasterName();
-            logger.info("-->  restart master node {}", masterNodeName);
-            internalCluster().restartNode(masterNodeName, new InternalTestCluster.RestartCallback());
-            nodesWithWrongPassword.add(masterNodeName);
-            ensureStableCluster(2);
-        } while (false == nodesWithWrongPassword.contains(internalCluster().getMasterName()));
+
+        internalCluster().fullRestart();
+        ensureGreen();
         // maybe recreate the repository
         if (randomBoolean()) {
             deleteRepository(repositoryName);
@@ -586,9 +586,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         ).repository(repositoryName);
         RepositoryException e = expectThrows(
             RepositoryException.class,
-            () -> PlainActionFuture.<RepositoryData, Exception>get(
-                f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.wrap(f, blobStoreRepository::getRepositoryData))
-            )
+            () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
@@ -596,13 +594,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
-        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
-        assertThat(
-            getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
-            containsString("repository password is incorrect")
-        );
+        e = expectThrows(RepositoryException.class, () -> client().admin().cluster().prepareGetSnapshots(repositoryName).get());
+        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setWaitForCompletion(true).get()
@@ -618,17 +611,11 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
             goodPassword
         );
-        do {
-            String masterNodeName = internalCluster().getMasterName();
-            logger.info("-->  restart master node {}", masterNodeName);
-            internalCluster().restartNode(masterNodeName, new InternalTestCluster.RestartCallback());
-            nodesWithWrongPassword.remove(masterNodeName);
-            ensureStableCluster(2);
-        } while (nodesWithWrongPassword.contains(internalCluster().getMasterName()));
+        internalCluster().fullRestart();
+        ensureGreen();
         // ensure get snapshot works
-        getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), contains(repositoryName));
+        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
+        assertThat(getSnapshotResponse.getSnapshots(), hasSize(1));
     }
 
     public void testSnapshotFailsForMasterFailoverWithWrongPassword() throws Exception {
@@ -740,7 +727,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
             assertThat(repositories.repository(name), instanceOf(BlobStoreRepository.class));
-            assertThat(repositories.repository(name).isReadOnly(), is(settings.getAsBoolean("readonly", false)));
+            assertThat(repositories.repository(name).isReadOnly(), is(settings.getAsBoolean(READONLY_SETTING_KEY, false)));
         });
 
         return name;
@@ -776,7 +763,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .prepareGetSnapshots(repository)
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots(repository);
+                .getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

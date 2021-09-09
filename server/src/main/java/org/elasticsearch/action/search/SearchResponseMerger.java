@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -38,8 +27,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
@@ -122,11 +111,11 @@ final class SearchResponseMerger {
         //the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Map<String, ProfileShardResult> profileResults = new HashMap<>();
+        Map<String, SearchProfileQueryPhaseResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
-        Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
+        Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
@@ -149,7 +138,8 @@ final class SearchResponseMerger {
             Suggest suggest = searchResponse.getSuggest();
             if (suggest != null) {
                 for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> entries : suggest) {
-                    List<Suggest.Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(entries.getName(), s -> new ArrayList<>());
+                    List<Suggest.Suggestion<?>> suggestionList =
+                        groupedSuggestions.computeIfAbsent(entries.getName(), s -> new ArrayList<>());
                     suggestionList.add(entries);
                 }
                 List<CompletionSuggestion> completionSuggestions = suggest.filter(CompletionSuggestion.class);
@@ -197,7 +187,7 @@ final class SearchResponseMerger {
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-        SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+        SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
         //make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
         InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
@@ -308,10 +298,10 @@ final class SearchResponseMerger {
     }
 
     private static void setSuggestShardIndex(Map<ShardIdAndClusterAlias, Integer> shards,
-                                             Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+                                             Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         assignShardIndex(shards);
-        for (List<Suggest.Suggestion> suggestions : groupedSuggestions.values()) {
-            for (Suggest.Suggestion suggestion : suggestions) {
+        for (List<Suggest.Suggestion<?>> suggestions : groupedSuggestions.values()) {
+            for (Suggest.Suggestion<?> suggestion : suggestions) {
                 if (suggestion instanceof CompletionSuggestion) {
                     CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
                     for (CompletionSuggestion.Entry options : completionSuggestion) {

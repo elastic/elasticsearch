@@ -1,17 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
-  javaRestTestImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("javaRestTest").configure {
-  description = "Run tests against a cluster that doesn't have security"
+  description = "Run tests against a cluster that has security disabled"
   systemProperty 'tests.has_security', 'false'
 }
 
@@ -30,7 +35,8 @@ testClusters {
   }
 }
 
-tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
+tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
+  mustRunAfter("javaRestTest")
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest
@@ -65,5 +71,5 @@ tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn("javaRestTestWithSecurity") }
+tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }
 

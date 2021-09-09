@@ -1,3 +1,4 @@
+[role="xpack"]
 [[cat-transforms]]
 === cat {transforms} API
 ++++
@@ -57,35 +58,46 @@ specified columns.
 Valid columns are:
 
 `changes_last_detection_time`, `cldt`:::
+(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
+
+`checkpoint`, `cp`:::
+(Default)
+The sequence number for the checkpoint.
 
 `checkpoint_duration_time_exp_avg`, `cdtea`, `checkpointTimeExpAvg`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
 
-`create_time`, `ct`, `createTime`:::
+`checkpoint_progress`, `c`, `checkpointProgress`:::
 (Default)
+The progress of the next checkpoint that is currently in progress.
+
+`create_time`, `ct`, `createTime`:::
 The time the {transform} was created.
 
+`delete_time`, `dtime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
 `description`, `d`:::
-(Default)
 The description of the {transform}.
 
 `dest_index`, `di`, `destIndex`:::
-(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`documents_deleted`, `docd`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
 
 `documents_indexed`, `doci`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
 
 `docs_per_second`, `dps`:::
-(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 
 `documents_processed`, `docp`:::
+(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 
 `frequency`, `f`:::
-(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
 `id`:::
@@ -104,15 +116,17 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-total]
 `indexed_documents_exp_avg`, `idea`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 
-`max_page_search_size`, `mpsz`:::
+`last_search_time`, `lst`, `lastSearchTime`:::
 (Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
+
+`max_page_search_size`, `mpsz`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
 
 `pages_processed`, `pp`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 
 `pipeline`, `p`:::
-(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 
 `processed_documents_exp_avg`, `pdea`:::
@@ -142,14 +156,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transform
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 `transform_type`, `tt`:::
-(Default)
 Indicates the type of {transform}: `batch` or `continuous`.
 
 `trigger_count`, `tc`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=trigger-count]
 
 `version`, `v`:::
-(Default)
 The version of {es} that existed on the node when the {transform} was
 created.
 
@@ -170,7 +182,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/transforms?v&format=json
+GET /_cat/transforms?v=true&format=json
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 
@@ -179,16 +191,11 @@ GET /_cat/transforms?v&format=json
 [
   {
     "id" : "ecommerce_transform",
-    "create_time" : "2020-03-20T20:31:25.077Z",
-    "version" : "7.7.0",
-    "source_index" : "kibana_sample_data_ecommerce",
-    "dest_index" : "kibana_sample_data_ecommerce_transform",
-    "pipeline" : null,
-    "description" : "Maximum priced ecommerce data by customer_id in Asia",
-    "transform_type" : "continuous",
-    "frequency" : "5m",
-    "max_page_search_size" : "500",
-    "state" : "STARTED"
+    "state" : "started",
+    "checkpoint" : "1",
+    "documents_processed" : "705",
+    "checkpoint_progress" : "100.00",
+    "changes_last_detection_time" : null
   }
 ]
 ----

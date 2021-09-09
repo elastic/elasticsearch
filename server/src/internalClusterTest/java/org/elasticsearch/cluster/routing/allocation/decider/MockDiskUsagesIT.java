@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -29,14 +18,12 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,8 +44,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MockDiskUsagesIT extends ESIntegTestCase {
@@ -223,9 +208,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-                masterAppliedClusterState.set(event.state());
-                clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
-            });
+            masterAppliedClusterState.set(event.state());
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
+        });
 
         // shards are 1 byte large
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 1L);
@@ -263,7 +248,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 ? 101L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
                 : 1000L));
 
-        clusterInfoService.refresh();
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
 
         logger.info("--> waiting for shards to relocate off node [{}]", nodeIds.get(2));
 
@@ -291,7 +276,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
             masterAppliedClusterState.set(event.state());
-            clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
         });
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -328,83 +313,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         ensureGreen("test");
         assertThat("node2 has 1 shard", getShardCountByNodeId().get(nodeIds.get(2)), equalTo(1));
-    }
-
-    public void testMovesShardsOffSpecificDataPathAboveWatermark() throws Exception {
-
-        // start one node with two data paths
-        final Path pathOverWatermark = createTempDir();
-        final Settings.Builder twoPathSettings = Settings.builder();
-        if (randomBoolean()) {
-            twoPathSettings.putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), pathOverWatermark.toString());
-        } else {
-            twoPathSettings.putList(Environment.PATH_DATA_SETTING.getKey(), pathOverWatermark.toString(), createTempDir().toString());
-        }
-        internalCluster().startNode(twoPathSettings);
-        final String nodeWithTwoPaths = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0).getNode().getId();
-
-        // other two nodes have one data path each
-        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
-        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
-
-        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
-
-        // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
-        clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
-
-        // start with all paths below the watermark
-        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
-            .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
-            .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")));
-
-        final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
-            .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
-
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
-
-        ensureGreen("test");
-
-        {
-            final Map<String, Integer> shardCountByNodeId = getShardCountByNodeId();
-            assertThat("node0 has 2 shards", shardCountByNodeId.get(nodeIds.get(0)), equalTo(2));
-            assertThat("node1 has 2 shards", shardCountByNodeId.get(nodeIds.get(1)), equalTo(2));
-            assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
-        }
-
-        final long shardsOnGoodPath = Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
-            .filter(shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
-                && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false).count();
-        logger.info("--> shards on good path: [{}]", shardsOnGoodPath);
-
-        // disable rebalancing, or else we might move shards back onto the over-full path since we're not faking that
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
-
-        // one of the paths on node0 suddenly exceeds the high watermark
-        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100L,
-            fsInfoPath.getPath().startsWith(pathOverWatermark.toString()) ? between(0, 9) : between(10, 100)));
-
-        logger.info("--> waiting for shards to relocate off path [{}]", pathOverWatermark);
-
-        assertBusy(() -> {
-            for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
-                assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
-            }
-        });
-
-        ensureGreen("test");
-
-        for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
-            assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
-        }
-
-        assertThat("should not have moved any shards off of the path that wasn't too full",
-            Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
-            .filter(shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
-                && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false).count(), equalTo(shardsOnGoodPath));
     }
 
     private Map<String, Integer> getShardCountByNodeId() {

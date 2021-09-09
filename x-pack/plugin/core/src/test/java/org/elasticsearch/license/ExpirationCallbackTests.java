@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -23,7 +24,8 @@ public class ExpirationCallbackTests extends ESTestCase {
         long now = System.currentTimeMillis();
         long expiryDate = now + expiryDuration.getMillis();
         assertThat(post.delay(expiryDate, now),
-                equalTo(TimeValue.timeValueMillis(expiryDuration.getMillis() + min.getMillis()))); // before license expiry
+            // before license expiry
+            equalTo(TimeValue.timeValueMillis(expiryDuration.getMillis() + min.getMillis())));
         assertThat(post.delay(expiryDate, expiryDate), equalTo(min)); // on license expiry
         int latestValidTriggerDelay = (int) (expiryDuration.getMillis() + max.getMillis());
         int earliestValidTriggerDelay = (int) (expiryDuration.getMillis() + min.getMillis());

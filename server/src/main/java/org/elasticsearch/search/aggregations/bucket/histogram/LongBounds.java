@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -49,8 +38,7 @@ public class LongBounds implements ToXContentFragment, Writeable {
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
 
-    public static final ConstructingObjectParser<LongBounds, Void> PARSER = new ConstructingObjectParser<>(
-            "bounds", a -> {
+    public static final ConstructingObjectParser<LongBounds, Void> PARSER = new ConstructingObjectParser<>("bounds", a -> {
         assert a.length == 2;
         Long min = null;
         Long max = null;
@@ -164,8 +152,20 @@ public class LongBounds implements ToXContentFragment, Writeable {
             max = format.parseLong(maxAsStr, false, nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
-            throw new IllegalArgumentException("[" + boundsName + ".min][" + min + "] cannot be greater than " +
-                    "[" + boundsName + ".max][" + max + "] for histogram aggregation [" + aggName + "]");
+            throw new IllegalArgumentException(
+                "["
+                    + boundsName
+                    + ".min]["
+                    + min
+                    + "] cannot be greater than "
+                    + "["
+                    + boundsName
+                    + ".max]["
+                    + max
+                    + "] for histogram aggregation ["
+                    + aggName
+                    + "]"
+            );
         }
         return new LongBounds(min, max, minAsStr, maxAsStr);
     }
@@ -173,9 +173,7 @@ public class LongBounds implements ToXContentFragment, Writeable {
     LongBounds round(Rounding rounding) {
         // Extended bounds shouldn't be effected by the offset
         Rounding effectiveRounding = rounding.withoutOffset();
-        return new LongBounds(
-                min != null ? effectiveRounding.round(min) : null,
-                max != null ? effectiveRounding.round(max) : null);
+        return new LongBounds(min != null ? effectiveRounding.round(min) : null, max != null ? effectiveRounding.round(max) : null);
     }
 
     @Override
@@ -208,9 +206,9 @@ public class LongBounds implements ToXContentFragment, Writeable {
         }
         LongBounds other = (LongBounds) obj;
         return Objects.equals(min, other.min)
-                && Objects.equals(max, other.max)
-                && Objects.equals(minAsStr, other.minAsStr)
-                && Objects.equals(maxAsStr, other.maxAsStr);
+            && Objects.equals(max, other.max)
+            && Objects.equals(minAsStr, other.minAsStr)
+            && Objects.equals(maxAsStr, other.maxAsStr);
     }
 
     public Long getMin() {

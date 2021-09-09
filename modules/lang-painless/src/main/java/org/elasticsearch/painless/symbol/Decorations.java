@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -427,6 +417,19 @@ public class Decorations {
         }
     }
 
+    public static class ThisPainlessMethod implements Decoration {
+
+        private final PainlessMethod thisPainlessMethod;
+
+        public ThisPainlessMethod(PainlessMethod thisPainlessMethod) {
+            this.thisPainlessMethod = Objects.requireNonNull(thisPainlessMethod);
+        }
+
+        public PainlessMethod getThisPainlessMethod() {
+            return thisPainlessMethod;
+        }
+    }
+
     public static class StandardPainlessClassBinding implements Decoration {
 
         private final PainlessClassBinding painlessClassBinding;
@@ -524,13 +527,13 @@ public class Decorations {
 
     public static class EncodingDecoration implements Decoration {
 
-        private final String encoding;
+        private final Def.Encoding encoding;
 
-        public EncodingDecoration(String encoding) {
-            this.encoding = Objects.requireNonNull(encoding);
+        public EncodingDecoration(boolean isStatic, boolean needsInstance, String symbol, String methodName, int captures) {
+            this.encoding = new Def.Encoding(isStatic, needsInstance, symbol, methodName, captures);
         }
 
-        public String getEncoding() {
+        public Def.Encoding getEncoding() {
             return encoding;
         }
     }
@@ -546,6 +549,10 @@ public class Decorations {
         public List<Variable> getCaptures() {
             return captures;
         }
+    }
+
+    public interface CaptureBox extends Condition {
+
     }
 
     public static class InstanceType implements Decoration {
@@ -615,6 +622,16 @@ public class Decorations {
     // collect additional information about where doc is used
 
     public interface IsDocument extends Condition {
+
+    }
+
+    // Does the lambda need to capture the enclosing instance?
+    public interface InstanceCapturingLambda extends Condition {
+
+    }
+
+    // Does the function reference need to capture the enclosing instance?
+    public interface InstanceCapturingFunctionRef extends Condition {
 
     }
 }

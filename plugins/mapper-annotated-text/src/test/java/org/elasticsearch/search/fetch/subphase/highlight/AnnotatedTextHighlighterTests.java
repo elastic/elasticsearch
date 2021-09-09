@@ -1,23 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
+
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.hamcrest.CoreMatchers.equalTo;
+
+import java.net.URLEncoder;
+import java.text.BreakIterator;
+import java.util.ArrayList;
+import java.util.Locale;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -42,6 +39,7 @@ import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
@@ -49,87 +47,90 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
 import org.elasticsearch.test.ESTestCase;
 
-import java.net.URLEncoder;
-import java.text.BreakIterator;
-import java.util.ArrayList;
-import java.util.Locale;
-
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
-import static org.hamcrest.CoreMatchers.equalTo;
-
 public class AnnotatedTextHighlighterTests extends ESTestCase {
+
+    private void assertHighlightOneDoc(String fieldName, String[] markedUpInputs,
+                                       Query query, Locale locale, BreakIterator breakIterator,
+                                       int noMatchSize, String[] expectedPassages) throws Exception {
+
+        assertHighlightOneDoc(fieldName, markedUpInputs, query, locale, breakIterator, noMatchSize, expectedPassages,
+                Integer.MAX_VALUE, null);
+    }
 
     private void assertHighlightOneDoc(String fieldName, String []markedUpInputs,
             Query query, Locale locale, BreakIterator breakIterator,
-            int noMatchSize, String[] expectedPassages) throws Exception {
+            int noMatchSize, String[] expectedPassages,
+            int maxAnalyzedOffset, Integer queryMaxAnalyzedOffset) throws Exception {
 
+        try (Directory dir = newDirectory()) {
+            // Annotated fields wrap the usual analyzer with one that injects extra tokens
+            Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
+            IndexWriterConfig iwc = newIndexWriterConfig(wrapperAnalyzer);
+            iwc.setMergePolicy(newTieredMergePolicy(random()));
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+            FieldType ft = new FieldType(TextField.TYPE_STORED);
+            if (randomBoolean()) {
+                ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+            } else {
+                ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+            }
+            ft.freeze();
+            Document doc = new Document();
+            for (String input : markedUpInputs) {
+                Field field = new Field(fieldName, "", ft);
+                field.setStringValue(input);
+                doc.add(field);
+            }
+            iw.addDocument(doc);
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                iw.close();
 
-        // Annotated fields wrap the usual analyzer with one that injects extra tokens
-        Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(wrapperAnalyzer);
-        iwc.setMergePolicy(newTieredMergePolicy(random()));
-        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-        FieldType ft = new FieldType(TextField.TYPE_STORED);
-        if (randomBoolean()) {
-            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-        } else {
-            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-        }
-        ft.freeze();
-        Document doc = new Document();
-        for (String input : markedUpInputs) {
-            Field field = new Field(fieldName, "", ft);
-            field.setStringValue(input);
-            doc.add(field);
-        }
-        iw.addDocument(doc);
-        DirectoryReader reader = iw.getReader();
-        IndexSearcher searcher = newSearcher(reader);
-        iw.close();
+                AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
+                for (int i = 0; i < markedUpInputs.length; i++) {
+                    annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
+                }
+                if (queryMaxAnalyzedOffset != null) {
+                    wrapperAnalyzer = new LimitTokenOffsetAnalyzer(wrapperAnalyzer, queryMaxAnalyzedOffset);
+                }
+                AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
+                hiliteAnalyzer.setAnnotations(annotations);
+                AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
+                passageFormatter.setAnnotations(annotations);
 
-        AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
-        for (int i = 0; i < markedUpInputs.length; i++) {
-            annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
-        }
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
-        hiliteAnalyzer.setAnnotations(annotations);
-        AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
-        passageFormatter.setAnnotations(annotations);
+                ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
+                for (int i = 0; i < annotations.length; i++) {
+                    plainTextForHighlighter.add(annotations[i].textMinusMarkup);
+                }
 
-        ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
-        for (int i = 0; i < annotations.length; i++) {
-            plainTextForHighlighter.add(annotations[i].textMinusMarkup);
+                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
+                assertThat(topDocs.totalHits.value, equalTo(1L));
+                String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
+                CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+                        searcher,
+                        hiliteAnalyzer,
+                        UnifiedHighlighter.OffsetSource.ANALYSIS,
+                        passageFormatter,
+                        locale,
+                        breakIterator,
+                        "index",
+                        "text",
+                        query,
+                        noMatchSize,
+                        expectedPassages.length,
+                        name -> "text".equals(name),
+                        maxAnalyzedOffset,
+                        queryMaxAnalyzedOffset
+                );
+                highlighter.setFieldMatcher((name) -> "text".equals(name));
+                final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
+                assertEquals(expectedPassages.length, snippets.length);
+                for (int i = 0; i < snippets.length; i++) {
+                    assertEquals(expectedPassages[i], snippets[i].getText());
+                }
+            }
         }
-
-        TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-        assertThat(topDocs.totalHits.value, equalTo(1L));
-        String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-            searcher,
-            hiliteAnalyzer,
-            null,
-            passageFormatter,
-            locale,
-            breakIterator,
-            "index",
-            "text",
-            query,
-            noMatchSize,
-            expectedPassages.length,
-            name -> "text".equals(name),
-            Integer.MAX_VALUE
-        );
-        highlighter.setFieldMatcher((name) -> "text".equals(name));
-        final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-        assertEquals(expectedPassages.length, snippets.length);
-        for (int i = 0; i < snippets.length; i++) {
-            assertEquals(expectedPassages[i], snippets[i].getText());
-        }
-        reader.close();
-        dir.close();
     }
-
 
     public void testAnnotatedTextStructuredMatch() throws Exception {
         // Check that a structured token eg a URL can be highlighted in a query
@@ -202,4 +203,65 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
     }
 
+    public void testExceedMaxAnalyzedOffset() throws Exception {
+        TermQuery query = new TermQuery(new Term("text", "exceeds"));
+        BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+        assertHighlightOneDoc("text", new String[] { "[Short Text](Short+Text)" }, query, Locale.ROOT, breakIterator, 0, new String[] {},
+                10, null);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertHighlightOneDoc(
+                "text",
+                new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
+                query,
+                Locale.ROOT,
+                breakIterator,
+                0,
+                new String[] {},
+                20,
+                null
+            )
+        );
+        assertEquals(
+            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. "
+                + "To avoid this error, set the query parameter [max_analyzed_offset] to a value less than index setting [20] and this "
+                + "will tolerate long field values by truncating them.",
+            e.getMessage()
+        );
+
+        final Integer queryMaxOffset = randomIntBetween(21, 1000);
+        e = expectThrows(
+                IllegalArgumentException.class,
+                () -> assertHighlightOneDoc(
+                        "text",
+                        new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
+                        query,
+                        Locale.ROOT,
+                        breakIterator,
+                        0,
+                        new String[] {},
+                        20,
+                        queryMaxOffset
+                )
+        );
+        assertEquals(
+            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. "
+                + "To avoid this error, set the query parameter [max_analyzed_offset] to a value less than index setting [20] and this "
+                + "will tolerate long field values by truncating them.",
+            e.getMessage()
+        );
+
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "[Long Text Exceeds](Long+Text+Exceeds) MAX analyzed offset [Long Text Exceeds](Long+Text+Exceeds)" },
+            query,
+            Locale.ROOT,
+            breakIterator,
+            0,
+            new String[] { "Long Text [Exceeds](_hit_term=exceeds) MAX analyzed offset [Long Text Exceeds](Long+Text+Exceeds)" },
+            20,
+            15
+        );
+    }
 }

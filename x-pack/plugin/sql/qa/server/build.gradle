@@ -12,7 +12,7 @@ dependencies {
   // JDBC testing dependencies
   api project(path: xpackModule('sql:jdbc'))
   // Common utilities from QL
-  api project(xpackModule('ql:test'))
+  api project(xpackModule('ql:test-fixtures'))
 
   api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
@@ -67,7 +67,7 @@ subprojects {
       transitive = false
     }
     testImplementation project(":test:framework")
-    testRuntimeOnly project(xpackModule('ql:test'))
+    testRuntimeOnly project(xpackModule('ql:test-fixtures'))
 
     // JDBC testing dependencies
     testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
@@ -103,7 +103,7 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.testclusters'
+    apply plugin: 'elasticsearch.internal-testclusters'
     apply plugin: 'elasticsearch.rest-test'
 
     testClusters.matching { it.name == "integTest" }.configureEach {

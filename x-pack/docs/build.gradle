@@ -5,25 +5,25 @@ apply plugin: 'elasticsearch.rest-resources'
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'en/rest-api/watcher/put-watch.asciidoc',
-  'en/security/authentication/user-cache.asciidoc',
-  'en/security/authorization/run-as-privilege.asciidoc',
-  'en/security/ccs-clients-integrations/http.asciidoc',
-  'en/rest-api/watcher/stats.asciidoc',
-  'en/watcher/example-watches/watching-time-series-data.asciidoc',
-]
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'en/rest-api/watcher/put-watch.asciidoc',
+          'en/security/authentication/user-cache.asciidoc',
+          'en/security/authorization/run-as-privilege.asciidoc',
+          'en/security/ccs-clients-integrations/http.asciidoc',
+          'en/rest-api/watcher/stats.asciidoc',
+          'en/watcher/example-watches/watching-time-series-data.asciidoc',
+  ]
+}
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
 restResources {
   restApi {
-    includeCore '*'
-    includeXpack '*'
+    include '*'
   }
 }
 
@@ -72,7 +72,7 @@ tasks.named("buildRestTests").configure { buildRestTests ->
     // No snippets in here!
     exclude 'build.gradle'
     // That is where the snippets go, not where they come from!
-    exclude 'build'
+    exclude 'build/**'
     // These file simply doesn't pass yet. We should figure out how to fix them.
     exclude 'en/watcher/reference/actions.asciidoc'
     exclude 'en/rest-api/security/ssl.asciidoc'
@@ -731,5 +731,12 @@ tasks.named("buildRestTests").configure { buildRestTests ->
                 }
               }
             }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
 '''
 }

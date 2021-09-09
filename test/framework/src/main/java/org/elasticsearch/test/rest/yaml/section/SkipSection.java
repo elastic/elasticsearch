@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -35,6 +24,7 @@ import java.util.List;
  * based on:
  * - the elasticsearch version the tests are running against
  * - a specific test feature required that might not be implemented yet by the runner
+ * - an operating system (full name, including specific Linux distributions) that might show a certain behavior
  */
 public class SkipSection {
     /**
@@ -62,6 +52,7 @@ public class SkipSection {
         String version = null;
         String reason = null;
         List<String> features = new ArrayList<>();
+        List<String> operatingSystems = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -72,6 +63,8 @@ public class SkipSection {
                     reason = parser.text();
                 } else if ("features".equals(currentFieldName)) {
                     features.add(parser.text());
+                } else if ("os".equals(currentFieldName)) {
+                    operatingSystems.add(parser.text());
                 }
                 else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -82,38 +75,52 @@ public class SkipSection {
                     while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         features.add(parser.text());
                     }
+                } else if ("os".equals(currentFieldName)) {
+                    while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        operatingSystems.add(parser.text());
+                    }
                 }
             }
         }
 
         parser.nextToken();
 
-        if (!Strings.hasLength(version) && features.isEmpty()) {
-            throw new ParsingException(parser.getTokenLocation(), "version or features is mandatory within skip section");
+        if ((Strings.hasLength(version) == false) && features.isEmpty() && operatingSystems.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "version, features or os is mandatory within skip section");
         }
-        if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
+        if (Strings.hasLength(version) && Strings.hasLength(reason) == false) {
             throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
         }
-        return new SkipSection(version, features, reason);
+        if (operatingSystems.isEmpty() == false && Strings.hasLength(reason) == false) {
+            throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
+        }
+        // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
+        if (operatingSystems.isEmpty() == false && features.contains("skip_os") == false) {
+            throw new ParsingException(parser.getTokenLocation(), "if os is specified, feature skip_os must be set");
+        }
+        return new SkipSection(version, features, operatingSystems, reason);
     }
 
     public static final SkipSection EMPTY = new SkipSection();
 
     private final List<VersionRange> versionRanges;
     private final List<String> features;
+    private final List<String> operatingSystems;
     private final String reason;
 
     private SkipSection() {
         this.versionRanges = new ArrayList<>();
         this.features = new ArrayList<>();
+        this.operatingSystems = new ArrayList<>();
         this.reason = null;
     }
 
-    public SkipSection(String versionRange, List<String> features, String reason) {
+    public SkipSection(String versionRange, List<String> features,  List<String> operatingSystems, String reason) {
         assert features != null;
         this.versionRanges = parseVersionRanges(versionRange);
         assert versionRanges.isEmpty() == false;
         this.features = features;
+        this.operatingSystems = operatingSystems;
         this.reason = reason;
     }
 
@@ -129,6 +136,10 @@ public class SkipSection {
         return features;
     }
 
+    public List<String> getOperatingSystems() {
+        return operatingSystems;
+    }
+
     public String getReason() {
         return reason;
     }
@@ -141,8 +152,12 @@ public class SkipSection {
         return skip || Features.areAllSupported(features) == false;
     }
 
+    public boolean skip(String os) {
+        return this.operatingSystems.contains(os);
+    }
+
     public boolean isVersionCheck() {
-        return features.isEmpty();
+        return features.isEmpty() && operatingSystems.isEmpty();
     }
 
     public boolean isEmpty() {

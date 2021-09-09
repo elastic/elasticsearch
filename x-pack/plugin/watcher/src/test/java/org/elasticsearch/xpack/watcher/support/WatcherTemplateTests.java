@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptContext;
@@ -45,7 +46,7 @@ public class WatcherTemplateTests extends ESTestCase {
     }
 
     public void testEscaping() throws Exception {
-        XContentType contentType = randomFrom(XContentType.values());
+        XContentType contentType = randomFrom(XContentType.values()).canonical();
         if (rarely()) {
             contentType = null;
         }
@@ -90,7 +91,7 @@ public class WatcherTemplateTests extends ESTestCase {
             assertThat(renderedTemplate, notNullValue());
 
             if (contentType == XContentType.JSON) {
-                if (!escaped.toString().equals(renderedTemplate)) {
+                if (escaped.toString().equals(renderedTemplate) == false) {
                     String escapedString = escaped.toString();
                     for (int l = 0; l < renderedTemplate.length() && l < escapedString.length(); ++l) {
                         if (renderedTemplate.charAt(l) != escapedString.charAt(l)) {

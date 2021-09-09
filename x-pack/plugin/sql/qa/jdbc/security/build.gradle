@@ -1,4 +1,6 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
@@ -6,24 +8,13 @@ dependencies {
 
 Project mainProject = project
 
-configurations.create('testArtifacts')
-
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
-
 subprojects {
   // Use tests from the root security qa project in subprojects
-  configurations.create('testArtifacts')
+  configurations.create('testArtifacts').transitive(false)
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
-    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
+    testArtifacts testArtifact(project(mainProject.path))
   }
 
   testClusters.all {

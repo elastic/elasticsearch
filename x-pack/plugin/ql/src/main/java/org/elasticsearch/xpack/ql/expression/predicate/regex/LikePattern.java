@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
@@ -30,7 +31,6 @@ public class LikePattern extends AbstractStringPattern {
     private final String regex;
     private final String wildcard;
     private final String indexNameWildcard;
-    private final String string;
 
     public LikePattern(String pattern, char escape) {
         this.pattern = pattern;
@@ -39,7 +39,6 @@ public class LikePattern extends AbstractStringPattern {
         this.regex = StringUtils.likeToJavaPattern(pattern, escape);
         this.wildcard = StringUtils.likeToLuceneWildcard(pattern, escape);
         this.indexNameWildcard = StringUtils.likeToIndexWildcard(pattern, escape);
-        this.string = pattern.replace(Character.toString(escape), StringUtils.EMPTY);
     }
 
     public String pattern() {
@@ -59,11 +58,6 @@ public class LikePattern extends AbstractStringPattern {
     @Override
     public String asJavaRegex() {
         return regex;
-    }
-
-    @Override
-    public String asString() {
-        return string;
     }
 
     /**

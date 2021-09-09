@@ -2,9 +2,8 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testFixtures.useFixture ":x-pack:test:idp-fixture", "openldap"

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -62,7 +51,8 @@ public class SerialDiffIT extends ESIntegTestCase {
     static Map<String, ArrayList<Double>> testValues;
 
     enum MetricTarget {
-        VALUE ("value"), COUNT("count");
+        VALUE("value"),
+        COUNT("count");
 
         private final String name;
 
@@ -71,14 +61,13 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return name;
         }
     }
 
-    private ValuesSourceAggregationBuilder<
-        ? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
-        int rand = randomIntBetween(0,3);
+    private ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
+        int rand = randomIntBetween(0, 3);
 
         switch (rand) {
             case 0:
@@ -92,14 +81,14 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
-        if (!expectedBucketIter.hasNext()) {
+    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
+        if (expectedBucketIter.hasNext() == false) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }
-        if (!expectedCountsIter.hasNext()) {
+        if (expectedCountsIter.hasNext() == false) {
             fail("`expectedCountsIter` iterator ended before `actual` iterator, size mismatch");
         }
-        if (!expectedValuesIter.hasNext()) {
+        if (expectedValuesIter.hasNext() == false) {
             fail("`expectedValuesIter` iterator ended before `actual` iterator, size mismatch");
         }
     }
@@ -111,8 +100,11 @@ public class SerialDiffIT extends ESIntegTestCase {
             assertThat("[_count] diff is not null", countDiff, nullValue());
         } else {
             assertThat("[_count] diff is null", countDiff, notNullValue());
-            assertThat("[_count] diff does not match expected [" + countDiff.value() + " vs " + expectedCount + "]",
-                    countDiff.value(), closeTo(expectedCount, 0.1));
+            assertThat(
+                "[_count] diff does not match expected [" + countDiff.value() + " vs " + expectedCount + "]",
+                countDiff.value(),
+                closeTo(expectedCount, 0.1)
+            );
         }
 
         // This is a gap bucket
@@ -121,11 +113,13 @@ public class SerialDiffIT extends ESIntegTestCase {
             assertThat("[value] diff is not null", valuesDiff, Matchers.nullValue());
         } else {
             assertThat("[value] diff is null", valuesDiff, notNullValue());
-            assertThat("[value] diff does not match expected [" + valuesDiff.value() + " vs " + expectedValue + "]",
-                    valuesDiff.value(), closeTo(expectedValue, 0.1));
+            assertThat(
+                "[value] diff does not match expected [" + valuesDiff.value() + " vs " + expectedValue + "]",
+                valuesDiff.value(),
+                closeTo(expectedValue, 0.1)
+            );
         }
     }
-
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -133,12 +127,11 @@ public class SerialDiffIT extends ESIntegTestCase {
         createIndex("idx_unmapped");
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
-
         interval = 5;
         numBuckets = randomIntBetween(10, 80);
         lag = randomIntBetween(1, numBuckets / 2);
 
-        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.SKIP : BucketHelpers.GapPolicy.INSERT_ZEROS;
+        gapPolicy = randomFrom(BucketHelpers.GapPolicy.values());
         metric = randomMetric("the_metric", VALUE_FIELD);
         mockHisto = PipelineAggregationHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 
@@ -150,9 +143,10 @@ public class SerialDiffIT extends ESIntegTestCase {
 
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
-                builders.add(client().prepareIndex("idx").setSource(jsonBuilder().startObject()
-                        .field(INTERVAL_FIELD, mockBucket.key)
-                        .field(VALUE_FIELD, value).endObject()));
+                builders.add(
+                    client().prepareIndex("idx")
+                        .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject())
+                );
             }
         }
 
@@ -182,6 +176,12 @@ public class SerialDiffIT extends ESIntegTestCase {
                     metricValue = 0.0;
                 } else {
                     metricValue = PipelineAggregationHelperTests.calculateMetric(docValues, metric);
+                    if (gapPolicy.equals(BucketHelpers.GapPolicy.KEEP_VALUES)) {
+                        if (Double.isInfinite(metricValue) || Double.isNaN(metricValue)) {
+                            // serial diff ignores these values and replaces them with null
+                            metricValue = Double.NaN;
+                        }
+                    }
                 }
 
             } else {
@@ -207,7 +207,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             }
 
             // Both have values, calculate diff and replace the "empty" bucket
-            if (!Double.isNaN(metricValue) && !Double.isNaN(lagValue)) {
+            if (Double.isNaN(metricValue) == false && Double.isNaN(lagValue) == false) {
                 double diff = metricValue - lagValue;
                 values.add(diff);
             } else {
@@ -215,30 +215,22 @@ public class SerialDiffIT extends ESIntegTestCase {
             }
 
             lagWindow.add(metricValue);
-
-
-
-
         }
-
 
         testValues.put(target.toString(), values);
     }
 
     public void testBasicDiff() {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                                .subAggregation(metric)
-                                .subAggregation(diff("diff_counts", "_count")
-                                        .lag(lag)
-                                        .gapPolicy(gapPolicy))
-                                .subAggregation(diff("diff_values", "the_metric")
-                                        .lag(lag)
-                                        .gapPolicy(gapPolicy))
-                ).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(INTERVAL_FIELD)
+                    .interval(interval)
+                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                    .subAggregation(metric)
+                    .subAggregation(diff("diff_counts", "_count").lag(lag).gapPolicy(gapPolicy))
+                    .subAggregation(diff("diff_values", "the_metric").lag(lag).gapPolicy(gapPolicy))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -265,7 +257,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             Double expectedValue = expectedValuesIter.next();
 
             assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
-            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long)expected.count));
+            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long) expected.count));
 
             assertBucketContents(actual, expectedCount, expectedValue);
         }
@@ -273,16 +265,15 @@ public class SerialDiffIT extends ESIntegTestCase {
 
     public void testInvalidLagSize() {
         try {
-            client()
-                    .prepareSearch("idx")
+            client().prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                                .subAggregation(metric)
-                                .subAggregation(diff("diff_counts", "_count")
-                                        .lag(-1)
-                                        .gapPolicy(gapPolicy))
-                ).get();
+                    histogram("histo").field(INTERVAL_FIELD)
+                        .interval(interval)
+                        .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                        .subAggregation(metric)
+                        .subAggregation(diff("diff_counts", "_count").lag(-1).gapPolicy(gapPolicy))
+                )
+                .get();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[lag] must be a positive integer: [diff_counts]"));
         }

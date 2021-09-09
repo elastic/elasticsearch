@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
@@ -10,10 +11,8 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -49,8 +48,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
     public GeoShapeValues getGeoShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
-            final GeometryDocValueReader reader = new GeometryDocValueReader();
-            final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue(reader);
+            final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue();
             return new GeoShapeValues() {
 
                 @Override
@@ -65,8 +63,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
 
                 @Override
                 public GeoShapeValue value() throws IOException {
-                    final BytesRef encoded = binaryValues.binaryValue();
-                    reader.reset(encoded);
+                    geoShapeValue.reset(binaryValues.binaryValue());
                     return geoShapeValue;
                 }
             };

@@ -21,12 +21,8 @@ Retrieves overall bucket results that summarize the bucket results of multiple
 [[ml-get-overall-buckets-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
-need `read` index privilege on the index that stores the results. The
-`machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See <<security-privileges>>, <<built-in-roles>>, and
-{ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-overall-buckets-desc]]
 == {api-description-title}
@@ -47,7 +43,7 @@ fine-tune the `overall_score` so that it is more or less sensitive to the number
 of jobs that detect an anomaly at the same time. For example, if you set `top_n`
 to `1`, the `overall_score` is the maximum bucket score in the overall bucket.
 Alternatively, if you set `top_n` to the number of jobs, the `overall_score` is
-high only when all jobs detect anomalies in that overall bucket.  If you set
+high only when all jobs detect anomalies in that overall bucket. If you set
 the `bucket_span` parameter (to a value greater than its default), the
 `overall_score` is the maximum `overall_score` of the overall buckets that have
 a span equal to the jobs' largest bucket span.
@@ -73,23 +69,27 @@ value.
 
 `end`::
 (Optional, string) Returns overall buckets with timestamps earlier than this
-time.
+time. Defaults to `-1`, which means it is unset and results are not limited to 
+specific timestamps.
 
 `exclude_interim`::
 (Optional, Boolean) If `true`, the output excludes interim overall buckets.
 Overall buckets are interim if any of the job buckets within the overall bucket
-interval are interim. By default, interim results are included.
+interval are interim. Defaults to `false`, which means interim results are
+included.
 
 `overall_score`::
 (Optional, double) Returns overall buckets with overall scores greater or equal
-than this value.
+than this value. Defaults to `0.0`.
 
 `start`::
-(Optional, string) Returns overall buckets with timestamps after this time.
+(Optional, string) Returns overall buckets with timestamps after this time. 
+Defaults to `-1`, which means it is unset and results are not limited to 
+specific timestamps.
 
 `top_n`::
 (Optional, integer) The number of top {anomaly-job} bucket scores to be used in
-the `overall_score` calculation. The default value is `1`.
+the `overall_score` calculation. Defaults to `1`.
 
 [[ml-get-overall-buckets-results]]
 == {api-response-body-title}

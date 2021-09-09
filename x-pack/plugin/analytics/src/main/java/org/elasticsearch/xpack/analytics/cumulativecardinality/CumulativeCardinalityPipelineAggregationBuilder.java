@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
@@ -21,14 +22,16 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
-public class CumulativeCardinalityPipelineAggregationBuilder
-        extends AbstractPipelineAggregationBuilder<CumulativeCardinalityPipelineAggregationBuilder> {
+public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<
+    CumulativeCardinalityPipelineAggregationBuilder> {
     public static final String NAME = "cumulative_cardinality";
 
     public static final ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, String> PARSER =
-            new ConstructingObjectParser<>(NAME, false, (args, name) -> {
-                return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]);
-            });
+        new ConstructingObjectParser<>(
+            NAME,
+            false,
+            (args, name) -> { return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]); }
+        );
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
         PARSER.declareString(CumulativeCardinalityPipelineAggregationBuilder::format, FORMAT);

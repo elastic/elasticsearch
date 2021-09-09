@@ -1,22 +1,38 @@
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task "leader-cluster"(type: RestIntegTestTask) {
+
+testClusters {
+  "leader-cluster" {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+  }
+
+  "follow-cluster" {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+    setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\""
+    }
+  }
+}
+
+tasks.register("leader-cluster", RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
-}
-testClusters."leader-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
 }
 
 File policyFile = file("${buildDir}/tmp/java.policy")
@@ -35,7 +51,7 @@ tasks.register("writeJavaPolicy") {
   }
 }
 
-task "follow-cluster"(type: RestIntegTestTask) {
+tasks.register("follow-cluster", RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
     useCluster testClusters."leader-cluster"
     systemProperty 'java.security.policy', "file://${policyFile}"
@@ -44,17 +60,7 @@ task "follow-cluster"(type: RestIntegTestTask) {
     nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"
 }
 
-testClusters."follow-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
-}
-
-
 tasks.named("check").configure { dependsOn "follow-cluster" }
-// no unit tests for multi-cluster-search, only the rest integration test
-tasks.named("test").configure { enabled = false }
 
 // We can't run in FIPS mode with a basic license
 tasks.withType(Test).configureEach {

@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
@@ -110,14 +98,14 @@ public class DiscoveryNodesTests extends ESTestCase {
         final String[] coordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+                    .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isMasterNode() == false)
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isMasterNode() || n.isDataNode() || n.isIngestNode())
+                    .filter(n -> n.isMasterNode() || n.canContainData() || n.isIngestNode())
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
@@ -180,26 +168,26 @@ public class DiscoveryNodesTests extends ESTestCase {
         final DiscoveryNodes nodes01 = DiscoveryNodes.builder(nodes0).add(discoveryNodes.get(1)).build();
         final DiscoveryNodes nodes012 = DiscoveryNodes.builder(nodes01).add(discoveryNodes.get(2)).build();
 
-        assertThat(nodes01.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes01.delta(nodes0).shortSummary(), equalTo("added {" + noAttr(discoveryNodes.get(1)) + "}"));
         assertThat(nodes012.delta(nodes0).shortSummary(), oneOf(
-            "added {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
-            "added {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+            "added {" + noAttr(discoveryNodes.get(1)) + ", " + noAttr(discoveryNodes.get(2)) + "}",
+            "added {" + noAttr(discoveryNodes.get(2)) + ", " + noAttr(discoveryNodes.get(1)) + "}"));
 
-        assertThat(nodes0.delta(nodes01).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes01).shortSummary(), equalTo("removed {" + noAttr(discoveryNodes.get(1)) + "}"));
         assertThat(nodes0.delta(nodes012).shortSummary(), oneOf(
-            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
-            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+            "removed {" + noAttr(discoveryNodes.get(1)) + ", " + noAttr(discoveryNodes.get(2)) + "}",
+            "removed {" + noAttr(discoveryNodes.get(2)) + ", " + noAttr(discoveryNodes.get(1)) + "}"));
 
         final DiscoveryNodes nodes01Local = DiscoveryNodes.builder(nodes01).localNodeId(discoveryNodes.get(1).getId()).build();
         final DiscoveryNodes nodes02Local = DiscoveryNodes.builder(nodes012).localNodeId(discoveryNodes.get(1).getId()).build();
 
         assertThat(nodes01Local.delta(nodes0).shortSummary(), equalTo(""));
-        assertThat(nodes02Local.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(2) + "}"));
+        assertThat(nodes02Local.delta(nodes0).shortSummary(), equalTo("added {" + noAttr(discoveryNodes.get(2)) + "}"));
 
-        assertThat(nodes0.delta(nodes01Local).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes01Local).shortSummary(), equalTo("removed {" + noAttr(discoveryNodes.get(1)) + "}"));
         assertThat(nodes0.delta(nodes02Local).shortSummary(), oneOf(
-            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
-            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+            "removed {" + noAttr(discoveryNodes.get(1)) + ", " + noAttr(discoveryNodes.get(2)) + "}",
+            "removed {" + noAttr(discoveryNodes.get(2)) + ", " + noAttr(discoveryNodes.get(1)) + "}"));
     }
 
     public void testDeltas() {
@@ -280,16 +268,9 @@ public class DiscoveryNodesTests extends ESTestCase {
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
-            final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+            final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
             if (frequently()) {
-                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
-
-                    @Override
-                    public Setting<Boolean> legacySetting() {
-                        return null;
-                    }
-
-                });
+                roles.add(new DiscoveryNodeRole("custom_role", "cr"));
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);
@@ -389,13 +370,13 @@ public class DiscoveryNodesTests extends ESTestCase {
     public void testMaxMinNodeVersion() {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
             Version.fromString("5.1.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
             Version.fromString("6.3.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
             Version.fromString("1.1.0")));
         discoBuilder.localNodeId("name_1");
         discoBuilder.masterNodeId("name_2");
@@ -403,4 +384,11 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals( Version.fromString("6.3.0"), build.getMaxNodeVersion());
         assertEquals( Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
+
+    private static String noAttr(DiscoveryNode discoveryNode) {
+        final StringBuilder stringBuilder = new StringBuilder();
+        discoveryNode.appendDescriptionWithoutAttributes(stringBuilder);
+        return stringBuilder.toString();
+    }
+
 }

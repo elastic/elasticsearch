@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.monitoring.action;
@@ -26,13 +27,18 @@ import java.util.stream.Collectors;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
@@ -45,6 +51,7 @@ import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
+import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporterIntegTests;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -73,10 +80,10 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             // Parent conf
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
 
             // Disable monitoring
             .put("xpack.monitoring.collection.enabled", false)
@@ -107,7 +114,9 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         ));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
+    @TestLogging(
+        value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
+        reason = "to ensure we log local exporter on trace level")
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -142,6 +151,9 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
+        reason = "to ensure we log local exporter on trace level")
     public void testRepeatedLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -457,6 +469,18 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     private void ensureInitialLocalResources() throws Exception {
+        // Should trigger setting up alert watches via LocalExporter#openBulk(...) and
+        // then eventually to LocalExporter#setupIfElectedMaster(...)
+        // Sometimes this last method doesn't install watches, because elected master node doesn't export monitor documents.
+        // and then these assertions here fail.
+        {
+            MonitoringBulkRequest request = new MonitoringBulkRequest();
+            request.add(LocalExporterIntegTests.createMonitoringBulkDoc());
+            String masterNode = internalCluster().getMasterName();
+            MonitoringBulkResponse response = client(masterNode).execute(MonitoringBulkAction.INSTANCE, request).actionGet();
+            assertThat(response.status(), equalTo(RestStatus.OK));
+        }
+
         waitForWatcherIndices();
         assertBusy(() -> {
             assertThat(indexExists(".monitoring-*"), is(true));

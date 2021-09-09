@@ -5,7 +5,7 @@
 ++++
 
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
-each version of the token having been run through a different filter.  Identical
+each version of the token having been run through a different filter. Identical
 output tokens at the same position will be removed.
 
 WARNING: If the incoming token stream has duplicate tokens, then these will also be
@@ -14,8 +14,8 @@ removed by the multiplexer
 [discrete]
 === Options
 [horizontal]
-filters:: a list of token filters to apply to incoming tokens.  These can be any
-  token filters defined elsewhere in the index mappings.  Filters can be chained
+filters:: a list of token filters to apply to incoming tokens. These can be any
+  token filters defined elsewhere in the index mappings. Filters can be chained
   using a comma-delimited string, so for example `"lowercase, porter_stem"` would
   apply the `lowercase` filter and then the `porter_stem` filter to a single token.
 

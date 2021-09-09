@@ -31,7 +31,7 @@ PUT /my-index-000001
 GET /my-index-000001/_search
 {
   "sort" : [
-    { "post_date" : {"order" : "asc"}},
+    { "post_date" : {"order" : "asc", "format": "strict_date_optional_time_nanos"}},
     "user",
     { "name" : "desc" },
     { "age" : "desc" },
@@ -51,8 +51,25 @@ should sort by `_doc`. This especially helps when <<scroll-search-results,scroll
 [discrete]
 === Sort Values
 
-The sort values for each document returned are also returned as part of
-the response.
+The search response includes `sort` values for each document. Use the `format`
+parameter to specify a <<built-in-date-formats,date format>> for the `sort`
+values of <<date,`date`>> and <<date_nanos,`date_nanos`>> fields. The following
+search returns `sort` values for the `post_date` field in the
+`strict_date_optional_time_nanos` format.
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_search
+{
+  "sort" : [
+    { "post_date" : {"format": "strict_date_optional_time_nanos"}}
+  ],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
 
 [discrete]
 === Sort Order
@@ -80,7 +97,7 @@ to. The `mode` option can have the following values:
         number based array fields.
 `avg`:: Use the average of all values as sort value. Only applicable
         for number based array fields.
-`median`:: Use the median of all values as sort value.  Only applicable
+`median`:: Use the median of all values as sort value. Only applicable
            for number based array fields.
 
 The default sort mode in the ascending sort order is `min` -- the lowest value
@@ -574,6 +591,7 @@ The final distance for a document will then be `min`/`max`/`avg` (defined via `m
 
 
 [discrete]
+[[script-based-sorting]]
 === Script Based Sorting
 
 Allow to sort based on custom scripts, here is an example:

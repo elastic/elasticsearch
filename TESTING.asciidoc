@@ -92,7 +92,7 @@ password: `elastic-password`.
 
 === Test case filtering.
 
-You can run a single test, provided that you specify the Gradle project.  See the documentation on
+You can run a single test, provided that you specify the Gradle project. See the documentation on
 https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
 
 Run a single test case in the `server` project:
@@ -293,7 +293,7 @@ YAML based REST tests should be preferred since these are shared between all
 the elasticsearch official clients. The YAML based tests describe the
 operations to be executed and the obtained results that need to be tested.
 
-The YAML tests support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
+The YAML tests support various operators defined in the link:/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
 In order to run the YAML tests, the relevant API specification needs
 to be on the test classpath. Any gradle project that has support for REST
 tests will get the primary API on it's class path. However, to better support
@@ -385,13 +385,13 @@ vagrant plugin install vagrant-cachier
 . You can run all of the OS packaging tests with `./gradlew packagingTest`.
 This task includes our legacy `bats` tests. To run only the OS tests that are
 written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar,
-zip, and deb packages and all the plugins.  It will then run the tests on every
+zip, and deb packages and all the plugins. It will then run the tests on every
 available system. This will take a very long time.
 +
 Fortunately, the various systems under test have their own Gradle tasks under
 `qa/os`. To find the systems tested, do a listing of the `qa/os` directory.
 To find out what packaging combinations can be tested on a system, run
-the `tasks` task.  For example:
+the `tasks` task. For example:
 +
 ----------------------------------
 ./gradlew :qa:os:ubuntu-1804:tasks
@@ -518,7 +518,7 @@ For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.
 These are automatically checked out and built from source.
-See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
+See link:./build-tools-internal/src/main/java/org/elasticsearch/gradle/BwcVersions.java[BwcVersions]
 and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle]
 for more information.
 
@@ -558,7 +558,7 @@ fetching the latest from the remote.
 
 == Testing in FIPS 140-2 mode
 
-We have a CI matrix job that periodically runs all our tests with the JVM  configured
+We have a CI matrix job that periodically runs all our tests with the JVM configured
 to be FIPS 140-2 compliant with the use of the BouncyCastle FIPS approved Security Provider.
 FIPS 140-2 imposes certain requirements that affect how our tests should be set up or what
 can be tested. This section summarizes what one needs to take into consideration so that

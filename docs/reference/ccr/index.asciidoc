@@ -118,7 +118,7 @@ comes online, replication resumes between the clusters.
 
 image::images/ccr-arch-bi-directional.png[Bi-directional configuration where each cluster contains both a leader index and follower indices]
 
-NOTE: This configuration is useful for index-only workloads, where no updates
+This configuration is particularly useful for index-only workloads, where no updates
 to document values occur. In this configuration, documents indexed by {es} are
 immutable. Clients are located in each datacenter alongside the {es}
 cluster, and do not communicate with clusters in different datacenters.
@@ -189,6 +189,18 @@ failure), the follower shard enters into a retry loop. Otherwise, the
 follower shard pauses
 <<ccr-pause-replication,until you resume it>>.
 
+[discrete]
+[[ccr-update-leader-index]]
+==== Processing updates
+You can't manually modify a follower index's mappings or aliases. To make
+changes, you must update the leader index. Because they are read-only, follower
+indices reject writes in all configurations. 
+
+For example, you index a document named `doc_1` in Datacenter A, which
+replicates to Datacenter B. If a client connects to Datacenter B and attempts
+to update `doc_1`, the request fails. To update `doc_1`, the client must
+connect to Datacenter A and update the document in the leader index.
+
 When a follower shard receives operations from the leader shard, it places
 those operations in a write buffer. The follower shard submits bulk write
 requests using operations from the write buffer. If the write buffer exceeds
@@ -213,8 +225,6 @@ h| Update type h| Automatic  h| As needed
 
 For example, changing the number of replicas on the leader index is not
 replicated by the follower index, so that setting might not be retrieved.
-
-NOTE: You cannot manually modify a follower index's mappings or aliases.
 
 If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index closes itself, applies the
@@ -266,12 +276,17 @@ retaining these soft deletes up to configurable limits, the history of
 operations can be retained on the leader shards and made available to the
 follower shard tasks as it replays the history of operations.
 
-The <<ccr-index-soft-deletes-retention-period,`index.soft_deletes.retention_lease.period`>> setting defines the
-maximum time to retain a shard history retention lease before it is
-considered expired. This setting determines how long the cluster containing
-your leader index can be offline, which is 12 hours by default. If a shard copy
-recovers after its retention lease expires, then {es} will fall back to copying
-the entire index, because it can no longer replay the missing history.
+The <<ccr-index-soft-deletes-retention-period,`index.soft_deletes.retention_lease.period`>>
+setting defines the maximum time to retain a shard history retention lease
+before it is considered expired. This setting determines how long the cluster
+containing your follower index can be offline, which is 12 hours by default. If
+a shard copy recovers after its retention lease expires, but the missing
+operations are still available on the leader index, then {es} will establish a
+new lease and copy the missing operations. However {es} does not guarantee to
+retain unleased operations, so it is also possible that some of the missing
+operations have been discarded by the leader and are now completely
+unavailable. If this happens then the follower cannot recover automatically so
+you must <<ccr-recreate-follower-index,recreate it>>.
 
 Soft deletes must be enabled for indices that you want to use as leader
 indices. Soft deletes are enabled by default on new indices created on

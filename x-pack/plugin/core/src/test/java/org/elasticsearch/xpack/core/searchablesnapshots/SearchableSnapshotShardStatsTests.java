@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
@@ -9,6 +10,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -41,14 +43,15 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
     }
 
     private CacheIndexInputStats randomCacheIndexInputStats() {
-        return new CacheIndexInputStats(randomAlphaOfLength(10), randomNonNegativeLong(),
+        return new CacheIndexInputStats(randomAlphaOfLength(10), randomNonNegativeLong(), new ByteSizeValue(randomNonNegativeLong()),
+            new ByteSizeValue(randomNonNegativeLong()), new ByteSizeValue(randomNonNegativeLong()),
             randomNonNegativeLong(), randomNonNegativeLong(),
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(), randomTimedCounter(),
             randomTimedCounter(), randomTimedCounter(),
-            randomCounter(), randomNonNegativeLong());
+            randomCounter(), randomCounter(), randomNonNegativeLong());
     }
 
     private Counter randomCounter() {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
@@ -48,8 +49,9 @@ public final class TransformInputFactory extends InputFactory<TransformInput, Tr
     @Override
     public ExecutableTransformInput createExecutable(TransformInput input) {
         Transform transform = input.getTransform();
-        TransformFactory factory = transformRegistry.factory(transform.type());
-        ExecutableTransform executableTransform = factory.createExecutable(transform);
+        @SuppressWarnings("unchecked")
+        TransformFactory<Transform, ?, ?> factory = (TransformFactory<Transform, ?, ?>) transformRegistry.factory(transform.type());
+        ExecutableTransform<?, ?> executableTransform = factory.createExecutable(transform);
         return new ExecutableTransformInput(input, executableTransform);
     }
 }

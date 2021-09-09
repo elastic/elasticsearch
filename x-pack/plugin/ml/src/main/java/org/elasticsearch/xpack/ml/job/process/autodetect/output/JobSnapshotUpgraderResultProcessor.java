@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
@@ -10,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -162,11 +163,11 @@ public class JobSnapshotUpgraderResultProcessor {
             logUnexpectedResult(Bucket.RESULT_TYPE_VALUE);
         }
         List<AnomalyRecord> records = result.getRecords();
-        if (records != null && !records.isEmpty()) {
+        if (records != null && records.isEmpty() == false) {
             logUnexpectedResult(AnomalyRecord.RESULT_TYPE_VALUE);
         }
         List<Influencer> influencers = result.getInfluencers();
-        if (influencers != null && !influencers.isEmpty()) {
+        if (influencers != null && influencers.isEmpty() == false) {
             logUnexpectedResult(Influencer.RESULT_TYPE_VALUE);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();

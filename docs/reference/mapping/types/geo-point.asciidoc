@@ -1,20 +1,20 @@
 [[geo-point]]
-=== Geo-point field type
+=== Geopoint field type
 ++++
-<titleabbrev>Geo-point</titleabbrev>
+<titleabbrev>Geopoint</titleabbrev>
 ++++
 
 Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 
-* to find geo-points within a <<query-dsl-geo-bounding-box-query,bounding box>>,
+* to find geopoints within a <<query-dsl-geo-bounding-box-query,bounding box>>,
   within a certain <<query-dsl-geo-distance-query,distance>> of a central point,
-  or within a <<query-dsl-geo-polygon-query,polygon>> or within a <<query-dsl-geo-shape-query,geo_shape query>>.
+  or within a <<query-dsl-geo-polygon-query,polygon>> or within a <<query-dsl-geo-shape-query,`geo_shape` query>>.
 * to aggregate documents <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
   or by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point.
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.
 
-There are five ways that a geo-point may be specified, as demonstrated below:
+There are five ways that a geopoint may be specified, as demonstrated below:
 
 [source,console]
 --------------------------------------------------
@@ -31,7 +31,7 @@ PUT my-index-000001
 
 PUT my-index-000001/_doc/1
 {
-  "text": "Geo-point as an object",
+  "text": "Geopoint as an object",
   "location": { <1>
     "lat": 41.12,
     "lon": -71.34
@@ -40,25 +40,25 @@ PUT my-index-000001/_doc/1
 
 PUT my-index-000001/_doc/2
 {
-  "text": "Geo-point as a string",
+  "text": "Geopoint as a string",
   "location": "41.12,-71.34" <2>
 }
 
 PUT my-index-000001/_doc/3
 {
-  "text": "Geo-point as a geohash",
+  "text": "Geopoint as a geohash",
   "location": "drm3btev3e86" <3>
 }
 
 PUT my-index-000001/_doc/4
 {
-  "text": "Geo-point as an array",
+  "text": "Geopoint as an array",
   "location": [ -71.34, 41.12 ] <4>
 }
 
 PUT my-index-000001/_doc/5
 {
-  "text": "Geo-point as a WKT POINT primitive",
+  "text": "Geopoint as a WKT POINT primitive",
   "location" : "POINT (-71.34 41.12)" <5>
 }
 
@@ -81,20 +81,20 @@ GET my-index-000001/_search
 }
 --------------------------------------------------
 
-<1> Geo-point expressed as an object, with `lat` and `lon` keys.
-<2> Geo-point expressed as a string with the format: `"lat,lon"`.
-<3> Geo-point expressed as a geohash.
-<4> Geo-point expressed as an array with the format: [ `lon`, `lat`]
-<5> Geo-point expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+<1> Geopoint expressed as an object, with `lat` and `lon` keys.
+<2> Geopoint expressed as a string with the format: `"lat,lon"`.
+<3> Geopoint expressed as a geohash.
+<4> Geopoint expressed as an array with the format: [ `lon`, `lat`]
+<5> Geopoint expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 POINT with the format: `"POINT(lon lat)"`
-<6> A geo-bounding box query which finds all geo-points that fall inside the box.
+<6> A geo-bounding box query which finds all geopoints that fall inside the box.
 
 [IMPORTANT]
-.Geo-points expressed as an array or string
+.Geopoints expressed as an array or string
 ==================================================
 
-Please note that string geo-points are ordered as `lat,lon`, while array
-geo-points are ordered as the reverse: `lon,lat`.
+Please note that string geopoints are ordered as `lat,lon`, while array
+geopoints are ordered as the reverse: `lon,lat`.
 
 Originally, `lat,lon` was used for both array and string, but the array
 format was changed early on to conform to the format used by GeoJSON.
@@ -121,24 +121,53 @@ The following parameters are accepted by `geo_point` fields:
 
 <<ignore-malformed,`ignore_malformed`>>::
 
-    If `true`, malformed geo-points are ignored. If `false` (default),
-    malformed geo-points throw an exception and reject the whole document.
+    If `true`, malformed geopoints are ignored. If `false` (default),
+    malformed geopoints throw an exception and reject the whole document.
+    A geopoint is considered malformed if its latitude is outside the range
+    -90 <= latitude <= 90, or if its longitude is outside the range -180 <= longitude <= 180.
+    Note that this cannot be set if the `script` parameter is used.
 
 `ignore_z_value`::
 
     If `true` (default) three dimension points will be accepted (stored in source)
     but only latitude and longitude values will be indexed; the third dimension is
-    ignored. If `false`, geo-points containing any more than latitude and longitude
-    (two dimensions) values throw an exception and reject the whole document.
+    ignored. If `false`, geopoints containing any more than latitude and longitude
+    (two dimensions) values throw an exception and reject the whole document. Note
+    that this cannot be set if the `script` parameter is used.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 
     Accepts an geopoint value which is substituted for any explicit `null` values.
-    Defaults to `null`, which means the field is treated as missing.
+    Defaults to `null`, which means the field is treated as missing. Note that this
+    cannot be set if the `script` parameter is used.
 
-==== Using geo-points in scripts
+`on_script_error`::
 
-When accessing the value of a geo-point in a script, the value is returned as
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>, and should emit points
+    as a pair of (lat, lon) double values.
+
+==== Using geopoints in scripts
+
+When accessing the value of a geopoint in a script, the value is returned as
 a `GeoPoint` object, which allows access to the `.lat` and `.lon` values
 respectively:
 

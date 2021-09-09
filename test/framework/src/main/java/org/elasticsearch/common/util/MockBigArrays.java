@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -31,8 +20,8 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -101,7 +90,7 @@ public class MockBigArrays extends BigArrays {
 
     public static void ensureAllArraysAreReleased() throws Exception {
         final Map<Object, Object> masterCopy = new HashMap<>(ACQUIRED_ARRAYS);
-        if (!masterCopy.isEmpty()) {
+        if (masterCopy.isEmpty() == false) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
@@ -110,7 +99,7 @@ public class MockBigArrays extends BigArrays {
             } catch (AssertionError ex) {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-                if (!masterCopy.isEmpty()) {
+                if (masterCopy.isEmpty() == false) {
                     Iterator<Object> causes = masterCopy.values().iterator();
                     Object firstCause = causes.next();
                     RuntimeException exception = new RuntimeException(masterCopy.size() + " arrays have not been released",
@@ -170,7 +159,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public ByteArray newByteArray(long size, boolean clearOnResize) {
         final ByteArrayWrapper array = new ByteArrayWrapper(super.newByteArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -187,7 +176,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new ByteArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -196,7 +185,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public IntArray newIntArray(long size, boolean clearOnResize) {
         final IntArrayWrapper array = new IntArrayWrapper(super.newIntArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -213,7 +202,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new IntArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -222,7 +211,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public LongArray newLongArray(long size, boolean clearOnResize) {
         final LongArrayWrapper array = new LongArrayWrapper(super.newLongArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -239,7 +228,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new LongArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -248,7 +237,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
         final FloatArrayWrapper array = new FloatArrayWrapper(super.newFloatArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -265,7 +254,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new FloatArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -274,7 +263,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
         final DoubleArrayWrapper array = new DoubleArrayWrapper(super.newDoubleArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -291,7 +280,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new DoubleArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -628,27 +617,26 @@ public class MockBigArrays extends BigArrays {
         }
     }
 
-    private static class LimitedBreaker extends NoopCircuitBreaker {
+    public static class LimitedBreaker extends NoopCircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final ByteSizeValue max;
 
-        LimitedBreaker(String name, ByteSizeValue max) {
+        public LimitedBreaker(String name, ByteSizeValue max) {
             super(name);
             this.max = max;
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             long total = used.addAndGet(bytes);
             if (total > max.getBytes()) {
                 throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
             }
-            return total;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
-            return used.addAndGet(bytes);
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
         }
     }
 }

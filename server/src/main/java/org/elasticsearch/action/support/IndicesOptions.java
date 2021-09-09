@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -377,10 +367,15 @@ public class IndicesOptions implements ToXContentFragment {
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
-        EnumSet<WildcardStates> wildcardStates = null;
-        Boolean allowNoIndices = null;
-        Boolean ignoreUnavailable = null;
-        boolean ignoreThrottled = false;
+        return fromXContent(parser, null);
+    }
+
+    public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
+        boolean parsedWildcardStates = false;
+        EnumSet<WildcardStates> wildcardStates = defaults == null ? null : defaults.getExpandWildcards();
+        Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
+        Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
+        boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -391,7 +386,8 @@ public class IndicesOptions implements ToXContentFragment {
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (wildcardStates == null) {
+                    if (parsedWildcardStates == false) {
+                        parsedWildcardStates = true;
                         wildcardStates = EnumSet.noneOf(WildcardStates.class);
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             if (token.isValue()) {
@@ -410,7 +406,8 @@ public class IndicesOptions implements ToXContentFragment {
                 }
             } else if (token.isValue()) {
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (wildcardStates == null) {
+                    if (parsedWildcardStates == false) {
+                        parsedWildcardStates = true;
                         wildcardStates = EnumSet.noneOf(WildcardStates.class);
                         WildcardStates.updateSetForValue(wildcardStates, parser.text());
                     } else {

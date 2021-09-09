@@ -43,7 +43,7 @@ include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
 --------------------------------------------------
 <1> The number of active shard copies to wait for before the open index API
 returns a response, as an `int`
-<2> The number of active shard copies to wait for before  the open index API
+<2> The number of active shard copies to wait for before the open index API
 returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]

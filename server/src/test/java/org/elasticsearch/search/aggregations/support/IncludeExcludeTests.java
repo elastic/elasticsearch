@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -23,7 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,16 +31,12 @@ import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
-        IncludeExclude inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                null);
+        IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
-        inexcl = new IncludeExclude(
-                null,
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+        inexcl = new IncludeExclude(null, new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
@@ -102,8 +87,8 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testTermAccept() throws IOException {
-        String[] fooSet = {"foo"};
-        String[] barSet = {"bar"};
+        String[] fooSet = { "foo" };
+        String[] barSet = { "bar" };
         String fooRgx = "f.*";
         String barRgx = "b.*";
 
@@ -253,8 +238,7 @@ public class IncludeExcludeTests extends ESTestCase {
             } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
                 return IncludeExclude.parseExclude(parser);
             } else {
-                throw new IllegalArgumentException(
-                    "Unexpected field name serialized in test: " + field.getPreferredName());
+                throw new IllegalArgumentException("Unexpected field name serialized in test: " + field.getPreferredName());
             }
         }
     }
@@ -359,7 +343,7 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testInvalidIncludeExcludeCombination() {
-        String[] values = {"foo"};
+        String[] values = { "foo" };
         String regex = "foo";
 
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));

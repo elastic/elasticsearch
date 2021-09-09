@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -26,7 +15,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
@@ -73,7 +62,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     @Override
     protected void doAssertLuceneQuery(DistanceFeatureQueryBuilder queryBuilder,
                                        Query query,
-                                       QueryShardContext context) throws IOException {
+                                       SearchExecutionContext context) throws IOException {
         String fieldName = expectedFieldName(queryBuilder.fieldName());
         Object origin = queryBuilder.origin().origin();
         String pivot = queryBuilder.pivot();
@@ -215,7 +204,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
-        Query query = parseQuery(queryString).toQuery(createShardContext());
+        Query query = parseQuery(queryString).toQuery(createSearchExecutionContext());
         assertEquals(expectedQuery, query);
     }
 
@@ -227,7 +216,8 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("query can only be run on a date, date_nanos or geo_point field type!"));
     }
 }

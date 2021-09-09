@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-saml-sp-metadata]]
 === SAML service provider metadata API
+++++
+<titleabbrev>SAML service provider metadata</titleabbrev>
+++++
 
 Generate SAML metadata for a SAML 2.0 Service Provider.
 

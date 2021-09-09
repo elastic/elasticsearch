@@ -7,7 +7,7 @@
 IMPORTANT: This documentation is about <<indices-templates-v1,legacy index
 templates>>, which are deprecated and will be replaced by the composable
 templates introduced in {es} 7.8. For information about composable templates,
-<<indices-templates>>.
+see <<index-templates>>.
 
 Deletes a legacy index template.
 
@@ -36,13 +36,19 @@ DELETE /_template/my-legacy-index-template
 
 `DELETE /_template/<legacy-index-template>`
 
+[[delete-template-api-v1-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[delete-template-api-v1-path-params]]
 ==== {api-path-parms-title}
 
 `<legacy-index-template>`::
 (Required, string)
-Comma-separated list of legacy index templates to delete. Wildcard (`*`)
+The name of the legacy index template to delete. Wildcard (`*`)
 expressions are supported.
 
 

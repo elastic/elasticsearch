@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -180,20 +169,20 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     // Check operator handling, and default field handling.
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(TEXT_FIELD_NAME);
-        QueryShardContext shardContext = createShardContext();
-        shardContext.setAllowUnmappedFields(true); // to avoid occasional cases
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        searchExecutionContext.setAllowUnmappedFields(true); // to avoid occasional cases
                                                    // in setup where we didn't
                                                    // add types but strict field
                                                    // resolution
-        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(shardContext);
+        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(searchExecutionContext);
         assertThat(shouldClauses(boolQuery), is(4));
 
         qb.defaultOperator(Operator.AND);
-        boolQuery = (BooleanQuery) qb.toQuery(shardContext);
+        boolQuery = (BooleanQuery) qb.toQuery(searchExecutionContext);
         assertThat(shouldClauses(boolQuery), is(0));
 
         qb.defaultOperator(Operator.OR);
-        boolQuery = (BooleanQuery) qb.toQuery(shardContext);
+        boolQuery = (BooleanQuery) qb.toQuery(searchExecutionContext);
         assertThat(shouldClauses(boolQuery), is(4));
     }
 
@@ -246,9 +235,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
         assertThat(queryBuilder.fields().size(), equalTo(0));
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        Query luceneQuery = queryBuilder.toQuery(shardContext);
+        Query luceneQuery = queryBuilder.toQuery(searchExecutionContext);
         assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
     }
 
@@ -260,7 +249,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * actual functionality of query parsing.
      */
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, notNullValue());
 
         if (queryBuilder.value().isEmpty()) {
@@ -313,10 +302,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testToQueryBoost() throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(TEXT_FIELD_NAME, 5);
-        Query query = simpleQueryStringBuilder.toQuery(shardContext);
+        Query query = simpleQueryStringBuilder.toQuery(searchExecutionContext);
         assertThat(query, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) query;
         assertThat(boostQuery.getBoost(), equalTo(5f));
@@ -325,7 +314,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(TEXT_FIELD_NAME, 5);
         simpleQueryStringBuilder.boost(2);
-        query = simpleQueryStringBuilder.toQuery(shardContext);
+        query = simpleQueryStringBuilder.toQuery(searchExecutionContext);
         boostQuery = (BoostQuery) query;
         assertThat(boostQuery.getBoost(), equalTo(2f));
         assertThat(boostQuery.getQuery(), instanceOf(BoostQuery.class));
@@ -377,7 +366,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testMinimumShouldMatch() throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         int numberOfTerms = randomIntBetween(1, 4);
         StringBuilder queryString = new StringBuilder();
         for (int i = 0; i < numberOfTerms; i++) {
@@ -393,7 +382,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
         int percent = randomIntBetween(1, 100);
         simpleQueryStringBuilder.minimumShouldMatch(percent + "%");
-        Query query = simpleQueryStringBuilder.toQuery(shardContext);
+        Query query = simpleQueryStringBuilder.toQuery(searchExecutionContext);
 
         // check special case: one term & one field should get simplified to a TermQuery
         if (numberOfFields * numberOfTerms == 1) {
@@ -416,25 +405,25 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Query query = new SimpleQueryStringBuilder("aBc*")
                 .field(TEXT_FIELD_NAME)
                 .analyzer("whitespace")
-                .toQuery(createShardContext());
+                .toQuery(createSearchExecutionContext());
         assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc")), query);
         query = new SimpleQueryStringBuilder("aBc*")
                 .field(TEXT_FIELD_NAME)
                 .analyzer("standard")
-                .toQuery(createShardContext());
+                .toQuery(createSearchExecutionContext());
         assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc")), query);
 
         // Fuzzy
         query = new SimpleQueryStringBuilder("aBc~1")
                 .field(TEXT_FIELD_NAME)
                 .analyzer("whitespace")
-                .toQuery(createShardContext());
+                .toQuery(createSearchExecutionContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "aBc"), 1);
         assertEquals(expected, query);
         query = new SimpleQueryStringBuilder("aBc~1")
                 .field(TEXT_FIELD_NAME)
                 .analyzer("standard")
-                .toQuery(createShardContext());
+                .toQuery(createSearchExecutionContext());
         expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "abc"), 1);
         assertEquals(expected, query);
     }
@@ -443,7 +432,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new StandardAnalyzer(),
-            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createSearchExecutionContext());
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             parser.setDefaultOperator(defaultOp);
@@ -466,7 +455,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockRepeatAnalyzer(),
-            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createSearchExecutionContext());
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             parser.setDefaultOperator(defaultOp);
@@ -497,7 +486,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
-            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createSearchExecutionContext());
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             parser.setDefaultOperator(defaultOp);
@@ -551,20 +540,20 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         settings.analyzeWildcard(true);
         settings.quoteFieldSuffix("_2");
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
-            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createSearchExecutionContext());
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("bar"));
         assertEquals(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")), parser.parse("\"bar\""));
 
         // Now check what happens if the quote field does not exist
         settings.quoteFieldSuffix(".quote");
         parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
-            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createShardContext());
+            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f), -1, settings, createSearchExecutionContext());
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("bar"));
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("\"bar\""));
     }
 
     public void testDefaultField() throws Exception {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         // default value `*` sets leniency to true
         Query query = new SimpleQueryStringBuilder("hello")
             .toQuery(context);
@@ -603,7 +592,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testAllFieldsWildcard() throws Exception {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         Query query = new SimpleQueryStringBuilder("hello")
             .field("*")
             .toQuery(context);
@@ -623,7 +612,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .fuzzyPrefixLength(2)
             .fuzzyMaxExpansions(5)
             .fuzzyTranspositions(false)
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
         assertEquals(expected, query);
     }
@@ -633,7 +622,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(DATE_FIELD_NAME)
             .field(TEXT_FIELD_NAME)
             .lenient(true)
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         List<Query> expectedQueries = new ArrayList<>();
         expectedQueries.add(new MatchNoDocsQuery(""));
         expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t")));
@@ -645,7 +634,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Query query = new SimpleQueryStringBuilder("the quick fox")
             .field(TEXT_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         Query expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
@@ -656,7 +645,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(TEXT_FIELD_NAME)
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder()
             .add(new DisjunctionMaxQuery(
                 Arrays.asList(
@@ -675,7 +664,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(TEXT_FIELD_NAME)
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         assertEquals(new MatchNoDocsQuery(), query);
 
         query = new BoolQueryBuilder()
@@ -684,7 +673,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                     .field(TEXT_FIELD_NAME)
                     .analyzer("stop")
             )
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder()
             .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
             .build();
@@ -697,7 +686,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                     .field(KEYWORD_FIELD_NAME)
                     .analyzer("stop")
             )
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         assertEquals(expected, query);
     }
 
@@ -705,7 +694,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Query query = new SimpleQueryStringBuilder("the* quick fox")
             .field(TEXT_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "the")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
@@ -726,7 +715,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .field("unmapped")
                 .field("another_unmapped")
                 .defaultOperator(Operator.AND)
-                .toQuery(createShardContext());
+                .toQuery(createSearchExecutionContext());
         BooleanQuery expected = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
                 .add(new TermQuery(new Term(TEXT_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
@@ -736,7 +725,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field("unmapped")
             .field("another_unmapped")
             .defaultOperator(Operator.AND)
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder()
             .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
             .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
@@ -750,7 +739,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             () -> new SimpleQueryStringBuilder("the quick fox")
                 .field(TEXT_FIELD_NAME, -1.0f)
                 .field(KEYWORD_FIELD_NAME)
-                .toQuery(createShardContext()));
+                .toQuery(createSearchExecutionContext()));
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
@@ -797,14 +786,14 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         assert context.isCacheable();
         /*
          * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
          * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
          * actual lucene query
          */
-        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
+        QueryBuilder rewritten = rewriteQuery(qb, new SearchExecutionContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
                 context.isCacheable());
@@ -812,7 +801,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testLenientFlag() throws Exception {
         SimpleQueryStringBuilder query = new SimpleQueryStringBuilder("test").field(BINARY_FIELD_NAME);
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);

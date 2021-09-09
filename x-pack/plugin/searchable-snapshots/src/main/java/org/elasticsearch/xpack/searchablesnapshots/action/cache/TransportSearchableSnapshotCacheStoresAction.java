@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
@@ -25,10 +26,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 
 public class TransportSearchableSnapshotCacheStoresAction extends TransportNodesAction<
     TransportSearchableSnapshotCacheStoresAction.Request,
@@ -36,7 +40,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
     TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
 
-    public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/store";
+    public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
     public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesCacheFilesMetadata::new);
 
@@ -87,6 +91,9 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         assert cacheService != null;
+        assert Optional.ofNullable(clusterService.state().metadata().index(request.shardId.getIndex()))
+            .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))
+            .orElse(false) == false : request.shardId + " is partial, should not be fetching its cached size";
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
 

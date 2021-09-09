@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -22,9 +11,9 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -57,9 +46,14 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
-    SingleDimensionValuesSource(BigArrays bigArrays, DocValueFormat format,
-                                @Nullable MappedFieldType fieldType, boolean missingBucket,
-                                int size, int reverseMul) {
+    SingleDimensionValuesSource(
+        BigArrays bigArrays,
+        DocValueFormat format,
+        @Nullable MappedFieldType fieldType,
+        boolean missingBucket,
+        int size,
+        int reverseMul
+    ) {
         this.bigArrays = bigArrays;
         this.format = format;
         this.fieldType = fieldType;
@@ -111,7 +105,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     /**
      * Sets the after value for this source. Values that compares smaller are filtered.
      */
-    abstract void setAfter(Comparable value);
+    abstract void setAfter(Comparable<?> value);
 
     /**
      * Returns the after value set for this source.
@@ -138,8 +132,8 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Creates a {@link LeafBucketCollector} that sets the current value for each document to the provided
      * <code>value</code> and invokes {@link LeafBucketCollector#collect} on the provided <code>next</code> collector.
      */
-    abstract LeafBucketCollector getLeafCollector(Comparable value,
-                                                  LeafReaderContext context, LeafBucketCollector next) throws IOException;
+    abstract LeafBucketCollector getLeafCollector(Comparable<T> value, LeafReaderContext context, LeafBucketCollector next)
+        throws IOException;
 
     /**
      * Returns a {@link SortedDocsProducer} or null if this source cannot produce sorted docs.
@@ -150,19 +144,24 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null ||
-                (missingBucket && afterValue == null) ||
-                fieldType.isSearchable() == false ||
-                // inverse of the natural order
-                reverseMul == -1) {
+        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.isSearchable() == false ||
+        // inverse of the natural order
+            reverseMul == -1) {
             return false;
         }
 
-        if (reader.hasDeletions() &&
-                (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() < 0.5)) {
+        if (reader.hasDeletions() && (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() < 0.5)) {
             // do not use the index if it has more than 50% of deleted docs
             return false;
         }
         return true;
+    }
+
+    /**
+     * Whether this values source only guarantees stable hashes for {@link #hashCode(int)} and {@link #hashCodeCurrent()}
+     * in the context of a single LeafReader or whether rehashing is required when switching LeafReaders.
+     */
+    public boolean requiresRehashingWhenSwitchingLeafReaders() {
+        return false;
     }
 }

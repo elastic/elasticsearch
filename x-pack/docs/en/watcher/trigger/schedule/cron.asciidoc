@@ -48,7 +48,7 @@ minute during the weekend:
   "trigger" : {
     "schedule" : {
       "cron" : [
-        "0 0/2 * ? * MON-FRI"",
+        "0 0/2 * ? * MON-FRI",
         "0 1-59/2 * ? * SAT-SUN"
       ]
     }

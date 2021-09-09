@@ -1,6 +1,6 @@
 process where process_name : "svchost.exe" and command_line != "* -k *";
 process where process_name in ("ipconfig.exe", "netstat.exe", "systeminfo.exe", "route.exe");
-process where subtype.create and wildcard(command_line, "*.ost *", "*.pst *")
+process where subtype.create and command_line like ("*.ost *", "*.pst *")
 ;
 
 process where subtype.create and
@@ -695,3 +695,6 @@ sequence
   ["""!#@$%12345)(*&%^%#$@""" where true] by unique_ppid2
 | tail 1
 ;
+
+// case sensitive
+process where startswith~(process_name,"net") and endswith(command_line,".exe");

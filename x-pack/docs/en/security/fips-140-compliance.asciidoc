@@ -12,7 +12,7 @@ IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must
 either configure the bundled JVM to run with a FIPS 140-2 certified Java
 Security Provider or use an external JVM configured for FIPS 140-2.
 
-After configuring your JVM for FIPS 140-2, you can run {es} in FIPS mode by
+After configuring your JVM for FIPS 140-2, you can run {es} in FIPS 140-2 mode by
 setting the `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
 
 For {es}, adherence to FIPS 140-2 is ensured by
@@ -30,7 +30,7 @@ For {es}, adherence to FIPS 140-2 is ensured by
 If you plan to upgrade your existing cluster to a version that can be run in
 a FIPS 140-2 configured JVM, we recommend to first perform a rolling
 upgrade to the new version in your existing JVM and perform all necessary
-configuration changes in preparation for running in fips mode. You can then
+configuration changes in preparation for running in FIPS 140-2 mode. You can then
 perform a rolling restart of the nodes, starting each node in a FIPS 140-2 JVM.
 During the restart, {es}:
 
@@ -60,7 +60,7 @@ and able to run {es} successfully in a FIPS 140-2 configured JVM.
 
 FIPS 140-2 (via NIST Special Publication 800-132) dictates that encryption keys should at
 least have an effective strength of 112 bits.
-As such, the elasticsearch keystore that stores the node's <<secure-settings,secure settings>>
+As such, the {es} keystore that stores the node's <<secure-settings,secure settings>>
 needs to be password protected with a password that satisfies this requirement.
 This means that the password needs to be 14 bytes long which is equivalent
 to a 14 character ASCII encoded password, or a 7 character UTF-8 encoded password.
@@ -128,6 +128,8 @@ native, and file realms are longer than 14 bytes.
 You must set the `cache.hash_algo` realm settings
 and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
 available `pbkdf_stretch_*` values.
+When FIPS-140 mode is enabled, the default value for
+`xpack.security.authc.password_hashing.algorithm` is `pbkdf2_stretch`.
 See <<hashing-settings>>.
 
 Password hashing configuration changes are not retroactive so the stored hashed
@@ -147,14 +149,14 @@ using the compliant `PBKDF2` based algorithm you have selected.
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of
-features are not available while running in fips mode. The list is as follows:
+features are not available while running in FIPS 140-2 mode. The list is as follows:
 
 * Azure Classic Discovery Plugin
 * Ingest Attachment Plugin
 * The <<certutil,`elasticsearch-certutil`>> tool. However,
  `elasticsearch-certutil` can very well be used in a non FIPS 140-2
-  configured JVM (pointing `JAVA_HOME` environment variable to a different java
-  installation) in order to generate the keys and certificates that
+  configured JVM (pointing `ES_JAVA_HOME` environment variable to a different
+  java installation) in order to generate the keys and certificates that
   can be later used in the FIPS 140-2 configured JVM.
 * The SQL CLI client cannot run in a FIPS 140-2 configured JVM while using
   TLS for transport security or PKI for client authentication.

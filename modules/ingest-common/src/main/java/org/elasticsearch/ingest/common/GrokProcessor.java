@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -37,6 +26,8 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public final class GrokProcessor extends AbstractProcessor {
 
     public static final String TYPE = "grok";
+    public static final String DEFAULT_ECS_COMPATIBILITY_MODE = Grok.ECS_COMPATIBILITY_MODES[0];
+
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
     private static final Logger logger = LogManager.getLogger(GrokProcessor.class);
 
@@ -138,11 +129,9 @@ public final class GrokProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final Map<String, String> builtinPatterns;
         private final MatcherWatchdog matcherWatchdog;
 
-        public Factory(Map<String, String> builtinPatterns, MatcherWatchdog matcherWatchdog) {
-            this.builtinPatterns = builtinPatterns;
+        public Factory(MatcherWatchdog matcherWatchdog) {
             this.matcherWatchdog = matcherWatchdog;
         }
 
@@ -153,12 +142,19 @@ public final class GrokProcessor extends AbstractProcessor {
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            String ecsCompatibility =
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "ecs_compatibility", DEFAULT_ECS_COMPATIBILITY_MODE);
+            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                throw newConfigurationException(TYPE, processorTag, "ecs_compatibility", "unsupported mode '" + ecsCompatibility + "'");
+            }
 
             if (matchPatterns.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(builtinPatterns);
+            Map<String, String> patternBank = new HashMap<>(
+                Grok.getBuiltinPatterns(ecsCompatibility)
+            );
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }

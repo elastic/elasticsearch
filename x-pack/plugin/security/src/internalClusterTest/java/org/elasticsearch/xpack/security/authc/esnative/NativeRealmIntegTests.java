@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -55,11 +56,15 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -103,8 +108,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name());
         if (anonymousEnabled) {
             builder.put(AnonymousUser.ROLES_SETTING.getKey(), "native_anonymous");
@@ -374,7 +379,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request, authentication));
+                    Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY).build()
+                        .cluster()
+                        .check("cluster:admin/foo", request, authentication));
 
             preparePutRole("test_role")
                     .cluster("none")
@@ -385,7 +392,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request, authentication));
+                    Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY).build()
+                        .cluster()
+                        .check("cluster:admin/bar", request, authentication));
         }
     }
 
@@ -616,18 +625,19 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             () -> preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar-password", hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
+        final String internalUser = randomFrom(SystemUser.NAME, XPackUser.NAME, XPackSecurityUser.NAME, AsyncSearchUser.NAME);
         exception = expectThrows(IllegalArgumentException.class,
-            () -> preparePutUser(SystemUser.NAME, "foobar-password", hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+            () -> preparePutUser(internalUser, "foobar-password", hasher).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> new ChangePasswordRequestBuilder(client()).username(SystemUser.NAME)
+            () -> new ChangePasswordRequestBuilder(client()).username(internalUser)
                 .password("foobar-password".toCharArray(), hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> new DeleteUserRequestBuilder(client()).username(SystemUser.NAME).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+                () -> new DeleteUserRequestBuilder(client()).username(internalUser).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         // get should work
         GetUsersResponse response = new GetUsersRequestBuilder(client()).usernames(username).get();

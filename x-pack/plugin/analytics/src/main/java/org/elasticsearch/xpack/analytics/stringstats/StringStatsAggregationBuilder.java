@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -31,8 +32,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         new ValuesSourceRegistry.RegistryKey<>(NAME, StringStatsAggregatorSupplier.class);
 
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
-    public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, StringStatsAggregationBuilder::new);
+    public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        StringStatsAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(StringStatsAggregationBuilder::showDistribution, StringStatsAggregationBuilder.SHOW_DISTRIBUTION_FIELD);
@@ -44,9 +47,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         super(name);
     }
 
-    public StringStatsAggregationBuilder(StringStatsAggregationBuilder clone,
-                                         AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metadata) {
+    public StringStatsAggregationBuilder(
+        StringStatsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.showDistribution = clone.showDistribution();
     }
@@ -59,7 +64,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -78,15 +83,23 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected StringStatsAggregatorFactory innerBuild(AggregationContext context,
-                                                      ValuesSourceConfig config,
-                                                      AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        StringStatsAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new StringStatsAggregatorFactory(name, config, showDistribution, context,
-                                                parent, subFactoriesBuilder, metadata,
-                                                aggregatorSupplier);
+    protected StringStatsAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        StringStatsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new StringStatsAggregatorFactory(
+            name,
+            config,
+            showDistribution,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

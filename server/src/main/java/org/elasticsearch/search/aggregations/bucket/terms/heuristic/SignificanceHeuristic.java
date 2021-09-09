@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
@@ -38,11 +27,17 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
      */
     public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
 
-    protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize,
-            String scoreFunctionName) {
+    protected void checkFrequencyValidity(
+        long subsetFreq,
+        long subsetSize,
+        long supersetFreq,
+        long supersetSize,
+        String scoreFunctionName
+    ) {
         if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new IllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName +
-                    ".getScore()");
+            throw new IllegalArgumentException(
+                "Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()"
+            );
         }
         if (subsetFreq > subsetSize) {
             throw new IllegalArgumentException("subsetFreq > subsetSize, in " + scoreFunctionName);
@@ -64,7 +59,7 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
 
     /**
      * Provides a hook for subclasses to provide a version of the heuristic
-     * prepared for execution on data on a shard. 
+     * prepared for execution on data on a shard.
      * @param context the shard context on the data node
      * @return a version of this heuristic suitable for execution
      */

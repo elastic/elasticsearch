@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml.section;
@@ -27,7 +16,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -42,6 +32,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,12 +41,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,13 +64,16 @@ import static org.junit.Assert.fail;
  *      headers:
  *          Authorization: Basic user:pass
  *          Content-Type: application/json
- *      warnings:
+ *      warnings|warnings_regex:
  *          - Stuff is deprecated, yo
  *          - Don't use deprecated stuff
  *          - Please, stop. It hurts.
- *      allowed_warnings:
+ *          - The non _regex version exact matches against the warning text and no need to worry about escaped quotes or backslashes
+ *          - The _regex version matches against the raw value of the warning text which may include backlashes and quotes escaped
+ *      allowed_warnings|allowed_warnings_regex:
  *          - Maybe this warning shows up
  *          - But it isn't actually required for the test to pass.
+ *          - The non _regex version should be preferred for simplicity and performance.
  *      update:
  *          index:  test_1
  *          type:   test
@@ -97,7 +91,9 @@ public class DoSection implements ExecutableSection {
         NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
+        List<Pattern> expectedWarningsRegex = new ArrayList<>();
         List<String> allowedWarnings = new ArrayList<>();
+        List<Pattern> allowedWarningsRegex = new ArrayList<>();
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("expected [" + XContentParser.Token.START_OBJECT + "], " +
@@ -121,13 +117,29 @@ public class DoSection implements ExecutableSection {
                     if (token != XContentParser.Token.END_ARRAY) {
                         throw new ParsingException(parser.getTokenLocation(), "[warnings] must be a string array but saw [" + token + "]");
                     }
+                } else if ("warnings_regex".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
+                        expectedWarningsRegex.add(Pattern.compile(parser.text()));
+                    }
+                    if (token != XContentParser.Token.END_ARRAY) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "[warnings_regex] must be a string array but saw [" + token + "]");
+                    }
                 } else if ("allowed_warnings".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
                         allowedWarnings.add(parser.text());
                     }
                     if (token != XContentParser.Token.END_ARRAY) {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[allowed_warnings] must be a string array but saw [" + token + "]");
+                            "[allowed_warnings] must be a string array but saw [" + token + "]");
+                    }
+                } else if ("allowed_warnings_regex".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
+                        allowedWarningsRegex.add(Pattern.compile(parser.text()));
+                    }
+                    if (token != XContentParser.Token.END_ARRAY) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "[allowed_warnings_regex] must be a string array but saw [" + token + "]");
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unknown array [" + currentFieldName + "]");
@@ -189,11 +201,18 @@ public class DoSection implements ExecutableSection {
                     throw new IllegalArgumentException("the warning [" + w + "] was both allowed and expected");
                 }
             }
+            for (Pattern p : expectedWarningsRegex) {
+                if (allowedWarningsRegex.contains(p)) {
+                    throw new IllegalArgumentException("the warning pattern [" + p + "] was both allowed and expected");
+                }
+            }
             apiCallSection.addHeaders(headers);
             apiCallSection.setNodeSelector(nodeSelector);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
+            doSection.setExpectedWarningHeadersRegex(unmodifiableList(expectedWarningsRegex));
             doSection.setAllowedWarningHeaders(unmodifiableList(allowedWarnings));
+            doSection.setAllowedWarningHeadersRegex(unmodifiableList(allowedWarningsRegex));
         } finally {
             parser.nextToken();
         }
@@ -206,7 +225,9 @@ public class DoSection implements ExecutableSection {
     private String catchParam;
     private ApiCallSection apiCallSection;
     private List<String> expectedWarningHeaders = emptyList();
+    private List<Pattern> expectedWarningHeadersRegex = emptyList();
     private List<String> allowedWarningHeaders = emptyList();
+    private List<Pattern> allowedWarningHeadersRegex = emptyList();
 
     public DoSection(XContentLocation location) {
         this.location = location;
@@ -229,11 +250,21 @@ public class DoSection implements ExecutableSection {
     }
 
     /**
-     * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
+     * Warning headers patterns that we expect from this response.
+     * If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
     List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
+    }
+
+    /**
+     * Warning headers patterns that we expect from this response.
+     * If the headers don't match this request is considered to have failed.
+     * Defaults to emptyList.
+     */
+    List<Pattern> getExpectedWarningHeadersRegex() {
+        return expectedWarningHeadersRegex;
     }
 
     /**
@@ -245,6 +276,14 @@ public class DoSection implements ExecutableSection {
     }
 
     /**
+     * Set the warning headers patterns that we expect from this response. If the headers don't match this request is considered to have
+     * failed. Defaults to emptyList.
+     */
+    void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
+        this.expectedWarningHeadersRegex = expectedWarningHeadersRegex;
+    }
+
+    /**
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
@@ -253,11 +292,27 @@ public class DoSection implements ExecutableSection {
     }
 
     /**
+     * Warning headers that we allow from this response. These warning
+     * headers don't cause the test to fail. Defaults to emptyList.
+     */
+    List<Pattern> getAllowedWarningHeadersRegex() {
+        return allowedWarningHeadersRegex;
+    }
+
+    /**
      * Set the warning headers that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
     void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
         this.allowedWarningHeaders = allowedWarningHeaders;
+    }
+
+    /**
+     * Set the warning headers pattern that we expect from this response. These
+     * warning headers don't cause the test to fail. Defaults to emptyList.
+     */
+    void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
+        this.allowedWarningHeadersRegex = allowedWarningHeadersRegex;
     }
 
     @Override
@@ -289,10 +344,13 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
+            final String testPath = executionContext.getClientYamlTestCandidate() != null
+                ? executionContext.getClientYamlTestCandidate().getTestPath()
+                : null;
+            checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
-            if (!Strings.hasLength(catchParam)) {
+            if (Strings.hasLength(catchParam) == false) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));
             } else if (catches.containsKey(catchParam)) {
                 assertStatusCode(restTestResponse);
@@ -312,20 +370,27 @@ public class DoSection implements ExecutableSection {
         }
     }
 
+    void checkWarningHeaders(final List<String> warningHeaders) {
+        checkWarningHeaders(warningHeaders, null);
+    }
+
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
+    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
-        Set<String> allowed = allowedWarningHeaders.stream()
-                .map(HeaderWarning::escapeAndEncode)
-                .collect(toSet());
+        final List<String> missingRegex = new ArrayList<>();
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
+        final Set<String> allowed = allowedWarningHeaders.stream()
+                .map(HeaderWarning::escapeAndEncode)
+                .collect(toCollection(LinkedHashSet::new));
+        final Set<Pattern> allowedRegex = new LinkedHashSet<>(allowedWarningHeadersRegex);
         final Set<String> expected = expectedWarningHeaders.stream()
                 .map(HeaderWarning::escapeAndEncode)
                 .collect(toCollection(LinkedHashSet::new));
+        final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
             final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
@@ -334,7 +399,26 @@ public class DoSection implements ExecutableSection {
                 if (allowed.contains(message)) {
                     continue;
                 }
+
                 if (expected.remove(message)) {
+                    continue;
+                }
+                boolean matchedRegex = false;
+
+                for(Pattern pattern : new HashSet<>(expectedRegex)){
+                    if(pattern.matcher(message).matches()){
+                        matchedRegex = true;
+                        expectedRegex.remove(pattern);
+                        break;
+                    }
+                }
+                for(Pattern pattern : allowedRegex){
+                    if(pattern.matcher(message).matches()){
+                        matchedRegex = true;
+                        break;
+                    }
+                }
+                if (matchedRegex){
                     continue;
                 }
                 unexpected.add(header);
@@ -347,15 +431,36 @@ public class DoSection implements ExecutableSection {
                 missing.add(header);
             }
         }
+        if (expectedRegex.isEmpty() == false) {
+            for (final Pattern headerPattern : expectedRegex) {
+                missingRegex.add(headerPattern.pattern());
+            }
+        }
 
-        if (unexpected.isEmpty() == false || unmatched.isEmpty() == false || missing.isEmpty() == false) {
+        // Log and remove all deprecation warnings for legacy index templates as a shortcut to dealing with all the legacy
+        // templates used in YAML tests. Once they have all been migrated to composable templates, this should be removed.
+        for (Iterator<String> warnings = unexpected.iterator(); warnings.hasNext();) {
+            if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
+                logger.warn(
+                    "Test [{}] uses deprecated legacy index templates and should be updated to use composable templates",
+                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber
+                );
+                warnings.remove();
+            }
+        }
+
+        if (unexpected.isEmpty() == false
+            || unmatched.isEmpty() == false
+            || missing.isEmpty() == false
+            || missingRegex.isEmpty() == false) {
             final StringBuilder failureMessage = new StringBuilder();
             appendBadHeaders(failureMessage, unexpected, "got unexpected warning header" + (unexpected.size() > 1 ? "s" : ""));
             appendBadHeaders(failureMessage, unmatched, "got unmatched warning header" + (unmatched.size() > 1 ? "s" : ""));
             appendBadHeaders(failureMessage, missing, "did not get expected warning header" + (missing.size() > 1 ? "s" : ""));
+            appendBadHeaders(failureMessage, missingRegex, "the following regular expression" + (missingRegex.size() > 1 ? "s" : "")
+                + " did not match any warning header");
             fail(failureMessage.toString());
         }
-
     }
 
     private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
@@ -463,7 +568,9 @@ public class DoSection implements ExecutableSection {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        List<VersionRange> skipVersionRanges = SkipSection.parseVersionRanges(parser.text());
+        List<VersionRange> skipVersionRanges = parser.text().equals("current")
+            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
+            : SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {

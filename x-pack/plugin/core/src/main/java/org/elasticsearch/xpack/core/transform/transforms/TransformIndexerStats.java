@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,10 +30,12 @@ public class TransformIndexerStats extends IndexerJobStats {
     public static ParseField NUM_PAGES = new ParseField("pages_processed");
     public static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     public static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
+    public static ParseField NUM_DELETED_DOCUMENTS = new ParseField("documents_deleted");
     public static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
     public static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
     public static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
     public static ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
+    public static ParseField DELETE_TIME_IN_MS = new ParseField("delete_time_in_ms");
     public static ParseField INDEX_TOTAL = new ParseField("index_total");
     public static ParseField SEARCH_TOTAL = new ParseField("search_total");
     public static ParseField PROCESSING_TOTAL = new ParseField("processing_total");
@@ -63,9 +66,11 @@ public class TransformIndexerStats extends IndexerJobStats {
             unboxSafe(args[9], 0L),
             unboxSafe(args[10], 0L),
             unboxSafe(args[11], 0L),
-            unboxSafe(args[12], 0.0),
-            unboxSafe(args[13], 0.0),
-            unboxSafe(args[14], 0.0)
+            unboxSafe(args[12], 0L),
+            unboxSafe(args[13], 0L),
+            unboxSafe(args[14], 0.0),
+            unboxSafe(args[15], 0.0),
+            unboxSafe(args[16], 0.0)
         )
     );
 
@@ -73,10 +78,12 @@ public class TransformIndexerStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_PAGES);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_INPUT_DOCUMENTS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_OUTPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_DELETED_DOCUMENTS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_INVOCATIONS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), DELETE_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TOTAL);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TOTAL);
@@ -86,6 +93,11 @@ public class TransformIndexerStats extends IndexerJobStats {
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_INDEXED);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_PROCESSED);
     }
+
+    private long deleteTime;
+    private long numDeletedDocuments;
+
+    private long startDeleteTime;
 
     private double expAvgCheckpointDurationMs;
     private double expAvgDocumentsIndexed;
@@ -102,10 +114,12 @@ public class TransformIndexerStats extends IndexerJobStats {
         long numPages,
         long numInputDocuments,
         long numOutputDocuments,
+        long numDeletedDocuments,
         long numInvocations,
         long indexTime,
         long searchTime,
         long processingTime,
+        long deleteTime,
         long indexTotal,
         long searchTotal,
         long processingTotal,
@@ -129,6 +143,8 @@ public class TransformIndexerStats extends IndexerJobStats {
             indexFailures,
             searchFailures
         );
+        this.numDeletedDocuments = numDeletedDocuments;
+        this.deleteTime = deleteTime;
         this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs;
         this.expAvgDocumentsIndexed = expAvgDocumentsIndexed;
         this.expAvgDocumentsProcessed = expAvgDocumentsProcessed;
@@ -139,10 +155,12 @@ public class TransformIndexerStats extends IndexerJobStats {
             other.numPages,
             other.numInputDocuments,
             other.numOuputDocuments,
+            other.numDeletedDocuments,
             other.numInvocations,
             other.indexTime,
             other.searchTime,
             other.processingTime,
+            other.deleteTime,
             other.indexTotal,
             other.searchTotal,
             other.processingTotal,
@@ -164,6 +182,10 @@ public class TransformIndexerStats extends IndexerJobStats {
             this.expAvgDocumentsIndexed = in.readDouble();
             this.expAvgDocumentsProcessed = in.readDouble();
         }
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            this.numDeletedDocuments = in.readVLong();
+            this.deleteTime = in.readVLong();
+        }
     }
 
     @Override
@@ -177,6 +199,10 @@ public class TransformIndexerStats extends IndexerJobStats {
             out.writeDouble(this.expAvgDocumentsIndexed);
             out.writeDouble(this.expAvgDocumentsProcessed);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeVLong(numDeletedDocuments);
+            out.writeVLong(deleteTime);
+        }
     }
 
     @Override
@@ -185,6 +211,7 @@ public class TransformIndexerStats extends IndexerJobStats {
         builder.field(NUM_PAGES.getPreferredName(), numPages);
         builder.field(NUM_INPUT_DOCUMENTS.getPreferredName(), numInputDocuments);
         builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
+        builder.field(NUM_DELETED_DOCUMENTS.getPreferredName(), numDeletedDocuments);
         builder.field(NUM_INVOCATIONS.getPreferredName(), numInvocations);
         builder.field(INDEX_TIME_IN_MS.getPreferredName(), indexTime);
         builder.field(INDEX_TOTAL.getPreferredName(), indexTotal);
@@ -194,11 +221,20 @@ public class TransformIndexerStats extends IndexerJobStats {
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
         builder.field(PROCESSING_TIME_IN_MS.getPreferredName(), processingTime);
         builder.field(PROCESSING_TOTAL.getPreferredName(), processingTotal);
+        builder.field(DELETE_TIME_IN_MS.getPreferredName(), deleteTime);
         builder.field(EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(), this.expAvgCheckpointDurationMs);
         builder.field(EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(), this.expAvgDocumentsIndexed);
         builder.field(EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), this.expAvgDocumentsProcessed);
         builder.endObject();
         return builder;
+    }
+
+    public long getDeleteTime() {
+        return deleteTime;
+    }
+
+    public long getNumDeletedDocuments() {
+        return numDeletedDocuments;
     }
 
     public double getExpAvgCheckpointDurationMs() {
@@ -211,6 +247,19 @@ public class TransformIndexerStats extends IndexerJobStats {
 
     public double getExpAvgDocumentsProcessed() {
         return expAvgDocumentsProcessed;
+    }
+
+    public void incrementNumDeletedDocuments(long n) {
+        assert (n >= 0);
+        numDeletedDocuments += n;
+    }
+
+    public void markStartDelete() {
+        startDeleteTime = System.nanoTime();
+    }
+
+    public void markEndDelete() {
+        deleteTime += ((System.nanoTime() - startDeleteTime) / 1000000);
     }
 
     public void incrementCheckpointExponentialAverages(long checkpointDurationMs, long docsIndexed, long docsProcessed) {
@@ -248,10 +297,12 @@ public class TransformIndexerStats extends IndexerJobStats {
         return Objects.equals(this.numPages, that.numPages)
             && Objects.equals(this.numInputDocuments, that.numInputDocuments)
             && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+            && Objects.equals(this.numDeletedDocuments, that.numDeletedDocuments)
             && Objects.equals(this.numInvocations, that.numInvocations)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
             && Objects.equals(this.processingTime, that.processingTime)
+            && Objects.equals(this.deleteTime, that.deleteTime)
             && Objects.equals(this.indexFailures, that.indexFailures)
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
@@ -268,10 +319,12 @@ public class TransformIndexerStats extends IndexerJobStats {
             numPages,
             numInputDocuments,
             numOuputDocuments,
+            numDeletedDocuments,
             numInvocations,
             indexTime,
             searchTime,
             processingTime,
+            deleteTime,
             indexFailures,
             searchFailures,
             indexTotal,

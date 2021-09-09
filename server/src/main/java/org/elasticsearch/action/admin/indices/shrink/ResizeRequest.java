@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
@@ -26,9 +15,10 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,17 +35,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
+    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(ResizeRequest::setMaxPrimaryShardSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
+            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
+    private ByteSizeValue maxPrimaryShardSize;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -63,6 +58,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
+        if (in.readBoolean()) {
+            maxPrimaryShardSize = new ByteSizeValue(in);
+        }
     }
 
     ResizeRequest() {}
@@ -87,6 +85,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
+        if (maxPrimaryShardSize != null && maxPrimaryShardSize.getBytes() <= 0) {
+            validationException = addValidationError("max_primary_shard_size must be greater than 0", validationException);
+        }
         assert copySettings == null || copySettings;
         return validationException;
     }
@@ -102,6 +103,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
+        out.writeOptionalWriteable(maxPrimaryShardSize);
     }
 
     @Override
@@ -184,6 +186,25 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         return copySettings;
     }
 
+    /**
+     * Sets the max primary shard size of the target index.
+     * It's used to calculate an optimum shards number of the target index according to storage of
+     * the source index, each shard's storage of the target index will not be greater than this parameter,
+     * while the shards number of the target index still be a factor of the source index's shards number.
+     *
+     * @param maxPrimaryShardSize the max primary shard size of the target index
+     */
+    public void setMaxPrimaryShardSize(ByteSizeValue maxPrimaryShardSize) {
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
+    }
+
+    /**
+     * Returns the max primary shard size of the target index
+     */
+    public ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -200,6 +221,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
+            if (maxPrimaryShardSize != null) {
+                builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
+            }
         }
         builder.endObject();
         return builder;
@@ -207,5 +231,22 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public void fromXContent(XContentParser parser) throws IOException {
         PARSER.parse(parser, this, null);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        ResizeRequest that = (ResizeRequest) obj;
+        return Objects.equals(targetIndexRequest, that.targetIndexRequest) &&
+            Objects.equals(sourceIndex, that.sourceIndex) &&
+            Objects.equals(type, that.type) &&
+            Objects.equals(copySettings, that.copySettings) &&
+            Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(targetIndexRequest, sourceIndex, type, copySettings, maxPrimaryShardSize);
     }
 }

@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -27,11 +30,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -108,6 +111,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
 
             @Override
+            public Set<DiscoveryNodeRole> roles() {
+                return Set.of(DiscoveryNodeRole.DATA_ROLE);
+            }
+
+            @Override
             public ClusterInfo info() {
                 return info;
             }
@@ -161,6 +169,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
+            null,
+            Set.of(),
             Set.of()
         );
 
@@ -190,9 +200,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
+            null,
             randomClusterInfo(state),
             null,
-            Sets.newHashSet(state.nodes())
+            Sets.newHashSet(state.nodes()),
+            Set.of()
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -230,9 +242,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
+            null,
             info,
             null,
-            Sets.newHashSet(state.nodes())
+            Sets.newHashSet(state.nodes()),
+            Set.of()
         );
 
         for (int window = 0; window < between(1, 20); ++window) {
@@ -341,7 +355,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterInfo randomClusterInfo(ClusterState state) {
-        Map<String, Long> collect = state.routingTable()
+        Map<String, Long> shardSizes = state.routingTable()
             .allShards()
             .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
@@ -355,7 +369,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return new ClusterInfo(
             diskUsage,
             diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAll(collect).build(),
+            ImmutableOpenMap.<String, Long>builder().putAll(shardSizes).build(),
+            ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
         );

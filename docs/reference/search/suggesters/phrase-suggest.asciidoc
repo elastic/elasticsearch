@@ -1,9 +1,6 @@
 [[phrase-suggester]]
 ==== Phrase Suggester
 
-NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first.
-
 The `term` suggester provides a very convenient API to access word
 alternatives on a per token basis within a certain string distance. The API
 allows accessing each token in the stream individually while
@@ -168,7 +165,7 @@ The response contains suggestions scored by the most likely spelling correction 
     accepts a float value in the range `[0..1)` as a fraction of the actual
     query terms or a number `>=1` as an absolute number of query terms. The
     default is set to `1.0`, meaning only corrections with
-    at most one misspelled term are returned.  Note that setting this too high
+    at most one misspelled term are returned. Note that setting this too high
     can negatively impact performance. Low values like `1` or `2` are recommended;
     otherwise the time spend in suggest calls might exceed the time spend in
     query execution.
@@ -198,10 +195,10 @@ The response contains suggestions scored by the most likely spelling correction 
     Sets the text / query to provide suggestions for.
 
 `highlight`::
-    Sets up suggestion highlighting.  If not provided then
-    no `highlighted` field is returned.  If provided must
+    Sets up suggestion highlighting. If not provided then
+    no `highlighted` field is returned. If provided must
     contain exactly `pre_tag` and `post_tag`, which are
-    wrapped around the changed tokens.  If multiple tokens
+    wrapped around the changed tokens. If multiple tokens
     in a row are changed the entire phrase of changed tokens
     is wrapped rather than each token.
 
@@ -209,10 +206,10 @@ The response contains suggestions scored by the most likely spelling correction 
     Checks each suggestion against the specified `query` to prune suggestions
     for which no matching docs exist in the index. The collate query for a
     suggestion is run only on the local shard from which the suggestion has
-    been generated from. The `query` must be specified and it can be templated,
-    see <<search-template,search templates>> for more information.
+    been generated from. The `query` must be specified and it can be templated.
+    See <<search-template>>.
     The current suggestion is automatically made available as the `{{suggestion}}`
-    variable, which should be used in your query.  You can still specify
+    variable, which should be used in your query. You can still specify
     your own template `params` -- the `suggestion` value will be added to the
     variables you specify. Additionally, you can specify a `prune` to control
     if all phrase suggestions will be returned; when set to `true` the suggestions
@@ -361,11 +358,11 @@ The direct generators support the following parameters:
     The number of minimal prefix characters that must
     match in order be a candidate suggestions. Defaults to 1. Increasing
     this number improves spellcheck performance. Usually misspellings don't
-    occur in the beginning of terms. (Old name "prefix_len" is deprecated)
+    occur in the beginning of terms.
 
 `min_word_length`::
     The minimum length a suggest text term must have in
-    order to be included. Defaults to 4. (Old name "min_word_len" is deprecated)
+    order to be included. Defaults to 4.
 
 `max_inspections`::
     A factor that is used to multiply with the

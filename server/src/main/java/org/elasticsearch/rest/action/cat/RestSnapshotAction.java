@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -27,7 +16,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -37,7 +26,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -111,7 +99,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         if (getSnapshotsResponse.isFailed()) {
             ElasticsearchException causes = null;
 
-            for (ElasticsearchException e : getSnapshotsResponse.getFailedResponses().values()) {
+            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
                 if (causes == null) {
                     causes = e;
                 } else {
@@ -120,37 +108,34 @@ public class RestSnapshotAction extends AbstractCatAction {
             }
             throw new ElasticsearchException(
                     "Repositories [" +
-                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailedResponses().keySet()) +
+                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet()) +
                     "] failed to retrieve snapshots", causes);
         }
 
-        for (Map.Entry<String, List<SnapshotInfo>> response : getSnapshotsResponse.getSuccessfulResponses().entrySet()) {
-            String repository = response.getKey();
-            for (SnapshotInfo snapshotStatus : response.getValue()) {
-                table.startRow();
+        for (SnapshotInfo snapshotStatus: getSnapshotsResponse.getSnapshots()) {
+            table.startRow();
 
-                table.addCell(snapshotStatus.snapshotId().getName());
-                table.addCell(repository);
-                table.addCell(snapshotStatus.state());
-                table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
-                table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));
-                table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
-                table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.endTime())));
-                final long durationMillis;
-                if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
-                    durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();
-                } else {
-                    durationMillis = snapshotStatus.endTime() - snapshotStatus.startTime();
-                }
-                table.addCell(TimeValue.timeValueMillis(durationMillis));
-                table.addCell(snapshotStatus.indices().size());
-                table.addCell(snapshotStatus.successfulShards());
-                table.addCell(snapshotStatus.failedShards());
-                table.addCell(snapshotStatus.totalShards());
-                table.addCell(snapshotStatus.reason());
-
-                table.endRow();
+            table.addCell(snapshotStatus.snapshotId().getName());
+            table.addCell(snapshotStatus.repository());
+            table.addCell(snapshotStatus.state());
+            table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));
+            table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.endTime())));
+            final long durationMillis;
+            if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
+                durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();
+            } else {
+                durationMillis = snapshotStatus.endTime() - snapshotStatus.startTime();
             }
+            table.addCell(TimeValue.timeValueMillis(durationMillis));
+            table.addCell(snapshotStatus.indices().size());
+            table.addCell(snapshotStatus.successfulShards());
+            table.addCell(snapshotStatus.failedShards());
+            table.addCell(snapshotStatus.totalShards());
+            table.addCell(snapshotStatus.reason());
+
+            table.endRow();
         }
 
         return table;

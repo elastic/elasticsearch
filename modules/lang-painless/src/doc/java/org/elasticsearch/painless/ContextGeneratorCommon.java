@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
@@ -71,48 +60,15 @@ public class ContextGeneratorCommon {
     }
 
     public static String getType(Map<String, String> javaNamesToDisplayNames, String javaType) {
-        int arrayDimensions = 0;
-
-        while (javaType.charAt(arrayDimensions) == '[') {
-            ++arrayDimensions;
+        if (javaType.endsWith("[]") == false) {
+            return javaNamesToDisplayNames.getOrDefault(javaType, javaType);
         }
-
-        if (arrayDimensions > 0) {
-            if (javaType.charAt(javaType.length() - 1) == ';') {
-                javaType = javaType.substring(arrayDimensions + 1, javaType.length() - 1);
-            } else {
-                javaType = javaType.substring(arrayDimensions);
-            }
+        int bracePosition = javaType.indexOf('[');
+        String braces = javaType.substring(bracePosition);
+        String type = javaType.substring(0, bracePosition);
+        if (javaNamesToDisplayNames.containsKey(type)) {
+            return javaNamesToDisplayNames.get(type) + braces;
         }
-
-        if ("Z".equals(javaType) || "boolean".equals(javaType)) {
-            javaType = "boolean";
-        } else if ("V".equals(javaType) || "void".equals(javaType)) {
-            javaType = "void";
-        } else if ("B".equals(javaType) || "byte".equals(javaType)) {
-            javaType = "byte";
-        } else if ("S".equals(javaType) || "short".equals(javaType)) {
-            javaType = "short";
-        } else if ("C".equals(javaType) || "char".equals(javaType)) {
-            javaType = "char";
-        } else if ("I".equals(javaType) || "int".equals(javaType)) {
-            javaType = "int";
-        } else if ("J".equals(javaType) || "long".equals(javaType)) {
-            javaType = "long";
-        } else if ("F".equals(javaType) || "float".equals(javaType)) {
-            javaType = "float";
-        } else if ("D".equals(javaType) || "double".equals(javaType)) {
-            javaType = "double";
-        } else if ("org.elasticsearch.painless.lookup.def".equals(javaType)) {
-            javaType = "def";
-        } else {
-            javaType = javaNamesToDisplayNames.get(javaType);
-        }
-
-        while (arrayDimensions-- > 0) {
-            javaType += "[]";
-        }
-
         return javaType;
     }
 
@@ -203,9 +159,14 @@ public class ContextGeneratorCommon {
         public final List<PainlessInfoJson.Context> contexts;
 
         public final Map<String, String> javaNamesToDisplayNames;
+        public final Map<String, String> javaNamesToJavadoc;
+        public final Map<String, List<String>> javaNamesToArgs;
 
         public PainlessInfos(List<PainlessContextInfo> contextInfos) {
             javaNamesToDisplayNames = getDisplayNames(contextInfos);
+
+            javaNamesToJavadoc = new HashMap<>();
+            javaNamesToArgs = new HashMap<>();
 
             Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
             common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames);
@@ -219,6 +180,27 @@ public class ContextGeneratorCommon {
             contexts = contextInfos.stream()
                 .map(ctx -> new PainlessInfoJson.Context(ctx, commonClassInfos, javaNamesToDisplayNames))
                 .collect(Collectors.toList());
+        }
+
+        public PainlessInfos(List<PainlessContextInfo> contextInfos, JavadocExtractor extractor) throws IOException {
+            javaNamesToDisplayNames = getDisplayNames(contextInfos);
+
+            javaNamesToJavadoc = new HashMap<>();
+            javaNamesToArgs = new HashMap<>();
+
+            Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
+            common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames, extractor);
+
+            importedMethods = getCommon(contextInfos, PainlessContextInfo::getImportedMethods);
+
+            classBindings = getCommon(contextInfos, PainlessContextInfo::getClassBindings);
+
+            instanceBindings = getCommon(contextInfos, PainlessContextInfo::getInstanceBindings);
+
+            contexts = new ArrayList<>(contextInfos.size());
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                contexts.add(new PainlessInfoJson.Context(contextInfo, commonClassInfos, javaNamesToDisplayNames, extractor));
+            }
         }
 
         private <T> Set<T> getCommon(List<PainlessContextInfo> contexts, Function<PainlessContextInfo,List<T>> getter) {

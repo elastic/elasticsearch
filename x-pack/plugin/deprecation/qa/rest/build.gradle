@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
@@ -20,7 +20,7 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRe
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
+    include '_common', 'indices', 'index'
   }
 }
 

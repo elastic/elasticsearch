@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.boxplot;
@@ -25,6 +26,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
@@ -35,8 +38,10 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
         BoxplotAggregatorSupplier.class
     );
 
-    public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
+    public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        BoxplotAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
@@ -48,8 +53,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
         super(name);
     }
 
-    protected BoxplotAggregationBuilder(BoxplotAggregationBuilder clone,
-                                        AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected BoxplotAggregationBuilder(
+        BoxplotAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
@@ -88,7 +96,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public BoxplotAggregationBuilder compression(double compression) {
         if (compression < 0.0) {
             throw new IllegalArgumentException(
-                "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]");
+                "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]"
+            );
         }
         this.compression = compression;
         return this;
@@ -103,15 +112,15 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     @Override
-    protected BoxplotAggregatorFactory innerBuild(AggregationContext context,
-                                                  ValuesSourceConfig config,
-                                                  AggregatorFactory parent,
-                                                  AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        BoxplotAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected BoxplotAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        BoxplotAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder,
-                                            metadata, aggregatorSupplier);
+        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override
@@ -143,5 +152,9 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
-}
 
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalBoxplot.METRIC_NAMES);
+    }
+}

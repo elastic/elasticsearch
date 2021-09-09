@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.support;
@@ -44,7 +45,8 @@ public class StringMatcherTests extends ESTestCase {
 
     public void testUnicodeWildcard() throws Exception {
         // Lucene automatons don't work correctly on strings with high surrogates
-        final String prefix = randomValueOtherThanMany(StringMatcherTests::hasHighSurrogate,
+        final String prefix = randomValueOtherThanMany(
+            s -> StringMatcherTests.hasHighSurrogate(s) || s.contains("\\") || s.startsWith("/"),
             () -> randomRealisticUnicodeOfLengthBetween(3, 5));
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
         for (int i = 0; i < 10; i++) {

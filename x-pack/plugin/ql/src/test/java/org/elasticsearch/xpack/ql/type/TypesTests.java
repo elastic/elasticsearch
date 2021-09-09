@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
@@ -89,7 +90,7 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        DateEsField dfield = (DateEsField) field;
+        assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
     public void testDateMulti() {
@@ -99,7 +100,17 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        DateEsField dfield = (DateEsField) field;
+        assertThat(field, is(instanceOf(DateEsField.class)));
+    }
+
+    public void testDateNanosField() {
+        Map<String, EsField> mapping = loadMapping("mapping-date_nanos.json");
+
+        assertThat(mapping.size(), is(1));
+        EsField field = mapping.get("date_nanos");
+        assertThat(field.getDataType(), is(DATETIME));
+        assertThat(field.isAggregatable(), is(true));
+        assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
     public void testDocValueField() {

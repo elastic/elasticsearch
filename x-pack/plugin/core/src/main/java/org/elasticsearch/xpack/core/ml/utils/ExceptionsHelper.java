@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -46,6 +47,10 @@ public class ExceptionsHelper {
 
     public static ResourceNotFoundException missingTrainedModel(String modelId) {
         return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
+    }
+
+    public static ResourceNotFoundException missingDeployment(String deploymentId) {
+        return new ResourceNotFoundException("No known trained model with deployment with id [{}]", deploymentId);
     }
 
     public static ElasticsearchException serverError(String msg) {

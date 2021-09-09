@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -27,7 +28,7 @@ import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -46,7 +47,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -70,6 +70,8 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
+        setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -79,19 +81,11 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
 
-        // at random test the old deprecated roles, to be removed in 9.0.0
-        if (useDeprecatedEndpoints() && randomBoolean()) {
-            setupUser(TEST_USER_NAME, Collections.singletonList("data_frame_transforms_user"));
-            setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("data_frame_transforms_admin"));
-        } else {
-            setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
-            setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
-        }
     }
 
     @After
     public void clearOutTransforms() throws Exception {
-        wipeTransforms();
+        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")

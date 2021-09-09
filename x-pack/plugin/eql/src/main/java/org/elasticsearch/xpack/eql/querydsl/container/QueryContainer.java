@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.querydsl.container;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -168,7 +169,7 @@ public class QueryContainer {
     public String toString() {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.humanReadable(true).prettyPrint();
-            SourceGenerator.sourceBuilder(this, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            SourceGenerator.sourceBuilder(this, null, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new EqlIllegalArgumentException("error rendering", e);

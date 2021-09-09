@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -27,6 +29,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,12 +42,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -51,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -61,10 +68,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static final String NAME = "reactive_storage";
 
     private final DiskThresholdSettings diskThresholdSettings;
+    private final DataTierAllocationDecider dataTierAllocationDecider;
     private final AllocationDeciders allocationDeciders;
 
     public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
+        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
     }
 
@@ -82,10 +91,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public List<DiscoveryNodeRole> roles() {
         return List.of(
             DiscoveryNodeRole.DATA_ROLE,
-            DataTier.DATA_CONTENT_NODE_ROLE,
-            DataTier.DATA_HOT_NODE_ROLE,
-            DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }
 
@@ -96,7 +105,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new AutoscalingDeciderResult(null, new ReactiveReason("current capacity not available", -1, -1));
         }
 
-        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
+        AllocationState allocationState = new AllocationState(
+            context,
+            diskThresholdSettings,
+            allocationDeciders,
+            dataTierAllocationDecider
+        );
         long unassignedBytes = allocationState.storagePreventsAllocation();
         long assignedBytes = allocationState.storagePreventsRemainOrMove();
         long maxShardSize = allocationState.maxShardSize();
@@ -118,63 +132,101 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     static boolean isDiskOnlyNoDecision(Decision decision) {
-        // we consider throttling==yes, throttling should be temporary.
+        return singleNoDecision(decision, single -> true).map(DiskThresholdDecider.NAME::equals).orElse(false);
+    }
+
+    static boolean isFilterTierOnlyDecision(Decision decision, IndexMetadata indexMetadata) {
+        // only primary shards are handled here, allowing us to disregard same shard allocation decider.
+        return singleNoDecision(decision, single -> SameShardAllocationDecider.NAME.equals(single.label()) == false).filter(
+            FilterAllocationDecider.NAME::equals
+        ).map(d -> filterLooksLikeTier(indexMetadata)).orElse(false);
+    }
+
+    static boolean filterLooksLikeTier(IndexMetadata indexMetadata) {
+        return isOnlyAttributeValueFilter(indexMetadata.requireFilters())
+            && isOnlyAttributeValueFilter(indexMetadata.includeFilters())
+            && isOnlyAttributeValueFilter(indexMetadata.excludeFilters());
+    }
+
+    private static boolean isOnlyAttributeValueFilter(DiscoveryNodeFilters filters) {
+        if (filters == null) {
+            return true;
+        } else {
+            return DiscoveryNodeFilters.trimTier(filters).isOnlyAttributeValueFilter();
+        }
+    }
+
+    static Optional<String> singleNoDecision(Decision decision, Predicate<Decision> predicate) {
         List<Decision> nos = decision.getDecisions()
             .stream()
             .filter(single -> single.type() == Decision.Type.NO)
+            .filter(predicate)
             .collect(Collectors.toList());
-        return nos.size() == 1 && DiskThresholdDecider.NAME.equals(nos.get(0).label());
+
+        if (nos.size() == 1) {
+            return Optional.ofNullable(nos.get(0).label());
+        } else {
+            return Optional.empty();
+        }
     }
 
     // todo: move this to top level class.
     public static class AllocationState {
         private final ClusterState state;
         private final AllocationDeciders allocationDeciders;
+        private final DataTierAllocationDecider dataTierAllocationDecider;
         private final DiskThresholdSettings diskThresholdSettings;
         private final ClusterInfo info;
         private final SnapshotShardSizeInfo shardSizeInfo;
         private final Predicate<DiscoveryNode> nodeTierPredicate;
         private final Set<DiscoveryNode> nodes;
         private final Set<String> nodeIds;
+        private final Set<DiscoveryNodeRole> roles;
 
         AllocationState(
             AutoscalingDeciderContext context,
             DiskThresholdSettings diskThresholdSettings,
-            AllocationDeciders allocationDeciders
+            AllocationDeciders allocationDeciders,
+            DataTierAllocationDecider dataTierAllocationDecider
         ) {
             this(
                 context.state(),
                 allocationDeciders,
+                dataTierAllocationDecider,
                 diskThresholdSettings,
                 context.info(),
                 context.snapshotShardSizeInfo(),
-                context.nodes()
+                context.nodes(),
+                context.roles()
             );
         }
 
         AllocationState(
             ClusterState state,
             AllocationDeciders allocationDeciders,
+            DataTierAllocationDecider dataTierAllocationDecider,
             DiskThresholdSettings diskThresholdSettings,
             ClusterInfo info,
             SnapshotShardSizeInfo shardSizeInfo,
-            Set<DiscoveryNode> nodes
+            Set<DiscoveryNode> nodes,
+            Set<DiscoveryNodeRole> roles
         ) {
             this.state = state;
             this.allocationDeciders = allocationDeciders;
+            this.dataTierAllocationDecider = dataTierAllocationDecider;
             this.diskThresholdSettings = diskThresholdSettings;
             this.info = info;
             this.shardSizeInfo = shardSizeInfo;
             this.nodes = nodes;
             this.nodeIds = nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             this.nodeTierPredicate = nodes::contains;
+            this.roles = roles;
         }
 
         public long storagePreventsAllocation() {
-            RoutingNodes routingNodes = new RoutingNodes(state, false);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                state.getRoutingNodes(),
                 state,
                 info,
                 shardSizeInfo,
@@ -188,10 +240,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsRemainOrMove() {
-            RoutingNodes routingNodes = new RoutingNodes(state, false);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                state.getRoutingNodes(),
                 state,
                 info,
                 shardSizeInfo,
@@ -200,7 +251,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             List<ShardRouting> candidates = state.getRoutingNodes()
                 .shardsWithState(ShardRoutingState.STARTED)
                 .stream()
-                .filter(shard -> allocationDeciders.canRemain(shard, routingNodes.node(shard.currentNodeId()), allocation) == Decision.NO)
+                .filter(shard -> canRemainOnlyHighestTierPreference(shard, allocation) == false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .collect(Collectors.toList());
 
@@ -225,6 +276,31 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return unallocatableBytes + unmovableBytes;
         }
 
+        /**
+         * Check if shard can remain where it is, with the additional check that the DataTierAllocationDecider did not allow it to stay
+         * on a node in a lower preference tier.
+         */
+        public boolean canRemainOnlyHighestTierPreference(ShardRouting shard, RoutingAllocation allocation) {
+            boolean result = allocationDeciders.canRemain(
+                shard,
+                allocation.routingNodes().node(shard.currentNodeId()),
+                allocation
+            ) != Decision.NO;
+            if (result
+                && nodes.isEmpty()
+                && Strings.hasText(
+                    DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(indexMetadata(shard, allocation).getSettings())
+                )) {
+                // The data tier decider allows a shard to remain on a lower preference tier when no nodes exists on higher preference
+                // tiers.
+                // Here we ensure that if our policy governs the highest preference tier, we assume the shard needs to move to that tier
+                // once a node is started for it.
+                // In the case of overlapping policies, this is consistent with double accounting of unassigned.
+                return isAssignedToTier(shard, allocation) == false;
+            }
+            return result;
+        }
+
         private boolean allocatedToTier(ShardRouting s, RoutingAllocation allocation) {
             return nodeTierPredicate.test(allocation.routingNodes().node(s.currentNodeId()).node());
         }
@@ -234,6 +310,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * @return true if and only if a node exists in the tier where only disk decider prevents allocation
          */
         private boolean cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
+            if (nodeIds.isEmpty() && needsThisTier(shard, allocation)) {
+                return true;
+            }
             assert allocation.debugDecision() == false;
             // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
@@ -266,6 +345,58 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return nodesInTier(allocation.routingNodes()).anyMatch(
                 node -> allocationDeciders.canAllocate(shard, node, allocation) != Decision.NO
             );
+        }
+
+        boolean needsThisTier(ShardRouting shard, RoutingAllocation allocation) {
+            if (isAssignedToTier(shard, allocation) == false) {
+                return false;
+            }
+            IndexMetadata indexMetadata = indexMetadata(shard, allocation);
+            Set<Decision.Type> decisionTypes = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                .map(
+                    node -> dataTierAllocationDecider.shouldFilter(
+                        indexMetadata,
+                        node.node().getRoles(),
+                        this::highestPreferenceTier,
+                        allocation
+                    )
+                )
+                .map(Decision::type)
+                .collect(Collectors.toSet());
+            if (decisionTypes.contains(Decision.Type.NO)) {
+                // we know we have some filter and can respond. Only need this tier if ALL responses where NO.
+                return decisionTypes.size() == 1;
+            }
+
+            // check for using allocation filters for data tiers. For simplicity, only scale up new tier based on primary shard
+            if (shard.primary() == false) {
+                return false;
+            }
+            assert allocation.debugDecision() == false;
+            // enable debug decisions to see all decisions and preserve the allocation decision label
+            allocation.debugDecision(true);
+            try {
+                // check that it does not belong on any existing node, i.e., there must be only a tier like reason it cannot be allocated
+                return StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                    .anyMatch(node -> isFilterTierOnlyDecision(allocationDeciders.canAllocate(shard, node, allocation), indexMetadata));
+            } finally {
+                allocation.debugDecision(false);
+            }
+        }
+
+        private boolean isAssignedToTier(ShardRouting shard, RoutingAllocation allocation) {
+            IndexMetadata indexMetadata = indexMetadata(shard, allocation);
+            return dataTierAllocationDecider.shouldFilter(indexMetadata, roles, this::highestPreferenceTier, allocation) != Decision.NO;
+        }
+
+        private IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
+            return allocation.metadata().getIndexSafe(shard.index());
+        }
+
+        private Optional<String> highestPreferenceTier(String tierPreference, DiscoveryNodes nodes) {
+            String[] preferredTiers = DataTierAllocationDecider.parseTierList(tierPreference);
+            assert preferredTiers.length > 0;
+            return Optional.of(preferredTiers[0]);
         }
 
         public long maxShardSize() {
@@ -377,7 +508,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             ClusterState forecastClusterState = ClusterState.builder(state).metadata(metadataBuilder).routingTable(routingTable).build();
             ClusterInfo forecastInfo = new ExtendedClusterInfo(sizeBuilder.build(), AllocationState.this.info);
 
-            return new AllocationState(forecastClusterState, allocationDeciders, diskThresholdSettings, forecastInfo, shardSizeInfo, nodes);
+            return new AllocationState(
+                forecastClusterState,
+                allocationDeciders,
+                dataTierAllocationDecider,
+                diskThresholdSettings,
+                forecastInfo,
+                shardSizeInfo,
+                nodes,
+                roles
+            );
         }
 
         private SingleForecast forecast(IndexAbstraction.DataStream stream, long forecastWindow, long now) {
@@ -436,20 +576,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
-                final String newWriteIndexName = DataStream.getDefaultBackingIndexName(
-                    dataStream.getName(),
-                    dataStream.getGeneration() + 1
-                );
+                final String uuid = UUIDs.randomBase64UUID();
+                dataStream = dataStream.rollover(state.metadata(), uuid);
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
-                    .index(newWriteIndexName)
-                    .settings(
-                        Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                    )
+                    .index(dataStream.getWriteIndex().getName())
+                    .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
                     .build();
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
                 assert size > 0;
                 newIndices.put(newIndex, size);
-                dataStream = dataStream.rollover(newIndex.getIndex(), Version.CURRENT);
             }
 
             return new SingleForecast(newIndices, dataStream);
@@ -494,7 +629,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             private final ClusterInfo delegate;
 
             private ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
-                super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, null, null);
+                super(
+                    info.getNodeLeastAvailableDiskUsages(),
+                    info.getNodeMostAvailableDiskUsages(),
+                    extraShardSizes,
+                    ImmutableOpenMap.of(),
+                    null,
+                    null
+                );
                 this.delegate = info;
             }
 
@@ -516,6 +658,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 } else {
                     return delegate.getShardSize(shardRouting, defaultValue);
                 }
+            }
+
+            @Override
+            public Optional<Long> getShardDataSetSize(ShardId shardId) {
+                return delegate.getShardDataSetSize(shardId);
             }
 
             @Override

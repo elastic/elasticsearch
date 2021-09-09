@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,6 +48,13 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField LOSS_FUNCTION = new ParseField("loss_function");
     static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
     static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
+    static final ParseField ALPHA = new ParseField("alpha");
+    static final ParseField ETA_GROWTH_RATE_PER_TREE = new ParseField("eta_growth_rate_per_tree");
+    static final ParseField SOFT_TREE_DEPTH_LIMIT = new ParseField("soft_tree_depth_limit");
+    static final ParseField SOFT_TREE_DEPTH_TOLERANCE = new ParseField("soft_tree_depth_tolerance");
+    static final ParseField DOWNSAMPLE_FACTOR = new ParseField("downsample_factor");
+    static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER = new ParseField("max_optimization_rounds_per_hyperparameter");
+    static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Regression, Void> PARSER =
@@ -78,7 +74,14 @@ public class Regression implements DataFrameAnalysis {
                 (Long) a[9],
                 (LossFunction) a[10],
                 (Double) a[11],
-                (List<PreProcessor>) a[12]
+                (List<PreProcessor>) a[12],
+                (Double) a[13],
+                (Double) a[14],
+                (Double) a[15],
+                (Double) a[16],
+                (Double) a[17],
+                (Integer) a[18],
+                (Boolean) a[19]
             ));
 
     static {
@@ -98,6 +101,13 @@ public class Regression implements DataFrameAnalysis {
             (p, c, n) -> p.namedObject(PreProcessor.class, n, c),
             (regression) -> {},
             FEATURE_PROCESSORS);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ALPHA);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA_GROWTH_RATE_PER_TREE);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), SOFT_TREE_DEPTH_LIMIT);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), SOFT_TREE_DEPTH_TOLERANCE);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), DOWNSAMPLE_FACTOR);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), EARLY_STOPPING_ENABLED);
     }
 
     private final String dependentVariable;
@@ -113,12 +123,22 @@ public class Regression implements DataFrameAnalysis {
     private final LossFunction lossFunction;
     private final Double lossFunctionParameter;
     private final List<PreProcessor> featureProcessors;
+    private final Double alpha;
+    private final Double etaGrowthRatePerTree;
+    private final Double softTreeDepthLimit;
+    private final Double softTreeDepthTolerance;
+    private final Double downsampleFactor;
+    private final Integer maxOptimizationRoundsPerHyperparameter;
+    private final Boolean earlyStoppingEnabled;
 
     private Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                        @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
                        @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
                        @Nullable Double trainingPercent, @Nullable Long randomizeSeed, @Nullable LossFunction lossFunction,
-                       @Nullable Double lossFunctionParameter, @Nullable List<PreProcessor> featureProcessors) {
+                       @Nullable Double lossFunctionParameter, @Nullable List<PreProcessor> featureProcessors, @Nullable Double alpha,
+                       @Nullable Double etaGrowthRatePerTree, @Nullable Double softTreeDepthLimit, @Nullable Double softTreeDepthTolerance,
+                       @Nullable Double downsampleFactor, @Nullable Integer maxOptimizationRoundsPerHyperparameter,
+                       @Nullable Boolean earlyStoppingEnabled) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -132,6 +152,13 @@ public class Regression implements DataFrameAnalysis {
         this.lossFunction = lossFunction;
         this.lossFunctionParameter = lossFunctionParameter;
         this.featureProcessors = featureProcessors;
+        this.alpha = alpha;
+        this.etaGrowthRatePerTree = etaGrowthRatePerTree;
+        this.softTreeDepthLimit = softTreeDepthLimit;
+        this.softTreeDepthTolerance = softTreeDepthTolerance;
+        this.downsampleFactor = downsampleFactor;
+        this.maxOptimizationRoundsPerHyperparameter = maxOptimizationRoundsPerHyperparameter;
+        this.earlyStoppingEnabled = earlyStoppingEnabled;
     }
 
     @Override
@@ -191,6 +218,34 @@ public class Regression implements DataFrameAnalysis {
         return featureProcessors;
     }
 
+    public Double getAlpha() {
+        return alpha;
+    }
+
+    public Double getEtaGrowthRatePerTree() {
+        return etaGrowthRatePerTree;
+    }
+
+    public Double getSoftTreeDepthLimit() {
+        return softTreeDepthLimit;
+    }
+
+    public Double getSoftTreeDepthTolerance() {
+        return softTreeDepthTolerance;
+    }
+
+    public Double getDownsampleFactor() {
+        return downsampleFactor;
+    }
+
+    public Integer getMaxOptimizationRoundsPerHyperparameter() {
+        return maxOptimizationRoundsPerHyperparameter;
+    }
+
+    public Boolean getEarlyStoppingEnabled() {
+        return earlyStoppingEnabled;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -231,6 +286,27 @@ public class Regression implements DataFrameAnalysis {
         if (featureProcessors != null) {
             NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
         }
+        if (alpha != null) {
+            builder.field(ALPHA.getPreferredName(), alpha);
+        }
+        if (etaGrowthRatePerTree != null) {
+            builder.field(ETA_GROWTH_RATE_PER_TREE.getPreferredName(), etaGrowthRatePerTree);
+        }
+        if (softTreeDepthLimit != null) {
+            builder.field(SOFT_TREE_DEPTH_LIMIT.getPreferredName(), softTreeDepthLimit);
+        }
+        if (softTreeDepthTolerance != null) {
+            builder.field(SOFT_TREE_DEPTH_TOLERANCE.getPreferredName(), softTreeDepthTolerance);
+        }
+        if (downsampleFactor != null) {
+            builder.field(DOWNSAMPLE_FACTOR.getPreferredName(), downsampleFactor);
+        }
+        if (maxOptimizationRoundsPerHyperparameter != null) {
+            builder.field(MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(), maxOptimizationRoundsPerHyperparameter);
+        }
+        if (earlyStoppingEnabled != null) {
+            builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        }
         builder.endObject();
         return builder;
     }
@@ -238,7 +314,9 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
-            predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter, featureProcessors);
+            predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter, featureProcessors, alpha,
+            etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter,
+            earlyStoppingEnabled);
     }
 
     @Override
@@ -258,7 +336,14 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(randomizeSeed, that.randomizeSeed)
             && Objects.equals(lossFunction, that.lossFunction)
             && Objects.equals(lossFunctionParameter, that.lossFunctionParameter)
-            && Objects.equals(featureProcessors, that.featureProcessors);
+            && Objects.equals(featureProcessors, that.featureProcessors)
+            && Objects.equals(alpha, that.alpha)
+            && Objects.equals(etaGrowthRatePerTree, that.etaGrowthRatePerTree)
+            && Objects.equals(softTreeDepthLimit, that.softTreeDepthLimit)
+            && Objects.equals(softTreeDepthTolerance, that.softTreeDepthTolerance)
+            && Objects.equals(downsampleFactor, that.downsampleFactor)
+            && Objects.equals(maxOptimizationRoundsPerHyperparameter, that.maxOptimizationRoundsPerHyperparameter)
+            && Objects.equals(earlyStoppingEnabled, that.earlyStoppingEnabled);
     }
 
     @Override
@@ -280,6 +365,13 @@ public class Regression implements DataFrameAnalysis {
         private LossFunction lossFunction;
         private Double lossFunctionParameter;
         private List<PreProcessor> featureProcessors;
+        private Double alpha;
+        private Double etaGrowthRatePerTree;
+        private Double softTreeDepthLimit;
+        private Double softTreeDepthTolerance;
+        private Double downsampleFactor;
+        private Integer maxOptimizationRoundsPerHyperparameter;
+        private Boolean earlyStoppingEnabled;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -345,10 +437,46 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setAlpha(Double alpha) {
+            this.alpha = alpha;
+            return this;
+        }
+
+        public Builder setEtaGrowthRatePerTree(Double etaGrowthRatePerTree) {
+            this.etaGrowthRatePerTree = etaGrowthRatePerTree;
+            return this;
+        }
+
+        public Builder setSoftTreeDepthLimit(Double softTreeDepthLimit) {
+            this.softTreeDepthLimit = softTreeDepthLimit;
+            return this;
+        }
+
+        public Builder setSoftTreeDepthTolerance(Double softTreeDepthTolerance) {
+            this.softTreeDepthTolerance = softTreeDepthTolerance;
+            return this;
+        }
+
+        public Builder setDownsampleFactor(Double downsampleFactor) {
+            this.downsampleFactor = downsampleFactor;
+            return this;
+        }
+
+        public Builder setMaxOptimizationRoundsPerHyperparameter(Integer maxOptimizationRoundsPerHyperparameter) {
+            this.maxOptimizationRoundsPerHyperparameter = maxOptimizationRoundsPerHyperparameter;
+            return this;
+        }
+
+        public Builder setEarlyStoppingEnabled(Boolean earlyStoppingEnabled) {
+            this.earlyStoppingEnabled = earlyStoppingEnabled;
+            return this;
+        }
+
         public Regression build() {
             return new Regression(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
                 numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter,
-                featureProcessors);
+                featureProcessors, alpha, etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor,
+                maxOptimizationRoundsPerHyperparameter, earlyStoppingEnabled);
         }
     }
 

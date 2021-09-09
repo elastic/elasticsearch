@@ -7,7 +7,6 @@
 [id="{upid}-{api}"]
 === Stop {dfanalytics-jobs} API
 
-beta::[]
 
 Stops a running {dfanalytics-job}.
 It accepts a +{request}+ object and responds with a +{response}+ object.

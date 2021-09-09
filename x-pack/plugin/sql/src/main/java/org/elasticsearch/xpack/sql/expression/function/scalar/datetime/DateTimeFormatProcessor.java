@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -19,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
@@ -36,21 +38,37 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"F", "S"},
         {"z", "X"}
     };
+
     private final Formatter formatter;
 
-
     public enum Formatter {
-        FORMAT,
-        DATE_TIME_FORMAT;
-
-        private String getJavaPattern(String pattern) {
-            if (this == FORMAT) {
+        FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                if (pattern.isEmpty()) {
+                    return null;
+                }
                 for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
                     pattern = pattern.replace(replacement[0], replacement[1]);
                 }
+                final String javaPattern = pattern;
+                return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
             }
-            return pattern;
-        }
+        },
+        DATE_TIME_FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return DateTimeFormatter.ofPattern(pattern, Locale.ROOT)::format;
+            }
+        },
+        TO_CHAR {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return ToCharFormatter.ofPattern(pattern);
+            }
+        };
+
+        protected abstract Function<TemporalAccessor, String> formatterFor(String pattern);
 
         public Object format(Object timestamp, Object pattern, ZoneId zoneId) {
             if (timestamp == null || pattern == null) {
@@ -77,7 +95,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 ta = asTimeAtZone((OffsetTime) timestamp, zoneId);
             }
             try {
-                return DateTimeFormatter.ofPattern(getJavaPattern(patternString), Locale.ROOT).format(ta);
+                return formatterFor(patternString).apply(ta);
             } catch (IllegalArgumentException | DateTimeException e) {
                 throw new SqlIllegalArgumentException(
                     "Invalid pattern [{}] is received for formatting date/time [{}]; {}",
@@ -87,6 +105,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 );
             }
         }
+
     }
 
     public DateTimeFormatProcessor(Processor source1, Processor source2, ZoneId zoneId, Formatter formatter) {

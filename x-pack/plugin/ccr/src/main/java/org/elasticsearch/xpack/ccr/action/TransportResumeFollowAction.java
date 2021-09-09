@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -26,7 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -41,6 +42,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -177,7 +180,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             final IndexMetadata followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        FollowParameters parameters = request.getParameters();
 
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
@@ -205,9 +207,17 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] does not have soft deletes enabled");
         }
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndex.getSettings())) {
+            throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
+                "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
+        }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] does not have soft deletes enabled");
+        }
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(followIndex.getSettings())) {
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
+                "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
@@ -431,7 +441,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
             MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,

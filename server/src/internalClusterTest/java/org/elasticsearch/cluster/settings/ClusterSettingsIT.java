@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.settings;
@@ -24,12 +13,14 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -285,6 +276,147 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
 
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(42));
+    }
+
+    public void testRemoveArchiveSettingsWithBlocks() throws Exception {
+        testRemoveArchiveSettingsWithBlocks(true, false);
+        testRemoveArchiveSettingsWithBlocks(false, true);
+        testRemoveArchiveSettingsWithBlocks(true, true);
+    }
+
+    private void testRemoveArchiveSettingsWithBlocks(boolean readOnly, boolean readOnlyAllowDelete) throws Exception {
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (readOnly) {
+            settingsBuilder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
+        }
+        if (readOnlyAllowDelete) {
+            settingsBuilder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
+        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(settingsBuilder).setTransientSettings(settingsBuilder).get());
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        if (readOnly) {
+            assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
+            assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
+        }
+        if (readOnlyAllowDelete) {
+            assertTrue(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().transientSettings()));
+            assertTrue(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().persistentSettings()));
+        }
+
+        // create archived setting
+        final Metadata metadata = state.getMetadata();
+        final Metadata brokenMeta = Metadata.builder(metadata).persistentSettings(Settings.builder()
+            .put(metadata.persistentSettings()).put("this.is.unknown", true).build()).build();
+        restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(brokenMeta));
+        ensureGreen(); // wait for state recovery
+        state = client().admin().cluster().prepareState().get().getState();
+        assertTrue(state.getMetadata().persistentSettings().getAsBoolean("archived.this.is.unknown", false));
+
+        // cannot remove read only block due to archived settings
+        final IllegalArgumentException e1 =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    Settings.Builder builder = Settings.builder();
+                    clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
+                    clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
+                    assertAcked(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(builder).setTransientSettings(builder).get());
+                });
+        assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
+
+        // fail to clear archived settings with non-archived settings
+        final ClusterBlockException e2 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> assertAcked(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
+                        .setTransientSettings(Settings.builder().putNull("archived.*")).get()));
+        if (readOnly) {
+            assertTrue(e2.getMessage().contains("cluster read-only (api)"));
+        }
+        if (readOnlyAllowDelete) {
+            assertTrue(e2.getMessage().contains("cluster read-only / allow delete (api)"));
+        }
+
+        // fail to clear archived settings due to cluster read only block
+        final ClusterBlockException e3 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> assertAcked(client().admin().cluster().prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull("archived.*")).get()));
+        if (readOnly) {
+            assertTrue(e3.getMessage().contains("cluster read-only (api)"));
+        }
+        if (readOnlyAllowDelete) {
+            assertTrue(e3.getMessage().contains("cluster read-only / allow delete (api)"));
+        }
+
+        // fail to clear archived settings with adding cluster block
+        final ClusterBlockException e4 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> {
+                    Settings.Builder builder = Settings.builder().putNull("archived.*");
+                    if (randomBoolean()) {
+                        builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
+                        builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
+                    } else if (randomBoolean()) {
+                        builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
+                    } else {
+                        builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
+                    }
+                    assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+                });
+        if (readOnly) {
+            assertTrue(e4.getMessage().contains("cluster read-only (api)"));
+        }
+        if (readOnlyAllowDelete) {
+            assertTrue(e4.getMessage().contains("cluster read-only / allow delete (api)"));
+        }
+
+        // fail to set archived settings to non-null value even with clearing blocks together
+        final ClusterBlockException e5 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> {
+                    Settings.Builder builder = Settings.builder().put("archived.this.is.unknown", "false");
+                    clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
+                    clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
+                    assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+                });
+        if (readOnly) {
+            assertTrue(e5.getMessage().contains("cluster read-only (api)"));
+        }
+        if (readOnlyAllowDelete) {
+            assertTrue(e5.getMessage().contains("cluster read-only / allow delete (api)"));
+        }
+
+        // we can clear read-only block with archived settings together
+        Settings.Builder builder = Settings.builder().putNull("archived.*");
+        clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
+        clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(builder).setTransientSettings(builder).get());
+
+        state = client().admin().cluster().prepareState().get().getState();
+        assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().transientSettings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().persistentSettings()));
+        assertNull(state.getMetadata().persistentSettings().get("archived.this.is.unknown"));
+    }
+
+    private static void clearOrSetFalse(Settings.Builder settings, boolean applySetting, Setting<Boolean> setting) {
+        if (applySetting) {
+            if (randomBoolean()) {
+                settings.put(setting.getKey(), "false");
+            } else {
+                settings.putNull(setting.getKey());
+            }
+        }
     }
 
     public void testClusterUpdateSettingsWithBlocks() {

@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,6 +19,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -42,23 +46,27 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     private static final int MAX_INDEX_NAME_BYTES = 255;
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
+    private static final ParseField METADATA = new ParseField("_meta");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
             (a, name) -> {
                 List<Phase> phases = (List<Phase>) a[0];
                 Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
-                return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap);
+                return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1]);
             });
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
     }
 
     private final String name;
     private final LifecycleType type;
     private final Map<String, Phase> phases;
+    @Nullable
+    private final Map<String, Object> metadata;
 
     /**
      * @param name
@@ -66,9 +74,23 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      * @param phases
      *            a {@link Map} of {@link Phase}s which make up this
      *            {@link LifecyclePolicy}.
+     *
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
-        this(TimeseriesLifecycleType.INSTANCE, name, phases);
+        this(TimeseriesLifecycleType.INSTANCE, name, phases, null);
+    }
+
+    /**
+     * @param name
+     *            the name of this {@link LifecyclePolicy}
+     * @param phases
+     *            a {@link Map} of {@link Phase}s which make up this
+     *            {@link LifecyclePolicy}.
+     * @param metadata
+     *            the custom metadata of this {@link LifecyclePolicy}
+     */
+    public LifecyclePolicy(String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
+        this(TimeseriesLifecycleType.INSTANCE, name, phases, metadata);
     }
 
     /**
@@ -78,6 +100,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            this.metadata = in.readMap();
+        } else {
+            this.metadata = null;
+        }
     }
 
     /**
@@ -88,11 +115,17 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      * @param phases
      *            a {@link Map} of {@link Phase}s which make up this
      *            {@link LifecyclePolicy}.
+     * @param metadata
+     *            the custom metadata of this {@link LifecyclePolicy}
      */
-    public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
+    public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
         this.name = name;
         this.phases = phases;
         this.type = type;
+        this.metadata = metadata;
+    }
+
+    public void validate() {
         this.type.validate(phases.values());
     }
 
@@ -105,6 +138,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         out.writeNamedWriteable(type);
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            out.writeMap(this.metadata);
+        }
     }
 
     /**
@@ -129,6 +165,13 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         return phases;
     }
 
+    /**
+     * @return the custom metadata of this {@link LifecyclePolicy}
+     */
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -137,6 +180,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                     builder.field(phase.getName(), phase);
                 }
             builder.endObject();
+        if (this.metadata != null) {
+            builder.field(METADATA.getPreferredName(), this.metadata);
+        }
         builder.endObject();
         return builder;
     }
@@ -164,9 +210,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
+     * @param licenseState The license state to use in actions and steps
      * @return The list of {@link Step} objects in order of their execution.
      */
-    public List<Step> toSteps(Client client) {
+    public List<Step> toSteps(Client client, XPackLicenseState licenseState) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
@@ -195,7 +242,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             // add steps for each action, in reverse
             while (actionIterator.hasPrevious()) {
                 LifecycleAction action = actionIterator.previous();
-                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey);
+                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey, licenseState);
                 ListIterator<Step> actionStepsIterator = actionSteps.listIterator(actionSteps.size());
                 while (actionStepsIterator.hasPrevious()) {
                     Step step = actionStepsIterator.previous();
@@ -263,7 +310,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, phases);
+        return Objects.hash(name, phases, metadata);
     }
 
     @Override
@@ -276,7 +323,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
         return Objects.equals(name, other.name) &&
-                Objects.equals(phases, other.phases);
+            Objects.equals(phases, other.phases) &&
+            Objects.equals(metadata, other.metadata);
     }
 
     @Override

@@ -35,26 +35,6 @@ be tacked onto a particular year.
 Fixed intervals are, by contrast, always multiples of SI units and do not change
 based on calendaring context.
 
-[NOTE]
-.Combined `interval` field is deprecated
-==================================
-deprecated[7.2, `interval` field is deprecated] Historically both calendar and fixed
-intervals were configured in a single `interval` field, which led to confusing
-semantics. Specifying `1d` would be assumed as a calendar-aware time,
-whereas `2d` would be interpreted as fixed time. To get "one day" of fixed time,
-the user would need to specify the next smaller unit (in this case, `24h`).
-
-This combined behavior was often unknown to users, and even when knowledgeable about
-the behavior it was difficult to use and confusing.
-
-This behavior has been deprecated in favor of two new, explicit fields: `calendar_interval`
-and `fixed_interval`.
-
-By forcing a choice between calendar and intervals up front, the semantics of the interval
-are clear to the user immediately and there is no ambiguity.  The old `interval` field
-will be removed in the future.
-==================================
-
 [[calendar_intervals]]
 ==== Calendar intervals
 
@@ -86,7 +66,7 @@ is the same at the start and end.
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 One day (1d) is the interval between the start of the day and the start of
-of the following day in the specified time zone, compensating for any intervening
+the following day in the specified time zone, compensating for any intervening
 time changes.
 
 `week`, `1w` ::
@@ -621,9 +601,75 @@ Response:
 [[date-histogram-scripts]]
 ==== Scripts
 
-As with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>,
-both document-level scripts and
-value-level scripts are supported. You can control the order of the returned
+If the data in your documents doesn't exactly match what you'd like to aggregate,
+use a <<runtime,runtime field>> . For example, if the revenue
+for promoted sales should be recognized a day after the sale date:
+
+[source,console,id=datehistogram-aggregation-runtime-field]
+----
+POST /sales/_search?size=0
+{
+  "runtime_mappings": {
+    "date.promoted_is_tomorrow": {
+      "type": "date",
+      "script": """
+        long date = doc['date'].value.toInstant().toEpochMilli();
+        if (doc['promoted'].value) {
+          date += 86400;
+        }
+        emit(date);
+      """
+    }
+  },
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date.promoted_is_tomorrow",
+        "calendar_interval": "1M"
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+////
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01T00:00:00.000Z",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01T00:00:00.000Z",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01T00:00:00.000Z",
+          "key": 1425168000000,
+          "doc_count": 2
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+////
+
+[[date-histogram-params]]
+==== Parameters
+
+You can control the order of the returned
 buckets using the `order`
 settings and filter the returned buckets based on a `min_doc_count` setting
 (by default all buckets between the first
@@ -673,51 +719,52 @@ the `order` setting. This setting supports the same `order` functionality as
 [[date-histogram-aggregate-scripts]]
 ===== Using a script to aggregate by day of the week
 
-When you need to aggregate the results by day of the week, use a script that
-returns the day of the week:
+When you need to aggregate the results by day of the week, run a `terms`
+aggregation on a <<runtime,runtime field>> that returns the day of the week:
 
-[source,console,id=datehistogram-aggregation-script-example]
---------------------------------------------------
+[source,console,id=datehistogram-aggregation-day-of-week-runtime-field]
+----
 POST /sales/_search?size=0
 {
+  "runtime_mappings": {
+    "date.day_of_week": {
+      "type": "keyword",
+      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+    }
+  },
   "aggs": {
-    "dayOfWeek": {
-      "terms": {
-        "script": {
-          "lang": "painless",
-          "source": "doc['date'].value.dayOfWeekEnum.value"
-        }
-      }
+    "day_of_week": {
+      "terms": { "field": "date.day_of_week" }
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
-    "dayOfWeek": {
+    "day_of_week": {
       "doc_count_error_upper_bound": 0,
       "sum_other_doc_count": 0,
       "buckets": [
         {
-          "key": "7",
+          "key": "Sunday",
           "doc_count": 4
         },
         {
-          "key": "4",
+          "key": "Thursday",
           "doc_count": 3
         }
       ]
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The response will contain all the buckets having the relative day of

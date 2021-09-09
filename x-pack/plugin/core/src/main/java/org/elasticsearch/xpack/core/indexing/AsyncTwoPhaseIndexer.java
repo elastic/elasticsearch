@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.indexing;
@@ -11,14 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -267,8 +266,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * complete a full cycle.
      */
     protected void runSearchImmediately() {
-        if (scheduledNextSearch != null) {
-            scheduledNextSearch.reschedule(TimeValue.ZERO);
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            runnable.reschedule(TimeValue.ZERO);
         }
     }
 
@@ -462,6 +462,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return;
             }
 
+            // searchResponse may be null if the search was optimized to a noop
+            if (searchResponse == null) {
+                logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
+                // execute finishing tasks
+                onFinish(ActionListener.wrap(
+                    r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                    e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
+                return;
+            }
+
             // allowPartialSearchResults is set to false, so we should never see shard failures here
             assert (searchResponse.getShardFailures().length == 0);
             stats.markStartProcessing();
@@ -485,13 +495,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return;
             }
 
-            final List<IndexRequest> docs = iterationResult.getToIndex();
+            final BulkRequest bulkRequest = new BulkRequest();
+            iterationResult.getToIndex().forEach(bulkRequest::add);
+            stats.markEndProcessing();
 
             // an iteration result might return an empty set of documents to be indexed
-            if (docs.isEmpty() == false) {
-                final BulkRequest bulkRequest = new BulkRequest();
-                docs.forEach(bulkRequest::add);
-                stats.markEndProcessing();
+            if (bulkRequest.numberOfActions() > 0) {
                 stats.markStartIndexing();
                 doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                     // TODO we should check items in the response and move after accordingly to
@@ -500,19 +509,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
                     }
                     stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                    if (checkState(getState()) == false) {
-                        return;
-                    }
-
+                    // There is no reason to do a `checkState` here and prevent the indexer from continuing
+                    // As we have already indexed the documents, updated the stats, etc.
+                    // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
+                    // And, we will still be at our new position due to setting it here.
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
                     onBulkResponse(bulkResponse, newPosition);
                 }, this::finishWithIndexingFailure));
             } else {
-                stats.markEndProcessing();
                 // no documents need to be indexed, continue with search
                 try {
                     JobPosition newPosition = iterationResult.getPosition();
@@ -577,7 +583,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
                 // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
                 if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
-                    scheduledNextSearch.reschedule(TimeValue.ZERO);
+                    runSearchImmediately();
                 }
                 return;
             }
@@ -632,7 +638,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private synchronized void reQueueThrottledSearch() {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
-        if (scheduledNextSearch != null) {
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
             TimeValue executionDelay = calculateThrottlingDelay(
                 currentMaxDocsPerSecond,
                 lastDocCount,
@@ -645,7 +652,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 getJobId(),
                 executionDelay
             );
-            scheduledNextSearch.reschedule(executionDelay);
+            runnable.reschedule(executionDelay);
         }
     }
 

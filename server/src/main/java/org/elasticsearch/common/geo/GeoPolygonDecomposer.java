@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
@@ -228,7 +217,7 @@ public class GeoPolygonDecomposer {
             }
             // correct the orientation post translation (ccw for shell, cw for holes)
             if (component == 0 || (component != 0 && handedness == orientation)) {
-                orientation = !orientation;
+                orientation = orientation == false;
             }
         }
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
@@ -279,8 +268,8 @@ public class GeoPolygonDecomposer {
             //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
             //    in support of OGC standards
             if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE
-                && !(e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getX()) == DATELINE
-                && Math.abs(e2.coordinate.getX()) == DATELINE)) {
+                && (e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getX()) == DATELINE
+                    && Math.abs(e2.coordinate.getX()) == DATELINE) == false) {
                 connect(e1, e2);
             }
         }
@@ -346,7 +335,7 @@ public class GeoPolygonDecomposer {
             if (direction) {
                 edges[edgeOffset + i] = new Edge(nextPoint, edges[edgeOffset + i - 1]);
                 edges[edgeOffset + i].component = component;
-            } else if (!edges[edgeOffset + i - 1].coordinate.equals(nextPoint)) {
+            } else if (edges[edgeOffset + i - 1].coordinate.equals(nextPoint) == false) {
                 edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(nextPoint, null);
                 edges[edgeOffset + i - 1].component = component;
             } else {
@@ -376,16 +365,16 @@ public class GeoPolygonDecomposer {
      */
     private static int intersections(double dateline, Edge[] edges) {
         int numIntersections = 0;
-        assert !Double.isNaN(dateline);
+        assert Double.isNaN(dateline) == false;
         int maxComponent = 0;
         for (int i = 0; i < edges.length; i++) {
             Point p1 = edges[i].coordinate;
             Point p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.getX()) && !Double.isNaN(p1.getX());
+            assert Double.isNaN(p2.getX()) == false && Double.isNaN(p1.getX()) == false;
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1.getX(), p2.getX(), dateline);
-            if (!Double.isNaN(position)) {
+            if (Double.isNaN(position) == false) {
                 edges[i].intersection(position);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
@@ -486,7 +475,7 @@ public class GeoPolygonDecomposer {
             final int pos;
             boolean sharedVertex = false;
             if (((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0)
-                && !(sharedVertex = (edges[pos].intersect.equals(current.coordinate)))) {
+                && (sharedVertex = (edges[pos].intersect.equals(current.coordinate))) == false) {
                 // The binary search returned an exact match, but we checked again using compareTo()
                 // and it didn't match after all.
 
@@ -577,7 +566,7 @@ public class GeoPolygonDecomposer {
                         prev.component = visitID;
                         prev = visitedEdge.get(prev.coordinate).v1();
                         ++splitIndex;
-                    } while (!current.coordinate.equals(prev.coordinate));
+                    } while (current.coordinate.equals(prev.coordinate) == false);
                     ++connectedComponents;
                 } else {
                     visitedEdge.put(current.coordinate, new Tuple<Edge, Edge>(prev, current));

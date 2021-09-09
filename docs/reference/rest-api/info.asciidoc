@@ -12,6 +12,13 @@ Provides general information about the installed {xpack} features.
 `GET /_xpack`
 
 [discrete]
+[[info-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[discrete]
 [[info-api-desc]]
 === {api-description-title}
 
@@ -107,10 +114,6 @@ Example response:
          "available": true,
          "enabled": true
       },
-      "runtime_fields": {
-         "available": true,
-         "enabled": true
-      },
       "searchable_snapshots" : {
          "available" : true,
          "enabled" : true
@@ -136,10 +139,6 @@ Example response:
          "enabled" : true
       },
       "transform" : {
-         "available" : true,
-         "enabled" : true
-      },
-      "vectors" : {
          "available" : true,
          "enabled" : true
       },

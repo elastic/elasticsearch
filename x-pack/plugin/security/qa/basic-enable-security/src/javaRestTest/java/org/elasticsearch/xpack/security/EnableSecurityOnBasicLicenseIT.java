@@ -1,29 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
+import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,9 +63,18 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
 
     @Override
     protected boolean preserveClusterUponCompletion() {
-        // If this is the first run (security not yet enabled), then don't clean up afterwards because we want to test restart with data
+        // If this is the first run (security is disabled), then don't clean up afterwards because we want to test restart
+        // with data
         return securityEnabled == false;
     }
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        return builder.build();
+    }
+
 
     public void testSecuritySetup() throws Exception {
         logger.info("Security status: {}", securityEnabled);
@@ -73,7 +88,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         }
 
         checkAllowedWrite("index_allowed");
-        // Security runs second, and should see the doc from the first (non-security) run
+        // Security runs second, and should see the docs from the first (non-security) run
         final int expectedIndexCount = securityEnabled ? 2 : 1;
         checkIndexCount("index_allowed", expectedIndexCount);
 
@@ -83,6 +98,14 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         } else {
             checkAllowedWrite(otherIndex);
         }
+        checkSecurityDisabledWarning();
+    }
+
+    public void checkSecurityDisabledWarning() throws Exception {
+        final Request request = new Request("GET", "/_cat/indices");
+        Response response = client().performRequest(request);
+        List<String> warningHeaders = response.getWarnings();
+        assertThat (warningHeaders, Matchers.empty());
     }
 
     private String getClusterInfo() throws IOException {

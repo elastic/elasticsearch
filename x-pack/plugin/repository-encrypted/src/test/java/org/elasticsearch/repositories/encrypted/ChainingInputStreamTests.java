@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -934,14 +935,18 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
         InputStream lastCurrentIn = test.currentIn;
         // second mark
-        readLimit = randomInt(63);
-        test.mark(readLimit);
+        int readLimit2 = randomInt(63);
+        test.mark(readLimit2);
         if (lastCurrentIn != currentIn) {
             verify(currentIn).close();
         }
         assertThat(test.currentIn, Matchers.is(lastCurrentIn));
         assertThat(test.markIn, Matchers.is(lastCurrentIn));
-        verify(lastCurrentIn).mark(Mockito.eq(readLimit));
+        if (currentIn == lastCurrentIn && readLimit == readLimit2) {
+            verify(lastCurrentIn, times(2)).mark(Mockito.eq(readLimit));
+        } else {
+            verify(lastCurrentIn).mark(Mockito.eq(readLimit2));
+        }
         currentIn = lastCurrentIn;
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(1, 2); i++) {
@@ -956,6 +961,7 @@ public class ChainingInputStreamTests extends ESTestCase {
             verify(lastCurrentIn).close();
         }
         verify(currentIn).reset();
+        final InputStream firstResetStream = currentIn;
         // assert the "nextComponet" arg is the current component
         nextComponentArg.set(currentIn);
         // possibly skips over several components
@@ -964,14 +970,14 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
         lastCurrentIn = test.currentIn;
         // third mark after reset
-        readLimit = randomInt(63);
-        test.mark(readLimit);
+        int readLimit3 = 128 + randomInt(63); // it is harder to assert the cases with the same readLimit
+        test.mark(readLimit3);
         if (lastCurrentIn != currentIn) {
             verify(currentIn).close();
         }
         assertThat(test.currentIn, Matchers.is(lastCurrentIn));
         assertThat(test.markIn, Matchers.is(lastCurrentIn));
-        verify(lastCurrentIn).mark(Mockito.eq(readLimit));
+        verify(lastCurrentIn).mark(Mockito.eq(readLimit3));
         nextComponentArg.set(lastCurrentIn);
         currentIn = lastCurrentIn;
         // possibly skips over several components
@@ -986,7 +992,11 @@ public class ChainingInputStreamTests extends ESTestCase {
         if (lastCurrentIn != currentIn) {
             verify(lastCurrentIn).close();
         }
-        verify(currentIn).reset();
+        if (currentIn != firstResetStream) {
+            verify(currentIn).reset();
+        } else {
+            verify(currentIn, times(2)).reset();
+        }
     }
 
     public void testMarkAfterResetNoMock() throws Exception {

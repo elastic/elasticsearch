@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -37,7 +38,7 @@ import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -74,7 +75,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.ML_POST_V660_TEMPLATES.stream(),
+        List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
+            ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        return Stream.concat(templatesToWaitFor.stream(),
             super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 
@@ -229,8 +233,17 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setPartitionFieldName("series");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        List<Detector> detectors = new ArrayList<>();
+        detectors.add(detector.build());
+        boolean isCategorization = randomBoolean();
+        if (isCategorization) {
+            detectors.add(new Detector.Builder("count", null).setByFieldName("mlcategory").build());
+        }
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(bucketSpan);
+        if (isCategorization) {
+            analysisConfig.setCategorizationFieldName("text");
+        }
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -247,6 +260,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", now);
                 record.put("value", timeAndSeriesToValueFunction.apply(i, field));
+                record.put("text", randomFrom("foo has landed 3", "bar has landed 5", "bar has finished 2", "foo has finished 10"));
                 record.put("series", field);
                 data.add(createJsonRecord(record));
 

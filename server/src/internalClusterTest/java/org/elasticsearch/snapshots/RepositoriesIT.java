@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
@@ -37,6 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -83,8 +73,10 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoriesMetadata.repository("test-repo-2").type(), equalTo("fs"));
 
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
-        GetRepositoriesResponse repositoriesResponse = client.admin().cluster()
-            .prepareGetRepositories(randomFrom("_all", "*", "test-repo-*")).get();
+        GetRepositoriesResponse repositoriesResponse = client.admin()
+            .cluster()
+            .prepareGetRepositories(randomFrom("_all", "*", "test-repo-*"))
+            .get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(2));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
@@ -92,11 +84,15 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that trying to create a repository with the same settings repeatedly does not update cluster state");
         String beforeStateUuid = clusterStateResponse.getState().stateUUID();
         assertThat(
-            client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(Settings.builder()
-                .put("location", location)
-            ).get().isAcknowledged(),
-            equalTo(true));
+            client.admin()
+                .cluster()
+                .preparePutRepository("test-repo-1")
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", location))
+                .get()
+                .isAcknowledged(),
+            equalTo(true)
+        );
         assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
 
         logger.info("--> delete repository test-repo-1");
@@ -135,40 +131,57 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Path invalidRepoPath = createTempDir().toAbsolutePath();
         String location = invalidRepoPath.toString();
         try {
-            client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("fs").setSettings(Settings.builder().put("location", location))
-                    .get();
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", location))
+                .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             assertThat(
                 ex.getCause().getMessage(),
-                containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
+                containsString("location [" + location + "] doesn't match any of the locations specified by path.repo")
+            );
         }
     }
 
     public void testRepositoryAckTimeout() {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(Settings.builder()
-                                .put("location", randomRepoPath())
-                                .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
-                )
-                .setTimeout("0s").get();
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository("test-repo-1")
+            .setType("fs")
+            .setSettings(
+                Settings.builder()
+                    .put("location", randomRepoPath())
+                    .put("compress", randomBoolean())
+                    .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
+            )
+            .setTimeout("0s")
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
-        putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(Settings.builder()
-                                .put("location", randomRepoPath())
-                                .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
-                ).get();
+        putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository("test-repo-2")
+            .setType("fs")
+            .setSettings(
+                Settings.builder()
+                    .put("location", randomRepoPath())
+                    .put("compress", randomBoolean())
+                    .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
+            )
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-2")
-                .setTimeout("0s").get();
+        AcknowledgedResponse deleteRepositoryResponse = client().admin()
+            .cluster()
+            .prepareDeleteRepository("test-repo-2")
+            .setTimeout("0s")
+            .get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  deleting repository test-repo-1 with standard timeout - should ack");
@@ -181,31 +194,30 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         Client client = client();
 
-        Settings settings = Settings.builder()
-                .put("location", randomRepoPath())
-                .put("random_control_io_exception_rate", 1.0).build();
-        Settings readonlySettings = Settings.builder().put(settings)
-            .put("readonly", true).build();
+        Settings settings = Settings.builder().put("location", randomRepoPath()).put("random_control_io_exception_rate", 1.0).build();
+        Settings readonlySettings = Settings.builder().put(settings).put(READONLY_SETTING_KEY, true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
-        assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-1")
-                        .setType("mock").setSettings(settings),
-                RepositoryVerificationException.class);
+        assertRequestBuilderThrows(
+            client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings),
+            RepositoryVerificationException.class
+        );
 
         logger.info("-->  creating read-only repository that cannot read any files - should fail");
-        assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("mock").setSettings(readonlySettings),
-            RepositoryVerificationException.class);
+        assertRequestBuilderThrows(
+            client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(readonlySettings),
+            RepositoryVerificationException.class
+        );
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType("mock").setSettings(settings).setVerify(false));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings).setVerify(false));
 
         logger.info("-->  verifying repository");
         assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
 
         logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo-2")
-            .setType("mock").setSettings(readonlySettings).setVerify(false));
+        assertAcked(
+            client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(readonlySettings).setVerify(false)
+        );
 
         logger.info("-->  verifying repository");
         assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
@@ -214,12 +226,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  creating repository");
         try {
-            client.admin().cluster().preparePutRepository("test-repo-1")
-                    .setType("mock")
-                    .setSettings(Settings.builder()
-                                    .put("location", location)
-                                    .put("localize_location", true)
-                    ).get();
+            client.admin()
+                .cluster()
+                .preparePutRepository("test-repo-1")
+                .setType("mock")
+                .setSettings(Settings.builder().put("location", location).put("localize_location", true))
+                .get();
             fail("RepositoryVerificationException wasn't generated");
         } catch (RepositoryVerificationException ex) {
             assertThat(ExceptionsHelper.stackTrace(ex), containsString("is not shared"));

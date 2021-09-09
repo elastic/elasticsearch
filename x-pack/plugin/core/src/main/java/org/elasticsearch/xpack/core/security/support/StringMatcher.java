@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.support;
@@ -162,7 +163,7 @@ public class StringMatcher implements Predicate<String> {
                 if (description.length() > 80) {
                     description = Strings.cleanTruncate(description, 80) + "...";
                 }
-                throw new ElasticsearchSecurityException("The set patterns [{}] is too complex to evaluate", e, description);
+                throw new ElasticsearchSecurityException("The set of patterns [{}] is too complex to evaluate", e, description);
             }
         }
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -23,9 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -49,21 +37,8 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
-    private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
-        @Override
-        protected void closeInternal() {
-            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
-                try {
-                    IOUtils.closeWhileHandlingException(next.getValue());
-                } finally {
-                    iterator.remove();
-                }
-            }
-            closeLatch.countDown();
-        }
-    };
+    private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
+
     private final Transport transport;
     private final ConnectionProfile defaultProfile;
     private final AtomicBoolean closing = new AtomicBoolean(false);
@@ -126,14 +101,25 @@ public class ClusterConnectionManager implements ConnectionManager {
         if (existingListener != null) {
             try {
                 // wait on previous entry to complete connection attempt
-                existingListener.addListener(listener, EsExecutors.newDirectExecutorService());
+                existingListener.addListener(listener);
             } finally {
                 connectingRefCounter.decRef();
             }
             return;
         }
 
-        currentListener.addListener(listener, EsExecutors.newDirectExecutorService());
+        currentListener.addListener(listener);
+
+        // It's possible that a connection completed, and the pendingConnections entry was removed, between the calls to
+        // connectedNodes.containsKey and pendingConnections.putIfAbsent above, so we check again to make sure we don't open a redundant
+        // extra connection to the node. We could _just_ check here, but checking up front skips the work to mark the connection as pending.
+        if (connectedNodes.containsKey(node)) {
+            ListenableFuture<Void> future = pendingConnections.remove(node);
+            assert future == currentListener : "Listener in pending map is different than the expected listener";
+            connectingRefCounter.decRef();
+            future.onResponse(null);
+            return;
+        }
 
         final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
         internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {
@@ -142,6 +128,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                     assert Transports.assertNotTransportThread("connection validator success");
                     try {
                         if (connectedNodes.putIfAbsent(node, conn) != null) {
+                            assert false : "redundant conection to " + node;
                             logger.debug("existing connection to node [{}], closing new redundant connection", node);
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
@@ -247,6 +234,19 @@ public class ClusterConnectionManager implements ConnectionManager {
                 }
             }
         }
+    }
+
+    private void pendingConnectionsComplete() {
+        final Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+        while (iterator.hasNext()) {
+            final Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+            try {
+                IOUtils.closeWhileHandlingException(next.getValue());
+            } finally {
+                iterator.remove();
+            }
+        }
+        closeLatch.countDown();
     }
 
     private void internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile,

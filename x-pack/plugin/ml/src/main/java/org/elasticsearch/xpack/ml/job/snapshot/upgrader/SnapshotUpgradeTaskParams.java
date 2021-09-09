@@ -1,26 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME;
 
-public class SnapshotUpgradeTaskParams implements PersistentTaskParams {
+public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskParams {
 
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
 
@@ -94,6 +96,11 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, snapshotId);
+    }
+
+    @Override
+    public String getMlId() {
+        return jobId;
     }
 }
 

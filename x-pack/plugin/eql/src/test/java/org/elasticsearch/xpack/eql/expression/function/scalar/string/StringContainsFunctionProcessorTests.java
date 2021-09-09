@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -29,7 +30,7 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
         run(() -> {
             String substring = randomBoolean() ? null : randomAlphaOfLength(10);
             String str = randomBoolean() ? null : randomValueOtherThan(substring, () -> randomAlphaOfLength(10));
-            boolean caseSensitive = randomBoolean();
+            boolean insensitive = randomBoolean();
             if (str != null && substring != null) {
                 str += substring;
                 str += randomValueOtherThan(substring, () -> randomAlphaOfLength(10));
@@ -39,16 +40,16 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
             // The string parameter can be null. Expect exception if any of other parameters is null.
             if (string != null && substring == null) {
                 EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
-                        () -> doProcess(string, substring, caseSensitive));
+                    () -> doProcess(string, substring, insensitive));
                 assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
             } else {
-                assertThat(doProcess(string, substring, caseSensitive), equalTo(string == null ? null : true));
+                assertThat(doProcess(string, substring, insensitive), equalTo(string == null ? null : true));
 
-                // deliberately make the test return "false" by lowercasing or uppercasing the substring in a case-sensitive scenario
-                if (caseSensitive && substring != null) {
+                // deliberately make the test return "false/true" by lowercasing or uppercasing the substring in a in/sensitive scenario
+                if (substring != null) {
                     String subsChanged = randomBoolean() ? substring.toLowerCase(Locale.ROOT) : substring.toUpperCase(Locale.ROOT);
                     if (substring.equals(subsChanged) == false) {
-                        assertThat(doProcess(string, subsChanged, caseSensitive), equalTo(string == null ? null : false));
+                        assertThat(doProcess(string, subsChanged, insensitive), equalTo(string == null ? null : insensitive));
                     }
                 }
             }

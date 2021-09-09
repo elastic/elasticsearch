@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -26,7 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -76,7 +79,7 @@ public class ResultsPersisterService {
         20,
         0,
         50,
-        Setting.Property.Dynamic,
+        Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope);
     private static final int MAX_RETRY_SLEEP_MILLIS = (int)Duration.ofMinutes(15).toMillis();
     private static final int MIN_RETRY_SLEEP_MILLIS = 50;
@@ -85,9 +88,11 @@ public class ResultsPersisterService {
 
     private final ThreadPool threadPool;
     private final OriginSettingClient client;
-    private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<Object, RetryableAction<?>> onGoingRetryableSearchActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<Object, RetryableAction<?>> onGoingRetryableBulkActions = ConcurrentCollections.newConcurrentMap();
     private volatile int maxFailureRetries;
     private volatile boolean isShutdown = false;
+    private volatile boolean isResetMode = false;
 
     // Visible for testing
     public ResultsPersisterService(ThreadPool threadPool,
@@ -105,18 +110,34 @@ public class ResultsPersisterService {
                 shutdown();
             }
         });
+        clusterService.addListener((event) -> {
+            if (event.metadataChanged()) {
+                isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
+                if (isResetMode) {
+                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("Reset mode has been enabled");
+                    for (RetryableAction<?> action : onGoingRetryableBulkActions.values()) {
+                        action.cancel(exception);
+                    }
+                    onGoingRetryableBulkActions.clear();
+                }
+            }
+        });
     }
 
     void shutdown() {
         isShutdown = true;
-        if (onGoingRetryableActions.isEmpty()) {
+        if (onGoingRetryableSearchActions.isEmpty() && onGoingRetryableBulkActions.isEmpty()) {
             return;
         }
         final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("Node is shutting down");
-        for (RetryableAction<?> action : onGoingRetryableActions.values()) {
+        for (RetryableAction<?> action : onGoingRetryableSearchActions.values()) {
             action.cancel(exception);
         }
-        onGoingRetryableActions.clear();
+        for (RetryableAction<?> action : onGoingRetryableBulkActions.values()) {
+            action.cancel(exception);
+        }
+        onGoingRetryableSearchActions.clear();
+        onGoingRetryableBulkActions.clear();
     }
 
     void setMaxFailureRetries(int value) {
@@ -173,24 +194,32 @@ public class ResultsPersisterService {
                                             Supplier<Boolean> shouldRetry,
                                             Consumer<String> retryMsgHandler,
                                             BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor) {
+        if (isShutdown || isResetMode) {
+            throw new ElasticsearchException(
+                "Bulk indexing has failed as {}",
+                isShutdown ? "node is shutting down." : "machine learning feature is being reset."
+            );
+        }
         final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
         final Object key = new Object();
         final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
             getResponse,
-            () -> onGoingRetryableActions.remove(key)
+            () -> onGoingRetryableBulkActions.remove(key)
         );
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
             jobId,
             new BulkRequestRewriter(bulkRequest),
-            shouldRetryWrapper(shouldRetry),
+            () -> (isShutdown == false && isResetMode == false) && shouldRetry.get(),
             retryMsgHandler,
             actionExecutor,
             removeListener
         );
-        onGoingRetryableActions.put(key, bulkRetryableAction);
+        onGoingRetryableBulkActions.put(key, bulkRetryableAction);
         bulkRetryableAction.run();
-        if (isShutdown) {
-            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
+        if (isShutdown || isResetMode) {
+            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException(
+                isShutdown ? "Node is shutting down" : "Machine learning feature is being reset"
+            ));
         }
         return getResponse.actionGet();
     }
@@ -203,25 +232,21 @@ public class ResultsPersisterService {
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
             getResponse,
-            () -> onGoingRetryableActions.remove(key)
+            () -> onGoingRetryableSearchActions.remove(key)
         );
         SearchRetryableAction mlRetryableAction = new SearchRetryableAction(
             jobId,
             searchRequest,
             client,
-            shouldRetryWrapper(shouldRetry),
+            () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
             removeListener);
-        onGoingRetryableActions.put(key, mlRetryableAction);
+        onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
         if (isShutdown) {
             mlRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
         }
         return getResponse.actionGet();
-    }
-
-    private Supplier<Boolean> shouldRetryWrapper(Supplier<Boolean> shouldRetry) {
-        return () -> (isShutdown == false) && shouldRetry.get();
     }
 
     static class RecoverableException extends Exception { }
@@ -365,7 +390,6 @@ public class ResultsPersisterService {
         final Consumer<String> msgHandler;
         final BiConsumer<Request, ActionListener<Response>> action;
         volatile int currentAttempt = 0;
-        volatile long currentMin = MIN_RETRY_SLEEP_MILLIS;
         volatile long currentMax = MIN_RETRY_SLEEP_MILLIS;
 
         MlRetryableAction(String jobId,
@@ -428,17 +452,10 @@ public class ResultsPersisterService {
         }
 
         @Override
-        protected long calculateDelay(long previousDelay) {
-            // Since we exponentially increase, we don't want force randomness to have an excessively long sleep
-            if (currentMax < MAX_RETRY_SLEEP_MILLIS) {
-                currentMin = currentMax;
-            }
+        protected long calculateDelayBound(long previousDelayBound) {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
             int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
-            // Its good to have a random window along the exponentially increasing curve
-            // so that not all bulk requests rest for the same amount of time
-            int randBound = (int)(1 + (currentMax - currentMin));
             String msg = new ParameterizedMessage(
                 "failed to {} after [{}] attempts. Will attempt again.",
                 getName(),
@@ -446,12 +463,10 @@ public class ResultsPersisterService {
                 .getFormattedMessage();
             LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
             msgHandler.accept(msg);
-            return randBound;
-        }
-
-        @Override
-        protected long minimumDelayMillis() {
-            return currentMin;
+            // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
+            // Its good to have a random window along the exponentially increasing curve
+            // so that not all bulk requests rest for the same amount of time
+            return currentMax;
         }
 
         @Override

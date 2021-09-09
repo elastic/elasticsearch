@@ -1,0 +1,701 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+
+//
+// Query translator tests. Format:
+//
+// <name>[-Ignore]
+// <sql-query-line1>
+// [<sql-query-line2>
+// ...
+// <sql-query-line-n];
+// [<matcher-1> <expectation-1>EOL
+// <matcher-2> <expectation-2>EOL
+// ...
+// ]
+// ;
+//
+// Notes:
+//   - The SQL query could span multiple lines and should be terminated with semicolon (;)
+//   - The currently supported matchers: `CONTAINS` (the default one), `REGEX`
+//   - To ignore a test, add the -Ignore to the end of the name
+//   - Matchers can be skipped, if you just want to test that a query is optimized/plan without errors
+//   - Do not use whitespaces in the relevant parts of the query itself, as they will be removed.
+//     For example to match: '"params":{"v0":"point","v1":"point( 10 20 )"}
+//     you should use: "point(1020)" instead of "point( 10 20 )", otherwise the assertion will fail.
+
+// Term queries
+///////////////
+TermEqualityAnalyzer
+SELECT some.string FROM test WHERE some.string = 'value';
+"term":{"some.string.typical":{"value":"value",
+;
+
+TermEqualityNotAnalyzed
+SELECT some.string FROM test WHERE int = 5;
+CONTAINS "term":{"int":{"value":5,
+;
+
+TermEqualityForDate
+SELECT some.string FROM test WHERE date = 5;
+"term":{"date":{"value":5,
+;
+
+EqualsAndInOnTheSameField
+SELECT int FROM test WHERE int in (1, 2) OR int = 3 OR int = 2;
+"terms":{"int":[1,2,3]
+;
+
+
+// GroupBy
+//////////
+GroupByConstantScalar
+SELECT PI() * int
+FROM test
+WHERE PI() * int > 5.0
+GROUP BY PI() * int
+ORDER BY PI() * int LIMIT 10;
+{"script":{"source":"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
+"params":{"v0":"int","v1":3.141592653589793}},
+"missing_bucket":true,"value_type":"double","order":"asc"}}}]}}}
+;
+
+GroupByConstantScalarWithAlias1
+SELECT PI() * int AS "value"
+FROM test
+GROUP BY "value"
+ORDER BY "value" LIMIT 10;
+{"script":{"source":"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"int","v1":3.141592653589793}},
+"missing_bucket":true,"value_type":"double","order":"asc"}}}]}}}
+;
+
+GroupByConstantScalarWithAlias2
+SELECT (3 < int) as multi_language, count(*)
+FROM test
+GROUP BY multi_language;
+{"source":"InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
+"params":{"v0":"int","v1":3}},
+"missing_bucket":true,"value_type":"boolean","order":"asc"}}}]}}}
+;
+
+GroupByConstantScalarWithNumericRef1
+SELECT PI() * int FROM test GROUP BY 1 ORDER BY 1 LIMIT 10;
+{"script":{"source":"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
+"params":{"v0":"int","v1":3.141592653589793}},
+"missing_bucket":true,"value_type":"double","order":"asc"}}}]}}}
+;
+
+GroupByConstantScalarWithNumericRef2
+SELECT PI() * int FROM test GROUP BY 1;
+{"source":"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
+"params":{"v0":"int","v1":3.141592653589793}},
+"missing_bucket":true,"value_type":"double","order":"asc"}}}]}}}
+;
+
+GroupByConstantScalarWithNumericRef3
+SELECT date + 1 * INTERVAL '1' DAY FROM test GROUP BY 1;
+{"source":"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))",
+"params":{"v0":"date","v1":"PT24H","v2":"INTERVAL_DAY"}},
+"missing_bucket":true,"value_type":"long","order":"asc"}}}]}}}
+;
+
+
+// Having
+/////////
+TranslateAggFloatHavingClauseNoCasting
+SELECT keyword, max(float) FROM test GROUP BY keyword HAVING max(float) IS NOT NULL;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(params.a0))
+{"max":{"field":"float"}}
+;
+
+GroupByAndHavingWithFunctionOnTopOfAggregation
+SELECT keyword, MAX(int) FROM test GROUP BY 1 HAVING ABS(MAX(int)) > 10;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.abs(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)),params.v1))
+"params":{"v0":"INTEGER","v1":10}}
+;
+
+// Count
+////////
+CountAndCountDistinctFolding
+SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test;
+REGEX ^\{"size":0,.*"aggregations":\{"[a-zA-Z0-9]+":\{"cardinality":\{"field":"keyword"\}\},"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"keyword","boost":1.0\}\}\}\}\}\}
+;
+
+GlobalCountInImplicitGroupByForcesTrackHits
+SELECT COUNT(*) FROM test;
+REGEX ^\{"size":0,.*"track_total_hits":\d+.*$
+;
+
+GlobalCountAllInImplicitGroupByForcesTrackHits
+SELECT COUNT(ALL *) FROM test;
+REGEX ^\{"size":0,.*"track_total_hits":\d+.*$
+;
+
+GlobalCountInSpecificGroupByDoesNotForceTrackHits
+SELECT COUNT(*) FROM test GROUP BY int;
+REGEX ^((?!"track_total_hits":).)*$
+CONTAINS {"terms":{"field":"int","missing_bucket":true,"order":"asc"}}
+;
+
+FieldAllCountDoesNotTrackHits
+SELECT COUNT(ALL int) FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"int","boost":1.0\}\}\}\}
+;
+
+FieldCountDoesNotTrackHits
+SELECT COUNT(int) FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"int","boost":1.0\}\}\}\}\}\}\}$
+;
+
+DistinctCountDoesNotTrackHits
+SELECT COUNT(DISTINCT int) FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"cardinality":\{"field":"int"\}\}\}
+;
+
+NoCountDoesNotTrackHits
+SELECT int FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+;
+
+// Aggregate Functions
+//////////////////////
+ScriptsInsideAggregateFunctionsConvertedToStats
+SELECT MIN(ABS((int * 10) / 3) + 1), MAX(ABS((int * 10) / 3) + 1) FROM test;
+{"stats":{"script":{"source":"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.div(
+InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2)),params.v3)
+"params":{"v0":"int","v1":10,"v2":3,"v3":1}
+;
+
+ScriptsInsideAggregateFunctionsWithDatetimeField
+SELECT MAX(date) FROM test HAVING MAX(date) > CAST('2020-05-03T12:34:56.000Z' AS DATETIME);
+REGEX "aggregations":\{"(?<id>.+?)":\{"max":\{"field":"date"}},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>"}
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))
+"params":{"v0":"2020-05-03T12:34:56.000Z"}
+"gap_policy":"skip"}}}}}}
+;
+
+ScriptsInsideAggregateFunctionsWithDateFieldAndExtendedStats
+SELECT MIN(CAST(date AS DATE)), MAX(CAST(date AS DATE))
+FROM test
+HAVING MIN(CAST(date AS DATE)) > CAST('2020-05-03T12:34:56.000Z' AS DATE);
+REGEX "aggregations":\{"(?<id>.+?)":\{"stats":\{"script":\{"source":"InternalSqlScriptUtils.cast\(InternalQlScriptUtils.docValue\(doc,params.v0\),params.v1\)","lang":"painless","params":\{"v0":"date","v1":"DATE"\}\}\}\},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>.min"}
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))
+"params":{"v0":"2020-05-03T00:00:00.000Z"}
+"gap_policy":"skip"}}}}}}
+;
+
+
+// Numeric Functions
+////////////////////
+RoundWithOneParameter
+SELECT ROUND(YEAR(date)) FROM test GROUP BY ROUND(YEAR(date));
+InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":null}
+;
+
+RoundWithTwoParameters
+SELECT ROUND(YEAR(date), -2) FROM test GROUP BY ROUND(YEAR(date), -2);
+InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":-2}
+;
+
+// DATETIME
+///////////
+ZonedDateTimeInScripts
+SELECT date FROM test WHERE date - INTERVAL 999999999 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME);
+"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),
+InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))",
+"params":{"v0":"date","v1":"P999999999Y","v2":"INTERVAL_YEAR","v3":"2019-03-11T12:34:56.000Z"}}
+;
+
+// DATETIME Functions
+/////////////////////
+DateAddWhereClause
+SELECT int FROM test WHERE DATE_ADD('quarter',int, date) > '2018-09-04'::date;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateAdd(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2),params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))
+"params":{"v0":"quarter","v1":"int","v2":"date","v3":"Z","v4":"2018-09-04T00:00:00.000Z"}
+;
+
+DateDiffWhereClause
+SELECT int FROM test WHERE DATE_DIFF('week',date, date) > '2018-09-04'::date;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2),params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))
+"params":{"v0":"week","v1":"date","v2":"date","v3":"Z","v4":"2018-09-04T00:00:00.000Z"}
+;
+
+DateTruncWhereClause
+SELECT int FROM test WHERE DATE_TRUNC('month', date) > '2018-09-04'::date;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateTrunc(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))
+"params":{"v0":"month","v1":"date","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
+;
+
+DatePartWhereClause
+SELECT int FROM test WHERE DATE_PART('month', date) > '2018-09-04'::date;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.datePart(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))
+"params":{"v0":"month","v1":"date","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
+;
+
+DateTimeFormatWhereClause
+SELECT int FROM test WHERE DATETIME_FORMAT(date, 'YYYY_MM_dd') = '2018_09_04';
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeFormat(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))
+"params":{"v0":"date","v1":"YYYY_MM_dd","v2":"Z","v3":"2018_09_04"}
+;
+
+DateTimeParseWhereClause
+SELECT int FROM test WHERE DATETIME_PARSE(keyword, 'uuuu_MM_dd') = '2018-09-04'::date;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeParse(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))
+"params":{"v0":"keyword","v1":"uuuu_MM_dd","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
+;
+
+FormatWhereClause
+SELECT int FROM test WHERE FORMAT(date, 'YYYY_MM_dd') = '2018_09_04';
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.format(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))
+"params":{"v0":"date","v1":"YYYY_MM_dd","v2":"Z","v3":"2018_09_04"}
+;
+
+// Histograms
+/////////////
+GroupByHistogram
+SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS);
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","fixed_interval":"62208000000ms","time_zone":"Z"}}}]}
+;
+
+GroupByHistogramWithScalars
+SELECT MAX(int), HISTOGRAM(date, INTERVAL 5 YEARS - INTERVAL 6 MONTHS) AS h
+FROM test
+GROUP BY h;
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","fixed_interval":"139968000000ms","time_zone":"Z"}}}]}
+;
+
+GroupByYear
+SELECT YEAR(date) FROM test GROUP BY YEAR(date);
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","calendar_interval":"1y","time_zone":"Z"}}}]}}}
+;
+
+GroupByOneMonthHistogram
+SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h;
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","calendar_interval":"1M","time_zone":"Z"}}}]}}}
+;
+
+GroupByMoreMonthsHistogram
+SELECT HISTOGRAM(date, INTERVAL 5 MONTH) AS h FROM test GROUP BY h;
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","fixed_interval":"12960000000ms","time_zone":"Z"}}}]}}}
+;
+
+GroupByOneDayHistogram
+SELECT HISTOGRAM(date, INTERVAL 1 DAY) AS h FROM test GROUP BY h;
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","calendar_interval":"1d","time_zone":"Z"}}}]}}}
+;
+
+GroupByMoreDaysHistogram
+SELECT HISTOGRAM(date, INTERVAL '1 5' DAY TO HOUR) AS h FROM test GROUP BY h;
+"date_histogram":{"field":"date","missing_bucket":true,"order":"asc","fixed_interval":"104400000ms","time_zone":"Z"}}}]}}}
+;
+
+GroupByMoreDaysHistogramWithFunction
+SELECT HISTOGRAM(date + INTERVAL 5 DAYS, INTERVAL 1 DAY) AS h FROM test GROUP BY h;
+"date_histogram":{"script":{"source":"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))"
+"params":{"v0":"date","v1":"PT120H","v2":"INTERVAL_DAY"}},
+"missing_bucket":true,"value_type":"long","order":"asc",
+"calendar_interval":"1d","time_zone":"Z"}}}]}}}
+;
+
+GroupByYearAndScalars
+SELECT YEAR(CAST(date + INTERVAL 5 months AS DATE)) FROM test GROUP BY 1;
+"date_histogram":{"script":{"source":"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),
+InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)",
+"params":{"v0":"date","v1":"P5M","v2":"INTERVAL_MONTH","v3":"DATE"}},
+"missing_bucket":true,"value_type":"long","order":"asc",
+"calendar_interval":"1y","time_zone":"Z"}}}]}}}
+;
+
+OrderByYear
+SELECT YEAR(date) FROM test ORDER BY 1;
+"sort":[{"_script":{"script":{"source":"InternalQlScriptUtils.nullSafeSortNumeric(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"date","v1":"Z","v2":"YEAR"}},
+"type":"number","order":"asc"}}]}
+;
+
+// LIKE/RLIKE
+/////////////
+LikeOnInexact
+SELECT * FROM test WHERE some.string LIKE '%a%';
+"query":{"wildcard":{"some.string.typical":{"wildcard":"*a*",
+;
+
+RLikeOnInexact
+SELECT * FROM test WHERE some.string RLIKE '.*a.*';
+"query":{"regexp":{"some.string.typical":{"value":".*a.*",
+;
+
+LikeWithScalars
+SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%';
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))
+"params":{"v0":"keyword","v1":"^.*a.*$"}
+;
+
+RLikeWithScalars
+SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*';
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))
+"params":{"v0":"keyword","v1":".*a.*"}
+;
+
+LikeRLikeAsScripts
+SELECT count(*), CASE WHEN keyword LIKE '%foo%' THEN 1 WHEN keyword RLIKE '.*bar.*' THEN 2 ELSE 3 END AS t
+FROM test
+GROUP BY t;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))?
+params.v2:InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v3),params.v4))?params.v5:params.v6
+"params":{"v0":"keyword","v1":"^.*foo.*$","v2":1,"v3":"keyword","v4":".*bar.*","v5":2,"v6":3}
+;
+
+// CAST
+///////
+GroupByOrderByCastScalar
+SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)
+FROM test
+GROUP BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)
+ORDER BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) NULLS FIRST;
+InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+GroupByOrderByCastScalarWithAlias
+SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) as "cast"
+FROM test
+GROUP BY "cast"
+ORDER BY "cast" NULLS FIRST;
+"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+GroupByOrderByCastScalarWithNumericRef
+SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)
+FROM test
+GROUP BY 1
+ORDER BY 1 NULLS FIRST;
+InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+OrderByWithCastWithMissingRefs
+SELECT keyword FROM test ORDER BY date::TIME, int LIMIT 5;
+"sort":[{"_script":{"script":{"source":"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))
+"params":{"v0":"date","v1":"TIME"}
+"type":"string",
+"order":"asc"}},{"int":{"order":"asc","missing":"_last","unmapped_type":"integer"}}]}
+;
+
+
+// CONVERT
+//////////
+GroupByConvertScalar1
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)
+FROM test
+GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)
+ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) NULLS FIRST;
+InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+GroupByConvertScalar2
+SELECT EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP))
+FROM test
+GROUP BY EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP));
+InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)
+"params":{"v0":"date","v1":"Z","v2":"HOUR_OF_DAY"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+GroupByConvertScalarWithAlias1
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) as "convert"
+FROM test
+GROUP BY "convert"
+ORDER BY "convert" NULLS FIRST;
+InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+GroupByConvertScalarWithAlias2
+SELECT EXTRACT(MINUTE FROM CONVERT(date, SQL_TIMESTAMP)) x
+FROM test
+GROUP BY x;
+InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)
+"params":{"v0":"date","v1":"Z","v2":"MINUTE_OF_HOUR"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+GroupByConvertScalarWithNumericRef
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)
+FROM test
+GROUP BY 1
+ORDER BY 1 NULLS FIRST;
+InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
+"params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
+"missing_bucket":true
+"value_type":"long","order":"asc"
+;
+
+
+// IN
+/////
+InExpressionWhereClause1
+SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'));
+{"terms":{"keyword":["foo","bar","lala"],"boost":1.0}}
+;
+
+InExpressionWhereClause2
+SELECT int FROM test WHERE POWER(int, 2) IN (10, null, 20, 30 - 10);
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalSqlScriptUtils.power(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))
+"params":{"v0":"int","v1":2,"v2":[10.0,null,20.0]}
+;
+
+InExpressionWhereClauseTextFieldWithKeyword
+SELECT * FROM test WHERE some.string IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'));
+{"terms":{"some.string.typical":["foo","bar","lala"],"boost":1.0}}
+;
+
+InExpressionWhereClauseAndNullHandling
+SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'));
+{"terms":{"keyword":["foo","lala"],"boost":1.0}}
+;
+
+InExpressionHavingClause
+SELECT keyword, max(int)
+FROM test
+GROUP BY keyword
+HAVING max(int) IN (10, 20, 30 - 10);
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0),params.v1))
+"params":{"v0":"INTEGER","v1":[10,20]}
+;
+
+InExpressionHavingClauseOneArg
+SELECT keyword, max(int)
+FROM test
+GROUP BY keyword
+HAVING max(int) IN (5 + 5, 10, 30 - 20);
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0),params.v1))
+"params":{"v0":"INTEGER","v1":[10]}
+;
+
+InExpressionHavingClauseWithNulls
+SELECT keyword, max(int)
+FROM test
+GROUP BY keyword
+HAVING max(int) IN (10, null, 20, 30, null, 30 - 10);
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0),params.v1))
+"params":{"v0":"INTEGER","v1":[10,null,20,30]}}
+;
+
+// IS NULL/IS NOT NULL
+//////////////////////
+IsNullExpressionWhereClauseAsQuery
+SELECT * FROM test WHERE keyword IS NULL;
+"query":{"bool":{"must_not":[{"exists":{"field":"keyword",
+;
+
+IsNullExpressionWhereClauseAsScript
+SELECT * FROM test WHERE POSITION('x', keyword) IS NULL;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))
+"params":{"v0":"x","v1":"keyword"}
+;
+
+IsNullExpressionHavingClause
+SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NULL;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)))
+"params":{"v0":"INTEGER"}}
+REGEX "aggregations":\{"(?<id>.+?)":\{"max":\{"field":"int"}},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>"}
+;
+
+IsNotNullExpressionWhereClause
+SELECT * FROM test WHERE keyword IS NOT NULL;
+"query":{"exists":{"field":"keyword","boost":1.0}
+;
+
+IsNotNullExpressionWhereClauseWithScalar
+SELECT * FROM test WHERE POSITION('x', keyword) IS NOT NULL;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))
+"params":{"v0":"x","v1":"keyword"}
+;
+
+IsNotNullExpressionHavingClause
+SELECT keyword, max(int)
+FROM test
+GROUP BY keyword
+HAVING max(int) IS NOT NULL;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)))
+"params":{"v0":"INTEGER"}
+REGEX "aggregations":\{"(?<id>.+?)":\{"max":\{"field":"int"}},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>"}
+;
+
+
+// NOT Expression
+/////////////////
+NotExpressionWhereClause
+SELECT * FROM test WHERE NOT(POSITION('x', keyword) = 0);
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.neq(InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))
+"params":{"v0":"x","v1":"keyword","v2":0}
+;
+
+
+// Conditional functions
+////////////////////////
+IifGroupBy
+SELECT IIF(int > 20, 'foo', 'bar') FROM test GROUP BY 1;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))?params.v2:params.v3
+"params":{"v0":"int","v1":20,"v2":"foo","v3":"bar"}
+;
+
+CoalesceGroupBy
+SELECT COALESCE(int, 10) FROM test GROUP BY 1;
+InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])
+"params":{"v0":"int","v1":10}
+;
+
+NullIfGroupBy
+SELECT NULLIF(int, 10) FROM test GROUP BY 1;
+InternalSqlScriptUtils.nullif(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"int","v1":10}
+;
+
+CaseGroupBy
+SELECT CASE WHEN int > 10 THEN 'foo' WHEN int > 20 THEN 'bar' ELSE 'default' END FROM test GROUP BY 1;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))?
+params.v2:InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v3),params.v4))?params.v5:params.v6
+"params":{"v0":"int","v1":10,"v2":"foo","v3":"int","v4":20,"v5":"bar","v6":"default"}
+;
+
+CoalesceExpressionWhereGroupByAndHaving
+SELECT COALESCE(int, 2) AS c, COALESCE(max(date), '2020-01-01'::date) as m
+FROM test
+WHERE c > 10
+GROUP BY c
+HAVING m > '2020-01-01'::date;
+REGEX "aggregations":\{"(?<id>.+?)":\{"max":\{"field":"date"}},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>"}
+InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])
+"params":{"v0":"int","v1":2}},"missing_bucket":true,"value_type":"long","order":"asc"}}}]}
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.asDateTime(params.a0),
+InternalSqlScriptUtils.asDateTime(params.v0)]),InternalSqlScriptUtils.asDateTime(params.v1)))
+"params":{"v0":"2020-01-01T00:00:00.000Z","v1":"2020-01-01T00:00:00.000Z"}
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1]),params.v2))
+"params":{"v0":"int","v1":2,"v2":10}
+;
+
+
+// GEO functions
+////////////////
+StAsWktForPoints
+SELECT ST_AsWKT(point) FROM test WHERE ST_AsWKT(point) = 'point (10 20)';
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1)
+"params":{"v0":"point","v1":"point(1020)"}
+;
+
+StWktToSql
+SELECT shape FROM test WHERE ST_WKTToSQL(keyword) = ST_WKTToSQL('point (10 20)');
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(InternalQlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))
+"params":{"v0":"keyword","v1":"POINT(10.020.0)"}
+;
+
+StDistanceGTToScript
+SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) > 20;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.stDistance(InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))
+"params":{"v0":"point","v1":"POINT(10.020.0)","v2":20}
+;
+
+StDistanceGTEToScript
+SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) >= 20;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gte(InternalSqlScriptUtils.stDistance(InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))
+"params":{"v0":"point","v1":"POINT(10.020.0)","v2":20}
+;
+
+StDistanceLTToQuery
+SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) < 25;
+{"geo_distance":{"point":[10.0,20.0],"distance":25.0,"distance_type":"arc","validation_method":"STRICT
+;
+
+StDistanceLTEToQuery
+SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) <= 25;
+{"geo_distance":{"point":[10.0,20.0],"distance":25.0,"distance_type":"arc","validation_method":"STRICT
+;
+
+StX
+SELECT ST_AsWKT(point) FROM test WHERE ST_X(point) = 10;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.stX(InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))
+"params":{"v0":"point","v1":10}
+;
+
+StY
+SELECT ST_AsWKT(point) FROM test WHERE ST_Y(point) = 10;
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.stY(InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))
+"params":{"v0":"point","v1":10}
+;
+
+StGeometry
+SELECT ST_AsWKT(point) FROM test WHERE ST_GEOMETRYTYPE(point) = 'POINT';
+InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))
+"params":{"v0":"point","v1":"POINT"}
+;
+
+
+// Top Hits
+///////////
+TopHitsAggregationWithOneArg1
+SELECT FIRST(keyword) FROM test;
+"top_hits":{"from":0,"size":1,"version":false,"seq_no_primary_term":false,
+"explain":false,"docvalue_fields":[{"field":"keyword"}],
+"sort":[{"keyword":{"order":"asc","missing":"_last","unmapped_type":"keyword"}}]}}}}}
+;
+
+TopHitsAggregationWithOneArg2
+SELECT MIN(keyword) FROM test;
+"top_hits":{"from":0,"size":1,"version":false,"seq_no_primary_term":false,
+"explain":false,"docvalue_fields":[{"field":"keyword"}],
+"sort":[{"keyword":{"order":"asc","missing":"_last","unmapped_type":"keyword"}}]}}}}}
+;
+
+TopHitsAggregationWithOneArg3
+SELECT LAST(date) FROM test;
+"top_hits":{"from":0,"size":1,"version":false,"seq_no_primary_term":false,
+"explain":false,"docvalue_fields":[{"field":"date","format":"strict_date_optional_time_nanos"}],
+"sort":[{"date":{"order":"desc","missing":"_last","unmapped_type":"date"}}]}}}}}
+;
+
+TopHitsAggregationWithOneArg4
+SELECT MAX(keyword) FROM test;
+"top_hits":{"from":0,"size":1,"version":false,"seq_no_primary_term":false,
+"explain":false,"docvalue_fields":[{"field":"keyword"}],
+"sort":[{"keyword":{"order":"desc","missing":"_last","unmapped_type":"keyword"}}]}}}}}
+;
+
+TopHitsAggregationWithTwoArgs1
+SELECT FIRST(keyword, int) FROM test;
+"top_hits":{"from":0,"size":1,"version":false,"seq_no_primary_term":false,
+"explain":false,"docvalue_fields":[{"field":"keyword"}],
+"sort":[{"int":{"order":"asc","missing":"_last","unmapped_type":"integer"}},
+{"keyword":{"order":"asc","missing":"_last","unmapped_type":"keyword"}}]}}}}}
+;
+
+TopHitsAggregationWithTwoArgs2
+SELECT LAST(date, int) FROM test;
+"top_hits":{"from":0,"size":1,"version":false,"seq_no_primary_term":false,
+"explain":false,"docvalue_fields":[{"field":"date","format":"strict_date_optional_time_nanos"}],
+"sort":[{"int":{"order":"desc","missing":"_last","unmapped_type":"integer"}},
+{"date":{"order":"desc","missing":"_last","unmapped_type":"date"}}]}}}}}
+;

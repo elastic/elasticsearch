@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -28,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,10 +34,11 @@ import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
-    private static final Map<String, String> TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+    private static final Map<String, String> LEGACY_TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+    private static final Map<String, String> ECS_TEST_PATTERNS = Map.of("ECS_PATTERN2", "foo2", "ECS_PATTERN1", "foo1");
 
     public void testRequest() throws Exception {
-        GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);
+        GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false, GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -56,55 +47,96 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     }
 
     public void testResponseSerialization() throws Exception {
-        GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(TEST_PATTERNS);
+        GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(LEGACY_TEST_PATTERNS);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         GrokProcessorGetAction.Response otherResponse = new GrokProcessorGetAction.Response(streamInput);
-        assertThat(response.getGrokPatterns(), equalTo(TEST_PATTERNS));
+        assertThat(response.getGrokPatterns(), equalTo(LEGACY_TEST_PATTERNS));
         assertThat(response.getGrokPatterns(), equalTo(otherResponse.getGrokPatterns()));
     }
 
     public void testResponseSorting() {
-        List<String> sortedKeys = new ArrayList<>(TEST_PATTERNS.keySet());
+        List<String> sortedKeys = new ArrayList<>(LEGACY_TEST_PATTERNS.keySet());
         Collections.sort(sortedKeys);
-        GrokProcessorGetAction.TransportAction transportAction =
-            new GrokProcessorGetAction.TransportAction(mock(TransportService.class), mock(ActionFilters.class), TEST_PATTERNS);
+        GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            LEGACY_TEST_PATTERNS,
+            ECS_TEST_PATTERNS
+        );
         GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
-        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<>() {
-            @Override
-            public void onResponse(GrokProcessorGetAction.Response response) {
+        transportAction.doExecute(
+            null,
+            new GrokProcessorGetAction.Request(true, GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GrokProcessorGetAction.Response response) {
                 receivedResponse[0] = response;
             }
 
-            @Override
-            public void onFailure(Exception e) {
+                @Override
+                public void onFailure(Exception e) {
                 fail();
             }
-        });
+            }
+        );
         assertThat(receivedResponse[0], notNullValue());
         assertThat(receivedResponse[0].getGrokPatterns().keySet().toArray(), equalTo(sortedKeys.toArray()));
 
         GrokProcessorGetAction.Response firstResponse = receivedResponse[0];
-        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<>() {
-            @Override
-            public void onResponse(GrokProcessorGetAction.Response response) {
+        transportAction.doExecute(
+            null,
+            new GrokProcessorGetAction.Request(true, GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GrokProcessorGetAction.Response response) {
                 receivedResponse[0] = response;
             }
 
-            @Override
-            public void onFailure(Exception e) {
+                @Override
+                public void onFailure(Exception e) {
                 fail();
             }
-        });
+            }
+        );
         assertThat(receivedResponse[0], notNullValue());
         assertThat(receivedResponse[0], not(sameInstance(firstResponse)));
         assertThat(receivedResponse[0].getGrokPatterns(), sameInstance(firstResponse.getGrokPatterns()));
     }
 
+    public void testEcsCompatibilityMode() {
+        List<String> sortedKeys = new ArrayList<>(ECS_TEST_PATTERNS.keySet());
+        Collections.sort(sortedKeys);
+        GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            LEGACY_TEST_PATTERNS,
+            ECS_TEST_PATTERNS
+        );
+        GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
+        transportAction.doExecute(
+            null,
+            new GrokProcessorGetAction.Request(true, Grok.ECS_COMPATIBILITY_MODES[1]),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GrokProcessorGetAction.Response response) {
+                    receivedResponse[0] = response;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail();
+                }
+            }
+        );
+        assertThat(receivedResponse[0], notNullValue());
+        assertThat(receivedResponse[0].getGrokPatterns().keySet().toArray(), equalTo(sortedKeys.toArray()));
+    }
+
     @SuppressWarnings("unchecked")
     public void testResponseToXContent() throws Exception {
-        GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(TEST_PATTERNS);
+        GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(LEGACY_TEST_PATTERNS);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();

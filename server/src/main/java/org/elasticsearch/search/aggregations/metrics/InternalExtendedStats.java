@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -25,27 +14,59 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
 
-        count, sum, min, max, avg, sum_of_squares, variance, variance_population, variance_sampling,
-        std_deviation, std_deviation_population, std_deviation_sampling, std_upper, std_lower, std_upper_population, std_lower_population,
-        std_upper_sampling, std_lower_sampling;
+        count,
+        sum,
+        min,
+        max,
+        avg,
+        sum_of_squares,
+        variance,
+        variance_population,
+        variance_sampling,
+        std_deviation,
+        std_deviation_population,
+        std_deviation_sampling,
+        std_upper,
+        std_lower,
+        std_upper_population,
+        std_lower_population,
+        std_upper_sampling,
+        std_lower_sampling;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
     }
 
+    private static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
+
     private final double sumOfSqrs;
     private final double sigma;
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-                                 DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalExtendedStats(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        double sumOfSqrs,
+        double sigma,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -115,6 +136,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return super.value(name);
     }
 
+    @Override
+    public Iterable<String> valueNames() {
+        return METRIC_NAMES;
+    }
+
     public double getSigma() {
         return this.sigma;
     }
@@ -131,14 +157,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariancePopulation() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
     public double getVarianceSampling() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        double variance = (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
@@ -249,8 +275,17 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             }
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-            format, getMetadata());
+        return new InternalExtendedStats(
+            name,
+            stats.getCount(),
+            stats.getSum(),
+            stats.getMin(),
+            stats.getMax(),
+            sumOfSqrs,
+            sigma,
+            format,
+            getMetadata()
+        );
     }
 
     static class Fields {
@@ -351,7 +386,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if (super.equals(obj) == false) return false;
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
-        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
-            Double.compare(sigma, other.sigma) == 0;
+        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 && Double.compare(sigma, other.sigma) == 0;
     }
 }

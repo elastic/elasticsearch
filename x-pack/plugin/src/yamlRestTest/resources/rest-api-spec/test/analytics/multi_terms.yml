@@ -1,0 +1,211 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              val:
+                type: long
+              uval:
+                type: unsigned_long
+              addr:
+                type: ip
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              val:
+                type: integer
+              uval:
+                type: long
+              addr:
+                type: ip
+
+  - do:
+      indices.create:
+        index: test_with_child
+        body:
+          mappings:
+            properties:
+              val:
+                type: integer
+              lval:
+                type: long
+              join:
+                type: join
+                relations:
+                  data: address
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"val": 3, "uval": 9223372036854775813, "addr": "192.168.0.13"}'
+          - '{"index": {}}'
+          - '{"val": 4, "uval": 9223372036854775814, "addr": "192.168.0.4"}'
+          - '{"index": {}}'
+          - '{"val": 4, "uval": 9223372036854775805, "addr": "192.168.0.4"}'
+          - '{"index": {}}'
+          - '{"val": 4, "uval": 9223372036854775805, "addr": "192.168.0.5"}'
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"val": 3, "uval": 9223372036854775803, "addr": "192.168.0.13"}'
+          - '{"index": {}}'
+          - '{"val": 4, "uval": 9223372036854775804, "addr": "192.168.0.4"}'
+          - '{"index": {}}'
+          - '{"val": 4, "uval": 9223372036854775805, "addr": "192.168.0.4"}'
+          - '{"index": {}}'
+          - '{"val": 4, "uval": 9223372036854775805, "addr": "192.168.0.5"}'
+
+  - do:
+      bulk:
+        index: test_with_child
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"val": 3, "lval": 4, "join": {"name": "data"}}'
+          - '{"index": {"routing": "1"}}'
+          - '{"addr": "192.168.0.13", "join": {"name": "address", "parent": "1"}}'
+          - '{"index": {"routing": "1"}}'
+          - '{"addr": "192.168.0.14", "join": {"name": "address", "parent": "1"}}'
+          - '{"index": {"_id": "2"}}'
+          - '{"val": 4, "lval": 4, "join": {"name": "data"}}'
+          - '{"index": {"routing": "2"}}'
+          - '{"addr": "192.168.0.1", "join": {"name": "address", "parent": "2"}}'
+          - '{"index": {"routing": "2"}}'
+          - '{"addr": "192.168.0.2", "join": {"name": "address", "parent": "2"}}'
+          - '{"index": {"_id": "3"}}'
+          - '{"val": 3, "lval": 4, "join": {"name": "data"}}'
+          - '{"index": {"routing": "3"}}'
+          - '{"addr": "192.168.0.3", "join": {"name": "address", "parent": "3"}}'
+          - '{"index": {"routing": "3"}}'
+          - '{"addr": "192.168.0.4", "join": {"name": "address", "parent": "3"}}'
+
+---
+"val and uval":
+  - do:
+      search:
+        size: 0
+        index: "test1"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: val
+                  - field: uval
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "4|9223372036854775805" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "3|9223372036854775813" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "4|9223372036854775814" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
+"addr and val":
+  - do:
+      search:
+        size: 0
+        index: "test1"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: addr
+                  - field: val
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "192.168.0.4|4" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "192.168.0.5|4" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "192.168.0.13|3" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
+"addr and uval":
+  - do:
+      search:
+        size: 0
+        index: "test2"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: addr
+                  - field: uval
+
+  - length: { aggregations.m_terms.buckets: 4 }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "192.168.0.4|9223372036854775804" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "192.168.0.4|9223372036854775805" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "192.168.0.5|9223372036854775805" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.3.key_as_string: "192.168.0.13|9223372036854775803" }
+  - match: { aggregations.m_terms.buckets.3.doc_count: 1 }
+
+---
+"mix and match":
+  - do:
+      search:
+        size: 0
+        index: "test1,test2"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: val
+                  - field: uval
+                  - field: addr
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "4|9.223372036854776E18|192.168.0.4" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 4 }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "3|9.223372036854776E18|192.168.0.13" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "4|9.223372036854776E18|192.168.0.5" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 2 }
+
+---
+"aggs with children":
+  - do:
+      search:
+        size: 0
+        index: "test_with_child"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: val
+                  - field: lval
+              aggs:
+                ips:
+                  children:
+                    type: address
+
+  - length: { aggregations.m_terms.buckets: 2 }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "3|4" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.0.ips.doc_count: 4 }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "4|4" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.1.ips.doc_count: 2 }

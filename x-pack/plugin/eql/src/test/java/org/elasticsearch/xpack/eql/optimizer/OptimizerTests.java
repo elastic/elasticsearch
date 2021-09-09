@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.optimizer;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,15 +33,17 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -46,6 +51,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
@@ -123,9 +129,13 @@ public class OptimizerTests extends ESTestCase {
 
             Filter filter = (Filter) plan;
             And condition = (And) filter.condition();
-            assertTrue(condition.right() instanceof IsNotNull);
+            assertTrue(condition.right() instanceof Not);
+            Not not = (Not) condition.right();
+            List<Expression> children = not.children();
+            assertEquals(1, children.size());
+            assertTrue(children.get(0) instanceof IsNull);
 
-            IsNotNull check = (IsNotNull) condition.right();
+            IsNull check = (IsNull) children.get(0);
             assertEquals(((FieldAttribute) check.field()).name(), "command_line");
         }
     }
@@ -329,7 +339,7 @@ public class OptimizerTests extends ESTestCase {
         Filter filterChild = basicFilter(left);
         Filter filterParent = new Filter(EMPTY, filterChild, right);
 
-        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filterParent);
+        LogicalPlan result = new PushDownAndCombineFilters().apply(filterParent);
 
         assertEquals(Filter.class, result.getClass());
         Expression condition = ((Filter) result).condition();
@@ -354,7 +364,7 @@ public class OptimizerTests extends ESTestCase {
         OrderBy order = new OrderBy(EMPTY, rel(), emptyList());
         Filter filter = new Filter(EMPTY, order, left);
 
-        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filter);
+        LogicalPlan result = new PushDownAndCombineFilters().apply(filter);
 
         assertEquals(OrderBy.class, result.getClass());
         OrderBy o = (OrderBy) result;
@@ -381,7 +391,7 @@ public class OptimizerTests extends ESTestCase {
         Sequence s = sequence(rule1, rule2);
         Filter filter = new Filter(EMPTY, s, left);
 
-        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filter);
+        LogicalPlan result = new PushDownAndCombineFilters().apply(filter);
 
         assertEquals(Filter.class, result.getClass());
         Filter f = (Filter) result;
@@ -663,6 +673,40 @@ public class OptimizerTests extends ESTestCase {
 
         assertEquals(keyRuleBCondition, filterCondition(child2));
         assertEquals(filter, filterCondition(child2.children().get(0)));
+    }
+
+    // ((a + 1) - 3) * 4 >= 16 -> a >= 6.
+    public void testReduceBinaryComparisons() {
+        LogicalPlan plan = accept("foo where ((pid + 1) - 3) * 4 >= 16");
+        assertNotNull(plan);
+        List<LogicalPlan> filters = plan.collectFirstChildren(x -> x instanceof Filter);
+        assertNotNull(filters);
+        assertEquals(1, filters.size());
+        assertTrue(filters.get(0) instanceof Filter);
+        Filter filter = (Filter) filters.get(0);
+
+        assertTrue(filter.condition() instanceof And);
+        And and = (And) filter.condition();
+        assertTrue(and.right() instanceof GreaterThanOrEqual);
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.right();
+
+        assertTrue(gte.left() instanceof FieldAttribute);
+        assertEquals("pid", ((FieldAttribute) gte.left()).name());
+
+        assertTrue(gte.right() instanceof Literal);
+        assertEquals(6, ((Literal) gte.right()).value());
+    }
+
+    public void testReplaceCastOnField() {
+        Attribute a = TestUtils.fieldAttribute("string", DataTypes.KEYWORD);
+        ToString ts = new ToString(EMPTY, a);
+        assertSame(a, new Optimizer.PruneCast().maybePruneCast(ts));
+    }
+
+    public void testReplaceCastOnLiteral() {
+        Literal l = new Literal(EMPTY, "string", DataTypes.KEYWORD);
+        ToString ts = new ToString(EMPTY, l);
+        assertSame(l, new Optimizer.PruneCast().maybePruneCast(ts));
     }
 
     private static Attribute timestamp() {

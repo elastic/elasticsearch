@@ -12,6 +12,12 @@ Returns the <<snapshots-repositories,snapshot repositories>> for a cluster.
 
 `GET /_cat/repositories`
 
+[[cat-repositories-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-repositories-query-params]]
 ==== {api-query-parms-title}
@@ -36,7 +42,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/repositories?v
+GET /_cat/repositories?v=true
 --------------------------------------------------
 // TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]
 

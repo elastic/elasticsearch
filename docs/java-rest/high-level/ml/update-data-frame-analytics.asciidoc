@@ -7,7 +7,6 @@
 [id="{upid}-{api}"]
 === Update {dfanalytics-jobs} API
 
-beta::[]
 
 Updates an existing {dfanalytics-job}.
 The API accepts an +{request}+ object as a request and returns an +{response}+.

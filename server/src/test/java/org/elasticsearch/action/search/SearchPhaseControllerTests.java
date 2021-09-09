@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -89,7 +78,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -116,7 +104,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     @Before
     public void setup() {
         reductions = new CopyOnWriteArrayList<>();
-        searchPhaseController = new SearchPhaseController(writableRegistry(), s -> new InternalAggregation.ReduceContextBuilder() {
+        searchPhaseController = new SearchPhaseController(s -> new InternalAggregation.ReduceContextBuilder() {
             @Override
             public ReduceContext forPartialReduction() {
                 reductions.add(false);
@@ -253,9 +241,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
             }
             int suggestSize = 0;
-            for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
-                Stream<CompletionSuggestion.Entry> stream = s.getEntries().stream();
-                suggestSize += stream.collect(Collectors.summingInt(e -> e.getOptions().size()));
+            for (Suggest.Suggestion<?> s : reducedQueryPhase.suggest) {
+                suggestSize += s.getEntries().stream().mapToInt(e -> e.getOptions().size()).sum();
             }
             assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
             assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs.scoreDocs.length - suggestSize));
@@ -936,23 +923,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
-    public void testPartialReduce() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            testReduceCase(false);
-        }
+    public void testCoordCircuitBreaker() throws Exception {
+        int numShards = randomIntBetween(20, 200);
+        testReduceCase(numShards, numShards, true);
+        testReduceCase(numShards, numShards, false);
+        testReduceCase(numShards, randomIntBetween(2, numShards-1), true);
+        testReduceCase(numShards, randomIntBetween(2, numShards-1), false);
     }
 
-    public void testPartialReduceWithFailure() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            testReduceCase(true);
-        }
-    }
-
-    private void testReduceCase(boolean shouldFail) throws Exception {
-        int expectedNumResults = randomIntBetween(20, 200);
-        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
+    private void testReduceCase(int numShards, int bufferSize, boolean shouldFail) throws Exception {
         SearchRequest request = new SearchRequest();
-
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
@@ -963,10 +943,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
             circuitBreaker, SearchProgressListener.NOOP,
-            request, expectedNumResults, exc -> hasConsumedFailure.set(true));
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        Thread[] threads = new Thread[expectedNumResults];
-        for (int i =  0; i < expectedNumResults; i++) {
+            request, numShards, exc -> hasConsumedFailure.set(true));
+        CountDownLatch latch = new CountDownLatch(numShards);
+        Thread[] threads = new Thread[numShards];
+        for (int i =  0; i < numShards; i++) {
             final int index = i;
             threads[index] = new Thread(() -> {
                 QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
@@ -985,13 +965,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
             });
             threads[index].start();
         }
-        for (int i = 0; i < expectedNumResults; i++) {
+        for (int i = 0; i < numShards; i++) {
             threads[i].join();
         }
         latch.await();
         if (shouldFail) {
             if (shouldFailPartial == false) {
                 circuitBreaker.shouldBreak.set(true);
+            } else {
+                circuitBreaker.shouldBreak.set(false);
             }
             CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
             assertEquals(shouldFailPartial, hasConsumedFailure.get());
@@ -1043,19 +1025,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             assert bytes >= 0;
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }
             allocated += bytes;
-            return allocated;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
+        public void addWithoutBreaking(long bytes) {
             allocated += bytes;
-            return allocated;
         }
     }
 }

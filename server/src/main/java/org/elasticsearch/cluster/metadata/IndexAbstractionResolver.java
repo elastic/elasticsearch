@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -22,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,7 +64,8 @@ public class IndexAbstractionResolver {
                     // continue
                     indexAbstraction = dateMathName;
                 } else if (availableIndexAbstractions.contains(dateMathName) &&
-                    isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
+                    isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, indexNameExpressionResolver,
+                        includeDataStreams, true)) {
                     if (minus) {
                         finalIndices.remove(dateMathName);
                     } else {
@@ -92,7 +83,8 @@ public class IndexAbstractionResolver {
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : availableIndexAbstractions) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
-                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata, includeDataStreams)) {
+                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata, indexNameExpressionResolver,
+                            includeDataStreams)) {
                         resolvedIndices.add(authorizedIndex);
                     }
                 }
@@ -120,12 +112,12 @@ public class IndexAbstractionResolver {
     }
 
     public static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                         boolean includeDataStreams) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, includeDataStreams, false);
+                                         IndexNameExpressionResolver resolver, boolean includeDataStreams) {
+        return isIndexVisible(expression, index, indicesOptions, metadata, resolver, includeDataStreams, false);
     }
 
     public static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                          boolean includeDataStreams, boolean dateMathExpression) {
+                                         IndexNameExpressionResolver resolver, boolean includeDataStreams, boolean dateMathExpression) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
@@ -138,7 +130,27 @@ public class IndexAbstractionResolver {
             return isVisible && indicesOptions.ignoreAliases() == false;
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            return isVisible && includeDataStreams;
+            if (includeDataStreams == false) {
+                return false;
+            }
+            if (indexAbstraction.isSystem()) {
+                final SystemIndexAccessLevel level = resolver.getSystemIndexAccessLevel();
+                switch (level) {
+                    case ALL:
+                        return true;
+                    case NONE:
+                        return false;
+                    case RESTRICTED:
+                        return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                    case BACKWARDS_COMPATIBLE_ONLY:
+                        return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
+                    default:
+                        assert false : "unexpected system index access level [" + level + "]";
+                        throw new IllegalStateException("unexpected system index access level [" + level + "]");
+                }
+            } else {
+                return isVisible;
+            }
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
@@ -149,6 +161,47 @@ public class IndexAbstractionResolver {
         }
         if (isVisible == false) {
             return false;
+        }
+        if (indexAbstraction.isSystem()) {
+            // check if it is net new
+            if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
+                final SystemIndexAccessLevel level = resolver.getSystemIndexAccessLevel();
+                switch (level) {
+                    case ALL:
+                        return true;
+                    case NONE:
+                        return false;
+                    case RESTRICTED:
+                        return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                    case BACKWARDS_COMPATIBLE_ONLY:
+                        return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
+                    default:
+                        assert false : "unexpected system index access level [" + level + "]";
+                        throw new IllegalStateException("unexpected system index access level [" + level + "]");
+                }
+            }
+
+            // does the system index back a system data stream?
+            if (indexAbstraction.getParentDataStream() != null) {
+                if (indexAbstraction.getParentDataStream().isSystem() == false) {
+                    assert false : "system index is part of a data stream that is not a system data stream";
+                    throw new IllegalStateException("system index is part of a data stream that is not a system data stream");
+                }
+                final SystemIndexAccessLevel level = resolver.getSystemIndexAccessLevel();
+                switch (level) {
+                    case ALL:
+                        return true;
+                    case NONE:
+                        return false;
+                    case RESTRICTED:
+                        return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                    case BACKWARDS_COMPATIBLE_ONLY:
+                        return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
+                    default:
+                        assert false : "unexpected system index access level [" + level + "]";
+                        throw new IllegalStateException("unexpected system index access level [" + level + "]");
+                }
+            }
         }
 
         IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);

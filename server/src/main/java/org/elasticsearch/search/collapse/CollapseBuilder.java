@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.collapse;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 
 import java.io.IOException;
@@ -186,7 +175,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         CollapseBuilder that = (CollapseBuilder) o;
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
-        if (!field.equals(that.field)) return false;
+        if (field.equals(that.field) == false) return false;
         return Objects.equals(innerHits, that.innerHits);
     }
 
@@ -197,8 +186,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
-    public CollapseContext build(QueryShardContext queryShardContext) {
-        MappedFieldType fieldType = queryShardContext.getFieldType(field);
+    public CollapseContext build(SearchExecutionContext searchExecutionContext) {
+        MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
@@ -209,7 +198,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.isSearchable() == false && (innerHits != null && !innerHits.isEmpty())) {
+        if (fieldType.isSearchable() == false && (innerHits != null && innerHits.isEmpty() == false)) {
             throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }

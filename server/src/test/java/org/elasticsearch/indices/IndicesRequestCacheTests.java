@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -43,8 +32,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingLookupUtils;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -54,6 +43,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.util.Collections.emptyList;
 
 public class IndicesRequestCacheTests extends ESTestCase {
 
@@ -66,7 +57,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey mappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
         AtomicBoolean indexShard = new AtomicBoolean(true);
@@ -116,7 +107,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
     public void testCacheDifferentReaders() throws Exception {
         IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
-        MappingLookup.CacheKey mappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
         AtomicBoolean indexShard =  new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
@@ -211,8 +202,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
     public void testCacheDifferentMapping() throws Exception {
         IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
-        MappingLookup.CacheKey mappingKey1 = MappingLookupUtils.fromTypes().cacheKey();
-        MappingLookup.CacheKey mappingKey2 = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mappingKey1 = MappingLookup.EMPTY.cacheKey();
+        MappingLookup.CacheKey mappingKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList()).cacheKey();
         AtomicBoolean indexShard =  new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
@@ -289,7 +280,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
     }
 
     public void testEviction() throws Exception {
-        MappingLookup.CacheKey mappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
         final ByteSizeValue size;
         {
             IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
@@ -370,7 +361,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey mappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
@@ -379,14 +370,15 @@ public class IndicesRequestCacheTests extends ESTestCase {
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey secondMappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey secondMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList())
+            .cacheKey();
         TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
         Loader secondLoader = new Loader(secondReader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
         DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey thirdMappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey thirdMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList()).cacheKey();
         AtomicBoolean differentIdentity =  new AtomicBoolean(true);
         TestEntity thirdEntity = new TestEntity(requestCacheStats, differentIdentity);
         Loader thirdLoader = new Loader(thirdReader, 0);
@@ -455,7 +447,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
-        MappingLookup.CacheKey mappingKey = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
@@ -521,8 +513,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
     public void testKeyEqualsAndHashCode() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);
-        MappingLookup.CacheKey mKey1 = MappingLookupUtils.fromTypes().cacheKey();
-        MappingLookup.CacheKey mKey2 = MappingLookupUtils.fromTypes().cacheKey();
+        MappingLookup.CacheKey mKey1 = MappingLookup.EMPTY.cacheKey();
+        MappingLookup.CacheKey mKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList()).cacheKey();
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, config);
@@ -579,7 +571,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(key1.hashCode(), key2.hashCode());
     }
 
-    private class TestBytesReference extends AbstractBytesReference {
+    private static class TestBytesReference extends AbstractBytesReference {
 
         int dummyValue;
         TestBytesReference(int dummyValue) {
@@ -629,7 +621,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         }
     }
 
-    private class TestEntity extends AbstractIndexShardCacheEntity {
+    private static class TestEntity extends AbstractIndexShardCacheEntity {
         private final AtomicBoolean standInForIndexShard;
         private final ShardRequestCache shardRequestCache;
         private TestEntity(ShardRequestCache shardRequestCache, AtomicBoolean standInForIndexShard) {

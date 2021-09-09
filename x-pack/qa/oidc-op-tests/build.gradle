@@ -1,16 +1,28 @@
+import org.elasticsearch.gradle.Architecture
+
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testImplementation(testArtifact(project(xpackModule('core'))))
+    testImplementation(testArtifact(project(xpackModule('security'))))
 }
+
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 testFixtures.useFixture ":x-pack:test:idp-fixture", "elasticsearch-node"
 
-tasks.named("thirdPartyAudit").configure { enabled = false }
+tasks.named("processTestResources").configure {
+  from project(':x-pack:plugin:core')
+          .files(
+                  'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt'
+          )
+}
+
+tasks.named("integTest").configure {
+  // OpenID Connect fixture does not support aarm64
+  onlyIf { Architecture.current() == Architecture.X64 }
+}

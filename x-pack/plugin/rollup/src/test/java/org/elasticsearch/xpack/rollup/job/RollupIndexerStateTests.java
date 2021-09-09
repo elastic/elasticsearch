@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
@@ -49,16 +50,24 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
-
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
-        EmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
-                Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
+        EmptyRollupIndexer(
+            ThreadPool threadPool,
+            RollupJob job,
+            AtomicReference<IndexerState> initialState,
+            Map<String, Object> initialPosition,
+            RollupIndexerJobStats stats
+        ) {
             super(threadPool, job, initialState, initialPosition, stats);
         }
 
-        EmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
-                           Map<String, Object> initialPosition) {
+        EmptyRollupIndexer(
+            ThreadPool threadPool,
+            RollupJob job,
+            AtomicReference<IndexerState> initialState,
+            Map<String, Object> initialPosition
+        ) {
             super(threadPool, job, initialState, initialPosition);
         }
 
@@ -98,9 +107,14 @@ public class RollupIndexerStateTests extends ESTestCase {
             }));
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
-            final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
-                new ShardSearchFailure[0], null);
+                aggs,
+                null,
+                false,
+                null,
+                null,
+                1
+            );
+            final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, new ShardSearchFailure[0], null);
             nextPhase.onResponse(response);
         }
 
@@ -134,13 +148,22 @@ public class RollupIndexerStateTests extends ESTestCase {
     private static class DelayedEmptyRollupIndexer extends EmptyRollupIndexer {
         protected CountDownLatch latch;
 
-        DelayedEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
-                                  Map<String, Object> initialPosition) {
+        DelayedEmptyRollupIndexer(
+            ThreadPool threadPool,
+            RollupJob job,
+            AtomicReference<IndexerState> initialState,
+            Map<String, Object> initialPosition
+        ) {
             super(threadPool, job, initialState, initialPosition);
         }
 
-        DelayedEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
-                Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
+        DelayedEmptyRollupIndexer(
+            ThreadPool threadPool,
+            RollupJob job,
+            AtomicReference<IndexerState> initialState,
+            Map<String, Object> initialPosition,
+            RollupIndexerJobStats stats
+        ) {
             super(threadPool, job, initialState, initialPosition, stats);
         }
 
@@ -167,16 +190,28 @@ public class RollupIndexerStateTests extends ESTestCase {
         final BiConsumer<IndexerState, Map<String, Object>> saveStateCheck;
         private CountDownLatch latch;
 
-        NonEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
-                              Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
-                              Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer) {
+        NonEmptyRollupIndexer(
+            ThreadPool threadPool,
+            RollupJob job,
+            AtomicReference<IndexerState> initialState,
+            Map<String, Object> initialPosition,
+            Function<SearchRequest, SearchResponse> searchFunction,
+            Function<BulkRequest, BulkResponse> bulkFunction,
+            Consumer<Exception> failureConsumer
+        ) {
             this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
         }
 
-        NonEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
-                              Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
-                              Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer,
-                              BiConsumer<IndexerState, Map<String, Object>> saveStateCheck) {
+        NonEmptyRollupIndexer(
+            ThreadPool threadPool,
+            RollupJob job,
+            AtomicReference<IndexerState> initialState,
+            Map<String, Object> initialPosition,
+            Function<SearchRequest, SearchResponse> searchFunction,
+            Function<BulkRequest, BulkResponse> bulkFunction,
+            Consumer<Exception> failureConsumer,
+            BiConsumer<IndexerState, Map<String, Object>> saveStateCheck
+        ) {
             super(threadPool, job, initialState, initialPosition);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
@@ -270,9 +305,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
-                    super.onFinish(ActionListener.wrap(r -> {
-                        listener.onResponse(r);
-                    }, listener::onFailure));
+                    super.onFinish(ActionListener.wrap(r -> { listener.onResponse(r); }, listener::onFailure));
                 }
 
                 @Override
@@ -325,8 +358,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             AtomicBoolean isFinished = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer =
-                new DelayedEmptyRollupIndexer(threadPool, job, state, null, spyStats) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null, spyStats) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> {
@@ -455,9 +487,14 @@ public class RollupIndexerStateTests extends ESTestCase {
                     }));
                     final SearchResponseSections sections = new SearchResponseSections(
                         new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                        aggs, null, false, null, null, 1);
-                    final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
-                        ShardSearchFailure.EMPTY_ARRAY, null);
+                        aggs,
+                        null,
+                        false,
+                        null,
+                        null,
+                        1
+                    );
+                    final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
                     nextPhase.onResponse(response);
                 }
 
@@ -661,16 +698,19 @@ public class RollupIndexerStateTests extends ESTestCase {
             }));
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
-            return new SearchResponse(sections, null, 1, 1, 0, 0,
-                ShardSearchFailure.EMPTY_ARRAY, null);
+                aggs,
+                null,
+                false,
+                null,
+                null,
+                1
+            );
+            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), equalTo("Could not identify key in agg [foo]"));
-        };
+        Consumer<Exception> failureConsumer = e -> { assertThat(e.getMessage(), equalTo("Could not identify key in agg [foo]")); };
         BiConsumer<IndexerState, Map<String, Object>> stateCheck = (i, p) -> {
             if (i == IndexerState.STARTED) {
                 isFinished.set(true);
@@ -680,8 +720,16 @@ public class RollupIndexerStateTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
-                searchFunction, bulkFunction, failureConsumer, stateCheck);
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                threadPool,
+                job,
+                state,
+                null,
+                searchFunction,
+                bulkFunction,
+                failureConsumer,
+                stateCheck
+            );
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -774,26 +822,35 @@ public class RollupIndexerStateTests extends ESTestCase {
             }));
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
-            return new SearchResponse(sections, null, 1, 1, 0, 0,
-                ShardSearchFailure.EMPTY_ARRAY, null);
+                aggs,
+                null,
+                false,
+                null,
+                null,
+                1
+            );
+            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), equalTo("Could not identify key in agg [foo]"));
-        };
+        Consumer<Exception> failureConsumer = e -> { assertThat(e.getMessage(), equalTo("Could not identify key in agg [foo]")); };
 
-        BiConsumer<IndexerState, Map<String, Object>> doSaveStateCheck = (indexerState, position) -> {
-            isFinished.set(true);
-        };
+        BiConsumer<IndexerState, Map<String, Object>> doSaveStateCheck = (indexerState, position) -> { isFinished.set(true); };
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
-                searchFunction, bulkFunction, failureConsumer, doSaveStateCheck);
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                threadPool,
+                job,
+                state,
+                null,
+                searchFunction,
+                bulkFunction,
+                failureConsumer,
+                doSaveStateCheck
+            );
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -822,15 +879,16 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
-            throw new SearchPhaseExecutionException("query", "Partial shards failure",
-                    new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("failed")) });
+            throw new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("failed")) }
+            );
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), startsWith("Partial shards failure"));
-        };
+        Consumer<Exception> failureConsumer = e -> { assertThat(e.getMessage(), startsWith("Partial shards failure")); };
         BiConsumer<IndexerState, Map<String, Object>> stateCheck = (i, p) -> {
             if (i == IndexerState.STARTED) {
                 isFinished.set(true);
@@ -840,8 +898,16 @@ public class RollupIndexerStateTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
-                searchFunction, bulkFunction, failureConsumer, stateCheck);
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                threadPool,
+                job,
+                state,
+                null,
+                searchFunction,
+                bulkFunction,
+                failureConsumer,
+                stateCheck
+            );
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -931,9 +997,14 @@ public class RollupIndexerStateTests extends ESTestCase {
             }));
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
-            return new SearchResponse(sections, null, 1, 1, 0, 0,
-                ShardSearchFailure.EMPTY_ARRAY, null);
+                aggs,
+                null,
+                false,
+                null,
+                null,
+                1
+            );
+            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> {
@@ -941,9 +1012,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             return null;
         };
 
-        Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), equalTo("failed"));
-        };
+        Consumer<Exception> failureConsumer = e -> { assertThat(e.getMessage(), equalTo("failed")); };
         BiConsumer<IndexerState, Map<String, Object>> stateCheck = (i, p) -> {
             if (i == IndexerState.STARTED) {
                 isFinished.set(true);
@@ -953,8 +1022,16 @@ public class RollupIndexerStateTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
-                searchFunction, bulkFunction, failureConsumer, stateCheck) {
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
+                threadPool,
+                job,
+                state,
+                null,
+                searchFunction,
+                bulkFunction,
+                failureConsumer,
+                stateCheck
+            ) {
                 @Override
                 protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
                     nextPhase.onFailure(new RuntimeException("failed"));

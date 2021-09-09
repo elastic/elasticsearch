@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
@@ -17,7 +18,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import java.io.IOException;
 import java.util.Map;
 
-
 public abstract class TTestAggregator<T extends TTestState> extends NumericMetricsAggregator.SingleValue {
 
     protected final MultiValuesSource.NumericMultiValuesSource valuesSources;
@@ -25,9 +25,16 @@ public abstract class TTestAggregator<T extends TTestState> extends NumericMetri
 
     private DocValueFormat format;
 
-    TTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
-                    AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, context, parent,  metadata);
+    TTestAggregator(
+        String name,
+        MultiValuesSource.NumericMultiValuesSource valuesSources,
+        int tails,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSources = valuesSources;
         this.tails = tails;
         this.format = format;

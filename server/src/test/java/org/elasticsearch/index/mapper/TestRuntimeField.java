@@ -1,101 +1,77 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
+import java.util.stream.Stream;
 
-public class TestRuntimeField extends RuntimeFieldType {
+public final class TestRuntimeField implements RuntimeField {
 
-    private final String type;
+    public static final String CONTENT_TYPE = "test-composite";
+
+    private final String name;
+    private final Collection<MappedFieldType> subfields;
 
     public TestRuntimeField(String name, String type) {
-        super(name, Collections.emptyMap());
-        this.type = type;
+        this(name, Collections.singleton(new TestRuntimeFieldType(name, type)));
+    }
+
+    public TestRuntimeField(String name, Collection<MappedFieldType> subfields) {
+        this.name = name;
+        this.subfields = subfields;
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException {
+    public String name() {
+        return name;
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
-        return null;
+    public Stream<MappedFieldType> asMappedFieldTypes() {
+        return subfields.stream();
     }
 
     @Override
-    public String typeName() {
-        return type;
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", CONTENT_TYPE);
+        builder.endObject();
+        return builder;
     }
 
-    @Override
-    public Query termQuery(Object value, QueryShardContext context) {
-        return null;
-    }
+    public static class TestRuntimeFieldType extends MappedFieldType {
+        private final String type;
 
-    public static class Plugin extends org.elasticsearch.plugins.Plugin implements MapperPlugin {
-        @Override
-        public Map<String, Parser> getRuntimeFieldTypes() {
-            return Map.of(
-                "keyword", (name, node, parserContext) -> new TestRuntimeField(name, "keyword"),
-                "double", (name, node, parserContext) -> new TestRuntimeField(name, "double"),
-                "long", (name, node, parserContext) -> new TestRuntimeField(name, "long"),
-                "boolean", (name, node, parserContext) -> new TestRuntimeField(name, "boolean"),
-                "date", (name, node, parserContext) -> new TestRuntimeField(name, "date"));
+        public TestRuntimeFieldType(String name, String type) {
+            super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            this.type = type;
         }
 
         @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return new DynamicRuntimeFieldsBuilder() {
-                @Override
-                public RuntimeFieldType newDynamicStringField(String name) {
-                    return new TestRuntimeField(name, "keyword");
-                }
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException();
+        }
 
-                @Override
-                public RuntimeFieldType newDynamicLongField(String name) {
-                    return new TestRuntimeField(name, "long");
-                }
+        @Override
+        public String typeName() {
+            return type;
+        }
 
-                @Override
-                public RuntimeFieldType newDynamicDoubleField(String name) {
-                    return new TestRuntimeField(name, "double");
-                }
-
-                @Override
-                public RuntimeFieldType newDynamicBooleanField(String name) {
-                    return new TestRuntimeField(name, "boolean");
-                }
-
-                @Override
-                public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
-                    return new TestRuntimeField(name, "date");
-                }
-            };
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return null;
         }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.enrich;
 
@@ -9,8 +10,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -72,12 +73,23 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         }
         int numCoordinatorStats = randomIntBetween(0, 8);
         List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatorStats);
+        List<EnrichStatsAction.Response.CacheStats> cacheStats = new ArrayList<>(numCoordinatorStats);
         for (int i = 0; i < numCoordinatorStats; i++) {
+            String nodeId = randomAlphaOfLength(4);
             coordinatorStats.add(
                 new CoordinatorStats(
-                    randomAlphaOfLength(4),
+                    nodeId,
                     randomIntBetween(0, Integer.MAX_VALUE),
                     randomIntBetween(0, Integer.MAX_VALUE),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            );
+            cacheStats.add(
+                new EnrichStatsAction.Response.CacheStats(
+                    nodeId,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )
@@ -86,7 +98,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         @SuppressWarnings("unchecked")
         final ActionFuture<EnrichStatsAction.Response> future = (ActionFuture<EnrichStatsAction.Response>) mock(ActionFuture.class);
-        final EnrichStatsAction.Response response = new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        final EnrichStatsAction.Response response = new EnrichStatsAction.Response(executingPolicies, coordinatorStats, cacheStats);
 
         when(client.execute(eq(EnrichStatsAction.INSTANCE), any(EnrichStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);

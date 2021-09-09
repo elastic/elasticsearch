@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
@@ -31,7 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -88,7 +77,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
             assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
-            for (Map.Entry<String, ProfileShardResult> shard : resp.getProfileResults().entrySet()) {
+            for (Map.Entry<String, SearchProfileQueryPhaseResult> shard : resp.getProfileResults().entrySet()) {
                 for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
                     for (ProfileResult result : searchProfiles.getQueryResults()) {
                         assertNotNull(result.getQueryName());
@@ -221,11 +210,11 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .get();
 
-        Map<String, ProfileShardResult> p = resp.getProfileResults();
+        Map<String, SearchProfileQueryPhaseResult> p = resp.getProfileResults();
         assertNotNull(p);
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertEquals(result.getQueryName(), "TermQuery");
@@ -268,11 +257,11 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .get();
 
-        Map<String, ProfileShardResult> p = resp.getProfileResults();
+        Map<String, SearchProfileQueryPhaseResult> p = resp.getProfileResults();
         assertNotNull(p);
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertEquals(result.getQueryName(), "BooleanQuery");
@@ -340,7 +329,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
@@ -392,7 +381,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
@@ -439,7 +428,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
@@ -486,7 +475,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
@@ -532,7 +521,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
@@ -586,7 +575,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());

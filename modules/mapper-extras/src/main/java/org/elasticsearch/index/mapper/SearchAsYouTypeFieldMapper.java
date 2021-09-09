@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -50,7 +39,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -108,7 +97,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         // `doc_values=false`, even though it cannot be set; and so we need to continue
         // serializing it forever because of mapper assertions in mixed clusters.
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> false, false)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v) {
                     throw new MapperParsingException("Cannot set [doc_values] on field of type [search_as_you_type]");
                 }
@@ -117,7 +106,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Integer> maxShingleSize = Parameter.intParam("max_shingle_size", false,
             m -> builder(m).maxShingleSize.get(), Defaults.MAX_SHINGLE_SIZE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
                     throw new MapperParsingException("[max_shingle_size] must be at least [" + MAX_SHINGLE_SIZE_LOWER_BOUND
                         + "] and at most " + "[" + MAX_SHINGLE_SIZE_UPPER_BOUND + "], got [" + v + "]");
@@ -136,7 +125,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(
+                    indexAnalyzers,
+                    m -> builder(m).analyzers.getIndexAnalyzer(),
+                    m -> builder(m).analyzers.positionIncrementGap.getValue()
+            );
         }
 
         @Override
@@ -147,7 +140,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SearchAsYouTypeFieldMapper build(ContentPath contentPath) {
+        public SearchAsYouTypeFieldMapper build(MapperBuilderContext context) {
 
             FieldType fieldType = new FieldType();
             fieldType.setIndexOptions(TextParams.toIndexOptions(index.getValue(), indexOptions.getValue()));
@@ -160,7 +153,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
-            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(contentPath), fieldType, similarity.getValue(),
+            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(context.buildFullName(name), fieldType, similarity.getValue(),
                 analyzers.getSearchAnalyzer(), analyzers.getSearchQuoteAnalyzer(), meta.getValue());
 
             indexAnalyzers.put(ft.name(), indexAnalyzer);
@@ -170,7 +163,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
-            final String fullName = buildFullName(contentPath);
+            final String fullName = context.buildFullName(name);
             // wrap the root field's index analyzer with shingles and edge ngrams
             final Analyzer prefixIndexWrapper =
                 SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize.getValue());
@@ -191,7 +184,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final int shingleSize = i + 2;
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
-                String fieldName = getShingleFieldName(buildFullName(contentPath), shingleSize);
+                String fieldName = getShingleFieldName(context.buildFullName(name), shingleSize);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper =
                     SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);
@@ -264,12 +257,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
@@ -284,42 +278,56 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
         }
 
+        private void checkForPositions() {
+            if (getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+            }
+        }
+
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
+            checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
-            return shingleField.phraseQuery(stream, 0, true);
+            return shingleField.phraseQuery(stream, 0, true, context);
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
+            checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
-            return shingleField.multiPhraseQuery(stream, 0, true);
+            return shingleField.multiPhraseQuery(stream, 0, true, context);
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
+                SearchExecutionContext context) throws IOException {
             int numPos = countPosition(stream);
+            if (numPos > 1) {
+                checkForPositions();
+            }
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions,
                     null, null);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
-            return shingleField.phrasePrefixQuery(stream, 0, maxExpansions);
+            return shingleField.phrasePrefixQuery(stream, 0, maxExpansions, context);
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             if (prefixField != null && prefixField.termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField.name(), indexedValueForSearch(value))), name());
             } else {
@@ -353,7 +361,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (value.length() >= minChars) {
                 if(caseInsensitive) {
                     return super.termQueryCaseInsensitive(value, context);
@@ -375,7 +384,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
@@ -411,7 +420,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -450,7 +459,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -482,7 +491,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
@@ -494,7 +503,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
@@ -510,17 +520,20 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
+                SearchExecutionContext context) throws IOException {
             final String prefixFieldName = slop > 0
                 ? null
                 : prefixFieldType.name();
@@ -529,7 +542,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             if (prefixFieldType != null && prefixFieldType.termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
             } else {
@@ -553,7 +566,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                                       PrefixFieldMapper prefixField,
                                       ShingleFieldMapper[] shingleFields,
                                       Builder builder) {
-        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
@@ -561,8 +574,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        final String value = context.parser().textOrNull();
         if (value == null) {
             return;
         }
@@ -579,7 +592,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
         }
         if (fieldType().fieldType.omitNorms()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

@@ -6,7 +6,7 @@ The following pages have moved or been deleted.
 [role="exclude",id="discovery-multicast"]
 === Multicast Discovery Plugin
 
-The `multicast-discovery` plugin has been removed.  Instead, configure networking
+The `multicast-discovery` plugin has been removed. Instead, configure networking
 using unicast (see {ref}/modules-network.html[Network settings]) or using
 one of the <<discovery,cloud discovery plugins>>.
 
@@ -40,9 +40,34 @@ The `cloud-gce` plugin has been renamed to <<discovery-gce>> (`discovery-gce`).
 The Delete-By-Query plugin has been removed in favor of a new {ref}/docs-delete-by-query.html[Delete By Query API]
 implementation in core.
 
+[role="exclude",id="ingest-geoip"]
+=== Ingest `geoip` processor plugin
 
+The `geoip` processor is now a module and distributed with {es} by default. See
+{ref}/geoip-processor.html[GeoIP processor].
 
+[role="exclude",id="ingest-user-agent"]
+=== Ingest `user_agent` processor plugin
 
+The `user_agent` processor is now a module and distributed with {es} by default.
+See {ref}/user-agent-processor.html[User Agent processor].
 
+[role="exclude",id="using-ingest-geoip"]
+=== Using the `geoip` processor in a pipeline
 
+See {ref}/geoip-processor.html#using-ingest-geoip[using `ingest-geoip`].
 
+[role="exclude",id="alerting"]
+=== Alerting plugins
+
+See {kib}'s {kibana-ref}/alerting-getting-started.html[Alerting and Actions].
+
+[role="exclude",id="management"]
+=== Management plugins
+
+See {ref}/monitor-elasticsearch-cluster.html[{stack} monitoring].
+
+[role="exclude",id="security"]
+=== Security plugins
+
+See {ref}/secure-cluster.html[{stack} security].

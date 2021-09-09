@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -38,8 +39,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * If for any reason a job is deleted but some of its state documents
@@ -62,10 +63,10 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         try {
             List<String> unusedStateDocIds = findUnusedStateDocIds();
-            if (isTimedOutSupplier.get()) {
+            if (isTimedOutSupplier.getAsBoolean()) {
                 listener.onResponse(false);
             } else {
                 if (unusedStateDocIds.size() > 0) {

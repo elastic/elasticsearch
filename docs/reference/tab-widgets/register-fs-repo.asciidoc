@@ -9,9 +9,9 @@ path:
     - /mount/long_term_backups
 ----
 
-After restarting each node, use the <<put-snapshot-repo-api,put snapshot
-repository>> API to register the file system repository. Specify the file
-system's path in `settings.location`:
+After restarting each node, use the <<put-snapshot-repo-api,create or update
+snapshot repository>> API to register the file system repository. Specify the
+file system's path in `settings.location`:
 
 [source,console]
 ----
@@ -49,7 +49,7 @@ relative path, `my_fs_backup_location`, resolves to
 
 
 // tag::win[]
-Windows installations support both DOS and Microsoft UNC paths. Escaped any
+Windows installations support both DOS and Microsoft UNC paths. Escape any
 backslashes in the paths. For UNC paths, provide the server and share name as a
 prefix.
 
@@ -64,9 +64,9 @@ path:
 <1> DOS path
 <2> UNC path
 
-After restarting each node, use the <<put-snapshot-repo-api,put snapshot
-repository>> API to register the file system repository. Specify the file
-system's path in `settings.location`:
+After restarting each node, use the <<put-snapshot-repo-api,create or update
+snapshot repository>> API to register the file system repository. Specify the
+file system's path in `settings.location`:
 
 [source,console]
 ----

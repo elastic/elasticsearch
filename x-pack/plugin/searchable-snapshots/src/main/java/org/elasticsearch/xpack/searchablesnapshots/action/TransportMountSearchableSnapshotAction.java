@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,10 +20,15 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
@@ -36,30 +42,38 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotAllocator;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotAllocator;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_PREFERENCE;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings
- * using {@link TransportMountSearchableSnapshotAction#buildIndexSettings(String, SnapshotId, IndexId)}.
+ * using {@link #buildIndexSettings}.
  *
- * This action doesn't technically need to run on the master node, but it needs to get metadata from the repository and we only expect the
- * repository to be accessible from data and master-eligible nodes so we can't run it everywhere.  Given that we already have a way to run
- * actions on the master and that we have to do the restore via the master, it's simplest to use {@link TransportMasterNodeAction}.
+ * This action needs to run on the master node because it retrieves the {@link RepositoryData}.
  */
 public class TransportMountSearchableSnapshotAction extends TransportMasterNodeAction<
     MountSearchableSnapshotRequest,
     RestoreSnapshotResponse> {
+
+    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
+        DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING
+    );
 
     private final Client client;
     private final RepositoriesService repositoriesService;
@@ -87,9 +101,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             MountSearchableSnapshotRequest::new,
             indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
-            // Avoid SNAPSHOT since snapshot threads may all be busy with long-running tasks which would block this action from responding
-            // with an error. Avoid SAME since getting the repository metadata may block on IO.
-            ThreadPool.Names.GENERIC
+            // Use SNAPSHOT_META pool since we are slow due to loading repository metadata in this action
+            ThreadPool.Names.SNAPSHOT_META
         );
         this.client = client;
         this.repositoriesService = repositoriesService;
@@ -106,18 +119,44 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     /**
      * Return the index settings required to make a snapshot searchable
      */
-    private static Settings buildIndexSettings(String repoName, SnapshotId snapshotId, IndexId indexId) {
-        return Settings.builder()
-            .put(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.getKey(), repoName)
+    private static Settings buildIndexSettings(
+        String repoUuid,
+        String repoName,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        MountSearchableSnapshotRequest.Storage storage,
+        Version minNodeVersion
+    ) {
+        final Settings.Builder settings = Settings.builder();
+
+        if (repoUuid.equals(RepositoryData.MISSING_UUID) == false) {
+            settings.put(SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.getKey(), repoUuid);
+        }
+
+        settings.put(SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.getKey(), repoName)
             .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
             .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
             .put(SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.getKey(), indexId.getName())
             .put(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
-            .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
+            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), SearchableSnapshotAllocator.ALLOCATOR_NAME)
-            .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY)
-            .build();
+            .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY);
+
+        if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
+            if (minNodeVersion.before(Version.V_7_12_0)) {
+                throw new IllegalArgumentException("shared cache searchable snapshots require minimum node version " + Version.V_7_12_0);
+            }
+            settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
+
+            // we cannot apply this setting during rolling upgrade.
+            if (minNodeVersion.onOrAfter(Version.V_7_13_0)) {
+                settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP);
+            }
+        }
+
+        return settings.build();
     }
 
     @Override
@@ -141,9 +180,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         // Retrieve IndexId and SnapshotId instances, which are then used to create a new restore
         // request, which is then sent on to the actual snapshot restore mechanism
         final Repository repository = repositoriesService.repository(repoName);
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        SearchableSnapshots.getSearchableRepository(repository); // just check it's valid
+
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.whenComplete(repoData -> {
+        repositoryDataListener.addListener(ActionListener.wrap(repoData -> {
             final Map<String, IndexId> indexIds = repoData.getIndices();
             if (indexIds.containsKey(indexName) == false) {
                 throw new IndexNotFoundException("index [" + indexName + "] not found in repository [" + repoName + "]");
@@ -159,8 +200,58 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            final String[] ignoreIndexSettings = Arrays.copyOf(request.ignoreIndexSettings(), request.ignoreIndexSettings().length + 1);
-            ignoreIndexSettings[ignoreIndexSettings.length - 1] = IndexMetadata.SETTING_DATA_PATH;
+            final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
+            if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index "
+                            + "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
+                        indexName,
+                        repoName,
+                        repository.getMetadata().uuid(),
+                        snapName,
+                        SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())
+                    )
+                );
+            }
+
+            final Set<String> ignoreIndexSettings = new LinkedHashSet<>(Arrays.asList(request.ignoreIndexSettings()));
+            ignoreIndexSettings.add(IndexMetadata.SETTING_DATA_PATH);
+            for (final String indexSettingKey : indexMetadata.getSettings().keySet()) {
+                if (indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX)
+                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX)
+                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX)) {
+                    ignoreIndexSettings.add(indexSettingKey);
+                }
+            }
+
+            final Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, request.storage().defaultDataTiersPreference())
+                .put(request.indexSettings())
+                .put(
+                    buildIndexSettings(
+                        repoData.getUuid(),
+                        request.repositoryName(),
+                        snapshotId,
+                        indexId,
+                        request.storage(),
+                        state.nodes().getMinNodeVersion()
+                    )
+                )
+                .build();
+
+            // todo: restore archives bad settings, for now we verify just the data tiers, since we know their dependencies are available
+            // in settings
+            for (Setting<String> dataTierAllocationSetting : DATA_TIER_ALLOCATION_SETTINGS) {
+                dataTierAllocationSetting.get(indexSettings);
+            }
 
             client.admin()
                 .cluster()
@@ -172,17 +263,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         .renamePattern(".+")
                         .renameReplacement(mountedIndexName)
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                        .indexSettings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
-                                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
-                                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
-                                .put(request.indexSettings())
-                                .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
-                                .build()
-                        )
+                        .indexSettings(indexSettings)
                         // Pass through ignored index settings
-                        .ignoreIndexSettings(ignoreIndexSettings)
+                        .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
                         // Don't include global state
                         .includeGlobalState(false)
                         // Don't include aliases
@@ -195,6 +278,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         .snapshotUuid(snapshotId.getUUID()),
                     listener
                 );
-        }, listener::onFailure);
+        }, listener::onFailure), threadPool.executor(ThreadPool.Names.SNAPSHOT_META), null);
     }
 }

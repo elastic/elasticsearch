@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -22,7 +11,7 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -94,24 +83,22 @@ public interface IndexStorePlugin {
      */
     interface IndexFoldersDeletionListener {
         /**
-         * Invoked before the folders of an index are deleted from disk. The list of folders contains {@link Path}s that may or may not
+         * Invoked before the folders of an index are deleted from disk. The folder's {@link Path} may or may not
          * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
-         *
          * @param index         the {@link Index} of the index whose folders are going to be deleted
          * @param indexSettings settings for the index whose folders are going to be deleted
-         * @param indexPaths    the paths of the folders that are going to be deleted
+         * @param indexPath    the path of the folders that will be deleted
          */
-        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths);
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath);
 
         /**
-         * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
+         * Invoked before the folders of a shard are deleted from disk. The folder's {@link Path} may or may not
          * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
-         *
          * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
          * @param indexSettings index settings of the shard whose folders are going to be deleted
-         * @param shardPaths    the paths of the folders that are going to be deleted
+         * @param shardPath    the path of the folder that will be deleted
          */
-        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths);
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath);
     }
 
     /**

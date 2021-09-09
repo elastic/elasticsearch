@@ -1,32 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -42,55 +34,53 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String name;
+        private final String[] names;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            name = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+                names = in.readStringArray();
+            } else {
+                names = new String[] {in.readString()};
+            }
         }
-
-        public Request() { }
 
         /**
          * Constructs a new delete template request for the specified name.
          */
-        public Request(String name) {
-            this.name = name;
-        }
-
-        /**
-         * Set the index template name to delete.
-         */
-        public Request name(String name) {
-            this.name = name;
-            return this;
+        public Request(String... names) {
+            this.names = Objects.requireNonNull(names, "templates to delete must not be null");
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (name == null) {
-                validationException = addValidationError("name is missing", validationException);
+            if (Arrays.stream(names).anyMatch(Strings::hasLength) == false) {
+                validationException = addValidationError("no template names specified", validationException);
             }
             return validationException;
         }
 
         /**
-         * The index template name to delete.
+         * The index template names to delete.
          */
-        public String name() {
-            return name;
+        public String[] names() {
+            return names;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+                out.writeStringArray(names);
+            } else {
+                out.writeString(names[0]);
+            }
         }
 
         @Override
         public int hashCode() {
-            return name.hashCode();
+            return Arrays.hashCode(names);
         }
 
         @Override
@@ -102,7 +92,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(other.name, this.name);
+            return Arrays.equals(other.names, this.names);
         }
     }
 }

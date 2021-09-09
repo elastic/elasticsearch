@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -175,6 +164,56 @@ public class DotExpanderProcessorTests extends ESTestCase {
         //nothing changed
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("foo.bar", String.class), equalTo("baz1"));
+    }
+
+    public void testOverride() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("bar", "baz1");
+        inner.put("qux", "quux");
+        source.put("foo", inner);
+        source.put("foo.bar", "baz2");
+        IngestDocument document = new IngestDocument(source, Map.of());
+        DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "foo.bar", true);
+        processor.execute(document);
+        assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(2));
+        assertThat(document.getFieldValue("foo.bar", String.class), equalTo("baz2"));
+        assertThat(document.getFieldValue("foo.qux", String.class), equalTo("quux"));
+    }
+
+    public void testWildcard() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo.bar", "baz");
+        source.put("qux.quux", "corge");
+        IngestDocument document = new IngestDocument(source, Map.of());
+        DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "*");
+        processor.execute(document);
+        assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
+        assertThat(document.getFieldValue("foo.bar", String.class), equalTo("baz"));
+        assertThat(document.getFieldValue("qux", Map.class).size(), equalTo(1));
+        assertThat(document.getFieldValue("qux.quux", String.class), equalTo("corge"));
+
+        source = new HashMap<>();
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("bar.baz", "qux");
+        source.put("foo", inner);
+        document = new IngestDocument(source, Map.of());
+        processor = new DotExpanderProcessor("_tag", null, "foo", "*");
+        processor.execute(document);
+        assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
+        assertThat(document.getFieldValue("foo.bar", Map.class).size(), equalTo(1));
+        assertThat(document.getFieldValue("foo.bar.baz", String.class), equalTo("qux"));
+
+        source = new HashMap<>();
+        inner = new HashMap<>();
+        inner.put("bar.baz", "qux");
+        source.put("foo", inner);
+        document = new IngestDocument(source, Map.of());
+        processor = new DotExpanderProcessor("_tag", null, null, "*");
+        processor.execute(document);
+        assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
+        IngestDocument finalDocument = document;
+        expectThrows(IllegalArgumentException.class, () -> finalDocument.getFieldValue("foo.bar", Map.class));
     }
 
 }

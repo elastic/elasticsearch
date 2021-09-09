@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -57,7 +58,7 @@ class SeriesUtils {
              BufferedReader reader = new BufferedReader(in)
         ) {
             int lineNumber = 0;
-            
+
             String line;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
@@ -72,7 +73,7 @@ class SeriesUtils {
                         spec.name = line;
                         spec.lineNumber = lineNumber;
                         Integer previousLine = testNames.put(line, lineNumber);
-                        
+
                         if (previousLine != null) {
                             throw new IllegalArgumentException(format(null,
                                     "Duplicate test name '{}' at line [{}] (previously seen at line [{}])",
@@ -105,7 +106,7 @@ class SeriesUtils {
                                     throw new IllegalArgumentException(format(null,
                                             "Cannot have a mixture of key [{}] and non-key [{}] events at line [{}]",
                                             event, spec.allEvents.values().iterator().next(), lineNumber));
-                                    
+
                                 }
                                 spec.hasKeys = true;
                             } else {
@@ -128,7 +129,7 @@ class SeriesUtils {
                             }
                             eventsMap.put(id, new Tuple<>(key, event));
                         }
-                        
+
                         spec.eventsPerCriterion.add(eventsMap);
 
                         break;
@@ -156,7 +157,7 @@ class SeriesUtils {
         if (readerState != SpecItem.NAME) {
             throw new IllegalStateException(format(null, "Read test [{}] with an incomplete body at [{}]", spec.name, url));
         }
-        
+
         return specs.stream().map(SeriesSpec::toArray).collect(toList());
     }
 }

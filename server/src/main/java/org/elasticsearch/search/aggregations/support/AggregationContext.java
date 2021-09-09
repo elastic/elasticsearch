@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -22,9 +11,12 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -32,13 +24,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
@@ -48,9 +41,10 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -61,9 +55,14 @@ import java.util.function.Supplier;
  * <p>
  * In production we always use the {@link ProductionAggregationContext} but
  * this is {@code abstract} so that tests can build it without creating the
- * massing {@link QueryShardContext}.
+ * massing {@link SearchExecutionContext}.
+ * <p>
+ * {@linkplain AggregationContext}s are {@link Releasable} because they track
+ * the {@link Aggregator}s they build and {@link Aggregator#close} them when
+ * the request is done. {@linkplain AggregationContext} may also preallocate
+ * bytes on the "REQUEST" breaker and is responsible for releasing those bytes.
  */
-public abstract class AggregationContext {
+public abstract class AggregationContext implements Releasable {
     /**
      * The query at the top level of the search in which these aggregations are running.
      */
@@ -114,6 +113,12 @@ public abstract class AggregationContext {
     public abstract MappedFieldType getFieldType(String path);
 
     /**
+     * Returns a set of field names that match a regex-like pattern
+     * All field names in the returned set are guaranteed to resolve to a field
+     */
+    public abstract Set<String> getMatchingFieldNames(String pattern);
+
+    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public abstract boolean isFieldMapped(String field);
@@ -157,6 +162,13 @@ public abstract class AggregationContext {
     public abstract Query buildQuery(QueryBuilder builder) throws IOException;
 
     /**
+     * Add filters from slice or filtered aliases. If you make a new query
+     * and don't combine it with the {@link #query() top level query} then
+     * you must provide it to this method.
+     */
+    public abstract Query filterQuery(Query query);
+
+    /**
      * The settings for the index against which this search is running.
      */
     public abstract IndexSettings getIndexSettings();
@@ -183,7 +195,7 @@ public abstract class AggregationContext {
     public abstract SubSearchContext subSearchContext();
 
     /**
-     * Cause this aggregation to be released when the search is finished. 
+     * Cause this aggregation to be released when the search is finished.
      */
     public abstract void addReleasable(Aggregator aggregator);
 
@@ -235,53 +247,89 @@ public abstract class AggregationContext {
     public abstract boolean isCacheable();
 
     /**
+     * Are aggregations allowed to try to rewrite themselves into
+     * {@link FilterByFilterAggregator} aggregations? <strong>Often</strong>
+     * {@linkplain FilterByFilterAggregator} is faster to execute, but it isn't
+     * always. For now this just hooks into a cluster level setting
+     * so users can disable the behavior when the existing heuristics
+     * don't detect cases where its slower.
+     */
+    public abstract boolean enableRewriteToFilterByFilter();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
-     * that wraps our ubiquitous {@link QueryShardContext} and anything else
+     * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
      * because it requires a <strong>huge</strong> portion of a real
      * Elasticsearch node.
      */
     public static class ProductionAggregationContext extends AggregationContext {
-        private final QueryShardContext context;
+        private final SearchExecutionContext context;
+        private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
-        private final Query topLevelQuery;
+        private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
         private final Supplier<SubSearchContext> subSearchContextBuilder;
-        private final Consumer<Aggregator> addReleasable;
         private final BitsetFilterCache bitsetFilterCache;
         private final int randomSeed;
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
+        private final Function<Query, Query> filterQuery;
+        private final boolean enableRewriteToFilterByFilter;
+
+        private final List<Aggregator> releaseMe = new ArrayList<>();
 
         public ProductionAggregationContext(
-            QueryShardContext context,
-            Query topLevelQuery,
+            SearchExecutionContext context,
+            BigArrays bigArrays,
+            long bytesToPreallocate,
+            Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
             MultiBucketConsumer multiBucketConsumer,
             Supplier<SubSearchContext> subSearchContextBuilder,
-            Consumer<Aggregator> addReleasable,
             BitsetFilterCache bitsetFilterCache,
             int randomSeed,
             LongSupplier relativeTimeInMillis,
-            Supplier<Boolean> isCancelled
+            Supplier<Boolean> isCancelled,
+            Function<Query, Query> filterQuery,
+            boolean enableRewriteToFilterByFilter
         ) {
             this.context = context;
-            this.bigArrays = context.bigArrays().withCircuitBreaking();  // We can break in searches.
+            if (bytesToPreallocate == 0) {
+                /*
+                 * Its possible if a bit strange for the aggregations to ask
+                 * to preallocate 0 bytes. Mostly this is for testing other
+                 * things, but we should honor it and just not preallocate
+                 * anything. Setting the breakerService reference to null will
+                 * cause us to skip it when we close this context.
+                 */
+                this.preallocatedBreakerService = null;
+                this.bigArrays = bigArrays.withCircuitBreaking();
+            } else {
+                this.preallocatedBreakerService = new PreallocatedCircuitBreakerService(
+                    bigArrays.breakerService(),
+                    CircuitBreaker.REQUEST,
+                    bytesToPreallocate,
+                    "aggregations"
+                );
+                this.bigArrays = bigArrays.withBreakerService(preallocatedBreakerService).withCircuitBreaking();
+            }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
             this.multiBucketConsumer = multiBucketConsumer;
             this.subSearchContextBuilder = subSearchContextBuilder;
-            this.addReleasable = addReleasable;
             this.bitsetFilterCache = bitsetFilterCache;
             this.randomSeed = randomSeed;
             this.relativeTimeInMillis = relativeTimeInMillis;
             this.isCancelled = isCancelled;
+            this.filterQuery = filterQuery;
+            this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
         }
 
         @Override
         public Query query() {
-            return topLevelQuery;
+            return topLevelQuery.get();
         }
 
         @Override
@@ -310,6 +358,11 @@ public abstract class AggregationContext {
         @Override
         public MappedFieldType getFieldType(String path) {
             return context.getFieldType(path);
+        }
+
+        @Override
+        public Set<String> getMatchingFieldNames(String pattern) {
+            return context.getMatchingFieldNames(pattern);
         }
 
         @Override
@@ -348,6 +401,11 @@ public abstract class AggregationContext {
         }
 
         @Override
+        public Query filterQuery(Query query) {
+            return filterQuery.apply(query);
+        }
+
+        @Override
         public IndexSettings getIndexSettings() {
             return context.getIndexSettings();
         }
@@ -374,7 +432,7 @@ public abstract class AggregationContext {
 
         @Override
         public void addReleasable(Aggregator aggregator) {
-            addReleasable.accept(aggregator);
+            releaseMe.add(aggregator);
         }
 
         @Override
@@ -389,7 +447,7 @@ public abstract class AggregationContext {
 
         @Override
         public BucketedSort buildBucketedSort(SortBuilder<?> sort, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
-            return sort.buildBucketedSort(context, bucketSize, extra);
+            return sort.buildBucketedSort(context, bigArrays, bucketSize, extra);
         }
 
         @Override
@@ -409,7 +467,8 @@ public abstract class AggregationContext {
 
         @Override
         public CircuitBreaker breaker() {
-            return context.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+            // preallocatedBreakerService may be null if we haven't preallocated so use the one in bigArrays.
+            return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         }
 
         @Override
@@ -420,6 +479,22 @@ public abstract class AggregationContext {
         @Override
         public boolean isCacheable() {
             return context.isCacheable();
+        }
+
+        @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public void close() {
+            /*
+             * Add the breakerService to the end of the list so we release it
+             * after all the aggregations that allocate bytes on it.
+             */
+            List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
+            releaseMe.add(preallocatedBreakerService);
+            Releasables.close(releaseMe);
         }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
@@ -26,12 +15,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -59,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -429,6 +420,167 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         } finally {
             Loggers.removeAppender(inboundHandlerLogger, mockAppender);
             mockAppender.stop();
+        }
+    }
+
+    public void testHttpClientStats() {
+        try (AbstractHttpServerTransport transport =
+            new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void doStart() {
+                }
+
+                @Override
+                protected void stopInternal() {
+                }
+            }) {
+
+            InetSocketAddress remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            String opaqueId = UUIDs.randomBase64UUID(random());
+            FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                .withRemoteAddress(remoteAddress)
+                .withMethod(RestRequest.Method.GET)
+                .withPath("/internal/stats_test")
+                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+
+            HttpStats httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(1));
+            assertThat(httpStats.getClientStats().get(0).remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+            assertThat(httpStats.getClientStats().get(0).lastUri, equalTo("/internal/stats_test"));
+
+            remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            opaqueId = UUIDs.randomBase64UUID(random());
+            fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                .withRemoteAddress(remoteAddress)
+                .withMethod(RestRequest.Method.GET)
+                .withPath("/internal/stats_test2")
+                .withHeaders(Map.of(Task.X_OPAQUE_ID.toUpperCase(Locale.ROOT), Collections.singletonList(opaqueId)))
+                .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(2));
+
+            // due to non-deterministic ordering in map iteration, the second client may not be the second entry in the list
+            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId.equals(opaqueId)
+                ? httpStats.getClientStats().get(0)
+                : httpStats.getClientStats().get(1);
+
+            assertThat(secondClientStats.remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(secondClientStats.opaqueId, equalTo(opaqueId));
+            assertThat(secondClientStats.lastUri, equalTo("/internal/stats_test2"));
+        }
+    }
+
+    public void testDisablingHttpClientStats() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
+
+                    @Override public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                clusterSettings) {
+
+                @Override protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override protected void doStart() {
+                }
+
+                @Override protected void stopInternal() {
+                }
+            }) {
+
+            InetSocketAddress remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            String opaqueId = UUIDs.randomBase64UUID(random());
+            FakeRestRequest
+                fakeRestRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
+                    .withMethod(RestRequest.Method.GET)
+                    .withPath("/internal/stats_test")
+                    .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+
+            // HTTP client stats should default to enabled
+            HttpStats httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(1));
+            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+
+            clusterSettings.applySettings(Settings.builder()
+                .put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false)
+                .build());
+
+            // After disabling, HTTP client stats should be cleared immediately
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(0));
+
+            // After disabling, HTTP client stats should not track new clients
+            remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            opaqueId = UUIDs.randomBase64UUID(random());
+            fakeRestRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
+                    .withMethod(RestRequest.Method.GET)
+                    .withPath("/internal/stats_test")
+                    .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(0));
+
+            clusterSettings.applySettings(Settings.builder()
+                .put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), true)
+                .build());
+
+            // After re-enabling, HTTP client stats should now track new clients
+            remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            opaqueId = UUIDs.randomBase64UUID(random());
+            fakeRestRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
+                    .withMethod(RestRequest.Method.GET)
+                    .withPath("/internal/stats_test")
+                    .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(1));
         }
     }
 

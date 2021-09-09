@@ -4,8 +4,8 @@
 == Long-running searches
 
 {es} generally allows you to quickly search across big amounts of data. There are
-situations where a search executes on many many shards, possibly against
-<<frozen-indices,frozen indices>> and spanning multiple
+situations where a search executes on many shards, possibly against
+<<freeze-index-api,frozen indices>> and spanning multiple
 <<modules-remote-clusters,remote clusters>>, for which
 results are not expected to be returned in milliseconds. When you need to
 execute long-running searches, synchronously

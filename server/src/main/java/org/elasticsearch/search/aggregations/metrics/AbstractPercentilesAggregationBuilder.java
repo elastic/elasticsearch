@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -43,19 +32,21 @@ import java.util.function.Supplier;
  * It provides a set of common fields/functionality for setting the available algorithms (TDigest and HDRHistogram),
  * as well as algorithm-specific settings via a {@link PercentilesConfig} object
  */
-public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>>
-    extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
+public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>> extends
+    ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
 
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
+    private final ParseField valuesField;
     protected boolean keyed = true;
     protected double[] values;
     private PercentilesConfig percentilesConfig;
-    private ParseField valuesField;
 
-    public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> createParser(String aggName,
-                                                         TriFunction<String, double[], PercentilesConfig, T> ctor,
-                                                         Supplier<PercentilesConfig> defaultConfig,
-                                                         ParseField valuesField) {
+    public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> createParser(
+        String aggName,
+        TriFunction<String, double[], PercentilesConfig, T> ctor,
+        Supplier<PercentilesConfig> defaultConfig,
+        ParseField valuesField
+    ) {
 
         /**
          * This is a non-ideal ConstructingObjectParser, because it is a compromise between Percentiles and Ranks.
@@ -88,6 +79,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             PercentilesConfig tDigestConfig = (PercentilesConfig) args[1];
             PercentilesConfig hdrConfig = (PercentilesConfig) args[2];
 
+            @SuppressWarnings("unchecked")
             double[] values = args[0] != null ? ((List<Double>) args[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
             PercentilesConfig percentilesConfig;
 
@@ -107,16 +99,21 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         ValuesSourceAggregationBuilder.declareFields(parser, true, true, false);
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), valuesField);
         parser.declareBoolean(T::keyed, KEYED_FIELD);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,
-            PercentilesMethod.TDIGEST.getParseField());
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.HDR_PARSER,
-            PercentilesMethod.HDR.getParseField());
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            PercentilesMethod.TDIGEST_PARSER,
+            PercentilesMethod.TDIGEST.getParseField()
+        );
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            PercentilesMethod.HDR_PARSER,
+            PercentilesMethod.HDR.getParseField()
+        );
 
         return parser;
     }
 
-    AbstractPercentilesAggregationBuilder(String name, double[] values, PercentilesConfig percentilesConfig,
-                                          ParseField valuesField) {
+    AbstractPercentilesAggregationBuilder(String name, double[] values, PercentilesConfig percentilesConfig, ParseField valuesField) {
         super(name);
         if (values == null) {
             throw new IllegalArgumentException("[" + valuesField.getPreferredName() + "] must not be null: [" + name + "]");
@@ -131,8 +128,11 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = valuesField;
     }
 
-    AbstractPercentilesAggregationBuilder(AbstractPercentilesAggregationBuilder<T> clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    AbstractPercentilesAggregationBuilder(
+        AbstractPercentilesAggregationBuilder<T> clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.percentilesConfig = clone.percentilesConfig;
         this.keyed = clone.keyed;
@@ -140,13 +140,13 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = clone.valuesField;
     }
 
-    AbstractPercentilesAggregationBuilder(StreamInput in) throws IOException {
+    AbstractPercentilesAggregationBuilder(ParseField valuesField, StreamInput in) throws IOException {
         super(in);
+        this.valuesField = valuesField;
         values = in.readDoubleArray();
         keyed = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            percentilesConfig
-                = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
+            percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
         } else {
             int numberOfSignificantValueDigits = in.readVInt();
             double compression = in.readDouble();
@@ -162,14 +162,14 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalWriteable(percentilesConfig);
         } else {
-            // Legacy method serialized both SigFigs and compression, even though we only need one.  So we need
+            // Legacy method serialized both SigFigs and compression, even though we only need one. So we need
             // to serialize the default for the unused method
             int numberOfSignificantValueDigits = percentilesConfig.getMethod().equals(PercentilesMethod.HDR)
-                ? ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits()
+                ? ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits()
                 : PercentilesConfig.Hdr.DEFAULT_NUMBER_SIG_FIGS;
 
             double compression = percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)
-                ? ((PercentilesConfig.TDigest)percentilesConfig).getCompression()
+                ? ((PercentilesConfig.TDigest) percentilesConfig).getCompression()
                 : PercentilesConfig.TDigest.DEFAULT_COMPRESSION;
 
             out.writeVInt(numberOfSignificantValueDigits);
@@ -181,6 +181,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Set whether the XContent response should be keyed
      */
+    @SuppressWarnings("unchecked")
     public T keyed(boolean keyed) {
         this.keyed = keyed;
         return (T) this;
@@ -201,12 +202,14 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
+    @SuppressWarnings("unchecked")
     public T numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
             percentilesConfig = new PercentilesConfig.Hdr(numberOfSignificantValueDigits);
         } else {
-            throw new IllegalArgumentException("Cannot set [numberOfSignificantValueDigits] because the method " +
-                "has already been configured for TDigest");
+            throw new IllegalArgumentException(
+                "Cannot set [numberOfSignificantValueDigits] because the method " + "has already been configured for TDigest"
+            );
         }
 
         return (T) this;
@@ -222,7 +225,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     @Deprecated
     public int numberOfSignificantValueDigits() {
         if (percentilesConfig != null && percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-            return ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
+            return ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
         }
         throw new IllegalStateException("Percentiles [method] has not been configured yet, or is a TDigest");
     }
@@ -235,6 +238,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
+    @SuppressWarnings("unchecked")
     public T compression(double compression) {
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
             percentilesConfig = new PercentilesConfig.TDigest(compression);
@@ -254,23 +258,23 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     @Deprecated
     public double compression() {
         if (percentilesConfig != null && percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-            return ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
+            return ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
         }
         throw new IllegalStateException("Percentiles [method] has not been configured yet, or is a HdrHistogram");
     }
-
 
     /**
      * Deprecated: set method by configuring a {@link PercentilesConfig} instead
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
+    @SuppressWarnings("unchecked")
     public T method(PercentilesMethod method) {
         if (method == null) {
             throw new IllegalArgumentException("[method] must not be null: [" + name + "]");
         }
         if (percentilesConfig == null) {
-            if (method.equals(PercentilesMethod.TDIGEST) ) {
+            if (method.equals(PercentilesMethod.TDIGEST)) {
                 this.percentilesConfig = new PercentilesConfig.TDigest();
             } else {
                 this.percentilesConfig = new PercentilesConfig.Hdr();
@@ -278,7 +282,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         } else if (percentilesConfig.getMethod().equals(method) == false) {
             // we already have an algo configured, but it's different from the requested method
             // reset to default for the requested method
-            if (method.equals(PercentilesMethod.TDIGEST) ) {
+            if (method.equals(PercentilesMethod.TDIGEST)) {
                 this.percentilesConfig = new PercentilesConfig.TDigest();
             } else {
                 this.percentilesConfig = new PercentilesConfig.Hdr();
@@ -309,6 +313,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Sets how the percentiles algorithm should be configured
      */
+    @SuppressWarnings("unchecked")
     public T percentilesConfig(PercentilesConfig percentilesConfig) {
         this.percentilesConfig = percentilesConfig;
         return (T) this;
@@ -349,7 +354,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        AbstractPercentilesAggregationBuilder other = (AbstractPercentilesAggregationBuilder) obj;
+        AbstractPercentilesAggregationBuilder<?> other = (AbstractPercentilesAggregationBuilder<?>) obj;
         return Objects.deepEquals(values, other.values)
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(configOrDefault(), other.configOrDefault());

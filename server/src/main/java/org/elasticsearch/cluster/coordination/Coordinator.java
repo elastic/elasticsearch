@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -24,8 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -45,21 +34,22 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.discovery.ConfiguredHostsResolver;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -67,6 +57,7 @@ import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.discovery.TransportAddressConnector;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
@@ -168,7 +159,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinHelper = new JoinHelper(allocationService, masterService, transportService, this::getCurrentTerm,
+        this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService, this::getCurrentTerm,
             this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators, rerouteService,
             nodeHealthService);
         this.persistedStateSupplier = persistedStateSupplier;
@@ -274,12 +265,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ClusterApplyListener() {
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             applyListener.onFailure(e);
                         }
 
                         @Override
-                        public void onSuccess(String source) {
+                        public void onSuccess() {
                             applyListener.onResponse(null);
                         }
                     });
@@ -464,7 +455,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                     // we do this in a couple of places including the cluster update thread. This one here is really just best effort
                     // to ensure we fail as fast as possible.
-                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                    JoinTaskExecutor.ensureVersionBarrier(
+                        joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
@@ -542,7 +534,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (applierState.nodes().getMasterNodeId() != null) {
                 applierState = clusterStateWithNoMasterBlock(applierState);
-                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, (source, e) -> {
+                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, e -> {
                 });
             }
         }
@@ -693,7 +685,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
+        return new DiscoveryStats(
+            new PendingClusterStateStats(0, 0, 0),
+            publicationHandler.stats(),
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
+        );
     }
 
     @Override
@@ -1017,6 +1013,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // expose last accepted cluster state as base state upon which the master service
             // speculatively calculates the next cluster state update
             final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
+            assert clusterState.nodes().getLocalNode() != null;
             if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
                 // the master service checks if the local node is the master node in order to fail execution of the state update early
                 return clusterStateWithNoMasterBlock(clusterState);
@@ -1040,39 +1037,51 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     @Override
-    public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
+    public void publish(
+        ClusterStatePublicationEvent clusterStatePublicationEvent,
+        ActionListener<Void> publishListener,
+        AckListener ackListener
+    ) {
         try {
             synchronized (mutex) {
-                if (mode != Mode.LEADER || getCurrentTerm() != clusterChangedEvent.state().term()) {
+                if (mode != Mode.LEADER || getCurrentTerm() != clusterStatePublicationEvent.getNewState().term()) {
                     logger.debug(() -> new ParameterizedMessage("[{}] failed publication as node is no longer master for term {}",
-                        clusterChangedEvent.source(), clusterChangedEvent.state().term()));
+                        clusterStatePublicationEvent.getSummary(), clusterStatePublicationEvent.getNewState().term()));
                     publishListener.onFailure(new FailedToCommitClusterStateException("node is no longer master for term " +
-                        clusterChangedEvent.state().term() + " while handling publication"));
+                        clusterStatePublicationEvent.getNewState().term() + " while handling publication"));
                     return;
                 }
 
                 if (currentPublication.isPresent()) {
                     assert false : "[" + currentPublication.get() + "] in progress, cannot start new publication";
                     logger.warn(() -> new ParameterizedMessage("[{}] failed publication as already publication in progress",
-                        clusterChangedEvent.source()));
+                        clusterStatePublicationEvent.getSummary()));
                     publishListener.onFailure(new FailedToCommitClusterStateException("publication " + currentPublication.get() +
                         " already in progress"));
                     return;
                 }
 
-                assert assertPreviousStateConsistency(clusterChangedEvent);
+                assert assertPreviousStateConsistency(clusterStatePublicationEvent);
 
-                final ClusterState clusterState = clusterChangedEvent.state();
+                final ClusterState clusterState = clusterStatePublicationEvent.getNewState();
 
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
 
+                final long publicationContextConstructionStartMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
                 final PublicationTransportHandler.PublicationContext publicationContext =
-                    publicationHandler.newPublicationContext(clusterChangedEvent);
+                    publicationHandler.newPublicationContext(clusterStatePublicationEvent);
+                clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(
+                    transportService.getThreadPool().rawRelativeTimeInMillis() - publicationContextConstructionStartMillis);
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
-                final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
-                    new ListenableFuture<>(), ackListener, publishListener);
+                final CoordinatorPublication publication = new CoordinatorPublication(
+                    clusterStatePublicationEvent,
+                    publishRequest,
+                    publicationContext,
+                    new ListenableFuture<>(),
+                    ackListener,
+                    publishListener);
                 currentPublication = Optional.of(publication);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
@@ -1082,23 +1091,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
-            logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterChangedEvent.source()), e);
+            logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
     }
 
     // there is no equals on cluster state, so we just serialize it to XContent and compare Maps
     // deserialized from the resulting JSON
-    private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
-        assert event.previousState() == coordinationState.get().getLastAcceptedState() ||
+    private boolean assertPreviousStateConsistency(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        assert clusterStatePublicationEvent.getOldState() == coordinationState.get().getLastAcceptedState() ||
             XContentHelper.convertToMap(
-                JsonXContent.jsonXContent, Strings.toString(event.previousState()), false
+                JsonXContent.jsonXContent, Strings.toString(clusterStatePublicationEvent.getOldState()), false
             ).equals(
                 XContentHelper.convertToMap(
                     JsonXContent.jsonXContent,
                     Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())),
                     false))
-            : Strings.toString(event.previousState()) + " vs "
+            : Strings.toString(clusterStatePublicationEvent.getOldState()) + " vs "
             + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
         return true;
     }
@@ -1250,6 +1259,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     class CoordinatorPublication extends Publication {
 
+        private final ClusterStatePublicationEvent clusterStatePublicationEvent;
         private final PublishRequest publishRequest;
         private final ListenableFuture<Void> localNodeAckEvent;
         private final AckListener ackListener;
@@ -1265,12 +1275,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final List<Join> receivedJoins = new ArrayList<>();
         private boolean receivedJoinsProcessed;
 
-        CoordinatorPublication(PublishRequest publishRequest, PublicationTransportHandler.PublicationContext publicationContext,
-                               ListenableFuture<Void> localNodeAckEvent, AckListener ackListener, ActionListener<Void> publishListener) {
+        CoordinatorPublication(
+            ClusterStatePublicationEvent clusterStatePublicationEvent,
+            PublishRequest publishRequest,
+            PublicationTransportHandler.PublicationContext publicationContext,
+            ListenableFuture<Void> localNodeAckEvent,
+            AckListener ackListener,
+            ActionListener<Void> publishListener
+        ) {
             super(publishRequest,
                 new AckListener() {
                     @Override
                     public void onCommit(TimeValue commitTime) {
+                        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(commitTime.millis());
                         ackListener.onCommit(commitTime);
                     }
 
@@ -1293,7 +1310,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         }
                     }
                 },
-                transportService.getThreadPool()::relativeTimeInMillis);
+                transportService.getThreadPool()::rawRelativeTimeInMillis);
+            this.clusterStatePublicationEvent = clusterStatePublicationEvent;
             this.publishRequest = publishRequest;
             this.publicationContext = publicationContext;
             this.localNodeAckEvent = localNodeAckEvent;
@@ -1350,6 +1368,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            final long completionTimeMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
+            clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(completionTimeMillis - getStartTime());
 
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override
@@ -1364,7 +1384,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     clusterApplier.onNewClusterState(CoordinatorPublication.this.toString(), () -> applierState,
                         new ClusterApplyListener() {
                             @Override
-                            public void onFailure(String source, Exception e) {
+                            public void onFailure(Exception e) {
                                 synchronized (mutex) {
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
@@ -1374,7 +1394,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             }
 
                             @Override
-                            public void onSuccess(String source) {
+                            public void onSuccess() {
+                                clusterStatePublicationEvent.setMasterApplyElapsedMillis(
+                                    transportService.getThreadPool().rawRelativeTimeInMillis() - completionTimeMillis);
                                 synchronized (mutex) {
                                     assert currentPublication.get() == CoordinatorPublication.this;
                                     currentPublication = Optional.empty();
@@ -1432,7 +1454,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }
-            }, EsExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE, transportService.getThreadPool().getThreadContext());
         }
 
         private void cancelTimeoutHandlers() {

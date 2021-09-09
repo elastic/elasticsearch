@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -74,6 +63,7 @@ public class ClientYamlTestClient implements Closeable {
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
     private final Version masterVersion;
+    private final String os;
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
@@ -82,12 +72,14 @@ public class ClientYamlTestClient implements Closeable {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion,
+            final String os,
             final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
         this.masterVersion = masterVersion;
+        this.os = os;
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
@@ -97,6 +89,10 @@ public class ClientYamlTestClient implements Closeable {
 
     public Version getMasterVersion() {
         return masterVersion;
+    }
+
+    public String getOs() {
+        return os;
     }
 
     /**
@@ -263,7 +259,8 @@ public class ClientYamlTestClient implements Closeable {
     private ClientYamlSuiteRestApi restApi(String apiName) {
         ClientYamlSuiteRestApi restApi = restSpec.getApi(apiName);
         if (restApi == null) {
-            throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
+            throw new IllegalArgumentException("Rest api [" + apiName + "] cannot be found in the rest spec. Either it doesn't exist or " +
+                "is missing from the test classpath. Check the 'restResources' block of your project's build.gradle file.");
         }
         return restApi;
     }

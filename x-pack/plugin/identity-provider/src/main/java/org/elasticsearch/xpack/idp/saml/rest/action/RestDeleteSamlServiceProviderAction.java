@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.rest.action;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderResponse;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest endpoint to remove a service provider (by Entity ID) from the IdP.
@@ -39,7 +41,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(Method.DELETE, "/_idp/saml/sp/{sp_entity_id}"));
+        return List.of(new Route(DELETE, "/_idp/saml/sp/{sp_entity_id}"));
     }
 
     @Override

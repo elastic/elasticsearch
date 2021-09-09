@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembeddi
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.NGramFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.RelevantScriptFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.ScriptFeatureExtractor;
+import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +63,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
 
         parser.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> {
-                List<List<Short>> listOfListOfShorts = parseArrays(EMBEDDING_QUANT_SCALES.getPreferredName(),
+                List<List<Short>> listOfListOfShorts = MlParserUtils.parseArrayOfArrays(EMBEDDING_QUANT_SCALES.getPreferredName(),
                     XContentParser::shortValue,
                     p);
                 short[][] primitiveShorts = new short[listOfListOfShorts.size()][];
@@ -96,30 +97,6 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), DEST_FIELD);
         return parser;
-    }
-
-    private static <T> List<List<T>> parseArrays(String fieldName,
-                                                 CheckedFunction<XContentParser, T, IOException> fromParser,
-                                                 XContentParser p) throws IOException {
-        if (p.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + fieldName + "]");
-        }
-        List<List<T>> values = new ArrayList<>();
-        while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (p.currentToken() != XContentParser.Token.START_ARRAY) {
-                throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + fieldName + "]");
-            }
-            List<T> innerList = new ArrayList<>();
-            while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-                if(p.currentToken().isValue() == false) {
-                    throw new IllegalStateException("expected non-null value but got [" + p.currentToken() + "] " +
-                        "for [" + fieldName + "]");
-                }
-                innerList.add(fromParser.apply(p));
-            }
-            values.add(innerList);
-        }
-        return values;
     }
 
     public static CustomWordEmbedding fromXContentStrict(XContentParser parser) {

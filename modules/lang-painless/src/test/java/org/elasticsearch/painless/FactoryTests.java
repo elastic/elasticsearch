@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -29,22 +18,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class FactoryTests extends ScriptTestCase {
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        contexts.put(StatefulFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DeterministicFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DocFieldsTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(StatefulFactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(FactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(DeterministicFactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(EmptyTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(TemplateScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(VoidReturnTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(FactoryTestConverterScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
 
         return contexts;
     }
@@ -188,8 +174,6 @@ public class FactoryTests extends ScriptTestCase {
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("test", 2));
         assertEquals(4, script.execute(2));
         assertEquals(5, script.execute(3));
-        // The factory interface doesn't define `docFields` so we don't generate it.
-        expectThrows(NoSuchMethodException.class, () -> factory.getClass().getMethod("docFields"));
         script = factory.newInstance(Collections.singletonMap("test", 3));
         assertEquals(5, script.execute(2));
         assertEquals(2, script.execute(-1));
@@ -282,6 +266,9 @@ public class FactoryTests extends ScriptTestCase {
         IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
         assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
+        ClassCastException cce = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("void_return_test", "def x = 1; return x;", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
+        assertEquals(cce.getMessage(), "Cannot cast from [def] to [void].");
     }
 
     public abstract static class FactoryTestConverterScript {
@@ -492,32 +479,5 @@ public class FactoryTests extends ScriptTestCase {
         }
         assertNotNull(ise);
         assertEquals("convertFromDef must take a single Object as an argument, not [int]", ise.getMessage());
-    }
-
-    public abstract static class DocFieldsTestScript {
-        public static final ScriptContext<DocFieldsTestScript.Factory> CONTEXT = new ScriptContext<>(
-            "test",
-            DocFieldsTestScript.Factory.class
-        );
-
-        public interface Factory {
-            DocFieldsTestScript newInstance();
-
-            List<String> docFields();
-        }
-
-        public static final String[] PARAMETERS = new String[] {};
-
-        public abstract String execute();
-
-        public final Map<String, String> getDoc() {
-            return Map.of("cat", "meow", "dog", "woof");
-        }
-    }
-
-    public void testDocFields() {
-        DocFieldsTestScript.Factory f = scriptEngine.compile("test", "doc['cat'] + doc['dog']", DocFieldsTestScript.CONTEXT, Map.of());
-        assertThat(f.docFields(), equalTo(List.of("cat", "dog")));
-        assertThat(f.newInstance().execute(), equalTo("meowwoof"));
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.os;
@@ -22,8 +11,8 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -41,25 +30,31 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The {@link OsProbe} class retrieves information about the physical and swap size of the machine
  * memory, as well as the system load average and cpu load.
  *
- * In some exceptional cases, it's possible the underlying native methods used by
+ * <p>In some exceptional cases, it's possible the underlying native methods used by
  * {@link #getFreePhysicalMemorySize()}, {@link #getTotalPhysicalMemorySize()},
  * {@link #getFreeSwapSpaceSize()}, and {@link #getTotalSwapSpaceSize()} can return a
  * negative value. Because of this, we prevent those methods from returning negative values,
  * returning 0 instead.
  *
- * The OS can report a negative number in a number of cases:
- * - Non-supported OSes (HP-UX, or AIX)
- * - A failure of macOS to initialize host statistics
- * - An OS that does not support the {@code _SC_PHYS_PAGES} or {@code _SC_PAGE_SIZE} flags for the {@code sysconf()} linux kernel call
- * - An overflow of the product of {@code _SC_PHYS_PAGES} and {@code _SC_PAGE_SIZE}
- * - An error case retrieving these values from a linux kernel
- * - A non-standard libc implementation not implementing the required values
- * For a more exhaustive explanation, see https://github.com/elastic/elasticsearch/pull/42725
+ * <p>The OS can report a negative number in a number of cases:
+ *
+ * <ul>
+ *   <li>Non-supported OSes (HP-UX, or AIX)
+ *   <li>A failure of macOS to initialize host statistics
+ *   <li>An OS that does not support the {@code _SC_PHYS_PAGES} or {@code _SC_PAGE_SIZE} flags for the {@code sysconf()} linux kernel call
+ *   <li>An overflow of the product of {@code _SC_PHYS_PAGES} and {@code _SC_PAGE_SIZE}
+ *   <li>An error case retrieving these values from a linux kernel
+ *   <li>A non-standard libc implementation not implementing the required values
+ * </ul>
+ *
+ * <p>For a more exhaustive explanation, see <a href="https://github.com/elastic/elasticsearch/pull/42725"
+ *   >https://github.com/elastic/elasticsearch/pull/42725</a>
  */
 public class OsProbe {
 
@@ -111,11 +106,16 @@ public class OsProbe {
             return 0;
         }
         try {
-            final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
             if (totalMem < 0) {
                 logger.debug("OS reported a negative total memory value [{}]", totalMem);
                 return 0;
             }
+            if (totalMem == 0 && isDebian8()) {
+                // workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
+                totalMem = getTotalMemFromProcMeminfo();
+            }
+
             return totalMem;
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
@@ -184,7 +184,7 @@ public class OsProbe {
                 final String procLoadAvg = readProcLoadavg();
                 assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
                 final String[] fields = procLoadAvg.split("\\s+");
-                return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
+                return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
             } catch (final IOException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("error reading /proc/loadavg", e);
@@ -198,7 +198,7 @@ public class OsProbe {
             }
             try {
                 final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
-                return new double[]{oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1};
+                return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
             } catch (IllegalAccessException | InvocationTargetException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("error reading one minute load average from operating system", e);
@@ -295,7 +295,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
-        assert lines != null && !lines.isEmpty();
+        assert lines != null && lines.isEmpty() == false;
         return lines;
     }
 
@@ -322,6 +322,23 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpuacct")
     String readSysFsCgroupCpuAcctCpuAcctUsage(final String controlGroup) throws IOException {
         return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpuacct", controlGroup, "cpuacct.usage"));
+    }
+
+    private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
+        String entry = readCgroupV2CpuLimit(controlGroup);
+        String[] parts = entry.split("\\s+");
+        assert parts.length == 2 : "Expected 2 fields in [cpu.max]";
+
+        long[] values = new long[2];
+
+        values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
+        values[1] = Long.parseLong(parts[1]);
+        return values;
+    }
+
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.max")
+    String readCgroupV2CpuLimit(String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
     }
 
     /**
@@ -461,6 +478,35 @@ public class OsProbe {
     }
 
     /**
+     * The maximum amount of user memory (including file cache).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
+     *
+     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+     * @return the maximum amount of user memory (including file cache)
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    private String getCgroupV2MemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupV2MemoryLimitInBytes(controlGroup);
+    }
+
+    /**
+     * Returns the line from {@code memory.max} for the control group to which the Elasticsearch process belongs for the
+     * {@code memory} subsystem. This line represents the maximum amount of user memory (including file cache).
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the line from {@code memory.max}
+     * @throws IOException if an I/O exception occurs reading {@code memory.max} for the control group
+     */
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory.max")
+    String readSysFsCgroupV2MemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "memory.max"));
+    }
+
+    /**
      * The total current memory usage by processes in the cgroup (in bytes).
      * If there is no limit then some Linux versions return the maximum value that can be stored in an
      * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
@@ -490,26 +536,95 @@ public class OsProbe {
     }
 
     /**
+     * The total current memory usage by processes in the cgroup (in bytes).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
+     *
+     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+     * @return the total current memory usage by processes in the cgroup (in bytes)
+     * @throws IOException if an I/O exception occurs reading {@code memory.current} for the control group
+     */
+    private String getCgroupV2MemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupV2MemoryUsageInBytes(controlGroup);
+    }
+
+    /**
+     * Returns the line from {@code memory.current} for the control group to which the Elasticsearch process belongs for the
+     * {@code memory} subsystem. This line represents the total current memory usage by processes in the cgroup (in bytes).
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the line from {@code memory.current}
+     * @throws IOException if an I/O exception occurs reading {@code memory.current} for the control group
+     */
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory.current")
+    String readSysFsCgroupV2MemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "memory.current"));
+    }
+
+    /**
      * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu},
      * {@code /sys/fs/cgroup/cpuacct} and {@code /sys/fs/cgroup/memory}.
      *
      * @return {@code true} if the stats are available, otherwise {@code false}
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory")
-    boolean areCgroupStatsAvailable() {
-        if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+    boolean areCgroupStatsAvailable() throws IOException {
+        if (Files.exists(PathUtils.get("/proc/self/cgroup")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
-            return false;
+
+        List<String> lines = readProcSelfCgroup();
+
+        // cgroup v2
+        if (lines.size() == 1 && lines.get(0).startsWith("0::")) {
+            return Stream.of("/sys/fs/cgroup/cpu.stat", "/sys/fs/cgroup/memory.stat").allMatch(path -> Files.exists(PathUtils.get(path)));
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
-            return false;
+
+        return Stream.of("/sys/fs/cgroup/cpu", "/sys/fs/cgroup/cpuacct", "/sys/fs/cgroup/memory")
+            .allMatch(path -> Files.exists(PathUtils.get(path)));
+    }
+
+    /**
+     * The CPU statistics for all tasks in the Elasticsearch control group.
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the CPU statistics
+     * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
+     */
+    @SuppressForbidden(reason = "Uses PathUtils.get to generate meaningful assertion messages")
+    private Map<String, Long> getCgroupV2CpuStats(String controlGroup) throws IOException {
+        final List<String> lines = readCgroupV2CpuStats(controlGroup);
+        final Map<String, Long> stats = new HashMap<>();
+
+        for (String line : lines) {
+            String[] parts = line.split("\\s+");
+            assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
+            stats.put(parts[0], Long.parseLong(parts[1]));
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/memory"))) {
-            return false;
-        }
-        return true;
+
+        final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
+        expectedKeys.forEach(key -> {
+            assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
+            assert stats.get(key) != -1 : stats.get(key);
+        });
+
+        final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
+        optionalKeys.forEach(key -> {
+            if (stats.containsKey(key) == false) {
+                stats.put(key, 0L);
+            }
+            assert stats.get(key) != -1L : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
+        });
+
+        return stats;
+    }
+
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.stat")
+    List<String> readCgroupV2CpuStats(final String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat"));
     }
 
     /**
@@ -519,47 +634,81 @@ public class OsProbe {
      */
     private OsStats.Cgroup getCgroup() {
         try {
-            if (!areCgroupStatsAvailable()) {
+            if (areCgroupStatsAvailable() == false) {
                 return null;
-            } else {
-                final Map<String, String> controllerMap = getControlGroups();
-                assert !controllerMap.isEmpty();
+            }
 
-                final String cpuAcctControlGroup = controllerMap.get("cpuacct");
+            final Map<String, String> controllerMap = getControlGroups();
+            assert controllerMap.isEmpty() == false;
+
+            final String cpuAcctControlGroup;
+            final long cgroupCpuAcctUsageNanos;
+            final long cgroupCpuAcctCpuCfsPeriodMicros;
+            final long cgroupCpuAcctCpuCfsQuotaMicros;
+            final String cpuControlGroup;
+            final OsStats.Cgroup.CpuStat cpuStat;
+            final String memoryControlGroup;
+            final String cgroupMemoryLimitInBytes;
+            final String cgroupMemoryUsageInBytes;
+
+            if (controllerMap.size() == 1 && controllerMap.containsKey("")) {
+                // There's a single hierarchy for all controllers
+                cpuControlGroup = cpuAcctControlGroup = memoryControlGroup = controllerMap.get("");
+
+                // `cpuacct` was merged with `cpu` in v2
+                final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
+
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
+
+                long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
+                cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
+                cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
+
+                cpuStat = new OsStats.Cgroup.CpuStat(
+                    cpuStatsMap.get("nr_periods"),
+                    cpuStatsMap.get("nr_throttled"),
+                    cpuStatsMap.get("throttled_usec")
+                );
+
+                cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);
+                cgroupMemoryUsageInBytes = getCgroupV2MemoryUsageInBytes(memoryControlGroup);
+            } else {
+                cpuAcctControlGroup = controllerMap.get("cpuacct");
                 if (cpuAcctControlGroup == null) {
                     logger.debug("no [cpuacct] data found in cgroup stats");
                     return null;
                 }
-                final long cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
+                cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
 
-                final String cpuControlGroup = controllerMap.get("cpu");
+                cpuControlGroup = controllerMap.get("cpu");
                 if (cpuControlGroup == null) {
                     logger.debug("no [cpu] data found in cgroup stats");
                     return null;
                 }
-                final long cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
-                final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
-                final OsStats.Cgroup.CpuStat cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
+                cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
+                cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
+                cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
 
-                final String memoryControlGroup = controllerMap.get("memory");
+                memoryControlGroup = controllerMap.get("memory");
                 if (memoryControlGroup == null) {
                     logger.debug("no [memory] data found in cgroup stats");
                     return null;
                 }
-                final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
-                final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
-
-                return new OsStats.Cgroup(
-                    cpuAcctControlGroup,
-                    cgroupCpuAcctUsageNanos,
-                    cpuControlGroup,
-                    cgroupCpuAcctCpuCfsPeriodMicros,
-                    cgroupCpuAcctCpuCfsQuotaMicros,
-                    cpuStat,
-                    memoryControlGroup,
-                    cgroupMemoryLimitInBytes,
-                    cgroupMemoryUsageInBytes);
+                cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
+                cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
             }
+
+            return new OsStats.Cgroup(
+                cpuAcctControlGroup,
+                cgroupCpuAcctUsageNanos,
+                cpuControlGroup,
+                cgroupCpuAcctCpuCfsPeriodMicros,
+                cgroupCpuAcctCpuCfsQuotaMicros,
+                cpuStat,
+                memoryControlGroup,
+                cgroupMemoryLimitInBytes,
+                cgroupMemoryUsageInBytes
+            );
         } catch (final IOException e) {
             logger.debug("error reading control group stats", e);
             return null;
@@ -582,13 +731,14 @@ public class OsProbe {
 
     OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
         return new OsInfo(
-                refreshInterval,
-                Runtime.getRuntime().availableProcessors(),
-                allocatedProcessors,
-                Constants.OS_NAME,
-                getPrettyName(),
-                Constants.OS_ARCH,
-                Constants.OS_VERSION);
+            refreshInterval,
+            Runtime.getRuntime().availableProcessors(),
+            allocatedProcessors,
+            Constants.OS_NAME,
+            getPrettyName(),
+            Constants.OS_ARCH,
+            Constants.OS_VERSION
+        );
     }
 
     private String getPrettyName() throws IOException {
@@ -600,11 +750,13 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines =
-                    etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream()
+                .filter(line -> line.startsWith("PRETTY_NAME"))
+                .collect(Collectors.toList());
             assert prettyNameLines.size() <= 1 : prettyNameLines;
-            final Optional<String> maybePrettyNameLine =
-                    prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
+            final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
+                ? Optional.of(prettyNameLines.get(0))
+                : Optional.empty();
             if (maybePrettyNameLine.isPresent()) {
                 // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
                 final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
@@ -652,11 +804,64 @@ public class OsProbe {
         }
     }
 
+    /**
+     * Returns the lines from /proc/meminfo as a workaround for JDK bugs that prevent retrieval of total system memory
+     * on some Linux variants such as Debian8.
+     */
+    @SuppressForbidden(reason = "access /proc/meminfo")
+    List<String> readProcMeminfo() throws IOException {
+        final List<String> lines;
+        if (Files.exists(PathUtils.get("/proc/meminfo"))) {
+            lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Retrieves system total memory in bytes from /proc/meminfo
+     */
+    long getTotalMemFromProcMeminfo() throws IOException {
+        List<String> meminfoLines = readProcMeminfo();
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        assert memTotalLines.size() <= 1 : memTotalLines;
+        if (memTotalLines.size() == 1) {
+            final String memTotalLine = memTotalLines.get(0);
+            int beginIdx = memTotalLine.indexOf("MemTotal:");
+            int endIdx = memTotalLine.lastIndexOf(" kB");
+            if (beginIdx + 9 < endIdx) {
+                final String memTotalString = memTotalLine.substring(beginIdx + 9, endIdx).trim();
+                try {
+                    long memTotalInKb = Long.parseLong(memTotalString);
+                    return memTotalInKb * 1024;
+                } catch (NumberFormatException e) {
+                    logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
+                    return 0;
+                }
+            } else {
+                logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    boolean isDebian8() throws IOException {
+        return Constants.LINUX && getPrettyName().equals("Debian GNU/Linux 8 (jessie)");
+    }
+
+    OsStats.Cgroup getCgroup(boolean isLinux) {
+        return isLinux ? getCgroup() : null;
+    }
+
     public OsStats osStats() {
         final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
         final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
-        final OsStats.Cgroup cgroup = Constants.LINUX ? getCgroup() : null;
+        final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
     }
 

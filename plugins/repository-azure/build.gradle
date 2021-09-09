@@ -1,30 +1,21 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.PropertyNormalization
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -48,6 +39,13 @@ versions << [
 
 dependencies {
   api project(path: 'azure-storage-blob', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'azure-storage-blob')
+  }
   api "com.azure:azure-storage-common:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
@@ -89,9 +87,18 @@ dependencies {
   testImplementation project(':test:fixtures:azure-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
   }
 }
 
@@ -106,6 +113,13 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',
@@ -191,6 +205,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.jcraft.jzlib.JZlib$WrapperType',
     'com.jcraft.jzlib.JZlib',
 
+    'com.github.luben.zstd.Zstd',
+
     // from io.netty.handler.codec.compression.LzfDecoder
     // from io.netty.handler.codec.compression.LzfEncoder (netty-codec)
     'com.ning.compress.BufferRecycler',
@@ -204,15 +220,6 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
     'lzma.sdk.lzma.Encoder',
 
-    // from io.netty.handler.codec.compression.Lz4FrameDecoder (netty-codec)
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-
-    // from io.netty.handler.codec.compression.Lz4XXHash32 (netty-codec)
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
-
     // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
@@ -225,6 +232,8 @@ tasks.named("thirdPartyAudit").configure {
     'org.conscrypt.HandshakeListener',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
@@ -232,8 +241,11 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
 
     // from io.netty.util.internal.Hidden (netty-common optional dependency)
     'reactor.blockhound.BlockHound$Builder',
@@ -325,23 +337,22 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
-Map<String, Object> expansions = [
+Map<String, String> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-testClusters {
-  yamlRestTest {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
       keystore 'azure.client.integration_test.key', azureKey
@@ -352,17 +363,18 @@ testClusters {
     if (useFixture) {
       setting 'azure.client.integration_test.endpoint_suffix', azureAddress
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+
+      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
     }
-  }
 }
 
-task azureThirdPartyTest(type: Test) {
+tasks.register("azureThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  dependsOn tasks.internalClusterTest
+  dependsOn "internalClusterTest"
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
@@ -374,18 +386,3 @@ task azureThirdPartyTest(type: Test) {
   }
 }
 tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
-
-// test jar is exported by the integTestArtifacts configuration to be used in the encrypted Azure repository test
-configurations {
-  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
-  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
-}
-
-def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
-  appendix 'internalClusterTest'
-  from sourceSets.internalClusterTest.output
-}
-
-artifacts {
-  internalClusterTestArtifacts internalClusterTestJar
-}

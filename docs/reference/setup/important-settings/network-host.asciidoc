@@ -1,31 +1,20 @@
 [[network.host]]
 [discrete]
-=== Network host setting
+==== Network host setting
 
-By default, {es} binds to loopback addresses only such as `127.0.0.1`
-and `[::1]`. This binding is sufficient to run a single development node on a
-server.
-
-TIP: more than one node can be started from the same `$ES_HOME`
-location on a single node. This setup can be useful for testing {es}'s
-ability to form clusters, but it is not a configuration recommended for
-production.
-
-To form a cluster with nodes on other servers, your
-node will need to bind to a non-loopback address. While there are many
-<<modules-network,network settings>>, usually all you need to configure is
-`network.host`:
+By default, {es} only binds to loopback addresses such as `127.0.0.1` and
+`[::1]`. This is sufficient to run a cluster of one or more nodes on a single
+server for development and testing, but a
+<<high-availability-cluster-design,resilient production cluster>> must involve
+nodes on other servers. There are many <<modules-network,network settings>> but
+usually all you need to configure is `network.host`:
 
 [source,yaml]
 --------------------------------------------------
 network.host: 192.168.1.10
 --------------------------------------------------
 
-The `network.host` setting also understands some special values such as
-`_local_`, `_site_`, `_global_` and modifiers like `:ip4` and `:ip6`. See
-<<network-interface-values>>.
-
-IMPORTANT: When you provide a custom setting for `network.host`,
-{es} assumes that you are moving from development mode to production
-mode, and upgrades a number of system startup checks from warnings to
-exceptions. See the differences between <<dev-vs-prod,development and production modes>>.
+IMPORTANT: When you provide a value for `network.host`, {es} assumes that you
+are moving from development mode to production mode, and upgrades a number of
+system startup checks from warnings to exceptions. See the differences between
+<<dev-vs-prod,development and production modes>>.

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,9 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -46,7 +45,6 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSingleNodeAllocateStep> {
@@ -87,11 +85,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertArrayEquals(expectedIndices, request.indices());
         assertThat(request.settings().get(settingsKey), anyOf(acceptableValues.stream().map(e -> equalTo(e)).collect(Collectors.toList())));
         if (assertOnlyKeyInSettings) {
-            assertEquals(1, request.settings().size());
+            assertEquals(2, request.settings().size());
         }
     }
 
-    public void testPerformActionNoAttrs() throws IOException {
+    public void testPerformActionNoAttrs() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
@@ -112,7 +110,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionAttrsAllNodesValid() throws IOException {
+    public void testPerformActionAttrsAllNodesValid() throws Exception {
         int numAttrs = randomIntBetween(1, 10);
         final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
@@ -143,7 +141,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionAttrsSomeNodesValid() throws IOException {
+    public void testPerformActionAttrsSomeNodesValid() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
@@ -200,22 +198,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
-        SetOnce<Exception> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
 
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionCompleted.set(e);
-            }
-        });
-
-        Exception failure = actionCompleted.get();
-        assertThat(failure, instanceOf(NoNodeAvailableException.class));
+        expectThrows(NoNodeAvailableException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verifyZeroInteractions(client);
     }
@@ -294,22 +279,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
+            f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -321,7 +292,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
-            validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
+            validAttrs[i] = new String[] { "na_" + randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
         }
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {
@@ -350,28 +321,14 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, Matchers.instanceOf(IndexNotFoundException.class));
-                assertEquals(indexMetadata.getIndex(), ((IndexNotFoundException) e).getIndex());
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        assertEquals(indexMetadata.getIndex(), e.getIndex());
 
         Mockito.verifyZeroInteractions(client);
     }
 
-    public void testPerformActionSomeShardsOnlyOnNewNodes() {
+    public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
         final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
@@ -485,7 +442,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNoValidNode(indexMetadata, indexMetadata.getIndex(), discoveryNodes, indexRoutingTable.build());
     }
 
-    public void testPerformActionNewShardsExistButWithInvalidAttributes() {
+    public void testPerformActionNewShardsExistButWithInvalidAttributes() throws Exception {
         final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
@@ -546,14 +503,14 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     private void assertNodeSelected(IndexMetadata indexMetadata, Index index,
-                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
+                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws Exception {
         DiscoveryNodes discoveryNodes = nodes.build();
         IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetadata, index, discoveryNodes);
         assertNodeSelected(indexMetadata, index, validNodeIds, discoveryNodes, indexRoutingTable.build());
     }
 
     private void assertNodeSelected(IndexMetadata indexMetadata, Index index, Set<String> validNodeIds, DiscoveryNodes nodes,
-                                    IndexRoutingTable indexRoutingTable) {
+                                    IndexRoutingTable indexRoutingTable) throws Exception {
         ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
             indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
@@ -572,22 +529,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -610,23 +552,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Exception> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionCompleted.set(e);
-            }
-        });
-
-        Exception failure = actionCompleted.get();
-        assertThat(failure, instanceOf(NoNodeAvailableException.class));
+        expectThrows(NoNodeAvailableException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verifyZeroInteractions(client);
     }

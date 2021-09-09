@@ -80,7 +80,7 @@ PUT /my-index-000001/_settings
 ==== Enabling and disabling caching per request
 
 The `request_cache` query-string parameter can be used to enable or disable
-caching on a *per-request* basis.  If set, it overrides the index-level setting:
+caching on a *per-request* basis. If set, it overrides the index-level setting:
 
 [source,console]
 -----------------------------
@@ -105,7 +105,7 @@ query-string parameter detailed here.
 [discrete]
 ==== Cache key
 
-The whole JSON body is used as the cache key.  This means that if the JSON
+The whole JSON body is used as the cache key. This means that if the JSON
 changes -- for instance if keys are output in a different order -- then the
 cache key will not be recognised.
 
@@ -117,7 +117,7 @@ the application to ensure that a request is always serialized in the same way.
 ==== Cache settings
 
 The cache is managed at the node level, and has a default maximum size of `1%`
-of the heap.  This can be changed in the `config/elasticsearch.yml` file with:
+of the heap. This can be changed in the `config/elasticsearch.yml` file with:
 
 [source,yaml]
 --------------------------------
@@ -125,7 +125,7 @@ indices.requests.cache.size: 2%
 --------------------------------
 
 Also, you can use the +indices.requests.cache.expire+ setting to specify a TTL
-for cached results, but there should be no reason to do so.  Remember that
+for cached results, but there should be no reason to do so. Remember that
 stale results are automatically invalidated when the index is refreshed. This
 setting is provided for completeness' sake only.
 

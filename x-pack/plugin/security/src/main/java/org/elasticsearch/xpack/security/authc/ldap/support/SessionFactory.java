@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
@@ -10,18 +11,19 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -149,17 +151,17 @@ public abstract class SessionFactory {
                     "] may not be used at the same time");
         } else if (verificationModeExists) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
             if (sslConfiguration == null) {
                 throw new IllegalStateException("cannot find SSL configuration for " + sslKey);
             }
-            if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
+            if (sslConfiguration.getVerificationMode().isHostnameVerificationEnabled()) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
         } else if (hostnameVerificationExists) {
             final String fullSettingKey = RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
             final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
-            DeprecationLogger.getLogger(logger.getName()).deprecate(deprecationKey,
+            DeprecationLogger.getLogger(logger.getName()).critical(DeprecationCategory.SETTINGS, deprecationKey,
                 "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",
                 fullSettingKey, RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM));
             if (config.getSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)) {
@@ -190,9 +192,9 @@ public abstract class SessionFactory {
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-            final SSLConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
+            final SslConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
             socketFactory = clientSSLService.sslSocketFactory(ssl);
-            if (ssl.verificationMode().isHostnameVerificationEnabled()) {
+            if (ssl.getVerificationMode().isHostnameVerificationEnabled()) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {
                 logger.debug("using encryption for LDAP connections without hostname verification");
@@ -258,7 +260,7 @@ public abstract class SessionFactory {
             final boolean allClear = Arrays.stream(ldapUrls)
                     .allMatch(s -> STARTS_WITH_LDAP.matcher(s).find());
 
-            if (!allSecure && !allClear) {
+            if (allSecure == false && allClear == false) {
                 //No mixing is allowed because we use the same socketfactory
                 throw new IllegalArgumentException(
                         "configured LDAP protocols are not all equal (ldaps://.. and ldap://..): ["

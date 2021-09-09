@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.search;
 
@@ -10,11 +11,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geometry.Line;
@@ -27,7 +23,9 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.hamcrest.CoreMatchers;
 
-public class ShapeQueryOverPointTests extends ShapeQueryTests {
+import java.util.List;
+
+public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
     @Override
     protected XContentBuilder createDefaultMapping() throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
@@ -46,7 +44,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
 
         for (ShapeRelation shapeRelation : ShapeRelation.values()) {
-            if (!shapeRelation.equals(ShapeRelation.INTERSECTS)) {
+            if (shapeRelation.equals(ShapeRelation.INTERSECTS) == false) {
                 SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                     client().prepareSearch("test")
                         .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)
@@ -102,17 +100,16 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
-        CoordinatesBuilder coords1 = new CoordinatesBuilder()
-            .coordinate(-35,-35)
-            .coordinate(-25,-25);
-        CoordinatesBuilder coords2 = new CoordinatesBuilder()
-            .coordinate(-15,-15)
-            .coordinate(-5,-5);
-        LineStringBuilder lsb1 = new LineStringBuilder(coords1);
-        LineStringBuilder lsb2 = new LineStringBuilder(coords2);
-        MultiLineStringBuilder mlb = new MultiLineStringBuilder().linestring(lsb1).linestring(lsb2);
-        MultiLine multiline = (MultiLine) mlb.buildGeometry();
+        Line lsb1  = new Line(
+            new double[] {-35, -25},
+            new double[] {-35, -25}
+        );
+        Line lsb2  = new Line(
+            new double[] {-15, -5},
+            new double[] {-15, -5}
+        );
 
+        MultiLine multiline = new MultiLine(List.of(lsb1, lsb2));
         try {
             client().prepareSearch("test")
                 .setQuery(new ShapeQueryBuilder(defaultFieldName, multiline)).get();
@@ -127,8 +124,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
-        MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35,-25).coordinate(-15,-5);
-        MultiPoint multiPoint = mpb.buildGeometry();
+        MultiPoint multiPoint =new MultiPoint(List.of(new Point(-35,-25), new Point(-15,-5)));
 
         try {
             client().prepareSearch("test")
@@ -144,8 +140,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
-        PointBuilder pb = new PointBuilder().coordinate(-35, -25);
-        Point point = pb.buildGeometry();
+        Point point = new Point(-35, -2);
 
         try {
             client().prepareSearch("test")

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -26,14 +27,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
@@ -86,7 +87,6 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
-import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
@@ -429,9 +429,20 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 if (watches != null && watches.allPrimaryShardsActive() == false) {
                     logger.trace("cannot manage cluster alerts because [.watches] index is not allocated");
                 } else if ((watches == null || indexExists) && watcherSetup.compareAndSet(false, true)) {
+                    logger.trace("installing monitoring watches");
                     getClusterAlertsInstallationAsyncActions(indexExists, asyncActions, pendingResponses);
+                } else {
+                    logger.trace("skipping installing monitoring watches, watches=[{}], indexExists=[{}], watcherSetup=[{}]",
+                        watches, indexExists, watcherSetup.get());
                 }
+            } else {
+                logger.trace("watches shouldn't be setup, because state=[{}] and clusterStateChange=[{}]", state.get(), clusterStateChange);
             }
+        } else {
+            logger.trace("watches can't be used, because xpack.watcher.enabled=[{}] and " +
+                    "xpack.monitoring.exporters._local.cluster_alerts.management.enabled=[{}]",
+                XPackSettings.WATCHER_ENABLED.get(config.settings()),
+                CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings()));
         }
     }
 
@@ -531,7 +542,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
-        assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
+        assert Thread.currentThread().isInterrupted() == false : "current thread has been interrupted before putting index template!!!";
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
                 client.admin().indices()::putTemplate);
@@ -577,6 +588,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                                new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses)));
                 }
             } else if (addWatch) {
+                logger.trace("adding monitoring watch [{}]", uniqueWatchId);
                 asyncActions.add(() -> putWatch(client, watchId, uniqueWatchId, pendingResponses));
             }
         }
@@ -641,11 +653,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (clusterState != null) {
                 final long expirationTimeMillis = expiration.toInstant().toEpochMilli();
                 final long currentTimeMillis = System.currentTimeMillis();
-                final boolean cleanUpWatcherHistory = clusterService.getClusterSettings().get(CLEAN_WATCHER_HISTORY);
 
-                // list of index patterns that we clean up; watcher history can be included
-                final String[] indexPatterns =
-                        cleanUpWatcherHistory ? new String[] { ".monitoring-*", ".watcher-history*" } : new String[] { ".monitoring-*" };
+                // list of index patterns that we clean up
+                final String[] indexPatterns = new String[] { ".monitoring-*" };
 
                 // Get the names of the current monitoring indices
                 final Set<String> currents = MonitoredSystem.allSystems()
@@ -676,7 +686,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     }
                 }
 
-                if (!indices.isEmpty()) {
+                if (indices.isEmpty() == false) {
                     logger.info("cleaning up [{}] old indices", indices.size());
                     deleteIndices(indices);
                 } else {

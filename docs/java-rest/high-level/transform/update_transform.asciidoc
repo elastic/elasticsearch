@@ -42,6 +42,7 @@ include-tagged::{doc-tests-file}[{api}-config]
 <3> How often to check for updates to the source indices.
 <4> How to keep the {transform} in sync with incoming data.
 <5> Optional free text description of the {transform}.
+<6> Optional retention policy for the data in the destination index
 
 include::../execution.asciidoc[]
 

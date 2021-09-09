@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.versionfield;
@@ -9,6 +10,7 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.script.Field;
 
 import java.io.IOException;
 
@@ -54,5 +56,10 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
     @Override
     public int size() {
         return count;
+    }
+
+    @Override
+    public Field<String> toField(String fieldName) {
+        return new Field.VersionField(fieldName, this);
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
@@ -44,10 +45,8 @@ public class SubstringProcessorTests extends AbstractWireSerializingTestCase<Sub
     }
 
     public void testSubstringFunctionWithEdgeCases() {
-        assertEquals("foobarbar",
-                new Substring(EMPTY, l("foobarbar"), l(1), l(null)).makePipe().asProcessor().process(null));
-        assertEquals("foobarbar",
-                new Substring(EMPTY, l("foobarbar"), l(null), l(3)).makePipe().asProcessor().process(null));
+        assertNull(new Substring(EMPTY, l("foobarbar"), l(1), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new Substring(EMPTY, l("foobarbar"), l(null), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Substring(EMPTY, l(null), l(1), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Substring(EMPTY, l(null), l(null), l(null)).makePipe().asProcessor().process(null));
 

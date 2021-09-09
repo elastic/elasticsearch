@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -25,6 +14,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.metrics.MinAggregator;
+import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
@@ -65,8 +57,14 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
-    protected AggregatorBase(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
+    protected AggregatorBase(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound subAggregatorCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.metadata = metadata;
         this.parent = parent;
@@ -76,9 +74,10 @@ public abstract class AggregatorBase extends Aggregator {
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState(){
+            void badState() {
                 throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
+
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
                 badState();
@@ -88,6 +87,11 @@ public abstract class AggregatorBase extends Aggregator {
 
             @Override
             public void preCollection() throws IOException {
+                badState();
+            }
+
+            @Override
+            public void postCollection() throws IOException {
                 badState();
             }
 
@@ -142,6 +146,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.requestBytesUsed += bytes;
         return requestBytesUsed;
     }
+
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -161,11 +166,49 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Get a {@link LeafBucketCollector} for the given ctx, which should
-     * delegate to the given collector.
+     * Collect results for this leaf.
+     * <p>
+     * Most {@linkplain Aggregator}s will return a custom
+     * {@link LeafBucketCollector} that collects document information for
+     * every hit. Callers of this method will make sure to call
+     * {@link LeafBucketCollector#collect(int, long) collect} for every hit. So any
+     * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
+     * from this method runs at best {@code O(hits)} time. See the
+     * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
+     * {@linkplain Aggregator} for a fairly strait forward example of this.
+     * <p>
+     * Some {@linkplain Aggregator}s are able to correctly collect results on
+     * their own, without being iterated by the top level query or the rest
+     * of the aggregations framework. These aggregations collect what they
+     * need by calling methods on {@link LeafReaderContext} and then they
+     * return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal that they've
+     * done their own collection. These aggregations can do better than
+     * {@code O(hits)}. See the
+     * {@link MinAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) min}
+     * {@linkplain Aggregator} for an example of an aggregation that does this. It
+     * happens to run in constant time in some cases.
+     * <p>
+     * In other cases {@link MinAggregator} can't get correct results by
+     * taking the constant time path so instead it returns a custom
+     * {@link LeafBucketCollector}. This is fairly common for aggregations
+     * that have these fast paths because most of these fast paths are
+     * only possible when the aggregation is at the root of the tree.
+     * <p>
+     * Its also useful to look at the {@link FiltersAggregator#build filters}
+     * {@linkplain Aggregator} chooses whether or not it can use the fast
+     * path before building the {@linkplain Aggregator} rather than on each
+     * leaf. Either is fine.
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
+    /**
+     * Collect results for this leaf.
+     * <p>
+     * Implemented by the {@linkplain Aggregator} base class to correctly set
+     * up sub {@linkplain Aggregator}s. See the
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector) abstract delegate}
+     * for more details on what this does.
+     */
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
         preGetSubLeafCollectors(ctx);
@@ -177,19 +220,16 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
-    }
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {}
 
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
-    protected void doPreCollection() throws IOException {
-    }
+    protected void doPreCollection() throws IOException {}
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         doPreCollection();
         collectableSubAggregators.preCollection();
     }
@@ -229,6 +269,19 @@ public abstract class AggregatorBase extends Aggregator {
         return subAggregatorbyName.get(aggName);
     }
 
+    /**
+     * Called after collection of all document is done.
+     * <p>
+     * Warning: this is not final only to allow the parent join aggregator
+     * to delay this until building buckets.
+     */
+    @Override
+    public void postCollection() throws IOException {
+        // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
+        doPostCollection();
+        collectableSubAggregators.postCollection();
+    }
+
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
@@ -241,6 +294,11 @@ public abstract class AggregatorBase extends Aggregator {
 
     /** Release instance-specific data. */
     protected void doClose() {}
+
+    /**
+     * Can be overridden by aggregator implementation to be called back when the collection phase ends.
+     */
+    protected void doPostCollection() throws IOException {}
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

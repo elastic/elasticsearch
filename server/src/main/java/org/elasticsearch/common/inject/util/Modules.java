@@ -152,7 +152,7 @@ public final class Modules {
                     final List<Element> elements = Elements.getElements(baseModules);
                     final List<Element> overrideElements = Elements.getElements(overrides);
 
-                    final Set<Key> overriddenKeys = new HashSet<>();
+                    final Set<Key<?>> overriddenKeys = new HashSet<>();
                     final Set<Class<? extends Annotation>> overridesScopeAnnotations = new HashSet<>();
 
                     // execute the overrides module, keeping track of which keys and scopes are bound
@@ -184,7 +184,7 @@ public final class Modules {
                     new ModuleWriter(binder()) {
                         @Override
                         public <T> Void visit(Binding<T> binding) {
-                            if (!overriddenKeys.remove(binding.getKey())) {
+                            if (overriddenKeys.remove(binding.getKey()) == false) {
                                 super.visit(binding);
 
                                 // Record when a scope instance is used in a binding
@@ -237,7 +237,7 @@ public final class Modules {
                     new ModuleWriter(binder()) {
                         @Override
                         public Void visit(ScopeBinding scopeBinding) {
-                            if (!overridesScopeAnnotations.remove(scopeBinding.getAnnotationType())) {
+                            if (overridesScopeAnnotations.remove(scopeBinding.getAnnotationType()) == false) {
                                 super.visit(scopeBinding);
                             } else {
                                 Object source = scopeInstancesInUse.get(scopeBinding.getScope());

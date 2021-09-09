@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -16,12 +17,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -83,13 +84,15 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), 4)
             .build();
     }
@@ -131,7 +134,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
@@ -167,7 +170,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting data and master node...");
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -244,7 +247,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         }
         logger.info("Starting dedicated ml node...");
-        internalCluster().startNode(onlyRole(MachineLearning.ML_ROLE));
+        internalCluster().startNode(onlyRole(DiscoveryNodeRole.ML_ROLE));
         ensureStableCluster();
 
         // index some datafeed data
@@ -351,7 +354,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -396,7 +399,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     public void testJobRelocationIsMemoryAware() throws Exception {
-
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
 
@@ -425,6 +427,16 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster();
+
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The tests would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the suite run very slowly.
+        // The 200ms refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing anything
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
 
         // If memory requirements are used to reallocate the 4 small jobs (as we expect) then they should
         // all reallocate to the same node, that being the one that doesn't have the big job on.  If job counts
@@ -457,9 +469,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         logger.info("Starting another ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -497,18 +509,24 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
-        startDatafeedRequest.getParams().setEndTime("now");
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
 
         waitForJobToHaveProcessedAtLeast(jobId, 1000);
 
         internalCluster().stopNode(nodeRunningJob.getName());
 
-        waitForJobClosed(jobId);
+        // Wait for job and datafeed to get reassigned
+        assertBusy(() -> {
+            assertThat(getJobStats(jobId).getNode(), is(not(nullValue())));
+            assertThat(getDatafeedStats(datafeedId).getNode(), is(not(nullValue())));
+        }, 30, TimeUnit.SECONDS);
 
-        DataCounts dataCounts = getJobStats(jobId).getDataCounts();
-        assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
-        assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        assertBusy(() -> {
+            DataCounts dataCounts = getJobStats(jobId).getDataCounts();
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        });
+
     }
 
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {

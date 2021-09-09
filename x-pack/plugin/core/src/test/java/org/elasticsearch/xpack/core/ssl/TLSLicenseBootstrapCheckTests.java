@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils;
@@ -65,10 +66,7 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
 
     public void testBootstrapSucceedsIfSecurityIsNotEnabledOnBasicLicense() throws Exception {
         final Settings.Builder settings = Settings.builder();
-        if (randomBoolean()) {
-            // randomise between default-false & explicit-false
-            settings.put("xpack.security.enabled", false);
-        }
+        settings.put("xpack.security.enabled", false);
         if (randomBoolean()) {
             // it does not matter whether or not this is set, as security is not enabled.
             settings.put("xpack.security.transport.ssl.enabled", randomBoolean());

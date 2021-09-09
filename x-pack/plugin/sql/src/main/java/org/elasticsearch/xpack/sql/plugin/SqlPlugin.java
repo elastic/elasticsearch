@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
@@ -105,7 +106,10 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new RestSqlQueryAction(),
                 new RestSqlTranslateAction(),
                 new RestSqlClearCursorAction(),
-                new RestSqlStatsAction());
+                new RestSqlStatsAction(),
+                new RestSqlAsyncGetResultsAction(),
+                new RestSqlAsyncGetStatusAction(),
+                new RestSqlAsyncDeleteResultsAction());
     }
 
     @Override
@@ -117,6 +121,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
                 new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
                 new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
+                new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
+                new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class),
                 usageAction,
                 infoAction);
     }

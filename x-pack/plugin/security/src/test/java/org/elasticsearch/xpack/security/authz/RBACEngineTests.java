@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz;
@@ -17,8 +18,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -84,6 +86,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -353,7 +356,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test1")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.WRITE, "academy")
             .build();
@@ -395,7 +398,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test2")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test2")
             .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.INDEX, "academy")
             .add(IndexPrivilege.WRITE, "initiative")
@@ -454,7 +457,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test3")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test3")
             .cluster(Set.of("monitor"), Set.of())
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
@@ -493,7 +496,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test3")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test3")
             .add(IndexPrivilege.ALL, "logstash-*", "foo?")
             .add(IndexPrivilege.READ, "abc*")
             .add(IndexPrivilege.WRITE, "*xyz")
@@ -584,7 +587,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test-write")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test-write")
             .add(IndexPrivilege.INDEX, "apache-*")
             .add(IndexPrivilege.DELETE, "apache-2016-*")
             .build();
@@ -610,9 +613,9 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        final String patternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0,
-                randomIntBetween(2, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.length() - 2));
-        Role role = Role.builder("role")
+        final String patternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(0,
+                randomIntBetween(2, XPackPlugin.ASYNC_RESULTS_INDEX.length() - 2));
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role")
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, patternPrefix + "*")
                 .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
@@ -630,7 +633,7 @@ public class RBACEngineTests extends ESTestCase {
                         .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", false).map()).build()));
 
-        String matchesPatternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0, patternPrefix.length() + 1);
+        String matchesPatternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(0, patternPrefix.length() + 1);
         response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(matchesPatternPrefix + "*")
                 .allowRestrictedIndices(false)
@@ -665,7 +668,7 @@ public class RBACEngineTests extends ESTestCase {
                         .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", true).map()).build()));
 
-        final String restrictedIndexMatchingWildcard = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
+        final String restrictedIndexMatchingWildcard = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
         response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(restrictedIndexMatchingWildcard + "*")
                 .allowRestrictedIndices(true)
@@ -700,7 +703,7 @@ public class RBACEngineTests extends ESTestCase {
                         .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", false).map()).build()));
 
-        role = Role.builder("role")
+        role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role")
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, patternPrefix + "*")
                 .build();
         authzInfo = new RBACAuthorizationInfo(role, null);
@@ -723,7 +726,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getUser()).thenReturn(user);
         final boolean restrictedIndexPermission = randomBoolean();
         final boolean restrictedMonitorPermission = randomBoolean();
-        Role role = Role.builder("role")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role")
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, restrictedIndexPermission, ".sec*")
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, restrictedMonitorPermission, ".security*")
             .build();
@@ -766,7 +769,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("role")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role")
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, ".sec*")
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, true, ".security*")
             .build();
@@ -803,7 +806,7 @@ public class RBACEngineTests extends ESTestCase {
                     .put("index", false).put("monitor", true).map()).build()
         ));
 
-        role = Role.builder("role")
+        role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role")
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, ".sec*")
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, false, ".security*")
                 .build();
@@ -853,7 +856,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test-role")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test-role")
             .addApplicationPrivilege(app1Read, Collections.singleton("foo/*"))
             .addApplicationPrivilege(app1All, Collections.singleton("foo/bar/baz"))
             .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
@@ -916,7 +919,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test-write")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test-write")
             .addApplicationPrivilege(priv1, Collections.singleton("user/*/name"))
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
@@ -951,7 +954,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test-write")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test-write")
             .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.READ, "read-*")
             .add(IndexPrivilege.ALL, "all-*")
@@ -1003,7 +1006,7 @@ public class RBACEngineTests extends ESTestCase {
     public void testBuildUserPrivilegeResponse() {
         final ManageApplicationPrivileges manageApplicationPrivileges = new ManageApplicationPrivileges(Sets.newHashSet("app01", "app02"));
         final BytesArray query = new BytesArray("{\"term\":{\"public\":true}}");
-        final Role role = Role.builder("test", "role")
+        final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
             .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
@@ -1050,7 +1053,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test1")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.READ, dataStreamName)
             .build();
@@ -1070,7 +1073,7 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         SearchRequest request = new SearchRequest("*");
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, SearchAction.NAME), lookup);
         assertThat(authorizedIndices, hasItem(dataStreamName));
         assertThat(authorizedIndices, hasItems(backingIndices.stream()
@@ -1082,7 +1085,7 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        Role role = Role.builder("test1")
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test1")
                 .cluster(Collections.emptySet(), Collections.emptyList())
                 .add(IndexPrivilege.CREATE, "my_*")
                 .add(IndexPrivilege.WRITE, "my_data*")
@@ -1106,7 +1109,7 @@ public class RBACEngineTests extends ESTestCase {
         request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
                 XContentType.JSON
         );
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
                 RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, PutMappingAction.NAME), lookup);
         assertThat(authorizedIndices.isEmpty(), is(true));
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -33,7 +22,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.IndexCache;
@@ -43,12 +32,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -105,9 +95,9 @@ public class DefaultSearchContextTests extends ESTestCase {
         QueryCache queryCache = mock(QueryCache.class);
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
-            .thenReturn(queryShardContext);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
+            .thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -189,8 +179,15 @@ public class DefaultSearchContextTests extends ESTestCase {
                 + "] index level setting."));
 
             readerContext.close();
-            readerContext = new ReaderContext(
-                newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
+            readerContext = new ReaderContext(newContextId(), indexService, indexShard,
+                searcherSupplier.get(), randomNonNegativeLong(), false) {
+                @Override
+                public ScrollContext scrollContext() {
+                    ScrollContext scrollContext = new ScrollContext();
+                    scrollContext.scroll = new Scroll(TimeValue.timeValueSeconds(5));
+                    return scrollContext;
+                }
+            };
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
                 null, timeout, null, false);
@@ -215,8 +212,8 @@ public class DefaultSearchContextTests extends ESTestCase {
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
-            when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-            when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
+            when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
 
             readerContext.close();
             readerContext = new ReaderContext(newContextId(), indexService, indexShard,

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -32,9 +21,14 @@ import static java.util.Collections.emptyMap;
 public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase<InternalTDigestPercentiles> {
 
     @Override
-    protected InternalTDigestPercentiles createTestInstance(String name,
-                                                            Map<String, Object> metadata,
-                                                            boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+    protected InternalTDigestPercentiles createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        boolean keyed,
+        DocValueFormat format,
+        double[] percents,
+        double[] values
+    ) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
@@ -74,48 +68,54 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            percents = Arrays.copyOf(percents, percents.length + 1);
-            percents[percents.length - 1] = randomDouble() * 100;
-            Arrays.sort(percents);
-            break;
-        case 2:
-            TDigestState newState = new TDigestState(state.compression());
-            newState.add(state);
-            for (int i = 0; i < between(10, 100); i++) {
-                newState.add(randomDouble());
-            }
-            state = newState;
-            break;
-        case 3:
-            keyed = keyed == false;
-            break;
-        case 4:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                percents = Arrays.copyOf(percents, percents.length + 1);
+                percents[percents.length - 1] = randomDouble() * 100;
+                Arrays.sort(percents);
+                break;
+            case 2:
+                TDigestState newState = new TDigestState(state.compression());
+                newState.add(state);
+                for (int i = 0; i < between(10, 100); i++) {
+                    newState.add(randomDouble());
+                }
+                state = newState;
+                break;
+            case 3:
+                keyed = keyed == false;
+                break;
+            case 4:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, metadata);
     }
 
     public void testIterator() {
-        final double[] percents =  randomPercents(false);
+        final double[] percents = randomPercents(false);
         final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];
         for (int i = 0; i < values.length; ++i) {
             values[i] = randomDouble();
         }
 
-        InternalTDigestPercentiles aggregation =
-                createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
+        InternalTDigestPercentiles aggregation = createTestInstance(
+            "test",
+            emptyMap(),
+            false,
+            randomNumericDocValueFormat(),
+            percents,
+            values
+        );
 
         Iterator<Percentile> iterator = aggregation.iterator();
         Iterator<String> nameIterator = aggregation.valueNames().iterator();

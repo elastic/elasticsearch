@@ -1,0 +1,1280 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                properties:
+                  date:
+                    type: date
+                  date_nanos:
+                    type: date_nanos
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+                  geo_point:
+                    type: geo_point
+
+  - do:
+        indices.create:
+          index: other
+          body:
+            mappings:
+              properties:
+                date:
+                  type: date
+                long:
+                  type: long
+
+  - do:
+        indices.create:
+          index: verynested
+          body:
+              mappings:
+                properties:
+                  department:
+                    type: keyword
+                  staff:
+                    type: integer
+                  courses:
+                    type: nested
+                    properties:
+                      name:
+                        type: keyword
+                      credits:
+                        type: integer
+                      sessions:
+                        type: nested
+                        properties:
+                          semester:
+                            type: keyword
+
+  - do:
+        indices.create:
+          index: nonesting
+          body:
+            mappings:
+              properties:
+                kw:
+                  type: keyword
+                num:
+                  type: integer
+
+  - do:
+      index:
+        index: nonesting
+        id:    1
+        body: { "kw": "one", "num": 1 }
+
+  - do:
+      index:
+        index: nonesting
+        id:    2
+        body: { "kw": "two", "num": 2 }
+
+  - do:
+      index:
+        index: nonesting
+        id:    3
+        body: { "kw": "three", "num": 3 }
+
+  - do:
+      index:
+        index: verynested
+        id:    1
+        body: {
+              "department": "compsci",
+              "staff": 12,
+              "courses": [
+                {
+                  "name": "Object Oriented Programming",
+                  "credits": 3,
+                  "sessions": [
+                    {
+                      "semester": "spr2021",
+                      "students": 37
+                    },
+                    {
+                      "semester": "fall2020",
+                      "students": 45
+                    }
+                  ]
+                },
+                {
+                  "name": "Theory of Computation",
+                  "credits": 4,
+                  "sessions": [
+                    {
+                      "semester": "spr2021",
+                      "students": 19
+                    },
+                    {
+                      "semester": "fall2020",
+                      "students": 14
+                    }
+                  ]
+                }
+              ]
+            }
+
+  - do:
+      index:
+        index: verynested
+        id:    2
+        body: {
+              "department": "math",
+              "staff": 20,
+              "courses": [
+                {
+                  "name": "Precalculus",
+                  "credits": 1,
+                  "sessions": [
+                    {
+                      "semester": "spr2021",
+                      "students": 100
+                    },
+                    {
+                      "semester": "fall2020",
+                      "students": 134
+                    }
+                  ]
+                },
+                {
+                  "name": "Linear Algebra",
+                  "credits": 3,
+                  "sessions": [
+                    {
+                      "semester": "spr2021",
+                      "students": 29
+                    },
+                    {
+                      "semester": "fall2020",
+                      "students": 23
+                    }
+                  ]
+                }
+              ]
+            }
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "keyword": "foo", "long": [10, 20], "geo_point": "37.2343,-115.8067"}
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "keyword": ["foo", "bar"], "geo_point": "41.12,-71.34" }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        body:  { "keyword": "bar", "long": [100, 0], "geo_point": "90.0,0.0"}
+
+  - do:
+      index:
+        index: test
+        id:    4
+        body:  { "keyword": "bar", "long": [1000, 0], "geo_point": "41.12,-71.34"}
+
+  - do:
+      index:
+        index: test
+        id:    5
+        body:  { "date": "2017-10-20T03:08:45" }
+
+  - do:
+      index:
+        index: test
+        id:    6
+        body:  { "date": "2017-10-21T07:00:00" }
+
+  - do:
+      index:
+        index: other
+        id:    0
+        body:  { "date": "2017-10-20T03:08:45" }
+
+  - do:
+      indices.refresh:
+        index: [test, other, verynested, nonesting]
+
+---
+"Simple Composite aggregation":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 3 }
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+
+---
+"Nested Composite aggregation":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "long": {
+                      "terms": {
+                        "field": "long"
+                      }
+                    }
+                  },
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 5 }
+  - match: { aggregations.test.buckets.0.key.long: 0}
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.key.long: 10 }
+  - match: { aggregations.test.buckets.1.key.kw: "foo"}
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.long: 20 }
+  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+  - match: { aggregations.test.buckets.3.key.long: 100}
+  - match: { aggregations.test.buckets.3.key.kw: "bar" }
+  - match: { aggregations.test.buckets.3.doc_count: 1 }
+  - match: { aggregations.test.buckets.4.key.long: 1000 }
+  - match: { aggregations.test.buckets.4.key.kw: "bar" }
+  - match: { aggregations.test.buckets.4.doc_count: 1 }
+
+---
+"Aggregate After":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "long": {
+                      "terms": {
+                        "field": "long"
+                      }
+                    }
+                  },
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword"
+                      }
+                    }
+                  }
+                ]
+                after: { "long": 20, "kw": "foo" }
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.long: 100 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.long: 1000 }
+  - match: { aggregations.test.buckets.1.key.kw: "bar" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+---
+"Aggregate After Missing":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword"
+                      }
+                    }
+                  }
+                ]
+                after: { "kw": "delta" }
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.kw: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"Invalid Composite aggregation":
+  - do:
+      catch:      /\[composite\] aggregation cannot be used with a parent aggregation/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              terms:
+                field: long
+              aggs:
+                invalid_child:
+                  composite:
+                    sources: [
+                      {
+                        "kw": {
+                          "terms": {
+                            "field": "keyword"
+                          }
+                        }
+                      }
+                    ]
+
+---
+"Composite aggregation with format and calendar_interval":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+  - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  after: {
+                    date: "2017-10-20"
+                  }
+                  sources: [
+                    {
+                      "date": {
+                        "date_histogram": {
+                          "field": "date",
+                          "calendar_interval": "1d",
+                          "format": "yyyy-MM-dd"
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with invalid format":
+  - skip:
+      version: " - 7.13.99"
+      reason:  After key parse checking added in 7.14
+
+  - do:
+      catch: /created output it couldn't parse/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        # mixes week based and month based
+                        "format": "YYYY-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+---
+"Composite aggregation with lossy format":
+  - skip:
+      version: " - 7.13.99"
+      reason:  After key parse checking added in 7.14
+
+  - do:
+      catch: /created output it couldn't parse/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        # format is lower resolution than buckets, after key will lose data
+                        "format": "yyyy-MM"
+                      }
+                    }
+                  }
+                ]
+---
+"Composite aggregation with date_histogram offset":
+  - skip:
+      version: " - 7.5.99"
+      reason:  offset introduced in 7.6.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        "offset": "4h",
+                        "format": "iso8601" # Format makes the comparisons a little more obvious
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-19T04:00:00.000Z" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21T04:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+---
+"Composite aggregation with after_key in the response":
+  - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - length: { aggregations.test.after_key: 1 }
+  - match: { aggregations.test.after_key.keyword:  "foo" }
+
+---
+"Composite aggregation and array size":
+  - do:
+        catch: /.*Trying to create too many buckets.*/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1000000000
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+---
+"Composite aggregation with unmapped field":
+  - skip:
+      version: " - 7.1.99"
+      reason:  starting in 7.2.0 the composite aggregation handles unmapped fields as keywords
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, other]
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "long": {
+                    "terms": {
+                      "field": "long"
+                    }
+                  }
+                },
+                {
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                }
+                ]
+
+  - match: {hits.total: 7}
+  - length: { aggregations.test.buckets: 5 }
+  - match: { aggregations.test.buckets.0.key.long: 0}
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.key.long: 10 }
+  - match: { aggregations.test.buckets.1.key.kw: "foo"}
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.long: 20 }
+  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+  - match: { aggregations.test.buckets.3.key.long: 100}
+  - match: { aggregations.test.buckets.3.key.kw: "bar" }
+  - match: { aggregations.test.buckets.3.doc_count: 1 }
+  - match: { aggregations.test.buckets.4.key.long: 1000 }
+  - match: { aggregations.test.buckets.4.key.kw: "bar" }
+  - match: { aggregations.test.buckets.4.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, other]
+        body:
+          aggregations:
+            test:
+              composite:
+                after: { "long": 100, "kw": "bar" }
+                sources: [
+                {
+                  "long": {
+                    "terms": {
+                      "field": "long"
+                    }
+                  }
+                },
+                {
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                }
+                ]
+
+  - match: {hits.total: 7}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.long: 1000 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Missing source":
+  - skip:
+      version: " - 7.1.99"
+      reason:  null/empty sources disallowed in 7.2
+
+  - do:
+        catch: /Composite \[sources\] cannot be null or empty/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: []
+
+  - do:
+        catch: /Required \[sources\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1
+
+
+---
+"Duplicate sources":
+  - skip:
+      version: " - 7.1.99"
+      reason:  duplicate names disallowed in 7.2
+
+  - do:
+        catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    },
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+---
+"Simple Composite aggregation with GeoTile grid":
+  - skip:
+      version: " - 7.4.99"
+      reason: geotile_grid is not supported until 7.5.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "geo": {
+                    "geotile_grid": {
+                      "field": "geo_point",
+                      "precision": 12
+                    }
+                  },
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 4 }
+  - match: { aggregations.test.buckets.0.key.geo: "12/730/1590" }
+  - match: { aggregations.test.buckets.0.key.kw: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.1.key.kw: "bar" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+  - match: { aggregations.test.buckets.2.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+  - match: { aggregations.test.buckets.3.key.geo: "12/2048/0" }
+  - match: { aggregations.test.buckets.3.key.kw: "bar" }
+  - match: { aggregations.test.buckets.3.doc_count: 1 }
+
+---
+"Simple Composite aggregation with geotile grid add aggregate after":
+  - skip:
+      version: " - 7.4.99"
+      reason: geotile_grid is not supported until 7.5.0
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "geo": {
+                    "geotile_grid": {
+                      "field": "geo_point",
+                      "precision": 12
+                    }
+                  },
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword"
+                      }
+                    }
+                  }
+                ]
+                after: { "geo": "12/730/1590", "kw": "foo" }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.0.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.geo: "12/2048/0" }
+  - match: { aggregations.test.buckets.2.key.kw: "bar" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+
+---
+"Mixed ip and unmapped fields":
+  - skip:
+      version: " - 7.5.99"
+      reason: This was fixed in 7.6.0
+  # It is important that the index *without* the ip field be sorted *before*
+  # the index *with* the ip field because that has caused bugs in the past.
+  - do:
+      indices.create:
+        index: test_1
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          mappings:
+            properties:
+              f:
+                type: ip
+  - do:
+      index:
+        index:   test_2
+        id:      1
+        body:    { "f": "192.168.0.1" }
+        refresh: true
+
+  - do:
+      search:
+        index: test_*
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "f": {
+                    "terms": {
+                      "field": "f"
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.f: "192.168.0.1" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"date_histogram with time_zone":
+  - skip:
+      version: " - 7.6.0"
+      reason: Fixed in 7.6.0
+  - do:
+      index:
+        index:   test
+        id:      7
+        body:    { "date": "2017-10-22T01:00:00" }
+        refresh: true
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "iso8601" # Format makes the comparisons a little more obvious
+                    }
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                after: {
+                  date: "2017-10-20"
+                }
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "iso8601" # Format makes the comparisons a little more obvious
+                    }
+                  }
+                }
+            ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"date_histogram with time_zone epoch format":
+# Same as above, but with a different format.  We had a bug about this specifically:
+# https://github.com/elastic/elasticsearch/issues/68963
+  - skip:
+      version: " - 7.6.0"
+      reason: Fixed in 7.6.0
+  - do:
+      index:
+        index:   test
+        id:      7
+        body:    { "date": "2017-10-22T01:00:00" }
+        refresh: true
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "epoch_second"
+                    }
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "1508464800" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "1508551200" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                after: {
+                  date: "1508464800"
+                }
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "epoch_second"
+                    }
+                  }
+                }
+            ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "1508551200" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"date_histogram on date_nanos":
+  - skip:
+      version: " - 7.6.99"
+      reason: Fixed in 7.7.0
+  - do:
+      index:
+        index:   test
+        id:      7
+        body:    { "date_nanos": "2017-11-21T01:00:00" }
+        refresh: true
+  - do:
+      index:
+        index:   test
+        id:      8
+        body:    { "date_nanos": "2017-11-22T01:00:00" }
+        refresh: true
+  - do:
+      index:
+        index:   test
+        id:      9
+        body:    { "date_nanos": "2017-11-22T02:00:00" }
+        refresh: true
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date_nanos
+                        calendar_interval: 1d
+                        format: iso8601 # Format makes the comparisons a little more obvious
+              aggregations:
+                avg:
+                  avg:
+                    field: date_nanos
+
+  - match: { hits.total.value: 9 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-11-21T00:00:00.000Z" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.0.avg.value_as_string: "2017-11-21T01:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.key.date: "2017-11-22T00:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.avg.value_as_string: "2017-11-22T01:30:00.000Z" }
+
+---
+"Terms source from sorted":
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: keyword
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Terms source from part of sorted":
+  - skip:
+      version: " - 7.6.99"
+      reason:  fixed in 7.7.0.
+
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: [keyword, long]
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Nested as parent":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "courses": {
+                  "nested": { "path": "courses" },
+                  "aggregations": {
+                      "names": {
+                          "composite": { 
+                              "sources": [
+                                  "kw": {"terms": {"field": "courses.name"}}
+                              ]
+                          }
+                      }
+                  }
+              }
+          }
+
+  - match: {hits.total: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - length: { aggregations.courses.names.buckets: 4 }
+  - match: { aggregations.courses.names.buckets.0.key.kw: "Linear Algebra" }
+  - match: { aggregations.courses.names.buckets.0.doc_count: 1}
+  - match: { aggregations.courses.names.buckets.1.key.kw: "Object Oriented Programming" }
+  - match: { aggregations.courses.names.buckets.1.doc_count: 1}
+  - match: { aggregations.courses.names.buckets.2.key.kw: "Precalculus" }
+  - match: { aggregations.courses.names.buckets.2.doc_count: 1}
+  - match: { aggregations.courses.names.buckets.3.key.kw: "Theory of Computation" }
+  - match: { aggregations.courses.names.buckets.3.doc_count: 1}
+
+---
+"Nested parent with compound key":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "sessions": {
+                  "nested": { "path": "courses.sessions" },
+                  "aggregations": {
+                      "names": {
+                          "composite": {
+                              "sources": [
+                                "kw": { "terms": { "field": "courses.sessions.semester" } }
+                                ]
+                           }
+                      }
+                  }
+              }
+          }
+  - match: {hits.total: 2}
+  - match: {aggregations.sessions.doc_count: 8}
+  - length: { aggregations.sessions.names.buckets: 2 }
+  - match: { aggregations.sessions.names.buckets.0.key.kw: "fall2020" }
+  - match: { aggregations.sessions.names.buckets.0.doc_count: 4}
+  - match: { aggregations.sessions.names.buckets.1.key.kw: "spr2021" }
+  - match: { aggregations.sessions.names.buckets.1.doc_count: 4}
+
+---
+"Nested with a nested sub aggregation":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "courses": {
+                  "nested": { "path": "courses" },
+                  "aggregations": {
+                      "sessions": {
+                          "nested": { "path": "courses.sessions" },
+                          "aggregations": {
+                              "names": {
+                                  "composite": {
+                                      "sources": [
+                                          "kw": {"terms": { "field": "courses.sessions.semester" }}
+                                      ]
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+  - match: {hits.total: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - match: {aggregations.courses.sessions.doc_count: 8}
+  - length: { aggregations.courses.sessions.names.buckets: 2 }
+  - match: { aggregations.courses.sessions.names.buckets.0.key.kw: "fall2020" }
+  - match: { aggregations.courses.sessions.names.buckets.0.doc_count: 4}
+  - match: { aggregations.courses.sessions.names.buckets.1.key.kw: "spr2021" }
+  - match: { aggregations.courses.sessions.names.buckets.1.doc_count: 4}
+
+---
+"Nested then filter then nested then terms":
+  - skip:
+      version: " - 7.12.99"
+      reason:  Filter support added in 7.13
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "courses": {
+                  "nested": { "path": "courses" },
+                  "aggregations": {
+                      "highpass_filter": {
+                          "filter": { "range": {"courses.credits": { "gt": 1 }}},
+                          "aggregations": {
+                              "sessions": {
+                                  "nested": { "path": "courses.sessions" },
+                                  "aggregations": {
+                                      "names": {
+                                          "composite": {
+                                              "sources": [
+                                                  "kw": {"terms": { "field": "courses.sessions.semester" }}
+                                              ]
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+  - match: {hits.total: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - match: {aggregations.courses.highpass_filter.doc_count: 3}
+  - match: {aggregations.courses.highpass_filter.sessions.doc_count: 6}
+  - length: { aggregations.courses.highpass_filter.sessions.names.buckets: 2 }
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.0.key.kw: "fall2020" }
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.0.doc_count: 3}
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.key.kw: "spr2021" }
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.doc_count: 3}
+
+---
+"Filter without nesting":
+  - skip:
+      version: " - 7.12.99"
+      reason:  Filter added in 7.13
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: nonesting
+        body: {
+                "aggs": {
+                    "not_one": {
+                        "filter": { "range": {"num": {"gt": 1}} },
+                        "aggs":  {
+                            "keez": {
+                                "composite": {
+                                    "sources": [ 
+                                        "key": {"terms": {"field": "kw"}}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+  - match: {hits.total: 3}
+  - match: {aggregations.not_one.doc_count: 2}
+  - length: {aggregations.not_one.keez.buckets: 2}
+  - match: {aggregations.not_one.keez.buckets.0.key.key: "three"}
+  - match: {aggregations.not_one.keez.buckets.1.key.key: "two"}

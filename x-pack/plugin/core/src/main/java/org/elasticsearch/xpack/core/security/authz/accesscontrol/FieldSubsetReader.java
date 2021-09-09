@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
@@ -28,7 +29,7 @@ import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -159,6 +160,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
+    @SuppressWarnings("unchecked")
     static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
@@ -196,6 +198,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     /** Filter a list by a {@link CharacterRunAutomaton} that defines the fields to retain. */
+    @SuppressWarnings("unchecked")
     private static List<Object> filter(Iterable<?> iterable, CharacterRunAutomaton includeAutomaton, int initialState) {
         List<Object> filtered = new ArrayList<>();
         for (Object value : iterable) {
@@ -416,7 +419,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     private Terms wrapTerms(Terms terms, String field) throws IOException {
-        if (!hasField(field)) {
+        if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
             // for the _field_names field, fields for the document

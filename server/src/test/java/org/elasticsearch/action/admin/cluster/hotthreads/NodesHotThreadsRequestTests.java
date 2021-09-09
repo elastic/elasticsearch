@@ -20,15 +20,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-public class NodesHotThreadsRequestTest extends ESTestCase {
+public class NodesHotThreadsRequestTests extends ESTestCase {
     // Simple override of BaseNodesRequest to ensure we read the common
     // fields of the nodes request.
     static class NodesHotThreadsRequestHelper extends BaseNodesRequest<NodesHotThreadsRequestHelper> {
-        protected NodesHotThreadsRequestHelper(StreamInput in) throws IOException {
+        NodesHotThreadsRequestHelper(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodesHotThreadsRequestHelper(String... nodesIds) {
+        NodesHotThreadsRequestHelper(String... nodesIds) {
             super(nodesIds);
         }
 

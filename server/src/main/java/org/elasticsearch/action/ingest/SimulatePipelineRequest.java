@@ -187,7 +187,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
                 dataMap, Metadata.ROUTING.getFieldName());
             if (restApiVersion == RestApiVersion.V_7 && dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.compatibleApiWarning("simulate_pipeline_with_types",
+                deprecationLogger.compatibleCritical("simulate_pipeline_with_types",
                     "[types removal] specifying _type in pipeline simulation requests is deprecated");
             }
             Long version = null;

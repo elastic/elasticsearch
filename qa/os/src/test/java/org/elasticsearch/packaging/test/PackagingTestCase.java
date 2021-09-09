@@ -360,6 +360,11 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
+        awaitElasticsearchStartup(result);
+        return result;
+    }
+
     /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
      * the start command, use {@link #runElasticsearchStartCommand(String, boolean, boolean)}.

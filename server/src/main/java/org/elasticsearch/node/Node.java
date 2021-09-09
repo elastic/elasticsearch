@@ -306,7 +306,7 @@ public class Node implements Closeable {
                 logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
@@ -320,7 +320,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"

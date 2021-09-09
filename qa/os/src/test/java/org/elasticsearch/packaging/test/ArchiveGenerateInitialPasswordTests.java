@@ -47,7 +47,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         installation.executables().keystoreTool.run("create");
         installation.executables().keystoreTool.run("add --stdin bootstrap.password", "some-password-here");
-        Shell.Result result = runElasticsearchStartCommand(null, false, true);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.isEmpty(), is(true));
         String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), "elastic", "some-password-here", null);
@@ -60,7 +60,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         stopElasticsearch();
         installation.executables().keystoreTool.run("remove bootstrap.password");
         ServerUtils.disableSecurityAutoConfiguration(installation);
-        Shell.Result result = runElasticsearchStartCommand(null, false, true);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.isEmpty(), is(true));
     }
@@ -70,7 +70,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         ServerUtils.enableSecurityAutoConfiguration(installation);
-        Shell.Result result = runElasticsearchStartCommand(null, false, true);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.size(), equalTo(2));
         assertThat(usersAndPasswords.containsKey("elastic"), is(true));
@@ -85,7 +85,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
-        Shell.Result result = runElasticsearchStartCommand(null, false, true);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.isEmpty(), is(true));
     }

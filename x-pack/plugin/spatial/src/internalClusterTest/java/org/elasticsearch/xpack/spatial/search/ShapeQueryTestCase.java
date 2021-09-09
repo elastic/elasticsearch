@@ -11,29 +11,25 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CircleBuilder;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
-import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.locationtech.jts.geom.Coordinate;
-
 
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -42,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
+public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -84,11 +80,10 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
             .field(defaultFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry().get(0);
+        Rectangle rectangle = new Rectangle(-45, 45, 45, -45);
+
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(new ShapeQueryBuilder(defaultFieldName, geometry)
+            .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)
                 .relation(ShapeRelation.INTERSECTS))
             .get();
 
@@ -99,7 +94,7 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // default query, without specifying relation (expect intersects)
         searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(new ShapeQueryBuilder(defaultFieldName, geometry))
+            .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -125,12 +120,10 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
             .field(defaultFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        CircleBuilder shape = new CircleBuilder().center(new Coordinate(-30, -30)).radius("1");
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry().get(0);
+        Circle circle = new Circle(-30, -30, 1);
 
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(new ShapeQueryBuilder(defaultFieldName, geometry)
+            .setQuery(new ShapeQueryBuilder(defaultFieldName, circle)
                 .relation(ShapeRelation.INTERSECTS))
             .get();
 
@@ -155,17 +148,15 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
             .field(defaultFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        CoordinatesBuilder cb = new CoordinatesBuilder();
-        cb.coordinate(new Coordinate(-35, -35))
-            .coordinate(new Coordinate(-35, -25))
-            .coordinate(new Coordinate(-25, -25))
-            .coordinate(new Coordinate(-25, -35))
-            .coordinate(new Coordinate(-35, -35));
-        PolygonBuilder shape = new PolygonBuilder(cb);
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry();
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] {-35, -35, -25, -25, -35},
+                new double[] {-35, -25, -25, -35, -35}
+            )
+        );
+
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(new ShapeQueryBuilder(defaultFieldName, geometry)
+            .setQuery(new ShapeQueryBuilder(defaultFieldName, polygon)
                 .relation(ShapeRelation.INTERSECTS))
             .get();
 
@@ -198,29 +189,23 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
             .field(defaultFieldName, "POINT(-50 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        CoordinatesBuilder encloseDocument1Cb = new CoordinatesBuilder();
-        encloseDocument1Cb.coordinate(new Coordinate(-35, -35))
-            .coordinate(new Coordinate(-35, -25))
-            .coordinate(new Coordinate(-25, -25))
-            .coordinate(new Coordinate(-25, -35))
-            .coordinate(new Coordinate(-35, -35));
-        PolygonBuilder encloseDocument1Shape = new PolygonBuilder(encloseDocument1Cb);
+        Polygon encloseDocument1Shape = new Polygon(
+            new LinearRing(
+                new double[] {-35, -35, -25, -25, -35},
+                new double[] {-35, -25, -25, -35, -35}
+            )
+        );
+        Polygon encloseDocument2Shape = new Polygon(
+            new LinearRing(
+                new double[] {-55, -55, -45, -45, -55},
+                new double[] {-55, -45, -45, -55, -55}
+            )
+        );
 
-        CoordinatesBuilder encloseDocument2Cb = new CoordinatesBuilder();
-        encloseDocument2Cb.coordinate(new Coordinate(-55, -55))
-            .coordinate(new Coordinate(-55, -45))
-            .coordinate(new Coordinate(-45, -45))
-            .coordinate(new Coordinate(-45, -55))
-            .coordinate(new Coordinate(-55, -55));
-        PolygonBuilder encloseDocument2Shape = new PolygonBuilder(encloseDocument2Cb);
+        MultiPolygon mp = new MultiPolygon(List.of(encloseDocument1Shape, encloseDocument2Shape));
 
-        MultiPolygonBuilder mp = new MultiPolygonBuilder();
-        mp.polygon(encloseDocument1Shape).polygon(encloseDocument2Shape);
-
-        GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(mp);
-        Geometry geometry = builder.buildGeometry();
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(new ShapeQueryBuilder(defaultFieldName, geometry)
+            .setQuery(new ShapeQueryBuilder(defaultFieldName, mp)
                 .relation(ShapeRelation.INTERSECTS))
             .get();
 
@@ -324,35 +309,35 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
             .execute().actionGet();
         ensureGreen();
 
-        CircleBuilder circleBuilder = new CircleBuilder().center(new Coordinate(1, 0)).radius(10, DistanceUnit.METERS);
+        Circle circle = new Circle(1, 0, 10);
 
         client().index(new IndexRequest("test_distance")
-            .source(jsonBuilder().startObject().field("location", new PointBuilder(2, 2)).endObject())
+            .source(jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(2, 2))).endObject())
             .setRefreshPolicy(IMMEDIATE)).actionGet();
         client().index(new IndexRequest("test_distance")
-            .source(jsonBuilder().startObject().field("location", new PointBuilder(3, 1)).endObject())
+            .source(jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(3, 1))).endObject())
             .setRefreshPolicy(IMMEDIATE)).actionGet();
         client().index(new IndexRequest("test_distance")
-            .source(jsonBuilder().startObject().field("location", new PointBuilder(-20, -30)).endObject())
+            .source(jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(-20, -30))).endObject())
             .setRefreshPolicy(IMMEDIATE)).actionGet();
         client().index(new IndexRequest("test_distance")
-            .source(jsonBuilder().startObject().field("location", new PointBuilder(20, 30)).endObject())
+            .source(jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(20, 30))).endObject())
             .setRefreshPolicy(IMMEDIATE)).actionGet();
 
         SearchResponse response = client().prepareSearch("test_distance")
-            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.WITHIN))
+            .setQuery(new ShapeQueryBuilder("location", circle).relation(ShapeRelation.WITHIN))
             .get();
         assertEquals(2, response.getHits().getTotalHits().value);
         response = client().prepareSearch("test_distance")
-            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+            .setQuery(new ShapeQueryBuilder("location", circle).relation(ShapeRelation.INTERSECTS))
             .get();
         assertEquals(2, response.getHits().getTotalHits().value);
         response = client().prepareSearch("test_distance")
-            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+            .setQuery(new ShapeQueryBuilder("location", circle).relation(ShapeRelation.DISJOINT))
             .get();
         assertEquals(2, response.getHits().getTotalHits().value);
         response = client().prepareSearch("test_distance")
-            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+            .setQuery(new ShapeQueryBuilder("location", circle).relation(ShapeRelation.CONTAINS))
             .get();
         assertEquals(0, response.getHits().getTotalHits().value);
     }

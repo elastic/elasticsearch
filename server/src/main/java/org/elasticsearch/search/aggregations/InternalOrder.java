@@ -577,7 +577,7 @@ public abstract class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if (parser.getRestApiVersion() == RestApiVersion.V_7 && ("_term".equals(orderKey) || "_time".equals(orderKey))) {
-                deprecationLogger.compatibleApiWarning(
+                deprecationLogger.compatibleCritical(
                     "_term_and_time_key_removal",
                     "Deprecated aggregation order key [{}] used, replaced by [_key]",
                     orderKey

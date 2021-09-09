@@ -20,6 +20,8 @@ import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
+import org.elasticsearch.gradle.util.GradleUtils
+
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
@@ -426,4 +428,13 @@ tasks.named("eclipse").configure {
   dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
+}
+
+tasks.register("buildReleaseArtifacts").configure {
+  group = 'build'
+  description = 'Builds all artifacts required for release manager'
+
+  dependsOn subprojects.findAll { it.path.startsWith(':distribution:docker') == false && it.path.startsWith(':ml-cpp') == false }
+    .collect { GradleUtils.findByName(it.tasks, 'assemble') }
+    .findAll { it != null }
 }

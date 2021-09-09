@@ -68,6 +68,7 @@ import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,7 +102,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryTarget.receiveFileInfo(
             mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
             mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
-            Collections.emptyList(), Collections.emptyList(), 0, receiveFileInfoFuture
+            emptyList(), emptyList(), 0, false, receiveFileInfoFuture
         );
         receiveFileInfoFuture.actionGet();
         List<RecoveryFileChunkRequest> requests = new ArrayList<>();
@@ -501,7 +502,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testDeleteRecoveredFiles() throws Exception {
+    public void testReceiveFileInfoDeletesRecoveredFiles() throws Exception {
         DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
         DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
@@ -581,11 +582,18 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             writeSnapshotFileFuture.get();
         }
 
-        PlainActionFuture<Void> cleanupFuture = PlainActionFuture.newFuture();
-        recoveryTarget.deleteRecoveredFiles(cleanupFuture);
-        cleanupFuture.get();
+        String[] fileNamesAfterRecoveringSnapshotFiles = directory.listAll();
 
-        assertThat(fileNamesBeforeRecoveringSnapshotFiles, is(equalTo(directory.listAll())));
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final boolean deleteRecoveredFiles = randomBoolean();
+        recoveryTarget.receiveFileInfo(emptyList(), emptyList(), emptyList(), emptyList(), 0, deleteRecoveredFiles, future);
+        future.get();
+
+        if (deleteRecoveredFiles) {
+            assertThat(fileNamesBeforeRecoveringSnapshotFiles, is(equalTo(directory.listAll())));
+        } else {
+            assertThat(fileNamesAfterRecoveringSnapshotFiles, is(equalTo(directory.listAll())));
+        }
 
         recoveryTarget.decRef();
         closeShards(shard);

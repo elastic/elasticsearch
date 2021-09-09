@@ -57,10 +57,16 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
+    public void receiveFileInfo(List<String> phase1FileNames,
+                                List<Long> phase1FileSizes,
+                                List<String> phase1ExistingFileNames,
+                                List<Long> phase1ExistingFileSizes,
+                                int totalTranslogOps,
+                                boolean deleteRecoveredFiles,
+                                ActionListener<Void> listener) {
         executor.execute(() -> target.receiveFileInfo(
-            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, listener));
+            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, deleteRecoveredFiles,
+            listener));
     }
 
     @Override
@@ -91,10 +97,5 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
                                         BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
                                         ActionListener<Void> listener) {
         executor.execute(() -> target.restoreFileFromSnapshot(repository, indexId, snapshotFile, listener));
-    }
-
-    @Override
-    public void deleteRecoveredFiles(ActionListener<Void> listener) {
-        executor.execute(() -> target.deleteRecoveredFiles(listener));
     }
 }

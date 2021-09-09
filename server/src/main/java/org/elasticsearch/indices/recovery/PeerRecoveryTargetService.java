@@ -78,7 +78,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
         public static final String RESTORE_FILE_FROM_SNAPSHOT = "internal:index/shard/recovery/restore_file_from_snapshot";
-        public static final String DELETE_RECOVERED_FILES = "internal:index/shard/recovery/delete_recovered_files";
         public static final String FILE_CHUNK = "internal:index/shard/recovery/file_chunk";
         public static final String CLEAN_FILES = "internal:index/shard/recovery/clean_files";
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
@@ -113,8 +112,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             new FilesInfoRequestHandler());
         transportService.registerRequestHandler(Actions.RESTORE_FILE_FROM_SNAPSHOT, ThreadPool.Names.GENERIC,
             RecoverySnapshotFileRequest::new, new RestoreFileFromSnapshotTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.DELETE_RECOVERED_FILES, ThreadPool.Names.GENERIC,
-            RecoveryDeleteRecoveredFilesRequest::new, new DeleteRecoveredFilesTransportRequestHandler());
         transportService.registerRequestHandler(Actions.FILE_CHUNK, ThreadPool.Names.GENERIC, RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler());
         transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC,
@@ -418,7 +415,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                 recoveryRef.target().receiveFileInfo(
                     request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames, request.phase1ExistingFileSizes,
-                    request.totalTranslogOps, listener);
+                    request.totalTranslogOps, request.deleteRecoveredFiles, listener);
             }
         }
     }
@@ -493,24 +490,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryTarget.restoreFileFromSnapshot(request.getRepository(), request.getIndexId(), request.getFileInfo(), listener);
-            }
-        }
-    }
-
-    class DeleteRecoveredFilesTransportRequestHandler implements TransportRequestHandler<RecoveryDeleteRecoveredFilesRequest> {
-        @Override
-        public void messageReceived(RecoveryDeleteRecoveredFilesRequest request,
-                                    TransportChannel channel,
-                                    Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.getRecoveryId(), request.getShardId())) {
-                final RecoveryTarget recoveryTarget = recoveryRef.target();
-                final ActionListener<Void> listener =
-                    createOrFinishListener(recoveryRef, channel, Actions.DELETE_RECOVERED_FILES, request);
-                if (listener == null) {
-                    return;
-                }
-
-                recoveryTarget.deleteRecoveredFiles(listener);
             }
         }
     }

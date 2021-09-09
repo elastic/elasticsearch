@@ -417,8 +417,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                                 List<String> phase1ExistingFileNames,
                                 List<Long> phase1ExistingFileSizes,
                                 int totalTranslogOps,
+                                boolean deleteRecoveredFiles,
                                 ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            if (deleteRecoveredFiles) {
+                multiFileWriter.deleteTempFiles();
+            }
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
             final RecoveryState.Index index = state().getIndex();
@@ -520,14 +524,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             );
             listener.onFailure(e);
         }
-    }
-
-    @Override
-    public void deleteRecoveredFiles(ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
-            multiFileWriter.deleteTempFiles();
-            return null;
-        });
     }
 
     private void registerThrottleTime(long throttleTimeInNanos) {

@@ -150,12 +150,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
+    public void receiveFileInfo(List<String> phase1FileNames,
+                                List<Long> phase1FileSizes,
+                                List<String> phase1ExistingFileNames,
+                                List<Long> phase1ExistingFileSizes,
+                                int totalTranslogOps,
+                                boolean deleteRecoveredFiles,
+                                ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.FILES_INFO;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, requestSeqNo, shardId, phase1FileNames, phase1FileSizes,
-            phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
+            phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, deleteRecoveredFiles);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         executeRetryableAction(action, request, standardTimeoutRequestOptions, listener.map(r -> null), reader);
     }
@@ -181,17 +186,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoverySnapshotFileRequest request =
             new RecoverySnapshotFileRequest(recoveryId, requestSeqNo, shardId, repository, indexId, snapshotFile);
-        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        final ActionListener<TransportResponse.Empty> responseListener = listener.map(r -> null);
-        executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);
-    }
-
-    @Override
-    public void deleteRecoveredFiles(ActionListener<Void> listener) {
-        final String action = PeerRecoveryTargetService.Actions.DELETE_RECOVERED_FILES;
-        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
-        final RecoveryDeleteRecoveredFilesRequest request =
-            new RecoveryDeleteRecoveredFilesRequest(recoveryId, requestSeqNo, shardId);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = listener.map(r -> null);
         executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);

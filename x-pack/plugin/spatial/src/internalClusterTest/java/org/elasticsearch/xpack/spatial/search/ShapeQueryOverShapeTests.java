@@ -20,12 +20,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -40,7 +44,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShapeQueryOverShapeTests extends ShapeQueryTests {
+public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     private static String INDEX = "test";
     private static String IGNORE_MALFORMED_INDEX = INDEX + "_ignore_malformed";
@@ -101,10 +105,10 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTests {
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
-        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
+        Rectangle rectangle = new Rectangle(-45, 45, 45, -45);
 
         client().prepareIndex(IGNORE_MALFORMED_INDEX, defaultFieldType).setId("Big_Rectangle").setSource(jsonBuilder().startObject()
-            .field(FIELD, shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
+            .field(FIELD, WellKnownText.toWKT(rectangle)).endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch(IGNORE_MALFORMED_INDEX)
             .setQuery(new ShapeQueryBuilder(FIELD, "Big_Rectangle").indexedShapeIndex(IGNORE_MALFORMED_INDEX)).get());
@@ -256,9 +260,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTests {
             .setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection
-        EnvelopeBuilder queryShape = new EnvelopeBuilder(new Coordinate(-50, 50), new Coordinate(50, -50));
-        ShapeQueryBuilder queryBuilder =
-            new ShapeQueryBuilder("location", queryShape.buildGeometry()).relation(ShapeRelation.CONTAINS);
+        Rectangle rectangle = new Rectangle(-50, 50, 50, -50);
+        ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder("location", rectangle).relation(ShapeRelation.CONTAINS);
         SearchResponse response = client().prepareSearch("test_contains").setQuery(queryBuilder).get();
         assertSearchResponse(response);
 
@@ -275,65 +278,59 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTests {
         createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build()
             , defaultFieldType, mapping);
 
-        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
+        Rectangle rectangle = new Rectangle(-10, 10, 10, -10);
 
         client().index(new IndexRequest("test_collections")
-            .source(jsonBuilder().startObject().field("geometry", envelopeBuilder).endObject())
+            .source(jsonBuilder().startObject().field("geometry", WellKnownText.toWKT(rectangle)).endObject())
             .setRefreshPolicy(IMMEDIATE)).actionGet();
 
         {
             // A geometry collection that is fully within the indexed shape
-            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
-            builder.shape(new PointBuilder(1, 2));
-            builder.shape(new PointBuilder(-2, -1));
+            GeometryCollection<Geometry> collection =
+                new GeometryCollection<>(org.elasticsearch.core.List.of(new Point(1, 2), new Point(-2, -1)));
             SearchResponse response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.CONTAINS))
                 .get();
             assertEquals(1, response.getHits().getTotalHits().value);
             response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.INTERSECTS))
                 .get();
             assertEquals(1, response.getHits().getTotalHits().value);
             response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.DISJOINT))
                 .get();
             assertEquals(0, response.getHits().getTotalHits().value);
         }
         {
             // A geometry collection (as multi point) that is partially within the indexed shape
-            MultiPointBuilder builder = new MultiPointBuilder();
-            builder.coordinate(1, 2);
-            builder.coordinate(20, 30);
+            MultiPoint multiPoint = new MultiPoint(org.elasticsearch.core.List.of(new Point(1, 2), new Point(20, 30)));
             SearchResponse response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .setQuery(new ShapeQueryBuilder("geometry", multiPoint).relation(ShapeRelation.CONTAINS))
                 .get();
             assertEquals(0, response.getHits().getTotalHits().value);
             response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .setQuery(new ShapeQueryBuilder("geometry", multiPoint).relation(ShapeRelation.INTERSECTS))
                 .get();
             assertEquals(1, response.getHits().getTotalHits().value);
             response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .setQuery(new ShapeQueryBuilder("geometry", multiPoint).relation(ShapeRelation.DISJOINT))
                 .get();
             assertEquals(0, response.getHits().getTotalHits().value);
         }
         {
             // A geometry collection that is disjoint with the indexed shape
-            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
-            MultiPointBuilder innerBuilder = new MultiPointBuilder();
-            innerBuilder.coordinate(-20, -30);
-            innerBuilder.coordinate(20, 30);
-            builder.shape(innerBuilder);
+            MultiPoint multiPoint = new MultiPoint(org.elasticsearch.core.List.of(new Point(-20, -30), new Point(20, 30)));
+            GeometryCollection<Geometry> collection = new GeometryCollection<>(org.elasticsearch.core.List.of(multiPoint));
             SearchResponse response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+                .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.CONTAINS))
                 .get();
             assertEquals(0, response.getHits().getTotalHits().value);
             response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+                .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.INTERSECTS))
                 .get();
             assertEquals(0, response.getHits().getTotalHits().value);
             response = client().prepareSearch("test_collections")
-                .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+                .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.DISJOINT))
                 .get();
             assertEquals(1, response.getHits().getTotalHits().value);
         }

@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -27,6 +30,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -48,6 +52,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
@@ -104,7 +109,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.task = task;
         this.listener = listener;
         this.clusterService = clusterService;
-        this.client = client;
+        this.client = wrapClient(client, policyName, task, clusterService);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
         this.fetchSize = fetchSize;
@@ -586,5 +591,31 @@ public class EnrichPolicyRunner implements Runnable {
      */
     private Client enrichOriginClient() {
         return new OriginSettingClient(client, ENRICH_ORIGIN);
+    }
+
+    private static Client wrapClient(Client in, String policyName, ExecuteEnrichPolicyTask task, ClusterService clusterService) {
+        // Filter client in order to:
+        // 1) Check on transport action call that policy runner does whether the task has been cancelled
+        // 2) Set the enrich policy task as parent task, so if other API calls (e.g. reindex) are cancellable then
+        // the corresponding tasks of these API calls get cancelled as well.
+        return new FilterClient(in) {
+
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                String requestStep = request.getClass().getSimpleName();
+                task.setStep(requestStep);
+                if (task.isCancelled()) {
+                    String message = "cancelled policy execution [" + policyName + "], status [" + Strings.toString(task.getStatus()) + "]";
+                    listener.onFailure(new TaskCancelledException(message));
+                    return;
+                }
+                request.setParentTask(clusterService.localNode().getId(), task.getId());
+                super.doExecute(action, request, listener);
+            }
+        };
     }
 }

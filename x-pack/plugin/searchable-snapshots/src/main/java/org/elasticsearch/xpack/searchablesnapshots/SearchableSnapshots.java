@@ -134,6 +134,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
 
 /**
@@ -267,7 +268,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public static void ensureValidLicense(XPackLicenseState licenseState) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
+        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
@@ -530,7 +531,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(
-            new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS)),
+            new SearchableSnapshotAllocationDecider(() -> SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(getLicenseState())),
             new SearchableSnapshotRepositoryExistsAllocationDecider(),
             new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
             new HasFrozenCacheAllocationDecider(frozenCacheInfoService),

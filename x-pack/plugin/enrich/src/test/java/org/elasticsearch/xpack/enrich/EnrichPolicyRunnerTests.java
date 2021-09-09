@@ -8,21 +8,33 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +61,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -1966,7 +1979,83 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
+    public void testRunnerCancel() throws Exception {
+        final String sourceIndex = "source-index";
+        IndexResponse indexRequest = client().index(
+            new IndexRequest().index(sourceIndex)
+                .id("id")
+                .source(
+                    "{"
+                        + "\"field1\":\"value1\","
+                        + "\"field2\":2,"
+                        + "\"field3\":\"ignored\","
+                        + "\"field4\":\"ignored\","
+                        + "\"field5\":\"value5\""
+                        + "}",
+                    XContentType.JSON
+                )
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        List<String> enrichFields = List.of("field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+
+        ActionType<?> randomActionType = randomFrom(
+            EnrichReindexAction.INSTANCE,
+            GetIndexAction.INSTANCE,
+            CreateIndexAction.INSTANCE,
+            ForceMergeAction.INSTANCE,
+            RefreshAction.INSTANCE,
+            IndicesSegmentsAction.INSTANCE,
+            UpdateSettingsAction.INSTANCE,
+            ClusterHealthAction.INSTANCE
+        );
+        logger.info("Selected [{}] to perform cancel", randomActionType.name());
+        Client client = new FilterClient(client()) {
+
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action.equals(randomActionType)) {
+                    testTaskManager.getCancellableTasks()
+                        .values()
+                        .stream()
+                        .filter(cancellableTask -> cancellableTask instanceof ExecuteEnrichPolicyTask)
+                        .forEach(task -> testTaskManager.cancel(task, "", () -> {}));
+                }
+                super.doExecute(action, request, listener);
+            }
+        };
+
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(client, policyName, policy, listener, createTime);
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        assertThat(exception.get(), notNullValue());
+        assertThat(exception.get().getMessage(), containsString("cancelled policy execution [test1], status ["));
+    }
+
     private EnrichPolicyRunner createPolicyRunner(
+        String policyName,
+        EnrichPolicy policy,
+        ActionListener<ExecuteEnrichPolicyStatus> listener,
+        Long createTime
+    ) {
+        return createPolicyRunner(client(), policyName, policy, listener, createTime);
+    }
+
+    private EnrichPolicyRunner createPolicyRunner(
+        Client client,
         String policyName,
         EnrichPolicy policy,
         ActionListener<ExecuteEnrichPolicyStatus> listener,
@@ -2016,7 +2105,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             task,
             wrappedListener,
             clusterService,
-            client(),
+            client,
             resolver,
             () -> createTime,
             randomIntBetween(1, 10000),

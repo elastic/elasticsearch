@@ -17,12 +17,12 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
@@ -80,7 +80,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        public ShapeFieldMapper build(ContentPath contentPath) {
+        public ShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
@@ -92,9 +92,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 = new GeometryParser(orientation.get().value().getAsBoolean(), coerce.get().value(), ignoreZValue.get().value());
             Parser<Geometry> parser = new GeoShapeParser(geometryParser);
             ShapeFieldType ft
-                = new ShapeFieldType(buildFullName(contentPath), indexed.get(), orientation.get().value(), parser, meta.get());
+                = new ShapeFieldType(context.buildFullName(name), indexed.get(), orientation.get().value(), parser, meta.get());
             return new ShapeFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), parser, this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
         }
     }
 

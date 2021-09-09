@@ -14,11 +14,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class FillMaskConfig implements NlpConfig {
 
@@ -38,7 +40,19 @@ public class FillMaskConfig implements NlpConfig {
     private static ConstructingObjectParser<FillMaskConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<FillMaskConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
             a -> new FillMaskConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
-        parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> {
+                if (ignoreUnknownFields == false) {
+                    throw ExceptionsHelper.badRequestException(
+                        "illegal setting [{}] on inference model creation",
+                        VOCABULARY.getPreferredName()
+                    );
+                }
+                return VocabularyConfig.fromXContentLenient(p);
+            },
+            VOCABULARY
+        );
         parser.declareNamedObject(
             ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
                 TOKENIZATION
@@ -49,8 +63,9 @@ public class FillMaskConfig implements NlpConfig {
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
 
-    public FillMaskConfig(VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
-        this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
+    public FillMaskConfig(@Nullable VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
+        this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
+            .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
     }
 
@@ -62,7 +77,7 @@ public class FillMaskConfig implements NlpConfig {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
+        builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         builder.endObject();
         return builder;

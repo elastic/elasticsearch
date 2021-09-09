@@ -11,22 +11,25 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
-    private boolean lenient;
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
     protected NerConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? NerConfig.fromXContentLenient(parser) : NerConfig.fromXContentStrict(parser);
+        return NerConfig.fromXContentLenient(parser);
     }
 
     @Override
@@ -46,7 +49,7 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
     public static NerConfig createRandom() {
         return new NerConfig(
-            VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :
                 randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),

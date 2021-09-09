@@ -295,6 +295,36 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(discoveryNodeFilters.isOnlyAttributeValueFilter(), is(discoveryNodeFilters.match(node)));
     }
 
+    public void testNormalizesIPAddressFilters() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "fdbd:dc00:111:222:0:0:0:333")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "fdbd:dc00:111:222::333", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(true));
+    }
+
+    public void testHostnameWhichLooksLikeIpv6DoesNotGetMatched() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx._name", "fdbd:dc00:111:222:0:0:0:333")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "fdbd:dc00:111:222::333", "", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(false));
+    }
+
+    public void testHostnameGetMatchedAndNotAffectedByNormalizing() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx._host", "test-host")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "test-host", "192.168.0.1", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(true));
+    }
+
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.builder();
         List<String> keys = new ArrayList<>(source.keySet());

@@ -267,7 +267,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            bigArrays = usually() && false
+            bigArrays = usually()
                     ? BigArrays.NON_RECYCLING_INSTANCE
                     : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
@@ -708,9 +708,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
             Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
-            List<ClusterNode> acceptableNodes
-                = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
-            return acceptableNodes;
+            return this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
         }
 
         ClusterNode getAnyNodePreferringLeaders() {
@@ -921,7 +919,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClusterService clusterService;
             TransportService transportService;
             private DisruptableMockTransport mockTransport;
-            private NodeHealthService nodeHealthService;
+            private final NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
             private DelegatingBigArrays delegatingBigArrays;
 
@@ -1199,7 +1197,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                                 updateCommittedStates();
                                 ClusterState state = committedStatesByVersion.get(newState.version());
-                                assertNotNull("State not committed : " + newState.toString(), state);
+                                assertNotNull("State not committed : " + newState, state);
                                 assertStateEquals(state, newState);
                                 logger.trace("successfully published: [{}]", newState);
                                 taskListener.clusterStateProcessed(source, oldState, newState);
@@ -1495,11 +1493,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     private final SequentialSpec spec = new LinearizabilityChecker.KeyedSpec() {
         @Override
         public Object getKey(Object value) {
+            //noinspection rawtypes
             return ((Tuple) value).v1();
         }
 
         @Override
         public Object getValue(Object value) {
+            //noinspection rawtypes
             return ((Tuple) value).v2();
         }
 
@@ -1516,14 +1516,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (output == null || currentState.equals(output)) {
                     return Optional.of(currentState);
                 }
-                return Optional.empty();
             } else {
                 if (output == null || currentState.equals(output)) {
                     // history is completed with null, simulating timeout, which assumes that write went through
                     return Optional.of(input);
                 }
-                return Optional.empty();
             }
+            return Optional.empty();
         }
     };
 

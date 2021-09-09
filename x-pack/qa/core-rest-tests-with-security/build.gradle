@@ -42,6 +42,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: clusterCredentials.username,
     password: clusterCredentials.password

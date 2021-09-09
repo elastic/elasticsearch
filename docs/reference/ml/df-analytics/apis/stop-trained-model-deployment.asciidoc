@@ -7,6 +7,8 @@
 <titleabbrev>Stop trained model deployment</titleabbrev>
 ++++
 
+experimental::[]
+
 [[stop-trained-model-deployment-request]]
 == {api-request-title}
 

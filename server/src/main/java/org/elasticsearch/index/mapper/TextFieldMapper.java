@@ -299,7 +299,7 @@ public class TextFieldMapper extends FieldMapper {
                 meta);
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
+        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             if (analyzers.positionIncrementGap.isConfigured()) {
@@ -310,7 +310,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft = new TextFieldType(
-                buildFullName(contentPath), index.getValue(), store.getValue(), tsi, meta.getValue());
+                context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
             ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
@@ -318,7 +318,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private SubFieldInfo buildPrefixInfo(ContentPath contentPath, FieldType fieldType, TextFieldType tft) {
+        private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -332,7 +332,7 @@ public class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : buildFullName(contentPath);
+            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : context.buildFullName(name);
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -391,12 +391,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TextFieldMapper build(ContentPath contentPath) {
+        public TextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            TextFieldType tft = buildFieldType(fieldType, contentPath);
+            TextFieldType tft = buildFieldType(fieldType, context);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
-            SubFieldInfo prefixFieldInfo = buildPrefixInfo(contentPath, fieldType, tft);
-            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");

@@ -356,7 +356,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         item.index = parser.text();
                     } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                         TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleApiWarning("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.compatibleCritical("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {

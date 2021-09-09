@@ -51,7 +51,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata) -> {
 
-                DEPRECATION_LOGGER.deprecate(
+                DEPRECATION_LOGGER.critical(
                     DeprecationCategory.AGGREGATIONS,
                     "auto-date-histogram-boolean",
                     "Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated"

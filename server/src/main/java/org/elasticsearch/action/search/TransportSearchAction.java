@@ -53,8 +53,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -366,9 +366,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    Map<String, ProfileShardResult> profileResults = searchResponse.getProfileResults();
-                    SearchProfileShardResults profile = profileResults == null || profileResults.isEmpty()
-                        ? null : new SearchProfileShardResults(profileResults);
+                    Map<String, SearchProfileQueryPhaseResult> profileResults = searchResponse.getProfileResults();
+                    SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
+                        ? null : new SearchProfileResults(profileResults);
                     InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchResponse.getHits(),
                         (InternalAggregations) searchResponse.getAggregations(), searchResponse.getSuggest(), profile,
                         searchResponse.isTimedOut(), searchResponse.isTerminatedEarly(), searchResponse.getNumReducePhases());

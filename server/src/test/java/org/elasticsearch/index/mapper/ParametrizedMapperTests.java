@@ -132,9 +132,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        public FieldMapper build(ContentPath contentPath) {
-            return new TestMapper(name(), buildFullName(contentPath),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        public FieldMapper build(MapperBuilderContext context) {
+            return new TestMapper(name(), context.buildFullName(name),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -219,7 +219,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(new ContentPath());
+            .build(MapperBuilderContext.ROOT);
     }
 
     private static TestMapper fromMapping(String mapping, Version version) {

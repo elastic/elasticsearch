@@ -72,7 +72,7 @@ public class Analysis {
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            DEPRECATION_LOGGER.deprecate(
+            DEPRECATION_LOGGER.critical(
                 DeprecationCategory.ANALYSIS,
                 "analyzer.version",
                 "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"

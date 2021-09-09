@@ -104,7 +104,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES, basicModel + "_similarity_model_replaced", "Basic model ["
+                    deprecationLogger.critical(DeprecationCategory.INDICES, basicModel + "_similarity_model_replaced", "Basic model ["
                         + basicModel + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
@@ -135,7 +135,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES, afterEffect + "_after_effect_replaced", "After effect ["
+                    deprecationLogger.critical(DeprecationCategory.INDICES, afterEffect + "_after_effect_replaced", "After effect ["
                         + afterEffect + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
@@ -225,7 +225,7 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "unknown_similarity_setting",
+                deprecationLogger.critical(DeprecationCategory.INDICES, "unknown_similarity_setting",
                     "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }

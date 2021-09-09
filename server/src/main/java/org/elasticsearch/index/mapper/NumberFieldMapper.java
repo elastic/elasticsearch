@@ -158,9 +158,9 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public NumberFieldMapper build(ContentPath contentPath) {
-            MappedFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        public NumberFieldMapper build(MapperBuilderContext context) {
+            MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
+            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 

@@ -35,7 +35,6 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -176,13 +175,13 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType) {
-        Map<String, SingleNodeShutdownMetadata> nodesShutdownInfo = new HashMap<>();
-
+        final String targetNodeName = shutdownType == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
             .setNodeId(DATA_NODE.getId())
             .setType(shutdownType)
             .setReason(this.getTestName())
             .setStartedAtMillis(1L)
+            .setTargetNodeName(targetNodeName)
             .build();
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             nodeShutdownMetadata

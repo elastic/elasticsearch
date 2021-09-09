@@ -164,11 +164,12 @@ final class FetchSearchPhase extends SearchPhase {
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
                               final Transport.Connection connection) {
         final FieldsOptionSourceAdapter adapter;
-        if (querySearchResult instanceof WrappedQuerySearchResult) {
-            adapter = ((WrappedQuerySearchResult) querySearchResult).getAdapter();
+        if (context.getRequest().isFieldsOptionEmulationEnabled()) {
+            adapter = FieldsOptionSourceAdapter.create(connection, context.getRequest().source());
         } else {
             adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
         }
+
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override

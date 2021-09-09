@@ -288,7 +288,6 @@ public class AuthorizationServiceTests extends ESTestCase {
                     RESTRICTED_INDICES_AUTOMATON, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
                 );
             }
-            System.err.printf("GET ROLES (%s) -> %s = %s\n", user.principal(), names, roleDescriptors);
             return Void.TYPE;
         }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);

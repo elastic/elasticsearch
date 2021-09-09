@@ -158,6 +158,8 @@ tasks.named("yamlRestTestV7CompatTest").configure {
       // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
       'ml/trained_model_cat_apis/Test cat trained models',
       'service_accounts/10_basic/Test get service accounts', //#76449, will remove upon backport
+      // Mute for backport https://github.com/elastic/elasticsearch/pull/77457
+      'ml/jobs_crud/Test update job'
   ].join(',')
   dependsOn "copyExtraResources"
 }

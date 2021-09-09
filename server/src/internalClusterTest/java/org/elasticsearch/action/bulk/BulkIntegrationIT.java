@@ -192,4 +192,32 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
     }
 
+    public void testIndexWithWrongTypeFailsEarly() {
+        client().admin().indices().prepareCreate("bulk_with_wrong_type")
+            .addMapping("_doc", "foo", "type=keyword")
+            .get();
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareIndex("bulk_with_wrong_type", "wrongtype")
+                .setSource("{\"foo\":\"value\"}", XContentType.JSON)
+                .get());
+        assertEquals("Invalid type: expecting [_doc] but got [wrongtype]", e.getMessage());
+
+        BulkResponse response = client().prepareBulk()
+                .add(client().prepareIndex("bulk_with_wrong_type", "_doc")
+                    .setSource("{\"foo\":\"value\"}", XContentType.JSON))
+                .add(client().prepareIndex("bulk_with_wrong_type", "type")
+                    .setSource("{\"foo\":\"value\"}", XContentType.JSON))
+                .get();
+        assertTrue(response.hasFailures());
+        assertThat(response.buildFailureMessage(), containsString("Invalid type: expecting [_doc] but got [type]"));
+
+        client().prepareIndex("bulk_with_wrong_type", "_doc", "1")
+            .setSource("{\"foo\":\"value\"}", XContentType.JSON)
+            .get();
+        e = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareDelete("bulk_with_wrong_type", "type", "1").get());
+        assertEquals("Invalid type: expecting [_doc] but got [type]", e.getMessage());
+    }
+
 }

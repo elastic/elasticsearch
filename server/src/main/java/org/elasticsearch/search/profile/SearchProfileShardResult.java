@@ -26,53 +26,53 @@ import java.util.Objects;
  * Profile results from a particular shard for all search phases.
  */
 public class SearchProfileShardResult implements Writeable, ToXContentFragment {
-    private final SearchProfileQueryPhaseResult search;
+    private final SearchProfileQueryPhaseResult queryPhase;
 
-    private final ProfileResult fetch;
+    private final ProfileResult fetchPhase;
 
-    public SearchProfileShardResult(SearchProfileQueryPhaseResult search, @Nullable ProfileResult fetch) {
-        this.search = search;
-        this.fetch = fetch;
+    public SearchProfileShardResult(SearchProfileQueryPhaseResult queryPhase, @Nullable ProfileResult fetch) {
+        this.queryPhase = queryPhase;
+        this.fetchPhase = fetch;
     }
 
     public SearchProfileShardResult(StreamInput in) throws IOException {
-        search = new SearchProfileQueryPhaseResult(in);
-        fetch = in.readOptionalWriteable(ProfileResult::new);
+        queryPhase = new SearchProfileQueryPhaseResult(in);
+        fetchPhase = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        search.writeTo(out);
-        out.writeOptionalWriteable(fetch);
+        queryPhase.writeTo(out);
+        out.writeOptionalWriteable(fetchPhase);
     }
 
-    public SearchProfileQueryPhaseResult getSearch() {
-        return search;
+    public SearchProfileQueryPhaseResult getQueryPhase() {
+        return queryPhase;
     }
 
-    public ProfileResult getFetch() {
-        return fetch;
+    public ProfileResult getFetchPhase() {
+        return fetchPhase;
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {
-        return search.getQueryProfileResults();
+        return queryPhase.getQueryProfileResults();
     }
 
     public AggregationProfileShardResult getAggregationProfileResults() {
-        return search.getAggregationProfileResults();
+        return queryPhase.getAggregationProfileResults();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("searches");
-        for (QueryProfileShardResult result : search.getQueryProfileResults()) {
+        for (QueryProfileShardResult result : queryPhase.getQueryProfileResults()) {
             result.toXContent(builder, params);
         }
         builder.endArray();
-        search.getAggregationProfileResults().toXContent(builder, params);
-        if (fetch != null) {
+        queryPhase.getAggregationProfileResults().toXContent(builder, params);
+        if (fetchPhase != null) {
             builder.field("fetch");
-            fetch.toXContent(builder, params);
+            fetchPhase.toXContent(builder, params);
         }
         return builder;
     }
@@ -83,12 +83,12 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
             return false;
         }
         SearchProfileShardResult other = (SearchProfileShardResult) obj;
-        return search.equals(other.search) && Objects.equals(fetch, other.fetch);
+        return queryPhase.equals(other.queryPhase) && Objects.equals(fetchPhase, other.fetchPhase);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(search, fetch);
+        return Objects.hash(queryPhase, fetchPhase);
     }
 
     @Override

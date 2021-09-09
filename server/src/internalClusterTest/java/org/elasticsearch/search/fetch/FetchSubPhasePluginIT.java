@@ -99,16 +99,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return "test";
-        }
-
-        @Override
         public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
             return new FetchSubPhaseProcessor() {
                 @Override

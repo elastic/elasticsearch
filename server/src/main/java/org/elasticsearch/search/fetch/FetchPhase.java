@@ -69,10 +69,6 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context) {
-        execute(context, context.getProfilers() == null ? null : context.getProfilers().getFetchProfiler());
-    }
-
-    public void execute(SearchContext context, FetchProfiler fetchProfiler) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -88,7 +84,7 @@ public class FetchPhase {
             return;
         }
 
-        Profiler profiler = fetchProfiler == null ? Profiler.NOOP : fetchProfiler;
+        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : context.getProfilers().getFetchProfiler();
         profiler.start();
         SearchHits hits = null;
         try {
@@ -190,7 +186,7 @@ public class FetchPhase {
             for (FetchSubPhase fsp : fetchSubPhases) {
                 FetchSubPhaseProcessor processor = fsp.getProcessor(context);
                 if (processor != null) {
-                    processors.add(profiler.profile(fsp.name(), fsp.description(), processor));
+                    processors.add(profiler.profile(fsp.getClass().getSimpleName(), "", processor));
                 }
             }
             return processors;

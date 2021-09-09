@@ -82,30 +82,15 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList(new FetchSubPhase() {
+            return Collections.singletonList((FetchContext fetchContext) -> new FetchSubPhaseProcessor() {
                 @Override
-                public String name() {
-                    return "boom";
-                }
+                public void setNextReader(LeafReaderContext readerContext) {}
 
                 @Override
-                public String description() {
-                    return "throws an exception on indices whose name start with 'boom'";
-                }
-
-                @Override
-                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
-                    return new FetchSubPhaseProcessor() {
-                        @Override
-                        public void setNextReader(LeafReaderContext readerContext) {}
-
-                        @Override
-                        public void process(FetchSubPhase.HitContext hitContext) {
-                            if (fetchContext.getIndexName().startsWith("boom")) {
-                                throw new RuntimeException("boom");
-                            }
-                        }
-                    };
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    if (fetchContext.getIndexName().startsWith("boom")) {
+                        throw new RuntimeException("boom");
+                    }
                 }
             });
         }

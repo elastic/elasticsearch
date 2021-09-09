@@ -101,7 +101,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
         assertThat(searchResponse.getProfileResults().values().size(), equalTo(totalShards));
         for (SearchProfileShardResult profileShardResult : searchResponse.getProfileResults().values()) {
-            assertThat(profileShardResult.getFetch().getTime(), equalTo(FETCH_PROFILE_TIME));
+            assertThat(profileShardResult.getFetchPhase().getTime(), equalTo(FETCH_PROFILE_TIME));
         }
     }
 
@@ -246,8 +246,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
              * for the fetch on the successful shard.
              */
             assertThat(searchResponse.getProfileResults().values().size(), equalTo(2));
-            assertThat(searchResponse.getProfileResults().get(shard1Target.toString()).getFetch(), nullValue());
-            assertThat(searchResponse.getProfileResults().get(shard2Target.toString()).getFetch().getTime(), equalTo(FETCH_PROFILE_TIME));
+            assertThat(searchResponse.getProfileResults().get(shard1Target.toString()).getFetchPhase(), nullValue());
+            assertThat(
+                searchResponse.getProfileResults().get(shard2Target.toString()).getFetchPhase().getTime(),
+                equalTo(FETCH_PROFILE_TIME)
+            );
         } else {
             assertThat(searchResponse.getProfileResults(), equalTo(Map.of()));
         }
@@ -322,9 +325,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertThat(searchResponse.getProfileResults().values().size(), equalTo(numHits));
             int count = 0;
             for (SearchProfileShardResult profileShardResult : searchResponse.getProfileResults().values()) {
-                if (profileShardResult.getFetch() != null) {
+                if (profileShardResult.getFetchPhase() != null) {
                     count++;
-                    assertThat(profileShardResult.getFetch().getTime(), equalTo(FETCH_PROFILE_TIME));
+                    assertThat(profileShardResult.getFetchPhase().getTime(), equalTo(FETCH_PROFILE_TIME));
                 }
             }
             assertThat(count, equalTo(Math.min(numHits, resultSetSize)));
@@ -468,8 +471,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertEquals(2, searchResponse.getSuccessfulShards());
         if (profiled) {
             assertThat(searchResponse.getProfileResults().size(), equalTo(2));
-            assertThat(searchResponse.getProfileResults().get(shard1Target.toString()).getFetch(), nullValue());
-            assertThat(searchResponse.getProfileResults().get(shard2Target.toString()).getFetch().getTime(), equalTo(FETCH_PROFILE_TIME));
+            assertThat(searchResponse.getProfileResults().get(shard1Target.toString()).getFetchPhase(), nullValue());
+            assertThat(
+                searchResponse.getProfileResults().get(shard2Target.toString()).getFetchPhase().getTime(),
+                equalTo(FETCH_PROFILE_TIME)
+            );
         }
         assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(ctx1));

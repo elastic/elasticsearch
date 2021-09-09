@@ -24,16 +24,6 @@ import java.util.Map;
 
 public final class FetchSourcePhase implements FetchSubPhase {
     @Override
-    public String name() {
-        return "source";
-    }
-
-    @Override
-    public String description() {
-        return "load _source";
-    }
-
-    @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
         if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {

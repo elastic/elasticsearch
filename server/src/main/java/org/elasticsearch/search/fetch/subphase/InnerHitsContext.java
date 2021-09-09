@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -88,6 +89,15 @@ public final class InnerHitsContext {
         @Override
         public InnerHitsContext innerHits() {
             return childInnerHits;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            /*
+             * Disable profiling the inner fetch phase because we can't
+             * do anything with the results.
+             */
+            return null;
         }
 
         public void setChildInnerHits(Map<String, InnerHitSubContext> childInnerHits) {

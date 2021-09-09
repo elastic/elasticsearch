@@ -120,30 +120,15 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
     public static final class SubFetchPhasePlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList(new FetchSubPhase() {
+            return Collections.singletonList((FetchContext fetchContext) -> new FetchSubPhaseProcessor() {
                 @Override
-                public String name() {
-                    return "test";
-                }
+                public void setNextReader(LeafReaderContext readerContext) {}
 
                 @Override
-                public String description() {
-                    return "test";
-                }
-
-                @Override
-                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
-                    return new FetchSubPhaseProcessor() {
-                        @Override
-                        public void setNextReader(LeafReaderContext readerContext) {}
-
-                        @Override
-                        public void process(FetchSubPhase.HitContext hitContext) {
-                            if (hitContext.hit().getId().startsWith("boom")) {
-                                throw new RuntimeException("boom");
-                            }
-                        }
-                    };
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    if (hitContext.hit().getId().startsWith("boom")) {
+                        throw new RuntimeException("boom");
+                    }
                 }
             });
         }

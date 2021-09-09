@@ -63,7 +63,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.writeTo(o));
         } else {
             // Before 8.0.0 we only send the query phase
-            out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.getSearch().writeTo(o));
+            out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.getQueryPhase().writeTo(o));
         }
     }
 

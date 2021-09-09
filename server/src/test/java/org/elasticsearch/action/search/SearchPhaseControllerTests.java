@@ -292,7 +292,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 );
                 assertThat( // Some or all shards should have a fetch profile
                     mergedResponse.profile().toString(),
-                    mergedResponse.profile().values().stream().filter(r -> r.getFetch() != null).count(),
+                    mergedResponse.profile().values().stream().filter(r -> r.getFetchPhase() != null).count(),
                     both(greaterThan(0L)).and(lessThanOrEqualTo((long) nShards))
                 );
             } else {

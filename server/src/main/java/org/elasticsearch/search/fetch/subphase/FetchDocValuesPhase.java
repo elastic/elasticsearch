@@ -27,16 +27,6 @@ import java.util.List;
  */
 public final class FetchDocValuesPhase implements FetchSubPhase {
     @Override
-    public String name() {
-        return "doc_values";
-    }
-
-    @Override
-    public String description() {
-        return "fetches doc_values";
-    }
-
-    @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         FetchDocValuesContext dvContext = context.docValuesContext();
         if (dvContext == null) {

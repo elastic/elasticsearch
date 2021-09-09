@@ -408,7 +408,10 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getProfileResults().isEmpty());
-            assertThat(response.getProfileResults().values().stream().filter(sr -> sr.getFetch() != null).collect(toList()), not(empty()));
+            assertThat(
+                response.getProfileResults().values().stream().filter(sr -> sr.getFetchPhase() != null).collect(toList()),
+                not(empty())
+            );
         });
     }
 

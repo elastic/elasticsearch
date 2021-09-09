@@ -25,16 +25,6 @@ import java.util.Map;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
-    public String name() {
-        return "fields";
-    }
-
-    @Override
-    public String description() {
-        return "fetch and normalize fields";
-    }
-
-    @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {

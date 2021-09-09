@@ -1,11 +1,4 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-/*
  * Copyright 2020 Adrien Grand and the lz4-java contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
-
 package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Exception;

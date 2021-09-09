@@ -659,10 +659,33 @@ public final class ThreadContext implements Writeable {
         }
     }
 
+    public interface WithXOpaqueIdInThreadName {
+        String ID_LABEL = " X-Opaque-Id=";
+        default void addLabelToThreadName(ThreadContextStruct context) {
+            String xOpaqueId = context.requestHeaders.get(Task.X_OPAQUE_ID);
+            if (xOpaqueId != null && xOpaqueId.isEmpty() == false) {
+                String originalName = Thread.currentThread().getName();
+
+                assert (originalName.contains(ID_LABEL) == false) :
+                    "Encountered double label of a thread name : " + originalName;
+
+                Thread.currentThread().setName(originalName + ID_LABEL + xOpaqueId);
+            }
+        }
+
+        default void clearThreadNameLabel() {
+            String threadName = Thread.currentThread().getName();
+            if (threadName.contains(ID_LABEL)) {
+                String originalName = threadName.split(ID_LABEL)[0];
+                Thread.currentThread().setName(originalName);
+            }
+        }
+    }
+
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    private class ContextPreservingRunnable implements WrappedRunnable {
+    private class ContextPreservingRunnable implements WrappedRunnable, WithXOpaqueIdInThreadName {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -675,7 +698,10 @@ public final class ThreadContext implements Writeable {
         public void run() {
             try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
+                addLabelToThreadName(threadLocal.get());
                 in.run();
+            } finally {
+                clearThreadNameLabel();
             }
         }
 
@@ -693,7 +719,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable, WithXOpaqueIdInThreadName {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
 
@@ -734,7 +760,12 @@ public final class ThreadContext implements Writeable {
         protected void doRun() throws Exception {
             threadsOriginalContext = stashContext();
             creatorsContext.restore();
-            in.doRun();
+            try {
+                addLabelToThreadName(threadLocal.get());
+                in.doRun();
+            } finally {
+                clearThreadNameLabel();
+            }
         }
 
         @Override

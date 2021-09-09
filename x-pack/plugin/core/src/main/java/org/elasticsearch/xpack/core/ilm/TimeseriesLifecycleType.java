@@ -53,13 +53,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
             ReadOnlyAction.NAME, RollupV2.isEnabled() ? RollupILMAction.NAME : null, ShrinkAction.NAME, ForceMergeAction.NAME,
             SearchableSnapshotAction.NAME)
-        .filter(Objects::nonNull).collect(toList()); // because of ternary
+        .filter(Objects::nonNull).collect(toList());
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
             SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME,
             RollupV2.isEnabled() ? RollupILMAction.NAME : null)
-        .filter(Objects::nonNull).collect(toList()); // because of ternary
+        .filter(Objects::nonNull).collect(toList());
     static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 

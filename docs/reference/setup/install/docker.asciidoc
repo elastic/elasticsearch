@@ -507,7 +507,7 @@ To resolve this error:
 . Delete the `elasticsearch.keystore` directory in the `config` directory.
 . Update the `-v` or `--volume` flag to point to the `config` directory path
   rather than the keystore file's path. For an example, see
-  <<<<docker-keystore-bind-mount>>.
+  <<docker-keystore-bind-mount>>.
 . Retry the command.
 
 ===== elasticsearch.keystore: Device or resource busy
@@ -526,7 +526,7 @@ To resolve this error:
 
 . Update the `-v` or `--volume` flag to point to the `config` directory
   path rather than the keystore file's path. For an example, see
-  <<<<docker-keystore-bind-mount>>.
+  <<docker-keystore-bind-mount>>.
 . Retry the command.
 
 include::next-steps.asciidoc[]

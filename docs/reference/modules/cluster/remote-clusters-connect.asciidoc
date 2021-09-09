@@ -3,7 +3,7 @@
 To connect a remote cluster (Cluster A) to a local cluster (Cluster B), you
 configure Cluster A as a remote on Cluster B.
 
-image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and ClusterB contains the follower index]
+image::images/connect-remote-clusters.png[ClusterA contains the leader index and ClusterB contains the follower index]
 
 To configure a remote cluster from Stack Management in {kib}:
 

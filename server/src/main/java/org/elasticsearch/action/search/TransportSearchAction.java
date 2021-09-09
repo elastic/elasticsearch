@@ -63,6 +63,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -365,7 +366,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             FieldsOptionSourceAdapter adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
             if (searchRequest.isFieldsOptionEmulationEnabled()) {
                 try {
-                    adapter = FieldsOptionSourceAdapter.create(remoteClusterService.getConnection(clusterAlias), searchRequest.source());
+                    Connection connection = remoteClusterService.getConnection(clusterAlias);
+                    adapter = FieldsOptionSourceAdapter.create(connection.getVersion(), searchRequest.source());
                 } catch (NoSuchRemoteClusterException ex) {
                     // no connection version, adapter creation not possible if cluster not connected
                 }
@@ -415,10 +417,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 FieldsOptionSourceAdapter adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
                 if (searchRequest.isFieldsOptionEmulationEnabled()) {
                     try {
-                        adapter = FieldsOptionSourceAdapter.create(
-                            remoteClusterService.getConnection(clusterAlias),
-                            searchRequest.source()
-                        );
+                        Connection connection = remoteClusterService.getConnection(clusterAlias);
+                        adapter = FieldsOptionSourceAdapter.create(connection.getVersion(), searchRequest.source());
                     } catch (NoSuchRemoteClusterException ex) {
                         // don't create fields option adapter in this case
                     }

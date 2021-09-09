@@ -17,7 +17,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.transport.Transport.Connection;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,9 +40,8 @@ interface FieldsOptionSourceAdapter {
     String FIELDS_EMULATION_ERROR_MSG = "Cannot specify both 'fields' and '_source' 'includes' or 'excludes' in"
         + "a search request that is targeting pre version 7.10 nodes.";
 
-    static FieldsOptionSourceAdapter create(Connection connection, SearchSourceBuilder searchSource) {
-        Version version = connection.getVersion();
-        if (version.before(Version.V_7_10_0)) {
+    static FieldsOptionSourceAdapter create(Version connectionVersion, SearchSourceBuilder searchSource) {
+        if (connectionVersion.before(Version.V_7_10_0)) {
             List<FieldAndFormat> fetchFields = searchSource.fetchFields();
             if (fetchFields != null && fetchFields.isEmpty() == false) {
                 String[] includes = fetchFields.stream().map(ff -> ff.field).toArray(i -> new String[i]);

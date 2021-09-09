@@ -10,14 +10,12 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.transport.Transport;
 
 public class FieldsOptionSourceAdapterTests extends ESTestCase {
 
@@ -153,8 +151,7 @@ public class FieldsOptionSourceAdapterTests extends ESTestCase {
         assertEquals(FieldsOptionSourceAdapter.FIELDS_EMULATION_ERROR_MSG, iae.getMessage());
     }
 
-    private Transport.Connection mockConnection(Version version) {
-        DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), version);
-        return new SearchAsyncActionTests.MockConnection(node);
+    private Version mockConnection(Version version) {
+        return version;
     }
 }

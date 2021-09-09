@@ -165,7 +165,7 @@ final class FetchSearchPhase extends SearchPhase {
                               final Transport.Connection connection) {
         final FieldsOptionSourceAdapter adapter;
         if (context.getRequest().isFieldsOptionEmulationEnabled()) {
-            adapter = FieldsOptionSourceAdapter.create(connection, context.getRequest().source());
+            adapter = FieldsOptionSourceAdapter.create(connection.getVersion(), context.getRequest().source());
         } else {
             adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
         }

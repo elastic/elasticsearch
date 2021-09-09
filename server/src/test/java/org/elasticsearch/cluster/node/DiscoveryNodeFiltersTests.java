@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -297,11 +298,22 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
 
     public void testNormalizesIPAddressFilters() {
         Settings settings = shuffleSettings(Settings.builder()
-            .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "fdbd:dc00:111:222:0:0:0:333")
+            .put("xxx." + randomFrom("_ip", "_host_ip"), "fdbd:dc00:111:222:0:0:0:333")
             .build());
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
         DiscoveryNode node = new DiscoveryNode("", "", "", "", "fdbd:dc00:111:222::333", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(true));
+    }
+
+    public void testNormalizesIPAddressFiltersForPublishIp() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx._publish_ip", "fdbd:dc00:111:222:0:0:0:333")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "",
+            new TransportAddress(InetAddresses.forString("fdbd:dc00:111:222::333"), 9300), emptyMap(), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 

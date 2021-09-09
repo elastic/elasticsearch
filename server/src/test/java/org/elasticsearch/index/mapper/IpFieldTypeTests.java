@@ -174,14 +174,16 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper
-            = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).build(new ContentPath()).fieldType();
+            = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
         assertEquals(Collections.singletonList("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(Collections.singletonList("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(Collections.singletonList("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
         MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT)
             .nullValue("2001:db8:0:0:0:0:2:7")
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(Collections.singletonList("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }

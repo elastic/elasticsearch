@@ -9,9 +9,9 @@
 package org.elasticsearch.join.mapper;
 
 import org.elasticsearch.core.List;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +19,9 @@ import java.util.Map;
 public class JoinFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field").build(new ContentPath()).fieldType();
+        MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field")
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, String> parentValue = org.elasticsearch.core.Map.of("relation", "parent");
         assertEquals(List.of(parentValue), fetchSourceValue(fieldType, parentValue));

@@ -34,7 +34,7 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
 
         MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", Version.CURRENT, false, true)
-            .build(new ContentPath()).fieldType();
+            .build(MapperBuilderContext.ROOT).fieldType();
 
         Map<String, Object> jsonLineString = org.elasticsearch.core.Map.of("type", "LineString", "coordinates",
             Arrays.asList(Arrays.asList(42.0, 27.1), Arrays.asList(30.0, 50.0)));

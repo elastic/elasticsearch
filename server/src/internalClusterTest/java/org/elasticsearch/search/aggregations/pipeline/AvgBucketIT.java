@@ -94,9 +94,9 @@ public class AvgBucketIT extends ESIntegTestCase {
     }
 
     private static String randomName() {
-        return randomBoolean() ?
-            randomAlphaOfLengthBetween(3, 12) :
-            randomAlphaOfLengthBetween(3, 6) + "." + randomAlphaOfLengthBetween(3, 6);
+        return randomBoolean()
+            ? randomAlphaOfLengthBetween(3, 12)
+            : randomAlphaOfLengthBetween(3, 6) + "." + randomAlphaOfLengthBetween(3, 6);
     }
 
     public void testDocCountTopLevel() throws Exception {
@@ -139,7 +139,8 @@ public class AvgBucketIT extends ESIntegTestCase {
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
                             .extendedBounds(minRandomValue, maxRandomValue)
                     )
                     .subAggregation(avgBucket("avg_bucket", histoName + ">_count"))
@@ -355,7 +356,8 @@ public class AvgBucketIT extends ESIntegTestCase {
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
                             .extendedBounds(minRandomValue, maxRandomValue)
                     )
                     .subAggregation(avgBucket("avg_histo_bucket", histoName + ">_count"))

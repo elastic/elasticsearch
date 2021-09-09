@@ -29,7 +29,9 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
-public class RateLimitingFilter extends AbstractFilter {
+public class RateLimitingFilter extends AbstractFilter  {
+
+    private boolean useXOpaqueId = false;
 
     private final Set<String> lruKeyCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override
@@ -57,14 +59,21 @@ public class RateLimitingFilter extends AbstractFilter {
         if (message instanceof ESLogMessage) {
             final ESLogMessage esLogMessage = (ESLogMessage) message;
 
-            String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
-            final String key = esLogMessage.get(KEY_FIELD_NAME);
-
-            return lruKeyCache.add(xOpaqueId + key) ? Result.ACCEPT : Result.DENY;
+            final String key = getKey(esLogMessage);
+            return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
 
         } else {
             return Result.NEUTRAL;
         }
+    }
+
+    private String getKey(ESLogMessage esLogMessage) {
+        final String key = esLogMessage.get(KEY_FIELD_NAME);
+        if (useXOpaqueId) {
+            String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
+            return xOpaqueId + key;
+        }
+        return key;
     }
 
     @Override
@@ -83,5 +92,9 @@ public class RateLimitingFilter extends AbstractFilter {
         @PluginAttribute("onMismatch") final Result mismatch
     ) {
         return new RateLimitingFilter(match, mismatch);
+    }
+
+    public void setUseXOpaqueId(boolean useXOpaqueId) {
+        this.useXOpaqueId = useXOpaqueId;
     }
 }

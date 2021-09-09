@@ -64,7 +64,7 @@ public class RestGetSourceAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type"); // consume and ignore the type
-            deprecationLogger.compatibleApiWarning("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));

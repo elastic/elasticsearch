@@ -615,7 +615,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (int i = 0; i < nameParts.length - 1; ++i) {
             path.add(nameParts[i]);
         }
-        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(path);
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(MapperBuilderContext.forPath(path));
     }
 
     public void testEmptyMappingUpdate() throws Exception {

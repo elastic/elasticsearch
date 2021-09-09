@@ -211,6 +211,13 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                 .get();
         assertTrue(response.hasFailures());
         assertThat(response.buildFailureMessage(), containsString("Invalid type: expecting [_doc] but got [type]"));
+
+        client().prepareIndex("bulk_with_wrong_type", "_doc", "1")
+            .setSource("{\"foo\":\"value\"}", XContentType.JSON)
+            .get();
+        e = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareDelete("bulk_with_wrong_type", "type", "1").get());
+        assertEquals("Invalid type: expecting [_doc] but got [type]", e.getMessage());
     }
 
 }

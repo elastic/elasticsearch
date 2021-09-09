@@ -992,6 +992,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // TODO: clean this up when types are gone
         String resolvedType = mapperService.resolveDocumentType(type);
         try {
+            mapperService.validateType(type);
             DocumentMapper documentMapper = mapperService.documentMapper(resolvedType);
             if (documentMapper == null) {
                 documentMapper = DocumentMapper.createEmpty(resolvedType, mapperService);

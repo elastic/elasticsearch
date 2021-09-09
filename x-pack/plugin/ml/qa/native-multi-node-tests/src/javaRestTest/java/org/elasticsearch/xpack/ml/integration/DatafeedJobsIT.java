@@ -368,7 +368,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                         .fixedInterval(new DateHistogramInterval("1h"))
                         .field("time")
                 )
-            ).subAggregation(AggregationBuilders.max("time").field("time"))
+            // Set size to 1 so that start stop actually doesn't page through all the results too quickly
+            ).subAggregation(AggregationBuilders.max("time").field("time")).size(1)
         );
         DatafeedConfig compositeDatafeedConfig = createDatafeedBuilder(
             compositeJobId + "-datafeed",
@@ -376,8 +377,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             Collections.singletonList(indexName))
             .setParsedAggregations(aggs)
             .setFrequency(TimeValue.timeValueHours(1))
-            // Start off chunking at an hour so that it runs more slowly and the test has time to stop it in the middle of processing
-            .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
             .build();
         putDatafeed(compositeDatafeedConfig);
         startDatafeed(compositeDatafeedConfig.getId(), 0L, null);
@@ -390,10 +389,20 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         );
         // If we are not OPENED, then we are closed and shouldn't restart as the datafeed finished running through the data
         if (getJobStats(compositeJobId).get(0).getState().equals(JobState.OPENED)) {
+            aggs = new AggregatorFactories.Builder();
+            aggs.addAggregator(
+                AggregationBuilders.composite(
+                    "buckets",
+                    Collections.singletonList(
+                        new DateHistogramValuesSourceBuilder("timebucket")
+                            .fixedInterval(new DateHistogramInterval("1h"))
+                            .field("time")
+                    )
+                ).subAggregation(AggregationBuilders.max("time").field("time")).size(100)
+            );
             updateDatafeed(new DatafeedUpdate.Builder()
                 .setId(compositeDatafeedConfig.getId())
-                // Set to auto to speed up and finish the job
-                .setChunkingConfig(ChunkingConfig.newAuto())
+                .setParsedAggregations(aggs)
                 .build());
             startDatafeed(
                 compositeDatafeedConfig.getId(),
@@ -405,10 +414,16 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         List<Bucket> scrollBuckets = getBuckets(scrollJobId);
         List<Bucket> compositeBuckets = getBuckets(compositeJobId);
+        assertThat(
+            "scroll bucket size " + scrollBuckets + " does not equal composite bucket size" + compositeBuckets,
+            compositeBuckets.size(),
+            equalTo(scrollBuckets.size())
+        );
         for (int i = 0; i < scrollBuckets.size(); i++) {
             Bucket scrollBucket = scrollBuckets.get(i);
             Bucket compositeBucket = compositeBuckets.get(i);
             try {
+                assertThat(compositeBucket.getTimestamp(), equalTo(scrollBucket.getTimestamp()));
                 assertThat(
                     "composite bucket [" + compositeBucket.getTimestamp() + "] [" + compositeBucket.getEventCount() + "] does not equal"
                         + " scroll bucket [" + scrollBucket.getTimestamp() + "] [" + scrollBucket.getEventCount() + "]",

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -25,7 +24,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
 public class ReleaseNotesGeneratorTest {
 
     /**
@@ -38,6 +36,7 @@ public class ReleaseNotesGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
         );
+
         final Map<QualifiedVersion, Set<ChangelogEntry>> entries = getEntries();
 
         // when:

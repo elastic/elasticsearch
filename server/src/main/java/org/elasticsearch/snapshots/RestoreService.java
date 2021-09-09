@@ -401,7 +401,7 @@ public class RestoreService implements ClusterStateApplier {
         // log a deprecation warning if the any of the indexes to delete were included in the request and the snapshot
         // is from a version that should have feature states
         if (snapshotInfo.version().onOrAfter(Version.V_7_12_0) && explicitlyRequestedSystemIndices.isEmpty() == false) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.API,
                 "restore-system-index-from-snapshot",
                 "Restoring system indices by name is deprecated. Use feature states instead. System indices: "

@@ -406,7 +406,7 @@ instead. The command must:
 
 * Bind-mount the `config` directory. The command will create an
   `elasticsearch.keystore` file in this directory. To avoid errors, do
-  not directly bind-mount the `elasticsearch.keystore` file's path.
+  not directly bind-mount the `elasticsearch.keystore` file.
 * Use the `elasticsearch-keystore` tool with the `create` option.
 * Provide a keystore password using the `KEYSTORE_PASSWORD` or
   `KEYSTORE_PASSWORD_FILE` environment variables. Alternatively, you can use

@@ -24,10 +24,10 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.enrollment.EnrollmentToken;
+import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -36,7 +36,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreAwareCommand {

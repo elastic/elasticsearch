@@ -29,7 +29,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationsTests;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
@@ -104,7 +104,7 @@ public class SearchResponseTests extends ESTestCase {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
             InternalAggregations aggregations = aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
+            SearchProfileResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
             internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,
                 timedOut, terminatedEarly, numReducePhases);
         } else {

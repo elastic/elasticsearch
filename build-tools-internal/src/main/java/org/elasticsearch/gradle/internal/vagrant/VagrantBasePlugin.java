@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.vagrant;
 
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.internal.InternalReaperPlugin;
+import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -17,7 +18,12 @@ import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.build.event.BuildEventsListenerRegistry;
+import org.gradle.tooling.events.OperationCompletionListener;
+import org.gradle.tooling.events.task.TaskFailureResult;
+import org.gradle.tooling.events.task.TaskOperationDescriptor;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -112,14 +118,29 @@ public class VagrantBasePlugin implements Plugin<Project> {
     /**
      * Adds global hooks to manage destroying, starting and updating VMs.
      */
-    static class VagrantManagerPlugin implements Plugin<Project>, TaskActionListener, TaskExecutionListener {
+    static class VagrantManagerPlugin implements Plugin<Project> {
+
+        private BuildEventsListenerRegistry buildEventsListenerRegistry;
+
+        @Inject
+        VagrantManagerPlugin(BuildEventsListenerRegistry buildEventsListenerRegistry) {
+            this.buildEventsListenerRegistry = buildEventsListenerRegistry;
+        }
 
         @Override
         public void apply(Project project) {
-            if (project != project.getRootProject()) {
-                throw new IllegalArgumentException("VagrantManagerPlugin can only be applied to the root project of a build");
-            }
-            project.getGradle().addListener(this);
+
+            OperationCompletionListener completionListener = finishEvent -> {
+                TaskOperationDescriptor descriptor = (TaskOperationDescriptor) finishEvent.getDescriptor();
+                descriptor.getTaskPath();
+                Task task = project.getGradle().getTaskGraph().getAllTasks().stream()
+                        .filter(t -> t.getPath().equals(descriptor.getTaskPath()))
+                        .findFirst()
+                        .get();
+                        callIfVagrantTask(task, service -> service.maybeStopVM(finishEvent.getResult() instanceof TaskFailureResult));
+            };
+
+            buildEventsListenerRegistry.onTaskCompletion(project.getProviders().provider(() -> completionListener));
         }
 
         private void callIfVagrantTask(Task task, Consumer<VagrantMachine> method) {
@@ -127,22 +148,6 @@ public class VagrantBasePlugin implements Plugin<Project> {
                 VagrantMachine service = task.getProject().getExtensions().getByType(VagrantMachine.class);
                 method.accept(service);
             }
-        }
-
-        @Override
-        public void beforeExecute(Task task) { /* nothing to do */}
-
-        @Override
-        public void afterActions(Task task) { /* nothing to do */ }
-
-        @Override
-        public void beforeActions(Task task) {
-            callIfVagrantTask(task, VagrantMachine::maybeStartVM);
-        }
-
-        @Override
-        public void afterExecute(Task task, TaskState state) {
-            callIfVagrantTask(task, service -> service.maybeStopVM(state.getFailure() != null));
         }
     }
 

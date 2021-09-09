@@ -113,6 +113,15 @@ public class PValueScore extends NXYSignificanceHeuristic {
             return 0.0;
         }
 
+        // casting to `long` to round down to nearest whole number
+        double epsAllDocsInClass = (long)eps(allDocsInClass);
+        double epsAllDocsNotInClass = (long)eps(allDocsNotInClass);
+
+        docsContainTermInClass += epsAllDocsInClass;
+        docsContainTermNotInClass += epsAllDocsNotInClass;
+        allDocsInClass += epsAllDocsInClass;
+        allDocsNotInClass += epsAllDocsNotInClass;
+
         // Adjust counts to ignore ratio changes which are less than 5%
         // casting to `long` to round down to nearest whole number
         docsContainTermNotInClass = (long)(Math.min(
@@ -120,41 +129,34 @@ public class PValueScore extends NXYSignificanceHeuristic {
             docsContainTermInClass / allDocsInClass * allDocsNotInClass
         ) + 0.5);
 
-        // casting to `long` to round down to nearest whole number
-        double epsAllDocsInClass = (long)eps(allDocsInClass);
-        double epsAllDocsNotInClass = (long)eps(allDocsNotInClass);
-
-        if ((allDocsInClass + epsAllDocsInClass) > Long.MAX_VALUE
-            || (docsContainTermInClass + epsAllDocsInClass) > Long.MAX_VALUE
-            || (allDocsNotInClass + epsAllDocsNotInClass) > Long.MAX_VALUE
-            || (docsContainTermNotInClass + epsAllDocsNotInClass) > Long.MAX_VALUE) {
+        if (allDocsInClass > Long.MAX_VALUE
+            || docsContainTermInClass > Long.MAX_VALUE
+            || allDocsNotInClass > Long.MAX_VALUE
+            || docsContainTermNotInClass > Long.MAX_VALUE) {
             throw new AggregationExecutionException(
                 "too many documents in background and foreground sets, further restrict sets for execution"
             );
         }
 
         double v1 = new LongBinomialDistribution(
-            (long)(allDocsInClass + epsAllDocsInClass),
-            (docsContainTermInClass + epsAllDocsInClass)/(allDocsInClass + epsAllDocsInClass)
-        ).logProbability((long)(docsContainTermInClass + epsAllDocsInClass));
+            (long)allDocsInClass, docsContainTermInClass / allDocsInClass
+        ).logProbability((long)docsContainTermInClass);
 
         double v2 = new LongBinomialDistribution(
-            (long)(allDocsNotInClass + epsAllDocsNotInClass),
-            (docsContainTermNotInClass + epsAllDocsNotInClass)/(allDocsNotInClass + epsAllDocsNotInClass)
-        ).logProbability((long)(docsContainTermNotInClass + epsAllDocsNotInClass));
+            (long)allDocsNotInClass, docsContainTermNotInClass / allDocsNotInClass
+        ).logProbability((long)docsContainTermNotInClass);
 
-        double p2 = (docsContainTermInClass + docsContainTermNotInClass + epsAllDocsNotInClass + epsAllDocsInClass)
-            / (allDocsInClass + allDocsNotInClass + epsAllDocsNotInClass + epsAllDocsInClass);
+        double p2 = (docsContainTermInClass + docsContainTermNotInClass) / (allDocsInClass + allDocsNotInClass);
 
-        double v3 = new LongBinomialDistribution((long)(allDocsInClass + epsAllDocsInClass), p2)
-            .logProbability((long)(docsContainTermInClass + epsAllDocsInClass));
+        double v3 = new LongBinomialDistribution((long)allDocsInClass, p2)
+            .logProbability((long)docsContainTermInClass);
 
-        double v4 = new LongBinomialDistribution((long)(allDocsNotInClass + epsAllDocsNotInClass), p2)
-            .logProbability((long)(docsContainTermNotInClass + epsAllDocsNotInClass));
+        double v4 = new LongBinomialDistribution((long)allDocsNotInClass, p2)
+            .logProbability((long)docsContainTermNotInClass);
 
         double logLikelihoodRatio = v1 + v2 - v3 - v4;
         double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio);
-        return -FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL));
+        return FastMath.max(-FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL)), 0.0);
     }
 
     private double eps(double value) {

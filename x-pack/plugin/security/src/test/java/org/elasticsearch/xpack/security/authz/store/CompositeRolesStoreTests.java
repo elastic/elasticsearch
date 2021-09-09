@@ -6,17 +6,24 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,6 +46,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -60,6 +68,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -67,11 +76,16 @@ import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
+import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -101,6 +115,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -129,6 +144,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
             .build();
 
+    private final IndexNameExpressionResolver resolver = TestRestrictedIndices.RESOLVER;
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
         RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
@@ -363,7 +379,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
             reservedRolesStore, mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(settings),
             new XPackLicenseState(() -> 0), cache, mock(ApiKeyService.class),
-            mock(ServiceAccountService.class), documentSubsetBitsetCache,
+            mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
             rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -404,7 +420,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(() -> 0), cache, mock(ApiKeyService.class),
-                mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -493,7 +509,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                                 mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, inMemoryProvider2),
                                 new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(() -> 0),
-                                cache, mock(ApiKeyService.class), mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                                cache, mock(ApiKeyService.class), mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                                 rds -> effectiveRoleDescriptors.set(rds));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
@@ -555,7 +571,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }, null);
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
         PlainActionFuture<Role> future = new PlainActionFuture<>();
-        CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(flsRole, addsL1Fields), cache, null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            Sets.newHashSet(flsRole, addsL1Fields), cache, null, RESTRICTED_INDICES_AUTOMATON, future);
         Role role = future.actionGet();
 
         Metadata metadata = Metadata.builder()
@@ -652,7 +669,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             listener.onResponse(set);
             return null;
         }).when(privilegeStore).getPrivileges(anyCollectionOf(String.class), anyCollectionOf(String.class), anyActionListener());
-        CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, future);
+        CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore,
+            RESTRICTED_INDICES_AUTOMATON, future);
         Role role = future.actionGet();
 
         assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3), authentication), equalTo(true));
@@ -725,7 +743,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, failingProvider),
                 new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(() -> 0),
                 cache, mock(ApiKeyService.class), mock(ServiceAccountService.class),
-                documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
+                documentSubsetBitsetCache, resolver, rds -> effectiveRoleDescriptors.set(rds));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -775,7 +793,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
             mock(ApiKeyService.class), mock(ServiceAccountService.class),
-            documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
+            documentSubsetBitsetCache, resolver, rds -> effectiveRoleDescriptors.set(rds));
 
         Set<String> roleNames = Sets.newHashSet("roleA");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -791,7 +809,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
             mock(ApiKeyService.class), mock(ServiceAccountService.class),
-            documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
+            documentSubsetBitsetCache, resolver, rds -> effectiveRoleDescriptors.set(rds));
         // these licenses allow custom role providers
         xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), true,
             Long.MAX_VALUE);
@@ -810,7 +828,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
             mock(ApiKeyService.class), mock(ServiceAccountService.class),
-            documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
+            documentSubsetBitsetCache, resolver, rds -> effectiveRoleDescriptors.set(rds));
         xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), false,
             Long.MAX_VALUE);
         roleNames = Sets.newHashSet("roleA");
@@ -845,7 +863,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(Settings.EMPTY),
                 new XPackLicenseState(() -> 0), cache, mock(ApiKeyService.class),
-                mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                 rds -> {}) {
             @Override
             public void invalidateAll() {
@@ -900,7 +918,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(() -> 0), cache, mock(ApiKeyService.class),
-            mock(ServiceAccountService.class), documentSubsetBitsetCache, rds -> {}) {
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver, rds -> {}) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();
@@ -1001,7 +1019,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(() -> 0), cache, mock(ApiKeyService.class),
-                mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -1010,7 +1028,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Authentication auth = new Authentication(XPackUser.INSTANCE, new RealmRef("name", "type", "node"), null);
         compositeRolesStore.getRoles(XPackUser.INSTANCE, auth, rolesFuture);
         Role roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(XPackUser.ROLE));
+        assertThat(roles, equalTo(compositeRolesStore.getXpackUserRole()));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
 
@@ -1019,7 +1037,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         auth = new Authentication(AsyncSearchUser.INSTANCE, new RealmRef("name", "type", "node"), null);
         compositeRolesStore.getRoles(AsyncSearchUser.INSTANCE, auth, rolesFuture);
         roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(AsyncSearchUser.ROLE));
+        assertThat(roles, equalTo(compositeRolesStore.getAsyncSearchUserRole()));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
     }
@@ -1044,7 +1062,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(() -> 0), cache, mock(ApiKeyService.class),
-                mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -1085,7 +1103,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(() -> 0), cache, apiKeyService,
-                mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
@@ -1141,7 +1159,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(() -> 0), cache, apiKeyService,
-                mock(ServiceAccountService.class), documentSubsetBitsetCache,
+                mock(ServiceAccountService.class), documentSubsetBitsetCache, resolver,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
@@ -1283,6 +1301,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             apiKeyService,
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
+            resolver,
             rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
         final BytesArray roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
@@ -1368,6 +1387,110 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
     }
 
+    public void testXPackUserCanAccessNonRestrictedIndices() {
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
+            IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
+            if (false == restrictedAutomaton.run(index.getName())) {
+                assertThat(predicate.test(index), Matchers.is(true));
+            }
+            index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
+            if (false == restrictedAutomaton.run(index.getName())) {
+                assertThat(predicate.test(index), Matchers.is(true));
+            }
+        }
+    }
+
+    public void testXPackUserCannotAccessSecurityOrAsyncSearch() {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
+            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+                assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
+            }
+            assertThat(predicate.test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+                Matchers.is(false));
+        }
+    }
+
+    public void testXPackUserCanReadAuditTrail() {
+        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
+        final Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
+        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(true));
+    }
+
+    public void testXPackUserCannotWriteToAuditTrail() {
+        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
+        final Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
+        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
+    }
+
+    public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
+            IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
+            if (false == restrictedAutomaton.run(index.getName())) {
+                assertThat(predicate.test(index), Matchers.is(false));
+            }
+            index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
+            if (false == restrictedAutomaton.run(index.getName())) {
+                assertThat(predicate.test(index), Matchers.is(false));
+            }
+        }
+    }
+
+    public void testAsyncSearchUserCanAccessOnlyAsyncSearchRestrictedIndices() {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
+            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+                assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
+            }
+            assertThat(predicate.test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 3))),
+                Matchers.is(true));
+        }
+    }
+
+    public void testAsyncSearchUserHasNoClusterPrivileges() {
+        for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
+            assertThat(getAsyncSearchUserRole().cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
+                Matchers.is(false));
+        }
+    }
+
+    // async search can't read/write audit trail
+    public void testAsyncSearchUserCannotReadAuditTrail() {
+        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
+        final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
+        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
+    }
+
+    public void testAsyncSearchUserCannotWriteToAuditTrail() {
+        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
+        final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
+        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
+    }
+
+
+    public void testXpackUserHasClusterPrivileges() {
+        for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
+            assertThat(getXPackUserRole().cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
+                Matchers.is(true));
+        }
+    }
+
+    private Role getXPackUserRole() {
+        CompositeRolesStore compositeRolesStore =
+            buildCompositeRolesStore(SECURITY_ENABLED_SETTINGS, null, null, null, null, null, null, null, null, null);
+        return compositeRolesStore.getXpackUserRole();
+    }
+
+    private Role getAsyncSearchUserRole() {
+        CompositeRolesStore compositeRolesStore =
+            buildCompositeRolesStore(SECURITY_ENABLED_SETTINGS, null, null, null, null, null, null, null, null, null);
+        return compositeRolesStore.getAsyncSearchUserRole();
+    }
+
     private CompositeRolesStore buildCompositeRolesStore(Settings settings,
                                                          @Nullable FileRolesStore fileRolesStore,
                                                          @Nullable NativeRolesStore nativeRolesStore,
@@ -1424,7 +1547,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
         return new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore, privilegeStore,
             Collections.emptyList(), new ThreadContext(settings), licenseState, cache, apiKeyService,
-            serviceAccountService, documentSubsetBitsetCache, roleConsumer);
+            serviceAccountService, documentSubsetBitsetCache, resolver, roleConsumer);
     }
 
     private DocumentSubsetBitsetCache buildBitsetCache() {
@@ -1462,6 +1585,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
         }
+    }
+
+    private String getAuditLogName() {
+        final DateTime date = new DateTime().plusDays(randomIntBetween(1, 360));
+        final IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
+        return IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, date, rollover);
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

@@ -36,12 +36,14 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
+import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -228,6 +230,10 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     public void infer(TrainedModelDeploymentTask task, Map<String, Object> doc, TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
         deploymentManager.infer(task, doc, timeout, listener);
+    }
+
+    public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
+        return deploymentManager.getStats(task);
     }
 
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {

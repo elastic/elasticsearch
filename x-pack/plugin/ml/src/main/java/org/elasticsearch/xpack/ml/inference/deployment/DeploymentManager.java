@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
@@ -49,8 +49,11 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -83,6 +86,15 @@ public class DeploymentManager {
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
         doStartDeployment(task, listener);
+    }
+
+    public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
+        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
+            .map(processContext ->
+                new ModelStats(processContext.resultProcessor.getTimingStats(),
+                    processContext.resultProcessor.getLastUsed(),
+                    (long)processContext.getModelSizeBytes())
+            );
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
@@ -120,12 +132,12 @@ public class DeploymentManager {
                 assert modelConfig.getInferenceConfig() instanceof NlpConfig;
                 NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
 
-                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig());
+                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
                     searchVocabResponse -> {
                         if (searchVocabResponse.getHits().getHits().length == 0) {
                             listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
-                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), nlpConfig.getVocabularyConfig().getId())));
+                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), VocabularyConfig.docId(modelConfig.getModelId()))));
                             return;
                         }
 
@@ -149,9 +161,9 @@ public class DeploymentManager {
             getModelListener);
     }
 
-    private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig) {
+    private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
         return client.prepareSearch(vocabularyConfig.getIndex())
-            .setQuery(new IdsQueryBuilder().addIds(vocabularyConfig.getId()))
+            .setQuery(new IdsQueryBuilder().addIds(VocabularyConfig.docId(modelId)))
             .setSize(1)
             .setTrackTotalHits(false)
             .request();
@@ -222,7 +234,10 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
+                    // The request builder expect a list of inputs which are then batched.
+                    // TODO batching was implemented for expected use-cases such as zero-shot
+                    // classification but is not used here.
+                    List<String> text = Collections.singletonList(NlpTask.extractInput(processContext.modelInput.get(), doc));
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
                     NlpTask.Request request = processor.getRequestBuilder().buildRequest(text, requestId);
@@ -245,7 +260,7 @@ public class DeploymentManager {
 
     private void waitForResult(ProcessContext processContext,
                                PyTorchResultProcessor.PendingResult pendingResult,
-                               BertTokenizer.TokenizationResult tokenization,
+                               TokenizationResult tokenization,
                                String requestId,
                                TimeValue timeout,
                                NlpTask.ResultProcessor inferenceResultsProcessor,
@@ -293,6 +308,16 @@ public class DeploymentManager {
             resultProcessor = new PyTorchResultProcessor(modelId);
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
             this.taskId = taskId;
+        }
+
+        /**
+         * A value of -1 means the size is unknown. Most likely
+         * because the model has not been loaded yet or the load
+         * failed.
+         * @return size in bytes or -1
+         */
+        int getModelSizeBytes() {
+            return stateStreamer.getModelSize();
         }
 
         synchronized void startProcess() {

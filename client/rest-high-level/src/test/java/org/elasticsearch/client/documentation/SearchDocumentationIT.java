@@ -89,7 +89,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -499,15 +499,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults =
+            Map<String, SearchProfileQueryPhaseResult> profilingResults =
                     searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
+            for (Map.Entry<String, SearchProfileQueryPhaseResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
-                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+                SearchProfileQueryPhaseResult profileShardResult = profilingResult.getValue(); // <4>
             }
             // end::search-request-profiling-get
 
-            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            SearchProfileQueryPhaseResult profileShardResult = profilingResults.values().iterator().next();
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries

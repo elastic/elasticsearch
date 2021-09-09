@@ -77,8 +77,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
          * {@link FilterByFilterAggregator} into another sort of aggregator
          * if required.
          */
-        protected abstract T adapt(CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate)
-            throws IOException;
+        protected abstract T adapt(CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate) throws IOException;
 
         public final void add(String key, Query query) throws IOException {
             if (valid == false) {
@@ -269,8 +268,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             }
 
             @Override
-            public void setScorer(Scorable scorer) throws IOException {
-            }
+            public void setScorer(Scorable scorer) throws IOException {}
         }
         MatchCollector collector = new MatchCollector();
         filters().get(0).collect(ctx, collector, live);

@@ -52,6 +52,12 @@ public class NodeSeenService implements ClusterStateListener {
         }
 
         NodesShutdownMetadata eventShutdownMetadata = event.state().metadata().custom(NodesShutdownMetadata.TYPE);
+
+        if (eventShutdownMetadata == null) {
+            // Since there's no shutdown metadata at all, we know no shutdowns have ever been registered and we can bail.
+            return;
+        }
+
         final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAllNodeMetadataMap()
             .values()
             .stream()

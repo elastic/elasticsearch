@@ -50,7 +50,7 @@ import javax.net.ssl.TrustManagerFactory;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static org.elasticsearch.packaging.util.Docker.sh;
+import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -74,7 +74,7 @@ public class ServerUtils {
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
-            final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            final Optional<String> commandLine = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
                 .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
                 .findFirst();
             if (commandLine.isPresent() == false) {
@@ -331,6 +331,28 @@ public class ServerUtils {
         try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
             lines = allLines.filter(s -> s.startsWith("xpack.security.enabled") == false).collect(Collectors.toList());
         }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void disableSecurityAutoConfiguration(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: false");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+        }
+        lines.addAll(addedLines);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void enableSecurityAutoConfiguration(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: true");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+        }
+        lines.addAll(addedLines);
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 }

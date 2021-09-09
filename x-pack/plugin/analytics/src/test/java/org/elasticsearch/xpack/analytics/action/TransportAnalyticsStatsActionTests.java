@@ -50,13 +50,17 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
 
-
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
-        return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool,
-                new ActionFilters(Collections.emptySet()), usage);
+        return new TransportAnalyticsStatsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            usage
+        );
     }
 
     public void test() throws IOException {
@@ -78,10 +82,13 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {
         AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
         List<AnalyticsStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-                .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request), null))
-                .collect(toList());
+            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request), null))
+            .collect(toList());
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
-                new ClusterName("cluster_name"), nodeResponses, emptyList());
+            new ClusterName("cluster_name"),
+            nodeResponses,
+            emptyList()
+        );
 
         AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
         try (XContentBuilder builder = jsonBuilder()) {

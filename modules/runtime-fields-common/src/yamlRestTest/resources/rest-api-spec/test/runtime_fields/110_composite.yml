@@ -102,3 +102,19 @@ query:
   - match: {aggregations.response.buckets.0.doc_count: 5 }
   - match: {aggregations.response.buckets.1.key: 304 }
   - match: {aggregations.response.buckets.1.doc_count: 1 }
+
+---
+"Field caps with composite runtime mappings section. Issue 76742":
+
+  - skip:
+      version: " - 7.14.99"
+      reason: Composite Runtime mappings support was added in 7.15
+
+  - do:
+      field_caps:
+        index: http_logs
+        fields: "*"
+
+  - match: {indices:                             ["http_logs"]}
+  - match: {fields.http\.response.long.type:       long}
+  - match: {fields.http\.clientip.ip.type:         ip}

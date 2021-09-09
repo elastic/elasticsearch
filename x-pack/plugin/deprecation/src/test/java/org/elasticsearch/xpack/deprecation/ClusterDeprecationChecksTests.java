@@ -90,8 +90,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "User-Agent ingest plugin will always use ECS-formatted output",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                "#ingest-user-agent-ecs-always",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/user-agent-processor.html#user-agent-processor",
             "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0", false, null);
         assertEquals(singletonList(expected), issues);
     }
@@ -234,7 +233,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             assertEquals(1, issues.size());
             DeprecationIssue issue = issues.get(0);
             assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
-            assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
+            assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names"
                     , issue.getUrl());
             assertEquals("Index templates contain _field_names settings.", issue.getMessage());
             assertEquals("Index templates [" + badTemplateName + "] "
@@ -340,7 +339,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%b], remove this setting",
                 settingKey,

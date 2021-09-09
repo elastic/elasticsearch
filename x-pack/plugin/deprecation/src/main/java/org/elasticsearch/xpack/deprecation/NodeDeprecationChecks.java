@@ -218,7 +218,7 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "File and/or native realms are enabled by default in next major release.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-7.13.html#breaking-changes-7.13",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/migrating-7.13.html#breaking_713_security_changes",
             details,
             false,
             null

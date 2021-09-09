@@ -49,10 +49,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RankFeaturesFieldMapper build(ContentPath contentPath) {
+        public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                    name, new RankFeaturesFieldType(buildFullName(contentPath), meta.getValue(), positiveScoreImpact.getValue()),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), positiveScoreImpact.getValue());
+                    name, new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
         }
     }
 

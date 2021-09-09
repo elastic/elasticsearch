@@ -171,16 +171,16 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public CompletionFieldMapper build(ContentPath contentPath) {
+        public CompletionFieldMapper build(MapperBuilderContext context) {
             checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(this.searchAnalyzer.getValue().name(), AnalyzerScope.INDEX,
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue()));
 
             CompletionFieldType ft
-                = new CompletionFieldType(buildFullName(contentPath), completionAnalyzer, meta.getValue());
+                = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
             return new CompletionFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         private void checkCompletionContextsLimit() {

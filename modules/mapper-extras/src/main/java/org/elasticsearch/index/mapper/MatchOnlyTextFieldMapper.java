@@ -96,18 +96,19 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return List.of(meta);
         }
 
-        private MatchOnlyTextFieldType buildFieldType(ContentPath contentPath) {
+        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
-            return new MatchOnlyTextFieldType(buildFullName(contentPath), tsi, indexAnalyzer, meta.getValue());
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(context.buildFullName(name), tsi, indexAnalyzer, meta.getValue());
+            return ft;
         }
 
         @Override
-        public MatchOnlyTextFieldMapper build(ContentPath contentPath) {
-            MatchOnlyTextFieldType tft = buildFieldType(contentPath);
-            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+        public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
+            MatchOnlyTextFieldType tft = buildFieldType(context);
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             return new MatchOnlyTextFieldMapper(
                 name,
                 Defaults.FIELD_TYPE,

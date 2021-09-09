@@ -22,11 +22,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
 
 import java.io.IOException;
 import java.io.InputStream;

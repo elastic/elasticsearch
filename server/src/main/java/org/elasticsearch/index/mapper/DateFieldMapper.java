@@ -304,11 +304,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DateFieldMapper build(ContentPath contentPath) {
-            DateFieldType ft = new DateFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), docValues.getValue(),
+        public DateFieldMapper build(MapperBuilderContext context) {
+            DateFieldType ft = new DateFieldType(context.buildFullName(name()), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), scriptValues(), meta.getValue());
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
         }
     }

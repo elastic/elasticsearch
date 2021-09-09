@@ -88,9 +88,9 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("log.level", "WARN"),
-                    hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
-                    hasEntry("elasticsearch.event.category", "other"),
+                    hasEntry("level", "WARN"),
+                    hasEntry("component", "o.e.d.test"),
+//                    hasEntry("category", "other"), fix this..
                     hasEntry("message", "deprecated warn message1")
                     ))
             );
@@ -112,7 +112,7 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation.elasticsearch"),
-                    hasEntry("level", "DEPRECATION"),
+                    hasEntry("level", "CRITICAL"),
                     hasEntry("component", "o.e.d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
@@ -150,7 +150,7 @@ public class JsonLoggerTests extends ESTestCase {
                         // deprecation log for field deprecated_name
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
-                            hasEntry("level", "DEPRECATION"),
+                            hasEntry("level", "CRITICAL"),
                             hasEntry("component", "o.e.d.c.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -161,7 +161,7 @@ public class JsonLoggerTests extends ESTestCase {
                         ),
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
-                            hasEntry("level", "DEPRECATION"),
+                            hasEntry("level", "CRITICAL"),
                             hasEntry("component", "o.e.d.c.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -215,63 +215,6 @@ public class JsonLoggerTests extends ESTestCase {
             assertWarnings("deprecated message1");
         });
     }
-
-//    public void testBuildingMessage() throws IOException {
-//
-//        final Logger testLogger = LogManager.getLogger("test");
-//
-//        testLogger.info(new ESLogMessage("some message {} {}", "value0")
-//                                    .argAndField("key1","value1")
-//                                    .field("key2","value2"));
-//
-//        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-//            System.getProperty("es.logs.cluster_name") + ".json");
-//        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-//            List<Map<String, String>> jsonLogs = stream
-//                .collect(Collectors.toList());
-//
-//            assertThat(jsonLogs, contains(
-//                allOf(
-//                    hasEntry("event.dataset", "elasticsearch.file"),
-//                    hasEntry("log.level", "INFO"),
-//                    hasEntry("log.logger", "test"),
-//                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
-//                    hasEntry("elasticsearch.node.name", "sample-name"),
-//                    hasEntry("message", "some message value0 value1"),
-//                    hasEntry("key1", "value1"),
-//                    hasEntry("key2", "value2"))
-//                )
-//            );
-//        }
-//    }
-//
-//    public void testCustomMessageWithMultipleFields() throws IOException {
-//        // If a field is defined to be overridden, it has to always be overridden in that appender.
-//        final Logger testLogger = LogManager.getLogger("test");
-//        testLogger.info(new ESLogMessage("some message")
-//                                    .with("field1","value1")
-//                                    .with("field2","value2"));
-//
-//        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-//            System.getProperty("es.logs.cluster_name") + ".json");
-//        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-//            List<Map<String, String>> jsonLogs = stream
-//                .collect(Collectors.toList());
-//
-//            assertThat(jsonLogs, contains(
-//                allOf(
-//                    hasEntry("event.dataset", "elasticsearch.file"),
-//                    hasEntry("log.level", "INFO"),
-//                    hasEntry("log.logger", "test"),
-//                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
-//                    hasEntry("elasticsearch.node.name", "sample-name"),
-//                    hasEntry("field1", "value1"),
-//                    hasEntry("field2", "value2"),
-//                    hasEntry("message", "some message"))
-//                )
-//            );
-//        }
-//    }
 
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");

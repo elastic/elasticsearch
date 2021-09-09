@@ -91,7 +91,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         @Override
         public GeoShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.deprecate(
+                DEPRECATION_LOGGER.critical(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
                     "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"

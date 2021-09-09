@@ -1,5 +1,5 @@
 {
-  "nodes.clear_metering_archive":{
+  "nodes.clear_repositories_metering_archive":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-repositories-metering-archive-api.html",
       "description":"Removes the archived repositories metering information present in the cluster."

@@ -32,5 +32,6 @@ testClusters.all {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
   user clusterCredentials
 }

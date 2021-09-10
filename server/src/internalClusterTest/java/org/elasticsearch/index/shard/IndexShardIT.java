@@ -66,6 +66,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -114,6 +115,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -214,8 +220,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
+        Version createdVersion =
+            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
         Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
@@ -253,8 +262,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
-        logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
-        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        logger.info("--> creating legacy index [{}] with data_path [{}]", index, indexDataPath);
+        Version createdVersion =
+            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
+            .build();
+        createIndex(index, settings);
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 

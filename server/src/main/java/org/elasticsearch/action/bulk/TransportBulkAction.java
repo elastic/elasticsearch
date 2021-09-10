@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -421,6 +422,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Metadata metadata = clusterState.metadata();
             // Group the requests by ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+            Map<Index, IndexRouting> indexRoutings = new HashMap<>();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 //the request can only be null because we set it to null in the previous step, so it gets ignored
@@ -472,8 +474,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
-                    ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex.getName(),
-                            docWriteRequest.id(), docWriteRequest.routing()).shardId();
+                    IndexRouting indexRouting = indexRoutings.computeIfAbsent(
+                        concreteIndex,
+                        idx -> IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(idx))
+                    );
+                    ShardId shardId = clusterService.operationRouting()
+                        .indexShards(clusterState, concreteIndex.getName(), indexRouting, docWriteRequest.id(), docWriteRequest.routing())
+                        .shardId();
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {

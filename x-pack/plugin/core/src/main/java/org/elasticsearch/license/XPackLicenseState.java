@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -26,14 +25,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -77,8 +73,6 @@ public class XPackLicenseState {
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
         SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-
-        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
 
@@ -383,13 +377,13 @@ public class XPackLicenseState {
         /** True if the license is active, or false if it is expired. */
         final boolean active;
 
-        /** The current expiration date of the license; Long.MAX_VALUE if not available yet. */
-        final long licenseExpiryDate;
+        /** A warning to be emitted on license checks about the license expiring soon. */
+        final String expiryWarning;
 
-        Status(OperationMode mode, boolean active, long licenseExpiryDate) {
+        Status(OperationMode mode, boolean active, String expiryWarning) {
             this.mode = mode;
             this.active = active;
-            this.licenseExpiryDate = licenseExpiryDate;
+            this.expiryWarning = expiryWarning;
         }
     }
 
@@ -410,7 +404,7 @@ public class XPackLicenseState {
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true, Long.MAX_VALUE);
+    private volatile Status status = new Status(OperationMode.TRIAL, true, null);
 
     public XPackLicenseState(Settings settings, LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -455,13 +449,10 @@ public class XPackLicenseState {
      *
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
-     * @param expirationDate Expiration date of the current license.
-     * @param mostRecentTrialVersion If this cluster has, at some point commenced a trial, the most recent version on which they did that.
-     *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
-     *                               trial was prior to this metadata being tracked (6.1)
+     * @param expiryWarning Warning to emit on license checks about the license expiring soon.
      */
-    protected void update(OperationMode mode, boolean active, long expirationDate, @Nullable Version mostRecentTrialVersion) {
-        status = new Status(mode, active, expirationDate);
+    protected void update(OperationMode mode, boolean active, String expiryWarning) {
+        status = new Status(mode, active, expiryWarning);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
@@ -492,14 +483,14 @@ public class XPackLicenseState {
     }
 
     void featureUsed(LicensedFeature feature) {
+        checkExpiry();
         usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
-        checkForExpiry(feature);
     }
 
     void enableUsageTracking(LicensedFeature feature, String contextName) {
+        checkExpiry();
         Objects.requireNonNull(contextName, "Context name cannot be null");
         usage.put(new FeatureUsage(feature, contextName), -1L);
-        checkForExpiry(feature);
     }
 
     void disableUsageTracking(LicensedFeature feature, String contextName) {
@@ -530,24 +521,13 @@ public class XPackLicenseState {
 
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
-        if (isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive())) {
-            return true;
-        }
-        return false;
+        return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
     }
 
-    private void checkForExpiry(LicensedFeature feature) {
-        final long licenseExpiryDate = getLicenseExpiryDate();
-        // TODO: this should use epochMillisProvider to avoid a system call + testability
-        final long diff = licenseExpiryDate - System.currentTimeMillis();
-        if (feature.getMinimumOperationMode().compareTo(OperationMode.BASIC) > 0 &&
-            LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
-            final long days = TimeUnit.MILLISECONDS.toDays(diff);
-            final String expiryMessage = (days == 0 && diff > 0)? "expires today":
-                (diff > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
-                    String.format(Locale.ROOT, "expired on [%s]", LicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
-            HeaderWarning.addWarning("Your license {}. " +
-                "Contact your administrator or update your license for continued use of features", expiryMessage);
+    void checkExpiry() {
+        String warning = status.expiryWarning;
+        if (warning != null) {
+            HeaderWarning.addWarning(warning);
         }
     }
 
@@ -649,11 +629,6 @@ public class XPackLicenseState {
             }
             return isAllowedByOperationMode(status.mode, minimumMode);
         });
-    }
-
-    /** Return the current license expiration date. */
-    public long getLicenseExpiryDate() {
-        return executeAgainstStatus(status -> status.licenseExpiryDate);
     }
 
     /**

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -28,7 +29,6 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> implements Diffable<AutoscalingPolicy>, ToXContentObject {
 
@@ -48,7 +48,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
             return new AutoscalingPolicy(
                 name,
                 Collections.unmodifiableSortedSet(new TreeSet<>(roles)),
-                new TreeMap<>(deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                deciders.stream().collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue))
             );
         });
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ROLES_FIELD);

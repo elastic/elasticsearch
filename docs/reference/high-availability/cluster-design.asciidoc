@@ -230,24 +230,48 @@ The cluster will be resilient to the loss of any node as long as:
 [[high-availability-cluster-design-large-clusters]]
 === Resilience in larger clusters
 
-It is not unusual for nodes to share some common infrastructure, such as a power
-supply or network router. If so, you should plan for the failure of this
+It's not unusual for nodes to share common infrastructure, such as network
+interconnects or a power supply. If so, you should plan for the failure of this
 infrastructure and ensure that such a failure would not affect too many of your
 nodes. It is common practice to group all the nodes sharing some infrastructure
 into _zones_ and to plan for the failure of any whole zone at once.
 
-Your cluster’s zones should all be contained within a single data centre. {es}
-expects its node-to-node connections to be reliable and have low latency and
-high bandwidth. Connections between data centres typically do not meet these
-expectations. Although {es} will behave correctly on an unreliable or slow
-network, it will not necessarily behave optimally. It may take a considerable
-length of time for a cluster to fully recover from a network partition since it
-must resynchronize any missing data and rebalance the cluster once the
-partition heals. If you want your data to be available in multiple data centres,
-deploy a separate cluster in each data centre and use
-<<modules-cross-cluster-search,{ccs}>> or <<xpack-ccr,{ccr}>> to link the
+{es} expects node-to-node connections to be reliable, have low latency, and
+have adequate bandwidth. Many {es} tasks require multiple round-trips between
+nodes. A slow or unreliable interconnect may have a significant effect on the
+performance and stability of your cluster.
+
+For example, a few milliseconds of latency added to each round-trip can quickly
+accumulate into a noticeable performance penalty. An unreliable network may
+have frequent network partitions. {es} will automatically recover from a
+network partition as quickly as it can but your cluster may be partly
+unavailable during a partition and will need to spend time and resources to
+resynchronize any missing data and rebalance itself once the partition heals.
+Recovering from a failure may involve copying a large amount of data between
+nodes so the recovery time is often determined by the available bandwidth.
+
+If you've divided your cluster into zones, the network connections within each
+zone are typically of higher quality than the connections between the zones.
+Ensure the network connections between zones are of sufficiently high quality.
+You will see the best results by locating all your zones within a single data
+center with each zone having its own independent power supply and other
+supporting infrastructure. You can also _stretch_ your cluster across nearby
+data centers as long as the network interconnection between each pair of data
+centers is good enough.
+
+[[high-availability-cluster-design-min-network-perf]]
+There is no specific minimum network performance required to run a healthy {es}
+cluster. In theory, a cluster will work correctly even if the round-trip
+latency between nodes is several hundred milliseconds. In practice, if your
+network is that slow then the cluster performance will be very poor. In
+addition, slow networks are often unreliable enough to cause network partitions
+that lead to periods of unavailability.
+
+If you want your data to be available in multiple data centers that are further
+apart or not well connected, deploy a separate cluster in each data center and
+use <<modules-cross-cluster-search,{ccs}>> or <<xpack-ccr,{ccr}>> to link the
 clusters together. These features are designed to perform well even if the
-cluster-to-cluster connections are less reliable or slower than the network
+cluster-to-cluster connections are less reliable or performant than the network
 within each cluster.
 
 After losing a whole zone's worth of nodes, a properly-designed cluster may be

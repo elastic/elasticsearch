@@ -20,10 +20,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -97,7 +99,8 @@ public class CertGenCliTests extends PackagingTestCase {
         final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
 
-        List<String> yaml = List.of(
+        // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
+        List<String> newTlsConfig = List.of(
             "node.name: mynode",
             "xpack.security.transport.ssl.key: " + keyPath,
             "xpack.security.transport.ssl.certificate: " + certPath,
@@ -108,8 +111,15 @@ public class CertGenCliTests extends PackagingTestCase {
             "xpack.security.transport.ssl.enabled: true",
             "xpack.security.http.ssl.enabled: true"
         );
+        List<String> existingConfig = Files.readAllLines(installation.config("elasticsearch.yml"));
+        List<String> newConfig = existingConfig.stream()
+            .filter(l -> l.startsWith("node.name:") == false)
+            .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
+            .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
+            .collect(Collectors.toList());
+        newConfig.addAll(newTlsConfig);
 
-        Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+        Files.write(installation.config("elasticsearch.yml"), newConfig, TRUNCATE_EXISTING);
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();

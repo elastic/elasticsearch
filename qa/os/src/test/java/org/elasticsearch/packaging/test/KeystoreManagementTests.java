@@ -58,6 +58,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
     private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
+    private static final String FILE_REALM_SUPERUSER = "test-user";
+    private static final String FILE_REALM_SUPERUSER_PASSWORD = "test-user-password";
     private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     /** Test initial archive state */
@@ -69,7 +71,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // Add a user for tests to use.
         // TODO: Possibly capture autoconfigured password from running the node the first time
         Shell.Result result = sh.run(
-            installation.executables().usersTool + " useradd " + USERNAME + " -p " + PASSWORD + " -r " + "superuser"
+            installation.executables().usersTool
+                + " useradd "
+                + FILE_REALM_SUPERUSER
+                + " -p "
+                + FILE_REALM_SUPERUSER_PASSWORD
+                + " -r "
+                + "superuser"
         );
         assumeTrue(result.isSuccess());
 
@@ -126,7 +134,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, false));
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+        ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 
@@ -149,7 +157,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, true));
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+        ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 

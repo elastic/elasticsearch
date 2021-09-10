@@ -66,6 +66,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
+        // Add a user for tests to use.
+        // TODO: Possibly capture autoconfigured password from running the node the first time
+        Shell.Result result = sh.run(
+            installation.executables().usersTool + " useradd " + USERNAME + " -p " + PASSWORD + " -r " + "superuser"
+        );
+        assumeTrue(result.isSuccess());
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -81,6 +87,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        // We don't add a user here. We explicitly disable security for packages for now after installation. We will update in a followup
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -119,7 +126,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, false));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 
@@ -142,7 +149,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, true));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 

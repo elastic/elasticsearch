@@ -48,6 +48,8 @@ public class CertGenCliTests extends PackagingTestCase {
         install();
         // Enable security for this test only where it is necessary, until we can enable it for all
         ServerUtils.enableSecurityFeatures(installation);
+        // Disable security auto-configuration as we want to generate keys/certificates manually here
+        ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
     public void test20Help() {

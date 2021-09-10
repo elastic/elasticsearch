@@ -446,9 +446,9 @@ AtomicInteger clusterCount = new AtomicInteger(0);
 allprojects { project ->
   project.pluginManager.withPlugin('elasticsearch.testclusters') {
     project.testClusters.configureEach { t ->
-      if(t.name.equals('runTask')) {
-        throw new GradleException('rootBoom')
-      }
+//      if(t.name.equals('runTask')) {
+//        throw new GradleException('rootBoom')
+//      }
       println project.path + ":" + t.name
       clusterCount.getAndIncrement();
     }

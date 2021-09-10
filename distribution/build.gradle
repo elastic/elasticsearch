@@ -220,6 +220,12 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
+// Ugly hacks to see what is missing from integ test. We need core and security because we need to call to ConfigInitialNode on Startup to
+// determine whether we need to configure security.
+// rollup,shutdown are needed for EsRestTestCase node cleanup
+if (xpackModule.name.equals('core') || xpackModule.name.equals('security') || xpackModule.name.equals('rollup') || xpackModule.name.equals('shutdown')) {
+  copyModule(processTransportOutputsTaskProvider, xpackModule)
+}
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNoticeTaskProvider.configure {
@@ -289,7 +295,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = { testDistro ->
+    libFiles = {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
@@ -302,10 +308,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
         }
-        if (testDistro == false) {
-          into('tools/security-cli') {
-            from(configurations.libsSecurityCli)
-          }
+        into('tools/security-cli') {
+          from(configurations.libsSecurityCli)
         }
       }
     }
@@ -388,9 +392,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if(testDistro == false) {
-            from(defaultBinFiles)
-          }
+          from(defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }

@@ -10,21 +10,23 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -350,6 +353,30 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             validationException = retentionPolicyConfig.validate(validationException);
         }
         return validationException;
+    }
+
+    /**
+     * Parses the transform configuration for deprecations
+     *
+     * @param namedXContentRegistry XContent registry required for aggregations and query DSL
+     * @return The deprecations of this transform
+     */
+    public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) {
+
+        List<DeprecationIssue> deprecations = new ArrayList<>();
+        source.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        dest.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        settings.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        if (pivotConfig != null) {
+            pivotConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        }
+        if (latestConfig != null) {
+            latestConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        }
+        if (retentionPolicyConfig != null) {
+            retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        }
+        return deprecations;
     }
 
     @Override

@@ -23,7 +23,8 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def output = gradleRunner("dependencies").build().output
+        def result = gradleRunner("dependencies").build()
+        def output = normalized(result.output)
         then:
         output.contains("""
 restTestSpecs
@@ -39,11 +40,11 @@ yamlRestTestImplementation - Implementation only dependencies for source set 'ya
         plugins {
           id 'elasticsearch.yaml-rest-test'
         }
-        
+
         repositories {
             mavenCentral()
         }
-   
+
         dependencies {
             yamlRestTestImplementation "org.elasticsearch.test:framework:7.14.0"
             restTestSpecs "org.elasticsearch:rest-api-spec:7.14.0"

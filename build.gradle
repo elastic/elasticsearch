@@ -434,7 +434,7 @@ tasks.register("buildReleaseArtifacts").configure {
   group = 'build'
   description = 'Builds all artifacts required for release manager'
 
-  dependsOn subprojects.findAll { it.path.startsWith(':distribution:docker') == false && it.path.startsWith(':ml-cpp') == false }
+  dependsOn allprojects.findAll { it.path.startsWith(':distribution:docker') == false && it.path.startsWith(':ml-cpp') == false }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
 }

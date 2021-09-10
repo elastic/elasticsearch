@@ -395,23 +395,61 @@ uid:gid `1000:0`**. Bind mounted host directories and files must be accessible b
 and the data and log directories must be writable by this user.
 
 [[docker-keystore-bind-mount]]
-===== Mounting an {es} keystore
+===== Create an encrypted {es} keystore
 
-By default, {es} will auto-generate a keystore file for secure settings. This
-file is obfuscated but not encrypted. If you want to encrypt your
-<<secure-settings,secure settings>> with a password, you must use the
-`elasticsearch-keystore` utility to create a password-protected keystore and
-bind-mount it to the container as
-`/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
-the Docker container with the password at startup, set the Docker environment
-value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker
-run` command might have the following options:
+By default, {es} will auto-generate a keystore file for <<secure-settings,secure
+settings>>. This file is obfuscated but not encrypted.
 
-[source, sh]
---------------------------------------------
--v full_path_to/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
--E KEYSTORE_PASSWORD=mypassword
---------------------------------------------
+To encrypt your secure settings with a password and have them persist outside
+the container, use a `docker run` command to manually create the keystore
+instead. The command must:
+
+* Bind-mount the `config` directory. The command will create an
+  `elasticsearch.keystore` file in this directory. To avoid errors, do
+  not directly bind-mount the `elasticsearch.keystore` file.
+* Use the `elasticsearch-keystore` tool with the `create -p` option. You'll be
+  prompted to enter a password for the keystore.
+
+ifeval::["{release-state}"!="unreleased"]
+For example:
+
+[source,sh,subs="attributes"]
+----
+docker run -it --rm \
+-v full_path_to/config:/usr/share/elasticsearch/config \
+docker.elastic.co/elasticsearch/elasticsearch:{version} \
+bin/elasticsearch-keystore create -p
+----
+
+You can also use a `docker run` command to add or update secure settings in the
+keystore. You'll be prompted to enter the setting values. If the keystore is
+encrypted, you'll also be prompted to enter the keystore password.
+
+[source,sh,subs="attributes"]
+----
+docker run -it --rm \
+-v full_path_to/config:/usr/share/elasticsearch/config \
+docker.elastic.co/elasticsearch/elasticsearch:{version} \
+bin/elasticsearch-keystore \
+add my.secure.setting \
+my.other.secure.setting
+----
+endif::[]
+
+If you've already created the keystore and don't need to update it, you can
+bind-mount the `elasticsearch.keystore` file directly. For example, you can
+add the following to `docker-compose.yml`:
+
+[source,yaml]
+----
+elasticsearch:
+...
+  volumes:
+    ...
+    - type: bind
+      source: full_path_to/config/elasticsearch.keystore
+      target: /usr/share/elasticsearch/config/elasticsearch.keystore
+----
 
 [[_c_customized_image]]
 ===== Using custom Docker images
@@ -459,5 +497,49 @@ COPY --from=builder /usr/lib/some-lib.so /usr/lib/
 You should use `centos:8` as a base in order to avoid incompatibilities.
 Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
 shared libraries required by a utility.
+
+[[troubleshoot-docker-errors]]
+==== Troubleshoot Docker errors for {es}
+
+Here’s how to resolve common errors when running {es} with Docker.
+
+===== elasticsearch.keystore is a directory
+
+[source,txt]
+----
+Exception in thread "main" org.elasticsearch.bootstrap.BootstrapException: java.io.IOException: Is a directory: SimpleFSIndexInput(path="/usr/share/elasticsearch/config/elasticsearch.keystore") Likely root cause: java.io.IOException: Is a directory
+----
+
+A <<docker-keystore-bind-mount,keystore-related>> `docker run` command attempted
+to directly bind-mount an `elasticsearch.keystore` file that doesn't exist. If
+you use the `-v` or `--volume` flag to mount a file that doesn't exist, Docker
+instead creates a directory with the same name.
+
+To resolve this error:
+
+. Delete the `elasticsearch.keystore` directory in the `config` directory.
+. Update the `-v` or `--volume` flag to point to the `config` directory path
+  rather than the keystore file's path. For an example, see
+  <<docker-keystore-bind-mount>>.
+. Retry the command.
+
+===== elasticsearch.keystore: Device or resource busy
+
+[source,txt]
+----
+Exception in thread "main" java.nio.file.FileSystemException: /usr/share/elasticsearch/config/elasticsearch.keystore.tmp -> /usr/share/elasticsearch/config/elasticsearch.keystore: Device or resource busy
+----
+
+A <<docker-keystore-bind-mount,keystore-related>> `docker run` command attempted
+to directly bind-mount the `elasticsearch.keystore` file. To update the
+keystore, the container requires access to other files in the `config`
+directory, such as `keystore.tmp`.
+
+To resolve this error:
+
+. Update the `-v` or `--volume` flag to point to the `config` directory
+  path rather than the keystore file's path. For an example, see
+  <<docker-keystore-bind-mount>>.
+. Retry the command.
 
 include::next-steps.asciidoc[]

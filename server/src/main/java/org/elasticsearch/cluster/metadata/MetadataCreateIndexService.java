@@ -48,7 +48,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -69,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -796,6 +794,7 @@ public class MetadataCreateIndexService {
         validateSoftDeleteSettings(indexSettings);
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSetting(indexSettings);
+        validateNoCustomPath(indexSettings);
         return indexSettings;
     }
 
@@ -1047,7 +1046,7 @@ public class MetadataCreateIndexService {
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
-        List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataFile());
+        List<String> validationErrors = new ArrayList<>();
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
@@ -1068,27 +1067,16 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates that the configured index data path (if any) is a sub-path of the configured shared data path (if any)
+     * Validates an index data path is not specified.
      *
      * @param settings the index configured settings
-     * @param sharedDataPath the configured `path.shared_data` (if any)
-     * @return a list containing validaton errors or an empty list if there aren't any errors
      */
-    private static List<String> validateIndexCustomPath(Settings settings, @Nullable Path sharedDataPath) {
-        String customPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
-        List<String> validationErrors = new ArrayList<>();
-        if (Strings.isEmpty(customPath) == false) {
-            if (sharedDataPath == null) {
-                validationErrors.add("path.shared_data must be set in order to use custom data paths");
-            } else {
-                Path resolvedPath = PathUtils.get(new Path[]{sharedDataPath}, customPath);
-                if (resolvedPath == null) {
-                    validationErrors.add("custom path [" + customPath +
-                        "] is not a sub-path of path.shared_data [" + sharedDataPath + "]");
-                }
-            }
+    static void validateNoCustomPath(Settings settings) {
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_8_0_0) &&
+            IndexMetadata.INDEX_DATA_PATH_SETTING.exists(settings)) {
+            throw new IllegalArgumentException("per-index custom data path using setting ["
+                + IndexMetadata.INDEX_DATA_PATH_SETTING.getKey() + "] is no longer supported on new indices");
         }
-        return validationErrors;
     }
 
     /**

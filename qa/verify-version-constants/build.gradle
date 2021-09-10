@@ -16,20 +16,20 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v${bwcVersionString}"
 
-  testClusters {
-    "${baseName}" {
-      version = bwcVersion.toString()
+  testClusters.register(baseName) {
+      version = bwcVersionString
       setting 'xpack.security.enabled', 'true'
       user username: 'admin', password: 'admin-password', role: 'superuser'
-    }
   }
 
   tasks.register("${baseName}#integTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    def cluster = testClusters.named(baseName).get()
+    useCluster cluster
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName()}")
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
@@ -60,5 +60,5 @@ tasks.register("verifyDocsLuceneVersion") {
 }
 
 tasks.named("check").configure {
-  dependsOn verifyDocsLuceneVersion
+  dependsOn "verifyDocsLuceneVersion"
 }

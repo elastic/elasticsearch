@@ -16,7 +16,7 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-testClusters.all {
+testClusters.configureEach {
   numberOfNodes = 2
 }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import java.util.concurrent.atomic.AtomicInteger;
 
 plugins {
   id 'lifecycle-base'
@@ -437,4 +438,25 @@ tasks.register("buildReleaseArtifacts").configure {
   dependsOn allprojects.findAll { it.path.startsWith(':distribution:docker') == false && it.path.startsWith(':ml-cpp') == false }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
+}
+
+
+// Initially value as 0
+AtomicInteger clusterCount = new AtomicInteger(0);
+allprojects { project ->
+  project.pluginManager.withPlugin('elasticsearch.testclusters') {
+    project.testClusters.configureEach { t ->
+      if(t.name.equals('runTask')) {
+        throw new GradleException('rootBoom')
+      }
+      println project.path + ":" + t.name
+      clusterCount.getAndIncrement();
+    }
+  }
+}
+
+tasks.register("printClusterCount") {
+  doLast {
+    println "Cluster Count: " + clusterCount.get()
+  }
 }

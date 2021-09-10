@@ -14,7 +14,7 @@ dependencies {
   testImplementation project(xpackModule('sql'))
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 

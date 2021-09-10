@@ -9,7 +9,7 @@
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'resource.reload.interval.high', '100ms'
   setting 'xpack.security.enabled', 'true'

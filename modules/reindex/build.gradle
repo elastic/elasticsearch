@@ -24,7 +24,7 @@ esplugin {
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:parent-join'
   module ':modules:lang-painless'

@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -428,6 +429,15 @@ public class JsonXContentGenerator implements XContentGenerator {
             default: // others are simple:
                 destination.copyCurrentEvent(parser);
         }
+    }
+
+    @Override
+    public void writeDirectField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        writeStartRaw(name);
+        flush();
+        writer.accept(os);
+        flush();
+        writeEndRaw();
     }
 
     @Override

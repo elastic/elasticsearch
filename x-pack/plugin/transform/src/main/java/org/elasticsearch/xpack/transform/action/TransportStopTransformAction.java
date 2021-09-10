@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -45,6 +45,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformNodeAssignments;
+import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.ArrayList;
@@ -163,9 +165,10 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 new PageParams(0, 10_000),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
-                    validateTaskState(state, hitsAndIds.v2(), request.isForce());
-                    request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
-                    final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+                    validateTaskState(state, hitsAndIds.v2().v1(), request.isForce());
+                    request.setExpandedIds(new HashSet<>(hitsAndIds.v2().v1()));
+                    final TransformNodeAssignments transformNodeAssignments =
+                        TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), state);
 
                     final ActionListener<Response> doExecuteListener;
                     if (transformNodeAssignments.getWaitingForAssignment().size() > 0) {
@@ -241,24 +244,28 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
 
         if (ids.contains(transformTask.getTransformId())) {
-            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
-                try {
-                    transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
-                    listener.onResponse(new Response(true));
-                } catch (ElasticsearchException ex) {
-                    listener.onFailure(ex);
-                }
-            },
-                e -> listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
-                        RestStatus.CONFLICT,
-                        transformTask.getTransformId(),
-                        transformTask.getState().shouldStopAtNextCheckpoint(),
-                        request.isWaitForCheckpoint()
+            // move the call to the generic thread pool, so we do not block the network thread
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
+                    try {
+                        transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
+                        listener.onResponse(new Response(true));
+                    } catch (ElasticsearchException ex) {
+                        listener.onFailure(ex);
+                    }
+                },
+                    e -> listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
+                            RestStatus.CONFLICT,
+                            e,
+                            transformTask.getTransformId(),
+                            transformTask.getState().shouldStopAtNextCheckpoint(),
+                            request.isWaitForCheckpoint()
+                        )
                     )
-                )
-            ));
+                ));
+            });
         } else {
             listener.onFailure(
                 new RuntimeException(

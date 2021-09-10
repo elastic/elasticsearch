@@ -24,4 +24,3 @@ public class DeleteRepositoryAction extends ActionType<AcknowledgedResponse> {
     }
 
 }
-

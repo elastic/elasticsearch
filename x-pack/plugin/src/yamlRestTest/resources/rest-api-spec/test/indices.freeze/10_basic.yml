@@ -1,5 +1,8 @@
 ---
 "Basic":
+- skip:
+    features: [ "warnings" ]
+
 - do:
     index:
       index: test
@@ -12,6 +15,8 @@
       body:  { "foo": "Hello: 2" }
 
 - do:
+    warnings:
+      - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
     indices.freeze:
       index: test
 
@@ -29,6 +34,8 @@
 
 # unfreeze
 - do:
+    warnings:
+      - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
     indices.unfreeze:
       index: test
 
@@ -51,6 +58,8 @@
 
 
 - do:
+    warnings:
+      - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
     indices.freeze:
       index: test*
 
@@ -81,7 +90,7 @@
 "Test index options":
 
 - skip:
-    features: ["allowed_warnings"]
+    features: ["allowed_warnings", "warnings"]
 
 - do:
     index:
@@ -102,6 +111,8 @@
       - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
 - do:
+    warnings:
+      - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
     indices.freeze:
       index: test*,not_available
       ignore_unavailable: true

@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -515,7 +515,14 @@ public abstract class Rounding implements Writeable {
         }
 
         private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
-            long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
+            /*
+             minUtcMillis has to be decreased by 2 units.
+             This is because if a minUtcMillis can be rounded down up to unit.extraLocalOffsetLookup
+             and that rounding down might still fall within DST gap/overlap.
+             Meaning that minUtcMillis has to be decreased by additional unit
+             so that the transition just before the minUtcMillis is applied
+             */
+            long minLookup = minUtcMillis - 2 * unit.extraLocalOffsetLookup();
             long maxLookup = maxUtcMillis;
 
             long unitMillis = 0;

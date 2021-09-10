@@ -9,7 +9,7 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;

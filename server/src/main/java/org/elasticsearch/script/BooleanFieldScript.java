@@ -9,15 +9,50 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_field", Factory.class);
+
+    public static final BooleanFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (BooleanFieldScript.LeafFactory) ctx -> new BooleanFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new BooleanFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -69,15 +104,16 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         return falses;
     }
 
-    /**
-     * Reorders the values from the last time {@link #runForDoc(int)} was called to
-     * how this would appear in doc-values order.
-     */
-    public final boolean[] asDocValues() {
-        boolean[] values = new boolean[falses + trues];
-        Arrays.fill(values, 0, falses, false);
-        Arrays.fill(values, falses, falses + trues, true);
-        return values;
+    protected final void emitFromObject(Object v) {
+        if (v instanceof Boolean) {
+            emit((Boolean) v);
+        } else if (v instanceof String) {
+            try {
+                emit(Booleans.parseBoolean((String) v));
+            } catch (IllegalArgumentException e) {
+                // ignore
+            }
+        }
     }
 
     public final void emit(boolean v) {

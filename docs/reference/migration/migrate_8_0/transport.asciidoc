@@ -2,6 +2,9 @@
 [[breaking_80_transport_changes]]
 ==== Transport changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
 .Several `transport` settings have been replaced.
 [%collapsible]
@@ -26,8 +29,6 @@ Specifying the removed settings in `elasticsearch.yml` will result in an error
 on startup.
 ====
 
-// end::notable-breaking-changes[]
-
 .The `es.unsafely_permit_handshake_from_incompatible_builds` system property has been removed.
 [%collapsible]
 ====
@@ -45,3 +46,35 @@ system property, and ensure that all nodes of the same version are running
 exactly the same build. Setting this system property will result in an error
 on startup.
 ====
+
+.Selective transport compression has been enabled by default.
+[%collapsible]
+====
+*Details* +
+Prior to 8.0, transport compression was disabled by default. Starting in 8.0,
+`transport.compress` defaults to `indexing_data`. This configuration means that
+the propagation of raw indexing data will be compressed between nodes.
+
+*Impact* +
+Inter-node transit will get reduced along the indexing path. In some scenarios,
+CPU usage could increase.
+====
+
+.Transport compression defaults to lz4.
+[%collapsible]
+====
+*Details* +
+Prior to 8.0, the `transport.compression_scheme` setting defaulted to `deflate`. Starting in
+8.0,  `transport.compress_scheme` defaults to `lz4`.
+
+Prior to 8.0, the `cluster.remote.<cluster_alias>.transport.compression_scheme`
+setting defaulted to `deflate` when `cluster.remote.<cluster_alias>.transport.compress`
+was explicitly configured. Starting in 8.0,
+`cluster.remote.<cluster_alias>.transport.compression_scheme` will fallback to
+`transport.compression_scheme` by default.
+
+*Impact* +
+This configuration means that transport compression will produce somewhat lower
+compression ratios in exchange for lower CPU load.
+====
+// end::notable-breaking-changes[]

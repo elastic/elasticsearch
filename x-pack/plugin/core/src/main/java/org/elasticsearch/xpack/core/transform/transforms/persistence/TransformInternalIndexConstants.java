@@ -31,8 +31,8 @@ public final class TransformInternalIndexConstants {
     public static final String TRANSFORM_PREFIX_DEPRECATED = ".data-frame-";
 
     // version is not a rollover pattern, however padded because sort is string based
-    public static final Version INDEX_VERSION_LAST_CHANGED = Version.V_7_12_0;
-    public static final String INDEX_VERSION = "006";
+    public static final Version INDEX_VERSION_LAST_CHANGED = Version.V_7_13_0;
+    public static final String INDEX_VERSION = "007";
     public static final String INDEX_PATTERN = TRANSFORM_PREFIX + "internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
     public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;

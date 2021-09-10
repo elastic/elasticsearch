@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.lang.reflect.Array;

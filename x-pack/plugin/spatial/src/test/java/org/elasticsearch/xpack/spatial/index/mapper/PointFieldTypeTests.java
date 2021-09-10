@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,7 +18,9 @@ import java.util.Map;
 public class PointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        MappedFieldType mapper = new PointFieldMapper.Builder("field", false)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         String wktPoint = "POINT (42.0 27.1)";
@@ -51,11 +53,9 @@ public class PointFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of points in [x, y] array format with a malformed entry
-        // TODO Point Field parsers have a weird `ignore_malformed` impl that still throws errors
-        // on many types of malformed input
-        // sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
-        // assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        // assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+        sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
     }
 }

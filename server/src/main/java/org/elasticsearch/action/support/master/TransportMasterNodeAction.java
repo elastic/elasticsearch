@@ -28,9 +28,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -38,6 +39,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.CancellationException;
 import java.util.function.Predicate;
 
 /**
@@ -82,6 +84,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract void masterOperation(Task task, Request request, ClusterState state,
                                             ActionListener<Response> listener) throws Exception;
 
+    private void executeMasterOperation(Task task, Request request, ClusterState state,
+                                        ActionListener<Response> listener) throws Exception {
+        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+            throw new CancellationException("Task was cancelled");
+        }
+
+        masterOperation(task, request, state, listener);
+    }
+
     protected boolean localExecute(Request request) {
         return false;
     }
@@ -114,6 +125,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         protected void doStart(ClusterState clusterState) {
+            if (isTaskCancelled()) {
+                listener.onFailure(new CancellationException("Task was cancelled"));
+                return;
+            }
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
@@ -148,7 +163,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
@@ -218,7 +233,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             actionName, timeout), failure);
                         listener.onFailure(new MasterNotDiscoveredException(failure));
                     }
-                }, statePredicate);
+                }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));
+        }
+
+        private boolean isTaskCancelled() {
+            return task instanceof CancellableTask && ((CancellableTask) task).isCancelled();
         }
     }
 }

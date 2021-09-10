@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -223,5 +223,62 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             boolean thresholdBreached = waitedMoreThanThresholdLevel(null, executionState, clock);
             assertThat(thresholdBreached, is(false));
         }
+    }
+
+    public void testIsCompletableBreaches() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(Clock.systemUTC().millis())))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
+
+        ClusterStateWaitUntilThresholdStep step = new ClusterStateWaitUntilThresholdStep(
+            new ClusterStateWaitStep(new StepKey("phase" , "action", "key"),
+                new StepKey("phase", "action", "next-key")) {
+                @Override
+                public Result isConditionMet(Index index, ClusterState clusterState) {
+                    return new Result(false, new SingleMessageFieldInfo(""));
+                }
+
+                @Override
+                public boolean isCompletable() {
+                    return true;
+                }
+
+                @Override
+                public boolean isRetryable() {
+                    return true;
+                }
+            }, new StepKey("phase", "action", "breached"));
+
+        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
+
+        assertThat(step.getNextStepKey().getName(), equalTo("next-key"));
+
+        step = new ClusterStateWaitUntilThresholdStep(
+            new ClusterStateWaitStep(new StepKey("phase" , "action", "key"),
+                new StepKey("phase", "action", "next-key")) {
+                @Override
+                public Result isConditionMet(Index index, ClusterState clusterState) {
+                    return new Result(false, new SingleMessageFieldInfo(""));
+                }
+
+                @Override
+                public boolean isCompletable() {
+                    return false;
+                }
+
+                @Override
+                public boolean isRetryable() {
+                    return true;
+                }
+            }, new StepKey("phase", "action", "breached"));
+        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
+        assertThat(step.getNextStepKey().getName(), equalTo("breached"));
     }
 }

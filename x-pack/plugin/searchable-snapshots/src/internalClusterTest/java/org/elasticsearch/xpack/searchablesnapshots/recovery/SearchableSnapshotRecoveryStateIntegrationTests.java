@@ -8,16 +8,16 @@
 package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
 import com.carrotsearch.hppc.ObjectContainer;
+
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -36,9 +36,8 @@ import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCa
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.io.File;
@@ -49,7 +48,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -97,8 +95,8 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             .index(restoredIndexName)
             .getIndex();
 
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
         RecoveryState recoveryState = getRecoveryState(restoredIndexName);
 
@@ -159,8 +157,8 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             .index(restoredIndexName)
             .getIndex();
 
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
         RecoveryState recoveryState = getRecoveryState(restoredIndexName);
 
@@ -233,21 +231,6 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             physicalCacheSize = files.map(Path::toFile).mapToLong(File::length).sum();
         }
         return physicalCacheSize;
-    }
-
-    private void assertExecutorIsIdle(String executorName) throws Exception {
-        assertBusy(() -> {
-            for (DiscoveryNode node : getDiscoveryNodes()) {
-                ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node.getName());
-                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(executorName);
-                assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
-                assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
-            }
-        });
-    }
-
-    private DiscoveryNodes getDiscoveryNodes() {
-        return client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
     }
 
     /**

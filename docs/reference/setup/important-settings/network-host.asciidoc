@@ -1,6 +1,6 @@
 [[network.host]]
 [discrete]
-=== Network host setting
+==== Network host setting
 
 By default, {es} only binds to loopback addresses such as `127.0.0.1` and
 `[::1]`. This is sufficient to run a cluster of one or more nodes on a single

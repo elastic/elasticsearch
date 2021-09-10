@@ -212,6 +212,16 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         }
     }
 
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);

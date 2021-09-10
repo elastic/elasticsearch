@@ -64,10 +64,10 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RankFeatureFieldMapper build(ContentPath contentPath) {
+        public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(name,
-                new RankFeatureFieldType(buildFullName(contentPath), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), positiveScoreImpact.getValue());
+                new RankFeatureFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
         }
     }
 
@@ -134,12 +134,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         float value;
-        if (context.externalValueSet()) {
-            Object v = context.externalValue();
-            value = objectToFloat(v);
-        } else if (context.parser().currentToken() == Token.VALUE_NULL) {
+        if (context.parser().currentToken() == Token.VALUE_NULL) {
             // skip
             return;
         } else {

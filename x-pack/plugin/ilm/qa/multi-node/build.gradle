@@ -1,15 +1,11 @@
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
-
-// let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
-
 
 File repoDir = file("$buildDir/testclusters/repo")
 
@@ -32,6 +28,14 @@ testClusters.all {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  /*
+   * In TimeSeriesLifecycleActionsIT.testWaitForSnapshotSlmExecutedBefore() we create a snapshot, then associate an ILM policy with an index, and
+   * then that policy checks if a snapshot has been started at the same millisecond or later than the policy's action's date. Since both the
+   * snapshot start time and policy are using ThreadPool.absoluteTimeInMillis(), it is possible that they get the same cached result back (it is
+   * kept for about 200 ms). The following config changes ThreadPool.absoluteTimeInMillis() to always use System.currentTimeMillis() rather than a
+   * cached time. So the policy's action date is always after the snapshot's start.
+   */
+  setting 'thread_pool.estimated_time_interval', '0'
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 

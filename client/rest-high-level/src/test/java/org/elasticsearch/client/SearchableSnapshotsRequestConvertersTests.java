@@ -8,9 +8,11 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,4 +57,17 @@ public class SearchableSnapshotsRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.assertToXContentBody(request, result.getEntity());
     }
 
+    public void testCachesStats() throws IOException  {
+        {
+            final Request request = SearchableSnapshotsRequestConverters.cacheStats(new CachesStatsRequest());
+            assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+            assertThat(request.getEndpoint(), equalTo("/_searchable_snapshots/cache/stats"));
+        }
+        {
+            final String[] nodesIds = generateRandomStringArray(10, 5, false, false);
+            final Request request = SearchableSnapshotsRequestConverters.cacheStats(new CachesStatsRequest(nodesIds));
+            assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+            assertThat(request.getEndpoint(), equalTo("/_searchable_snapshots/" + String.join(",", nodesIds) + "/cache/stats"));
+        }
+    }
 }

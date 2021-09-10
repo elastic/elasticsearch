@@ -7,37 +7,44 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
-import static  org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
+import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
-
-public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiValue {
+public class InternalTopMetrics extends InternalMultiValueAggregation {
     private final SortOrder sortOrder;
     private final int size;
     private final List<String> metricNames;
     private final List<TopMetric> topMetrics;
 
-    public InternalTopMetrics(String name, @Nullable SortOrder sortOrder, List<String> metricNames,
-            int size, List<TopMetric> topMetrics, Map<String, Object> metadata) {
+    public InternalTopMetrics(
+        String name,
+        @Nullable SortOrder sortOrder,
+        List<String> metricNames,
+        int size,
+        List<TopMetric> topMetrics,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.sortOrder = sortOrder;
         this.metricNames = metricNames;
@@ -95,9 +102,10 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
         MetricValue metric = topMetrics.get(0).metricValues.get(index);
         if (metric == null) {
+            // We've found the name but it doesn't have a value.
             return Double.NaN;
         }
-        return metric.numberValue();
+        return metric.getValue().getKey();
     }
 
     @Override
@@ -154,29 +162,58 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     public boolean equals(Object obj) {
         if (super.equals(obj) == false) return false;
         InternalTopMetrics other = (InternalTopMetrics) obj;
-        return sortOrder.equals(other.sortOrder) &&
-            metricNames.equals(other.metricNames) &&
-            size == other.size &&
-            topMetrics.equals(other.topMetrics);
+        return sortOrder.equals(other.sortOrder)
+            && metricNames.equals(other.metricNames)
+            && size == other.size
+            && topMetrics.equals(other.topMetrics);
     }
 
     @Override
-    public double value(String name) {
+    public final double sortValue(String key) {
+        int index = metricNames.indexOf(key);
+        if (index < 0) {
+            throw new IllegalArgumentException("unknown metric [" + key + "]");
+        }
+        if (topMetrics.isEmpty()) {
+            return Double.NaN;
+        }
+
+        MetricValue value = topMetrics.get(0).metricValues.get(index);
+        if (value == null) {
+            return Double.NaN;
+        }
+
+        // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
+        // non-numeric fields always return NaN
+        return value.numberValue().doubleValue();
+    }
+
+    @Override
+    public List<String> getValuesAsStrings(String name) {
         int index = metricNames.indexOf(name);
         if (index < 0) {
             throw new IllegalArgumentException("unknown metric [" + name + "]");
         }
         if (topMetrics.isEmpty()) {
-            return Double.NaN;
+            return Collections.emptyList();
         }
-        assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
-        // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
-        return topMetrics.get(0).metricValues.get(index).numberValue().doubleValue();
+        return topMetrics.stream().map(r -> {
+            MetricValue value = r.metricValues.get(index);
+            if (value == null) {
+                return "null";
+            }
+            return value.getValue().format(value.getFormat());
+        }).collect(Collectors.toList());
     }
 
     @Override
     public Iterable<String> valueNames() {
         return metricNames;
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
     }
 
     SortOrder getSortOrder() {
@@ -280,9 +317,7 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
                 return false;
             }
             TopMetric other = (TopMetric) obj;
-            return sortFormat.equals(other.sortFormat)
-                    && sortValue.equals(other.sortValue)
-                    && metricValues.equals(other.metricValues);
+            return sortFormat.equals(other.sortFormat) && sortValue.equals(other.sortValue) && metricValues.equals(other.metricValues);
         }
 
         @Override

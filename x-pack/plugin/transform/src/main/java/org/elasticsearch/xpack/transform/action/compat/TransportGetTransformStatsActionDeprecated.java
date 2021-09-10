@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -24,8 +25,9 @@ public class TransportGetTransformStatsActionDeprecated extends TransportGetTran
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        Settings settings
     ) {
-        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformServices, client);
+        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformServices, client, settings);
     }
 }

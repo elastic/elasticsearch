@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -53,7 +54,8 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(),
-            TestIndexNameExpressionResolver.newInstance(client().threadPool().getThreadContext()), future);
+            TestIndexNameExpressionResolver.newInstance(client().threadPool().getThreadContext()),
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
         future.actionGet();
     }
 
@@ -83,7 +85,8 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
                         .build())
                 )
                 .validate(true)
-                .build())).actionGet();
+                .build(),
+                false)).actionGet();
 
         indexStatDocument(new DataCounts("analytics-with-stats", 1, 1, 1),
             DataCounts.documentId("analytics-with-stats"));

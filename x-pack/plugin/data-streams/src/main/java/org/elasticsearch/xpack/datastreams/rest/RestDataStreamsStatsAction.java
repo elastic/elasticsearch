@@ -37,4 +37,9 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
         dataStreamsStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, dataStreamsStatsRequest.indicesOptions()));
         return channel -> client.execute(DataStreamsStatsAction.INSTANCE, dataStreamsStatsRequest, new RestToXContentListener<>(channel));
     }
+
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
 }

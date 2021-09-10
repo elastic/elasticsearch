@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 import java.util.List;
@@ -66,6 +66,13 @@ public interface IndexAbstraction {
      * @return whether this index abstraction should be treated as a system index or not
      */
     boolean isSystem();
+
+    /**
+     * @return whether this index abstraction is related to data streams
+     */
+    default boolean isDataStreamRelated() {
+        return false;
+    }
 
     /**
      * An index abstraction type.
@@ -165,6 +172,7 @@ public interface IndexAbstraction {
         private final List<IndexMetadata> referenceIndexMetadatas;
         private final IndexMetadata writeIndex;
         private final boolean isHidden;
+        private final boolean dataStreamAlias;
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
@@ -191,7 +199,18 @@ public interface IndexAbstraction {
             }
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
+            dataStreamAlias = false;
             validateAliasProperties();
+        }
+
+        public Alias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
+                     List<IndexMetadata> indicesOfAllDataStreams,
+                     IndexMetadata writeIndexOfWriteDataStream) {
+            this.aliasName = dataStreamAlias.getName();
+            this.referenceIndexMetadatas = indicesOfAllDataStreams;
+            this.writeIndex = writeIndexOfWriteDataStream;
+            this.isHidden = false;
+            this.dataStreamAlias = true;
         }
 
         @Override
@@ -227,6 +246,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
+        }
+
+        @Override
+        public boolean isDataStreamRelated() {
+            return dataStreamAlias;
         }
 
         private void validateAliasProperties() {
@@ -317,12 +341,17 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isSystem() {
-            // No such thing as system data streams (yet)
-            return false;
+            return dataStream.isSystem();
+        }
+
+        @Override
+        public boolean isDataStreamRelated() {
+            return true;
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
         }
     }
+
 }

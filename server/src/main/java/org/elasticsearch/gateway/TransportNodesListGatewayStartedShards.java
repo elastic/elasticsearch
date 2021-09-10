@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -98,7 +98,7 @@ public class TransportNodesListGatewayStartedShards extends
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry,
-                nodeEnv.availableShardPaths(request.shardId));
+                nodeEnv.availableShardPath(request.shardId));
             if (shardStateMetadata != null) {
                 if (indicesService.getShardOrNull(shardId) == null) {
                     final String customDataPath;

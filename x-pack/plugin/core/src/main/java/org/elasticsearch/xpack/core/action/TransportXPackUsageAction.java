@@ -56,12 +56,18 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                 listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(usageActions.size());
         final AtomicInteger position = new AtomicInteger(0);
-        final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) ->
-                client.executeLocally(featureUsageAction, request, iteratingListener.delegateFailure((l, usageResponse) -> {
-                    featureSetUsages.set(position.getAndIncrement(), usageResponse.getUsage());
-                    // the value sent back doesn't matter since our predicate keeps iterating
-                    l.onResponse(Collections.emptyList());
-                }));
+        final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
+            // Since we're executing the actions locally we should create a new request
+            // to avoid mutating the original request and setting the wrong parent task,
+            // since it is possible that the parent task gets cancelled and new child tasks are banned.
+            final XPackUsageRequest childRequest = new XPackUsageRequest();
+            childRequest.setParentTask(request.getParentTask());
+            client.executeLocally(featureUsageAction, childRequest, iteratingListener.delegateFailure((l, usageResponse) -> {
+                featureSetUsages.set(position.getAndIncrement(), usageResponse.getUsage());
+                // the value sent back doesn't matter since our predicate keeps iterating
+                l.onResponse(Collections.emptyList());
+            }));
+        };
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
                 new IteratingActionListener<>(usageActionListener, consumer, usageActions,
                         threadPool.getThreadContext(), (ignore) -> {

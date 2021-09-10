@@ -8,7 +8,7 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;

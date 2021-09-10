@@ -10,6 +10,7 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -18,6 +19,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -36,6 +38,7 @@ import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NoMergeScheduler;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -71,11 +74,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -206,11 +210,10 @@ public class Lucene {
             }
         }
         final IndexCommit cp = getIndexCommit(si, directory);
-        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+        try (IndexWriter writer = new IndexWriter(directory, indexWriterConfigWithNoMerging(Lucene.STANDARD_ANALYZER)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexCommit(cp)
                 .setCommitOnClose(false)
-                .setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
@@ -237,9 +240,8 @@ public class Lucene {
                 }
             }
         }
-        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+        try (IndexWriter writer = new IndexWriter(directory, indexWriterConfigWithNoMerging(Lucene.STANDARD_ANALYZER)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // force creation - don't append...
         ))
@@ -1067,5 +1069,15 @@ public class Lucene {
                 return null;
             }
         };
+    }
+
+    /**
+     * Prepares a new {@link IndexWriterConfig} that does not do any merges, by setting both the merge policy and the merge scheduler.
+     * Setting just the merge policy means that constructing the index writer will create a {@link ConcurrentMergeScheduler} by default,
+     * which is quite heavyweight and in particular it can unnecessarily block on {@link IOUtils#spins}.
+     */
+    @SuppressForbidden(reason = "NoMergePolicy#INSTANCE is safe to use since we also set NoMergeScheduler#INSTANCE")
+    public static IndexWriterConfig indexWriterConfigWithNoMerging(Analyzer analyzer) {
+        return new IndexWriterConfig(analyzer).setMergePolicy(NoMergePolicy.INSTANCE).setMergeScheduler(NoMergeScheduler.INSTANCE);
     }
 }

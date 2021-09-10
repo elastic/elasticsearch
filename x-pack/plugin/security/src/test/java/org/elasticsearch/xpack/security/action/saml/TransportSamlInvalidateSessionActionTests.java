@@ -35,7 +35,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -148,6 +148,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         bulkRequests = new ArrayList<>();
         final Client client = new NoOpClient(threadPool) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
@@ -195,11 +196,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
@@ -208,7 +209,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -244,7 +244,9 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         try {
             final Map<String, Object> sourceMap = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput()).map();
+            @SuppressWarnings("unchecked")
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
+            @SuppressWarnings("unchecked")
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
             final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null);
             hit.sourceRef(source);
@@ -366,6 +368,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             final TermQueryBuilder termQuery = (TermQueryBuilder) filters.get(1);
             assertThat(termQuery.fieldName(), equalTo("refresh_token.token"));
             for (SearchHit hit : searchHits) {
+                @SuppressWarnings("unchecked")
                 final Map<String, Object> refreshToken = (Map<String, Object>) hit.getSourceAsMap().get("refresh_token");
                 if (termQuery.value().equals(refreshToken.get("token"))) {
                     return new SearchHit[]{hit};
@@ -390,4 +393,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         return storeToken(userTokenId, refreshToken, nameId, session);
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
+    }
 }

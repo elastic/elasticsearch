@@ -11,11 +11,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -23,8 +23,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
+
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
-    public static final String NAME = "field_masking_span";
+    public static final ParseField NAME = new ParseField("span_field_masking","field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -81,7 +83,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject(NAME.getPreferredName());
         builder.field(QUERY_FIELD.getPreferredName());
         queryBuilder.toXContent(builder, params);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
@@ -105,11 +107,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + NAME.getPreferredName() + "] query must " +
+                            "be of type span query");
                     }
                     inner = (SpanQueryBuilder) query;
+                    checkNoBoost(NAME.getPreferredName(), currentFieldName, parser, inner);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
+                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME.getPreferredName() + "] query does not support ["
                             + currentFieldName + "]");
                 }
             } else {
@@ -121,17 +125,16 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[field_masking_span] query does not support [" + currentFieldName + "]");
+                        "[" + NAME.getPreferredName() + "] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (inner == null) {
-            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [query] span query clause");
+            throw new ParsingException(parser.getTokenLocation(), NAME.getPreferredName() + " must have [query] span query clause");
         }
         if (field == null) {
-            throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [field] set for it");
+            throw new ParsingException(parser.getTokenLocation(), NAME.getPreferredName() + " must have [field] set for it");
         }
-
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
@@ -139,7 +142,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
@@ -163,6 +166,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return NAME.getPreferredName();
     }
 }

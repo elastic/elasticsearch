@@ -8,49 +8,15 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
-import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
-
-    private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = new ConcurrentHashMap<>();
-
-    public static void ensureAllPagesAreReleased() throws Exception {
-        final Map<Object, Throwable> masterCopy = new HashMap<>(ACQUIRED_PAGES);
-        if (masterCopy.isEmpty() == false) {
-            // not empty, we might be executing on a shared cluster that keeps on obtaining
-            // and releasing pages, lets make sure that after a reasonable timeout, all master
-            // copy (snapshot) have been released
-            final boolean success =
-                waitUntil(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()));
-            if (success == false) {
-                masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
-                ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-                if (masterCopy.isEmpty() == false) {
-                    Iterator<Throwable> causes = masterCopy.values().iterator();
-                    Throwable firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(masterCopy.size() + " pages have not been released", firstCause);
-                    while (causes.hasNext()) {
-                        exception.addSuppressed(causes.next());
-                    }
-                    throw exception;
-                }
-            }
-        }
-    }
 
     private final Random random;
 
@@ -63,15 +29,14 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     }
 
     private <T> V<T> wrap(final V<T> v) {
-        ACQUIRED_PAGES.put(v, new Throwable("Unreleased Page from test: " + LuceneTestCase.getTestClass().getName()));
         return new V<T>() {
+
+            private final LeakTracker.Leak<V<T>> leak = LeakTracker.INSTANCE.track(v);
 
             @Override
             public void close() {
-                final Throwable t = ACQUIRED_PAGES.remove(v);
-                if (t == null) {
-                    throw new IllegalStateException("Releasing a page that has not been acquired");
-                }
+                boolean leakReleased = leak.close(v);
+                assert leakReleased : "leak should not have been released already";
                 final T ref = v();
                 if (ref instanceof Object[]) {
                     Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);

@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
+
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -27,7 +28,6 @@ import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
-import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -94,7 +94,6 @@ public class WindowsServiceTests extends PackagingTestCase {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
-        disableGeoIpDownloader(installation);
     }
 
     public void test11InstallServiceExeMissing() throws IOException {

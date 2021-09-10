@@ -18,6 +18,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -68,11 +69,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -83,7 +84,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -170,7 +171,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -684,12 +685,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
-        }
-        // 30% of the time
-        if (randomInt(9) < 3) {
-            final String dataPath = randomAlphaOfLength(10);
-            logger.info("using custom data_path for index: [{}]", dataPath);
-            builder.put(IndexMetadata.SETTING_DATA_PATH, dataPath);
         }
         // always default delayed allocation to 0 to make sure we have tests are not delayed
         builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
@@ -1224,6 +1219,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
+    protected final ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
+        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
+    }
     /**
      * Syntactic sugar for:
      * <pre>
@@ -1337,14 +1335,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns a random admin client. This client can be pointing to any of the nodes in the cluster.
      */
-    protected AdminClient admin() {
+    protected static AdminClient admin() {
         return client().admin();
     }
 
     /**
      * Returns a random cluster admin client. This client can be pointing to any of the nodes in the cluster.
      */
-    protected ClusterAdminClient clusterAdmin() {
+    protected static ClusterAdminClient clusterAdmin() {
         return admin().cluster();
     }
 
@@ -1966,7 +1964,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
-    public Path randomRepoPath() {
+    public static Path randomRepoPath() {
         if (currentCluster instanceof InternalTestCluster) {
             return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
         }
@@ -2085,7 +2083,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState(true);
+                checkStaticState();
             }
         } finally {
             SUITE_SEED = null;

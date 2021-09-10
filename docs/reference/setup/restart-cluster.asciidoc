@@ -209,7 +209,7 @@ GET _cat/nodes
 . *Reenable shard allocation.*
 +
 --
-Once the node has joined the cluster, remove the
+For data nodes, once the node has joined the cluster, remove the
 `cluster.routing.allocation.enable` setting to enable shard allocation and start
 using the node:
 

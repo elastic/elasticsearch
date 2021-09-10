@@ -567,13 +567,13 @@ to:
 
 * Events with the same `user.name` value
 * `file` events with a `file.path` value equal to the following `process`
-   event's `process.path` value.
+   event's `process.executable` value.
 
 [source,eql]
 ----
 sequence
   [ file where file.extension == "exe" ] by user.name, file.path
-  [ process where true ] by user.name, process.path
+  [ process where true ] by user.name, process.executable
 ----
 
 Because the `user.name` field is shared across all events in the sequence, it
@@ -584,7 +584,7 @@ prior one.
 ----
 sequence by user.name
   [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.path
+  [ process where true ] by process.executable
 ----
 
 You can combine the `sequence by` and `with maxspan` keywords to constrain a
@@ -609,7 +609,7 @@ keywords to match only a sequence of events that:
 ----
 sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.path
+  [ process where true ] by process.executable
 ----
 
 [discrete]
@@ -792,7 +792,16 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-EQL does not support the following features and syntax.
+EQL has the following limitations.
+
+[discrete]
+[[eql-uses-fields-parameter]]
+==== EQL uses the `fields` parameter
+
+EQL retrieves field values using the search API's <<search-fields-param,`fields`
+parameter>>. Any limitations on the `fields` parameter also apply to EQL
+queries. For example, if `_source` is disabled for any returned fields or at
+index level, the values cannot be retrieved.
 
 [discrete]
 [[eql-compare-fields]]
@@ -809,14 +818,6 @@ another field. This applies even if the fields are changed using a
 EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
 use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
 parameter.
-
-[discrete]
-[[eql-array-fields]]
-==== Array field values are not supported
-
-EQL does not support <<array,array>> field values, also known as
-multi-value fields. EQL searches on array field values may return inconsistent
-results.
 
 [discrete]
 [[eql-nested-fields]]

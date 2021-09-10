@@ -4,7 +4,7 @@
       "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/preview-dfanalytics.html",
       "description":"Previews that will be analyzed given a data frame analytics config."
     },
-    "stability":"beta",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept":[ "application/json"],

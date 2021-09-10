@@ -13,12 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -49,9 +49,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         totalSize = in.readVLong();
     }
 
-    SnapshotStats(long startTime, long time,
-                  int incrementalFileCount, int totalFileCount, int processedFileCount,
-                  long incrementalSize, long totalSize, long processedSize) {
+    SnapshotStats(
+        long startTime,
+        long time,
+        int incrementalFileCount,
+        int totalFileCount,
+        int processedFileCount,
+        long incrementalSize,
+        long totalSize,
+        long processedSize
+    ) {
         this.startTime = startTime;
         this.time = time;
         assert time >= 0 : "Tried to initialize snapshot stats with negative total time [" + time + "]";
@@ -274,8 +281,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                 }
             }
         }
-        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,
-            processedSize);
+        return new SnapshotStats(
+            startTime,
+            time,
+            incrementalFileCount,
+            totalFileCount,
+            processedFileCount,
+            incrementalSize,
+            totalSize,
+            processedSize
+        );
     }
 
     /**

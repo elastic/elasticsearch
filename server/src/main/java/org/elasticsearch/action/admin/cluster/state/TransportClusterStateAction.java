@@ -27,12 +27,11 @@ import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -73,10 +72,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState ->
-                cancellableTask.isCancelled() || clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
-        if (acceptableClusterStatePredicate.test(state)) {
+        if (acceptableClusterStatePredicate.test(state) && cancellableTask.isCancelled() == false) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrFailedPredicate.test(state) == false;
@@ -85,9 +83,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                 @Override
                 public void onNewClusterState(ClusterState newState) {
-                    if (cancellableTask.isCancelled()) {
-                        listener.onFailure(new TaskCancelledException("task cancelled"));
-                    } else if (acceptableClusterStatePredicate.test(newState)) {
+                    if (cancellableTask.notifyIfCancelled(listener)) {
+                        return;
+                    }
+
+                    if (acceptableClusterStatePredicate.test(newState)) {
                         ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                     } else {
                         listener.onFailure(new NotMasterException(
@@ -103,16 +103,14 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     try {
-                        if (cancellableTask.isCancelled()) {
-                            listener.onFailure(new TaskCancelledException("task cancelled"));
-                        } else {
+                        if (cancellableTask.notifyIfCancelled(listener) == false) {
                             listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                         }
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
                 }
-            }, acceptableClusterStateOrFailedPredicate);
+            }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
     }
 

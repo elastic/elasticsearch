@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -25,7 +26,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
@@ -178,7 +179,7 @@ public class NativeUsersStore {
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.isAvailable() == false) {
-            if (frozenSecurityIndex.indexExists()) {
+            if (frozenSecurityIndex.indexExists() == false) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
                 logger.error("security index is unavailable. short circuiting retrieval of user [{}]", user);
@@ -191,15 +192,24 @@ public class NativeUsersStore {
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
+                                    logger.trace(
+                                        "user [{}] is doc [{}] in index [{}] with primTerm [{}] and seqNo [{}]",
+                                        user,
+                                        response.getId(),
+                                        response.getIndex(),
+                                        response.getPrimaryTerm(),
+                                        response.getSeqNo()
+                                    );
                                     listener.onResponse(transformUser(response.getId(), response.getSource()));
                                 }
 
                                 @Override
                                 public void onFailure(Exception t) {
                                     if (t instanceof IndexNotFoundException) {
-                                        logger.trace(
-                                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                                        "could not retrieve user [{}] because security index does not exist", user), t);
+                                        logger.trace(new ParameterizedMessage(
+                                                "could not retrieve user [{}] because security index does not exist",
+                                                user),
+                                            t);
                                     } else {
                                         logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
                                     }
@@ -234,7 +244,8 @@ public class NativeUsersStore {
                     new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
                             clearRealmCache(request.username(), listener, null);
                         }
 
@@ -242,7 +253,13 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (isIndexNotFoundOrDocumentMissing(e)) {
                                 if (docType.equals(RESERVED_USER_TYPE)) {
-                                    createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
+                                    updateReservedUser(
+                                        username,
+                                        request.passwordHash(),
+                                        DocWriteRequest.OpType.INDEX,
+                                        request.getRefreshPolicy(),
+                                        listener
+                                    );
                                 } else {
                                     logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
                                             new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
@@ -259,17 +276,36 @@ public class NativeUsersStore {
     }
 
     /**
-     * Asynchronous method to create a reserved user with the given password hash. The cache for the user will be cleared after the document
-     * has been indexed
+     * Asynchronous method to create or update a reserved user with the given password hash. The cache for the user will be
+     * cleared after the document has been indexed
      */
-    private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
+    public void updateReservedUser(
+        String username,
+        char[] passwordHash,
+        DocWriteRequest.OpType opType,
+        RefreshPolicy refresh,
+        ActionListener<Void> listener
+    ) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForUser(RESERVED_USER_TYPE, username))
-                            .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
-                                    true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                            .setRefreshPolicy(refresh).request(),
-                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
+                    .setOpType(opType)
+                    .setId(getIdForUser(RESERVED_USER_TYPE, username))
+                    .setSource(
+                        Fields.PASSWORD.getPreferredName(),
+                        String.valueOf(passwordHash),
+                        Fields.ENABLED.getPreferredName(),
+                        true,
+                        Fields.TYPE.getPreferredName(),
+                        RESERVED_USER_TYPE
+                    )
+                    .setRefreshPolicy(refresh)
+                    .request(),
+                listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
+                client::index
+            );
         });
     }
 
@@ -451,12 +487,25 @@ public class NativeUsersStore {
      */
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
-            if (userAndPassword == null || userAndPassword.passwordHash() == null) {
+            if (userAndPassword == null) {
+                logger.trace(
+                    "user [{}] does not exist in index [{}], cannot authenticate against the native realm",
+                    username,
+                    securityIndex.aliasName()
+                );
                 listener.onResponse(AuthenticationResult.notHandled());
-            } else if (userAndPassword.verifyPassword(password)) {
-                listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+            } else if (userAndPassword.passwordHash() == null) {
+                logger.debug("user [{}] in index [{}] does not have a password, cannot authenticate", username, securityIndex.aliasName());
+                listener.onResponse(AuthenticationResult.notHandled());
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                if (userAndPassword.verifyPassword(password)) {
+                    logger.trace(
+                        "successfully authenticated user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
+                    listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+                } else {
+                    logger.trace("password mismatch for user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
+                    listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                }
             }
         }, listener::onFailure));
     }
@@ -589,6 +638,7 @@ public class NativeUsersStore {
         final String username = id.substring(USER_DOC_TYPE.length() + 1);
         try {
             String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
+            @SuppressWarnings("unchecked")
             String[] roles = ((List<String>) sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(Fields.FULL_NAME.getPreferredName());
             String email = (String) sourceMap.get(Fields.EMAIL.getPreferredName());
@@ -597,6 +647,7 @@ public class NativeUsersStore {
                 // fallback mechanism as a user from 2.x may not have the enabled field
                 enabled = Boolean.TRUE;
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {

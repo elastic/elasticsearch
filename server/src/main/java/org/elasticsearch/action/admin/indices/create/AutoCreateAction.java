@@ -34,6 +34,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -111,11 +112,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
+                    final SystemDataStreamDescriptor dataStreamDescriptor =
+                        systemIndices.validateDataStreamAccess(request.index(), threadPool.getThreadContext());
+                    final boolean isSystemDataStream = dataStreamDescriptor != null;
+                    final boolean isSystemIndex = isSystemDataStream == false && systemIndices.isSystemIndex(request.index());
                     final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata());
+                    final boolean isDataStream = isSystemIndex == false &&
+                        (isSystemDataStream || (template != null && template.getDataStreamTemplate() != null));
 
-                    if (template != null && template.getDataStreamTemplate() != null) {
+                    if (isDataStream) {
                         // This expression only evaluates to true when the argument is non-null and false
-                        if (Boolean.FALSE.equals(template.getAllowAutoCreate())) {
+                        if (isSystemDataStream == false && Boolean.FALSE.equals(template.getAllowAutoCreate())) {
                             throw new IndexNotFoundException(
                                 "composable template " + template.indexPatterns() + " forbids index auto creation"
                             );
@@ -123,6 +130,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                         CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                             request.index(),
+                            dataStreamDescriptor,
                             request.masterNodeTimeout(),
                             request.timeout()
                         );
@@ -132,21 +140,27 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     } else {
                         String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
                         indexNameRef.set(indexName);
+                        if (isSystemIndex) {
+                            if (indexName.equals(request.index()) == false) {
+                                throw new IllegalStateException("system indices do not support date math expressions");
+                            }
+                        } else {
+                            // This will throw an exception if the index does not exist and creating it is prohibited
+                            final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
 
-                        // This will throw an exception if the index does not exist and creating it is prohibited
-                        final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
-
-                        if (shouldAutoCreate == false) {
-                            // The index already exists.
-                            return currentState;
+                            if (shouldAutoCreate == false) {
+                                // The index already exists.
+                                return currentState;
+                            }
                         }
 
-                        final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
-                        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
+                        final SystemIndexDescriptor mainDescriptor =
+                            isSystemIndex ? systemIndices.findMatchingDescriptor(indexName) : null;
+                        final boolean isManagedSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
 
                         final CreateIndexClusterStateUpdateRequest updateRequest;
 
-                        if (isSystemIndex) {
+                        if (isManagedSystemIndex) {
                             final SystemIndexDescriptor descriptor =
                                 mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
                             if (descriptor == null) {
@@ -155,7 +169,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 throw new IllegalStateException(message);
                             }
 
-                            updateRequest = buildSystemIndexUpdateRequest(descriptor);
+                            updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
                         } else {
                             updateRequest = buildUpdateRequest(indexName);
                         }
@@ -173,11 +187,14 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     return updateRequest;
                 }
 
-                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(SystemIndexDescriptor descriptor) {
+                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+                    String indexName, SystemIndexDescriptor descriptor) {
                     String mappings = descriptor.getMappings();
                     Settings settings = descriptor.getSettings();
                     String aliasName = descriptor.getAliasName();
-                    String concreteIndexName = descriptor.getPrimaryIndex();
+
+                    // if we are writing to the alias name, we should create the primary index here
+                    String concreteIndexName = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
 
                     CreateIndexClusterStateUpdateRequest updateRequest =
                         new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
@@ -196,7 +213,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest.aliases(Set.of(new Alias(aliasName)));
                     }
 
-                    logger.debug("Auto-creating system index {}", concreteIndexName);
+                    if (logger.isDebugEnabled()) {
+                        if (concreteIndexName.equals(indexName) == false) {
+                            logger.debug("Auto-creating backing system index {} for alias {}", concreteIndexName, indexName);
+                        } else {
+                            logger.debug("Auto-creating system index {}", concreteIndexName);
+                        }
+                    }
 
                     return updateRequest;
                 }

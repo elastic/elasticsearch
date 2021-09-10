@@ -16,7 +16,7 @@ import org.elasticsearch.client.asyncsearch.DeleteAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.GetAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;

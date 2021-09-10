@@ -29,11 +29,11 @@ public class SimpleInputTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
         data.put("baz", new ArrayList<String>() );
-        ExecutableInput staticInput = new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(data)));
+        ExecutableInput<?, ?> staticInput = new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(data)));
 
         Input.Result staticResult = staticInput.execute(null, new Payload.Simple());
         assertEquals(staticResult.payload().data().get("foo"), "bar");
-        List baz = (List)staticResult.payload().data().get("baz");
+        List<?> baz = (List<?>) staticResult.payload().data().get("baz");
         assertTrue(baz.isEmpty());
     }
 
@@ -43,23 +43,23 @@ public class SimpleInputTests extends ESTestCase {
         data.put("baz", new ArrayList<String>());
 
         XContentBuilder jsonBuilder = jsonBuilder().map(data);
-        InputFactory parser = new SimpleInputFactory();
+        InputFactory<?, ?, ?> parser = new SimpleInputFactory();
         XContentParser xContentParser = createParser(jsonBuilder);
         xContentParser.nextToken();
-        ExecutableInput input = parser.parseExecutable("_id", xContentParser);
+        ExecutableInput<?, ?> input = parser.parseExecutable("_id", xContentParser);
         assertEquals(input.type(), SimpleInput.TYPE);
 
 
         Input.Result staticResult = input.execute(null, new Payload.Simple());
         assertEquals(staticResult.payload().data().get("foo"), "bar");
-        List baz = (List)staticResult.payload().data().get("baz");
+        List<?> baz = (List<?>) staticResult.payload().data().get("baz");
         assertTrue(baz.isEmpty());
     }
 
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        InputFactory parser = new SimpleInputFactory();
+        InputFactory<?, ?, ?> parser = new SimpleInputFactory();
         XContentParser xContentParser = createParser(jsonBuilder);
         xContentParser.nextToken();
         try {

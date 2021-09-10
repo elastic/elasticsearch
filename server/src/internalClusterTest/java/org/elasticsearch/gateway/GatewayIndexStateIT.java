@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -513,20 +513,18 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen("test");
 
         final Metadata metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
-        final Path[] paths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
+        final Path path = internalCluster().getInstance(NodeEnvironment.class).nodeDataPath();
         final String nodeId = client().admin().cluster().prepareNodesInfo(nodeName).clear().get().getNodes().get(0).getNode().getId();
 
         writeBrokenMeta(metaStateService -> {
-            for (final Path path : paths) {
-                IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-            }
+            IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
             metaStateService.writeGlobalState("test", Metadata.builder(metadata)
                 // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
                 // term in the coordination metadata
                 .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
                 // add a tombstone but do not delete the index metadata from disk
                .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build()).build());
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT), paths);
+            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT), path);
         });
 
         ensureGreen();

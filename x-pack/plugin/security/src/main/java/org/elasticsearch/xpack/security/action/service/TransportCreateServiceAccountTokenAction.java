@@ -18,37 +18,31 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 public class TransportCreateServiceAccountTokenAction
     extends HandledTransportAction<CreateServiceAccountTokenRequest, CreateServiceAccountTokenResponse> {
 
-    private final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
+    private final ServiceAccountService serviceAccountService;
     private final SecurityContext securityContext;
-    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
     @Inject
     public TransportCreateServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
-                                                    IndexServiceAccountsTokenStore indexServiceAccountsTokenStore,
-                                                    SecurityContext securityContext,
-                                                    HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
+                                                    ServiceAccountService serviceAccountService,
+                                                    SecurityContext securityContext) {
         super(CreateServiceAccountTokenAction.NAME, transportService, actionFilters, CreateServiceAccountTokenRequest::new);
-        this.indexServiceAccountsTokenStore = indexServiceAccountsTokenStore;
+        this.serviceAccountService = serviceAccountService;
         this.securityContext = securityContext;
-        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     @Override
     protected void doExecute(Task task, CreateServiceAccountTokenRequest request,
                              ActionListener<CreateServiceAccountTokenResponse> listener) {
-        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "create service account token", () -> {
-            final Authentication authentication = securityContext.getAuthentication();
-            if (authentication == null) {
-                listener.onFailure(new IllegalStateException("authentication is required"));
-            } else {
-                indexServiceAccountsTokenStore.createToken(authentication, request, listener);
-            }
-        });
+        final Authentication authentication = securityContext.getAuthentication();
+        if (authentication == null) {
+            listener.onFailure(new IllegalStateException("authentication is required"));
+        } else {
+            serviceAccountService.createIndexToken(authentication, request, listener);
+        }
     }
 }

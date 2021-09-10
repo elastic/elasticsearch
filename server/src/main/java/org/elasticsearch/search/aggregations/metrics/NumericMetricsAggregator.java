@@ -33,8 +33,14 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         @Override
         public BucketComparator bucketComparator(String key, SortOrder order) {
             if (key != null && false == "value".equals(key)) {
-                throw new IllegalArgumentException("Ordering on a single-value metrics aggregation can only be done on its value. " +
-                        "Either drop the key (a la \"" + name() + "\") or change it to \"value\" (a la \"" + name() + ".value\")");
+                throw new IllegalArgumentException(
+                    "Ordering on a single-value metrics aggregation can only be done on its value. "
+                        + "Either drop the key (a la \""
+                        + name()
+                        + "\") or change it to \"value\" (a la \""
+                        + name()
+                        + ".value\")"
+                );
             }
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(lhs), metric(rhs), order == SortOrder.ASC);
         }
@@ -56,8 +62,7 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
                 throw new IllegalArgumentException("When ordering on a multi-value metrics aggregation a metric name must be specified.");
             }
             if (false == hasMetric(key)) {
-                throw new IllegalArgumentException(
-                        "Unknown metric name [" + key + "] on multi-value metrics aggregation [" + name() + "]");
+                throw new IllegalArgumentException("Unknown metric name [" + key + "] on multi-value metrics aggregation [" + name() + "]");
             }
             // TODO it'd be faster replace hasMetric and metric with something that returned a function from long to double.
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(key, lhs), metric(key, rhs), order == SortOrder.ASC);

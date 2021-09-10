@@ -122,7 +122,6 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
     public void testJobOpenActionInUpgradeMode() {
         String jobId = "job-should-not-open";
         Job.Builder job = createScheduledJob(jobId);
-        registerJob(job);
         putJob(job);
 
         setUpgradeModeTo(true);
@@ -172,13 +171,11 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data", numDocs1, lastWeek, now);
 
         Job.Builder job = createScheduledJob(jobId);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
         assertBusy(() -> {

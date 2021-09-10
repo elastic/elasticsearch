@@ -122,20 +122,20 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
     public final void testOnScriptErrorParameterRequiresScript() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", type());
-            b.field("on_script_error", "ignore");
+            b.field("on_script_error", "continue");
         })));
         assertThat(e.getMessage(),
             equalTo("Failed to parse mapping: Field [on_script_error] requires field [script] to be configured"));
     }
 
-    public final void testIgnoreScriptErrors() throws IOException {
+    public final void testOnScriptErrorContinue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("message").field("type", "keyword").endObject();
             b.startObject("message_error");
             {
                 b.field("type", type());
                 b.field("script", "throws");
-                b.field("on_script_error", "ignore");
+                b.field("on_script_error", "continue");
             }
             b.endObject();
         }));

@@ -25,7 +25,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -41,8 +40,8 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -63,12 +62,9 @@ import java.util.stream.Collectors;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
-    public SearchPhaseController(NamedWriteableRegistry namedWriteableRegistry,
-            Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
+    public SearchPhaseController(Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
@@ -422,8 +418,8 @@ public final class SearchPhaseController {
         final boolean hasProfileResults =  queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
-        final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
-        final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
+        final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
+        final Map<String, SearchProfileQueryPhaseResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
@@ -440,7 +436,7 @@ public final class SearchPhaseController {
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    List<Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
+                    List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
                     suggestionList.add(suggestion);
                     if (suggestion instanceof CompletionSuggestion) {
                         CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
@@ -466,7 +462,7 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+        final SearchProfileResults shardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
@@ -539,7 +535,7 @@ public final class SearchPhaseController {
         // the reduced internal aggregations
         final InternalAggregations aggregations;
         // the reduced profile results
-        final SearchProfileShardResults shardResults;
+        final SearchProfileResults shardResults;
         // the number of reduces phases
         final int numReducePhases;
         //encloses info about the merged top docs, the sort fields used to sort the score docs etc.
@@ -554,7 +550,7 @@ public final class SearchPhaseController {
         final DocValueFormat[] sortValueFormats;
 
         ReducedQueryPhase(TotalHits totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
-                          InternalAggregations aggregations, SearchProfileShardResults shardResults, SortedTopDocs sortedTopDocs,
+                          InternalAggregations aggregations, SearchProfileResults shardResults, SortedTopDocs sortedTopDocs,
                           DocValueFormat[] sortValueFormats, int numReducePhases, int size, int from, boolean isEmptyResult) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
@@ -597,8 +593,7 @@ public final class SearchPhaseController {
                                                    SearchRequest request,
                                                    int numShards,
                                                    Consumer<Exception> onPartialMergeFailure) {
-        return new QueryPhaseResultConsumer(request, executor, circuitBreaker,
-            this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
+        return new QueryPhaseResultConsumer(request, executor, circuitBreaker, this,  listener, numShards, onPartialMergeFailure);
     }
 
     static final class TopDocsStats {

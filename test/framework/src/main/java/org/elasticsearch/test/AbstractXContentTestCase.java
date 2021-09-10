@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -260,8 +260,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         } else {
             withRandomFields = xContent;
         }
-        XContentParser parserWithRandonFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
-        return BytesReference.bytes(ESTestCase.shuffleXContent(parserWithRandonFields, false, shuffleFieldsExceptions));
+        XContentParser parserWithRandomFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
+        return BytesReference.bytes(ESTestCase.shuffleXContent(parserWithRandomFields, false, shuffleFieldsExceptions));
     }
 
 }

@@ -68,7 +68,6 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private DataFrameAnalyticsAuditor auditor;
     private TrainedModelProvider trainedModelProvider;
     private ModelLoadingService modelLoadingService;
-    private ExecutorService executorServiceForJob;
     private ExecutorService executorServiceForProcess;
     private AnalyticsProcess<AnalyticsResult> process;
     private AnalyticsProcessFactory<AnalyticsResult> processFactory;
@@ -87,7 +86,6 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.execute(any(), any())).thenReturn(mock(ActionFuture.class));
-        executorServiceForJob = EsExecutors.newDirectExecutorService();
         executorServiceForProcess = mock(ExecutorService.class);
         process = mock(AnalyticsProcess.class);
         when(process.isProcessAlive()).thenReturn(true);
@@ -114,7 +112,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
 
         resultsPersisterService = mock(ResultsPersisterService.class);
-        processManager = new AnalyticsProcessManager(Settings.EMPTY, client, executorServiceForJob, executorServiceForProcess,
+        processManager = new AnalyticsProcessManager(Settings.EMPTY, client, EsExecutors.DIRECT_EXECUTOR_SERVICE, executorServiceForProcess,
             processFactory, auditor, trainedModelProvider, resultsPersisterService, 1);
     }
 

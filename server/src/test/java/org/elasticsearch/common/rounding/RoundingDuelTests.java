@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 

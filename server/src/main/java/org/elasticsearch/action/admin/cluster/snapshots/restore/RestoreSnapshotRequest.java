@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,8 +58,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
-    public RestoreSnapshotRequest() {
-    }
+    public RestoreSnapshotRequest() {}
 
     /**
      * Constructs a new put repository request with the provided repository and snapshot names.
@@ -525,13 +524,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 }
                 indexSettings((Map<String, Object>) entry.getValue());
             } else if (name.equals("ignore_index_settings")) {
-                    if (entry.getValue() instanceof String) {
-                        ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
-                    } else if (entry.getValue() instanceof List) {
-                        ignoreIndexSettings((List<String>) entry.getValue());
-                    } else {
-                        throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
-                    }
+                if (entry.getValue() instanceof String) {
+                    ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                } else if (entry.getValue() instanceof List) {
+                    ignoreIndexSettings((List<String>) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -599,27 +598,39 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreSnapshotRequest that = (RestoreSnapshotRequest) o;
-        return waitForCompletion == that.waitForCompletion &&
-            includeGlobalState == that.includeGlobalState &&
-            partial == that.partial &&
-            includeAliases == that.includeAliases &&
-            Objects.equals(snapshot, that.snapshot) &&
-            Objects.equals(repository, that.repository) &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(featureStates, that.featureStates) &&
-            Objects.equals(renamePattern, that.renamePattern) &&
-            Objects.equals(renameReplacement, that.renameReplacement) &&
-            Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
-            Objects.equals(snapshotUuid, that.snapshotUuid) &&
-            skipOperatorOnlyState == that.skipOperatorOnlyState;
+        return waitForCompletion == that.waitForCompletion
+            && includeGlobalState == that.includeGlobalState
+            && partial == that.partial
+            && includeAliases == that.includeAliases
+            && Objects.equals(snapshot, that.snapshot)
+            && Objects.equals(repository, that.repository)
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(featureStates, that.featureStates)
+            && Objects.equals(renamePattern, that.renamePattern)
+            && Objects.equals(renameReplacement, that.renameReplacement)
+            && Objects.equals(indexSettings, that.indexSettings)
+            && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
+            && Objects.equals(snapshotUuid, that.snapshotUuid)
+            && skipOperatorOnlyState == that.skipOperatorOnlyState;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid, skipOperatorOnlyState);
+        int result = Objects.hash(
+            snapshot,
+            repository,
+            indicesOptions,
+            renamePattern,
+            renameReplacement,
+            waitForCompletion,
+            includeGlobalState,
+            partial,
+            includeAliases,
+            indexSettings,
+            snapshotUuid,
+            skipOperatorOnlyState
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         result = 31 * result + Arrays.hashCode(featureStates);

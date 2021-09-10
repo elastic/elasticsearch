@@ -11,7 +11,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOError;
 import java.security.AccessController;
@@ -58,6 +58,8 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
         t.printStackTrace(Terminal.DEFAULT.getErrorWriter());
         // Without a final flush, the stacktrace may not be shown before ES exits
         Terminal.DEFAULT.flush();
+
+        Elasticsearch.printLogsSuggestion();
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {

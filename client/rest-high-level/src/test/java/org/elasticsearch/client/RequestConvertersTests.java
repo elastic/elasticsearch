@@ -29,7 +29,9 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -47,13 +49,14 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -82,6 +85,7 @@ import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -437,6 +441,10 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("slices", "1");
         }
+        if (randomBoolean()) {
+            reindexRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
+        }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
@@ -657,6 +665,11 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
 
+        if (randomBoolean()) {
+            indexRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
+        }
+
         XContentType xContentType = randomFrom(XContentType.values());
         int nbFields = randomIntBetween(0, 10);
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
@@ -744,6 +757,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
+        }
+
+        if (randomBoolean()) {
+            updateRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
         }
 
         Request request = RequestConverters.update(updateRequest);
@@ -1013,7 +1031,12 @@ public class RequestConvertersTests extends ESTestCase {
         String[] indices = randomIndicesNames(0, 5);
         Map<String, String> expectedParams = new HashMap<>();
         SearchRequest searchRequest = createTestSearchRequest(indices, expectedParams);
-
+        if (searchRequest.source() != null && randomBoolean()) {
+            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLength(100));
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMinutes(between(1, 10)));
+            }
+        }
         Request request = RequestConverters.search(searchRequest, searchEndpoint);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
@@ -1213,7 +1236,7 @@ public class RequestConvertersTests extends ESTestCase {
         };
         MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
                 REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null,
-                xContentRegistry(), true);
+                xContentRegistry(), true, RestApiVersion.current());
         assertEquals(requests, multiSearchRequest.requests());
     }
 
@@ -1274,9 +1297,9 @@ public class RequestConvertersTests extends ESTestCase {
         }
         endpoint.add("_search/template");
 
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertToXContentBody(searchTemplateRequest, request.getEntity());
     }
 
@@ -1393,6 +1416,55 @@ public class RequestConvertersTests extends ESTestCase {
 
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(explainRequest, request.getEntity());
+    }
+
+    public void testPointInTime() throws Exception {
+        // Open point in time
+        {
+            Map<String, String> expectedParams = new HashMap<>();
+            String[] indices = randomIndicesNames(1, 5);
+            OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
+            String keepAlive = randomFrom("1ms", "2m", "1d");
+            openRequest.keepAlive(TimeValue.parseTimeValue(keepAlive, "keep_alive"));
+            expectedParams.put("keep_alive", keepAlive);
+            if (randomBoolean()) {
+                String routing = randomAlphaOfLengthBetween(1, 10);
+                openRequest.routing(routing);
+                expectedParams.put("routing", routing);
+            }
+            if (randomBoolean()) {
+                String preference = randomAlphaOfLengthBetween(1, 10);
+                openRequest.preference(preference);
+                expectedParams.put("preference", preference);
+            }
+            openRequest.indicesOptions(setRandomIndicesOptions(openRequest.indicesOptions(), expectedParams));
+            final Request request = RequestConverters.openPointInTime(openRequest);
+            assertThat(request.getParameters(), equalTo(expectedParams));
+            assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+            final String expectedEndpoint = "/" + String.join(",", indices) + "/_pit";
+            assertThat(request.getEndpoint(), equalTo(expectedEndpoint));
+        }
+        // Search with point in time
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder());
+            String pitID = randomAlphaOfLength(10);
+            final PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pitID);
+            if (randomBoolean()) {
+                pointInTimeBuilder.setKeepAlive(randomFrom(TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(10)));
+            }
+            searchRequest.source().pointInTimeBuilder(pointInTimeBuilder);
+            final Request request = RequestConverters.search(searchRequest, "/_search");
+            assertToXContentBody(searchRequest.source(), request.getEntity());
+        }
+        // close PIT
+        {
+            String id = randomAlphaOfLengthBetween(3, 10);
+            Request request = RequestConverters.closePointInTime(new ClosePointInTimeRequest(id));
+            assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+            assertThat(request.getEndpoint(), equalTo("/_pit"));
+            assertThat(EntityUtils.toString(request.getEntity()), equalTo("{\"id\":" + "\"" + id + "\"}"));
+        }
     }
 
     public void testTermVectors() throws IOException {
@@ -1900,9 +1972,12 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
         if (randomBoolean()) {
-            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+            boolean ccsMinimizeRoundtrips = randomBoolean();
+            searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
+            if (ccsMinimizeRoundtrips == false) {
+                expectedParams.put("ccs_minimize_roundtrips", "false");
+            }
         }
-        expectedParams.put("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
         if (randomBoolean()) {
             searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }

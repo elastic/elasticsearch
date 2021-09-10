@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models.html",
       "description":"Creates an inference trained model."
     },
-    "stability":"beta",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
@@ -25,6 +25,14 @@
           }
         }
       ]
+    },
+    "params":{
+      "defer_definition_decompression": {
+        "required": false,
+        "type": "boolean",
+        "description": "If set to `true` and a `compressed_definition` is provided, the request defers definition decompression and skips relevant validations.",
+        "default": false
+      }
     },
     "body":{
       "description":"The trained model configuration",

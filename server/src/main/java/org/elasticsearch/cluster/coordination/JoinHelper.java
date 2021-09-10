@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -123,7 +123,7 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
-        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        final String dataPath = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
@@ -134,9 +134,8 @@ public class JoinHelper {
                             localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
                             request.getState().metadata().clusterUUID() + "]. This is forbidden and usually indicates an incorrect " +
                             "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
-                            "can only be changed by deleting the contents of the node's data " +
-                            (dataPaths.size() == 1 ? "path " : "paths ") + dataPaths +
-                            " which will also remove any data held by this node.");
+                            "can only be changed by deleting the contents of the node's data path [" + dataPath +
+                            "] which will also remove any data held by this node.");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);

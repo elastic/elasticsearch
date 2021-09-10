@@ -1,0 +1,35 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+docs-check"
+    display-name: "elastic / elasticsearch - pull request docs-check"
+    description: "Testing of Elasticsearch pull requests - docs-check"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+docs-check"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/docs-check.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/docs-check
+          cancel-builds-on-update: true
+          included-regions:
+            - ^docs/.*
+          black-list-labels:
+            - '>test-mute'
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA11_HOME=$HOME/.java/java11
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed :docs:check

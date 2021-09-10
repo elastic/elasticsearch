@@ -31,11 +31,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
@@ -86,6 +88,7 @@ import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAc
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
 import org.elasticsearch.xpack.transform.action.compat.TransportDeleteTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformStatsActionDeprecated;
@@ -213,6 +216,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
             new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
+            new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
 
             // deprecated actions, to be removed for 8.0.0
             new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
@@ -260,7 +264,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
-        TransformCheckpointService checkpointService = new TransformCheckpointService(settings, clusterService, configManager, auditor);
+        TransformCheckpointService checkpointService =
+            new TransformCheckpointService(Clock.systemUTC(), settings, clusterService, configManager, auditor);
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
@@ -329,8 +334,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         }
     }
 
-    @Override public Collection<String> getAssociatedIndexPatterns() {
-        return List.of(AUDIT_INDEX_PATTERN);
+    @Override public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        return List.of(new AssociatedIndexDescriptor(AUDIT_INDEX_PATTERN, "Audit index"));
     }
 
     @Override
@@ -411,7 +416,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                     + (stopTransformsResponse.getTaskFailures().isEmpty()
                         ? ""
                         : "task failures: " + stopTransformsResponse.getTaskFailures());
-                unsetResetModeListener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(this.getFeatureName(), errMsg));
+                unsetResetModeListener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(this.getFeatureName(),
+                    new ElasticsearchException(errMsg)));
             }
         }, unsetResetModeListener::onFailure);
 

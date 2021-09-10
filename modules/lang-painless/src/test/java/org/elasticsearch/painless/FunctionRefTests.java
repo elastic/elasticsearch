@@ -150,12 +150,12 @@ public class FunctionRefTests extends ScriptTestCase {
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
-    public void testOwnStaticMethodReference() {
+    public void testOwnMethodReference() {
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }
 
-    public void testOwnStaticMethodReferenceDef() {
+    public void testOwnMethodReferenceDef() {
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "def l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }
@@ -272,5 +272,37 @@ public class FunctionRefTests extends ScriptTestCase {
             exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);");
         });
         assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
+    }
+
+    public void testPrimitiveMethodReferences() {
+        assertEquals(true, exec("boolean test(Function s) {return s.apply(Boolean.valueOf(true));} return test(boolean::booleanValue);"));
+        assertEquals(true, exec("boolean test(Supplier s) {return s.get();} boolean b = true; return test(b::booleanValue);"));
+        assertEquals((byte)1, exec("byte test(Function s) {return s.apply(Byte.valueOf(1));} return test(byte::byteValue);"));
+        assertEquals((byte)1, exec("byte test(Supplier s) {return s.get();} byte b = 1; return test(b::byteValue);"));
+        assertEquals((short)1, exec("short test(Function s) {return s.apply(Short.valueOf(1));} return test(short::shortValue);"));
+        assertEquals((short)1, exec("short test(Supplier s) {return s.get();} short s = 1; return test(s::shortValue);"));
+        assertEquals((char)1, exec("char test(Function s) {return s.apply(Character.valueOf(1));} return test(char::charValue);"));
+        assertEquals((char)1, exec("char test(Supplier s) {return s.get();} char c = 1; return test(c::charValue);"));
+        assertEquals(1, exec("int test(Function s) {return s.apply(Integer.valueOf(1));} return test(int::intValue);"));
+        assertEquals(1, exec("int test(Supplier s) {return s.get();} int i = 1; return test(i::intValue);"));
+        assertEquals((long)1, exec("long test(Function s) {return s.apply(Long.valueOf(1));} return test(long::longValue);"));
+        assertEquals((long)1, exec("long test(Supplier s) {return s.get();} long l = 1; return test(l::longValue);"));
+        assertEquals((float)1, exec("float test(Function s) {return s.apply(Short.valueOf(1));} return test(float::floatValue);"));
+        assertEquals((float)1, exec("float test(Supplier s) {return s.get();} float f = 1; return test(f::floatValue);"));
+        assertEquals((double)1, exec("double test(Function s) {return s.apply(Double.valueOf(1));} return test(double::doubleValue);"));
+        assertEquals((double)1, exec("double test(Supplier s) {return s.get();} double d = 1; return test(d::doubleValue);"));
+    }
+
+    public void testObjectMethodOverride() {
+        assertEquals("s", exec("CharSequence test(Supplier s) {return s.get();} CharSequence s = 's'; return test(s::toString);"));
+        assertEquals("s", exec("CharSequence test(Supplier s) {return s.get();} def s = 's'; return test(s::toString);"));
+        assertEquals("s", exec("CharSequence test(Function s) {return s.apply('s');} return test(CharSequence::toString);"));
+    }
+
+    public void testInvalidStaticCaptureMethodReference() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () ->
+            exec("int test(Function f, String s) {return f.apply(s);} Integer i = Integer.valueOf(1); test(i::parseInt, '1')")
+        );
+        assertThat(expected.getMessage(), containsString("cannot use a static method as a function reference"));
     }
 }

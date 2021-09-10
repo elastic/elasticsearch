@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Arrays;
 import java.util.Random;
@@ -34,8 +34,6 @@ public class RandomizingClient extends FilterClient {
 
     public RandomizingClient(Client client, Random random) {
         super(client);
-        // we don't use the QUERY_AND_FETCH types that break quite a lot of tests
-        // given that they return `size*num_shards` hits instead of `size`
         defaultSearchType = RandomPicks.randomFrom(random, Arrays.asList(
                 SearchType.DFS_QUERY_THEN_FETCH,
                 SearchType.QUERY_THEN_FETCH));

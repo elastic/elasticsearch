@@ -20,8 +20,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -32,8 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class TransformTaskFailedStateIT extends TransformRestTestCase {
-
-    private final List<String> failureTransforms = new ArrayList<>();
 
     @Before
     public void setClusterSettings() throws IOException {
@@ -55,12 +51,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     @After
     public void cleanUpPotentiallyFailedTransform() throws Exception {
-        // If the tests failed in the middle, we should force stop it. This prevents other transform tests from failing due
-        // to this left over transform
-        for (String transformId : failureTransforms) {
-            stopTransform(transformId, true);
-            deleteTransform(transformId);
-        }
+        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     public void testForceStopFailedTransform() throws Exception {
@@ -69,7 +60,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
-        failureTransforms.add(transformId);
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
@@ -107,7 +97,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
-        failureTransforms.add(transformId);
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);

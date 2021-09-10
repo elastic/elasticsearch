@@ -1,17 +1,13 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   testImplementation project(':x-pack:qa')
-}
-if (BuildParams.inFipsJvm){
-  // This test is testing rolling upgrades with a BASIC license and FIPS 140 mode is not available in BASIC
-  tasks.withType(Test).configureEach{ enabled = false }
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
@@ -87,8 +83,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  onlyIf { BuildParams.inFipsJvm == false}
+  enabled = BuildParams.inFipsJvm == false
 }
+
 tasks.named("testingConventions").configure {
-  onlyIf { BuildParams.inFipsJvm == false }
+  enabled = BuildParams.inFipsJvm == false
 }

@@ -207,8 +207,8 @@ production environments. If needed, you can override default sizing by manually
 setting the heap size.
 
 When installing {es} on Windows as a service for the first time or running {es}
-from the command line, you can manually set the heap size as described in
-<<setting-jvm-heap-size>>. To resize the heap for an already installed service,
+from the command line, you can manually <<set-jvm-heap-size>>.
+To resize the heap for an already installed service,
 use the service manager: `bin\elasticsearch-service.bat manager`.
 ====
 

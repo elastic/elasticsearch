@@ -35,7 +35,7 @@ public final class RandomCreateIndexGenerator {
      * Randomizes the index name, the aliases, mappings and settings associated with the
      * index. If present, the mapping definition will be nested under a type name.
      */
-    public static CreateIndexRequest randomCreateIndexRequest() throws IOException {
+    public static CreateIndexRequest randomCreateIndexRequest() {
         String index = randomAlphaOfLength(5);
         CreateIndexRequest request = new CreateIndexRequest(index);
         randomAliases(request);
@@ -73,36 +73,44 @@ public final class RandomCreateIndexGenerator {
      * Creates a random mapping, with the mapping definition nested
      * under the given type name.
      */
-    public static XContentBuilder randomMapping(String type) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        builder.startObject().startObject(type);
+    public static XContentBuilder randomMapping(String type)  {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject(type);
 
-        randomMappingFields(builder, true);
+            randomMappingFields(builder, true);
 
-        builder.endObject().endObject();
-        return builder;
+            builder.endObject().endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**
      * Adds random mapping fields to the provided {@link XContentBuilder}
      */
-    public static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
-        builder.startObject("properties");
+    public static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) {
+        try {
+            builder.startObject("properties");
 
-        int fieldsNo = randomIntBetween(0, 5);
-        for (int i = 0; i < fieldsNo; i++) {
-            builder.startObject(randomAlphaOfLength(5));
+            int fieldsNo = randomIntBetween(0, 5);
+            for (int i = 0; i < fieldsNo; i++) {
+                builder.startObject(randomAlphaOfLength(5));
 
-            if (allowObjectField && randomBoolean()) {
-                randomMappingFields(builder, false);
-            } else {
-                builder.field("type", "text");
+                if (allowObjectField && randomBoolean()) {
+                    randomMappingFields(builder, false);
+                } else {
+                    builder.field("type", "text");
+                }
+
+                builder.endObject();
             }
 
             builder.endObject();
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
-
-        builder.endObject();
     }
 
     /**

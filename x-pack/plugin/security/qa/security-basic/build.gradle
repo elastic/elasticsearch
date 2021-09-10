@@ -1,7 +1,7 @@
 
 apply plugin: 'elasticsearch.java-rest-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
@@ -29,4 +29,6 @@ testClusters.all {
   extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+  user username: "api_key_admin", password: "security-test-password", role: "api_key_admin_role"
+  user username: "api_key_user", password: "security-test-password", role: "api_key_user_role"
 }

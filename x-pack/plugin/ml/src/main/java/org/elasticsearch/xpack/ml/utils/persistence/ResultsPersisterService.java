@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -390,7 +390,6 @@ public class ResultsPersisterService {
         final Consumer<String> msgHandler;
         final BiConsumer<Request, ActionListener<Response>> action;
         volatile int currentAttempt = 0;
-        volatile long currentMin = MIN_RETRY_SLEEP_MILLIS;
         volatile long currentMax = MIN_RETRY_SLEEP_MILLIS;
 
         MlRetryableAction(String jobId,
@@ -453,17 +452,10 @@ public class ResultsPersisterService {
         }
 
         @Override
-        protected long calculateDelay(long previousDelay) {
-            // Since we exponentially increase, we don't want force randomness to have an excessively long sleep
-            if (currentMax < MAX_RETRY_SLEEP_MILLIS) {
-                currentMin = currentMax;
-            }
+        protected long calculateDelayBound(long previousDelayBound) {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
             int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
-            // Its good to have a random window along the exponentially increasing curve
-            // so that not all bulk requests rest for the same amount of time
-            int randBound = (int)(1 + (currentMax - currentMin));
             String msg = new ParameterizedMessage(
                 "failed to {} after [{}] attempts. Will attempt again.",
                 getName(),
@@ -471,12 +463,10 @@ public class ResultsPersisterService {
                 .getFormattedMessage();
             LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
             msgHandler.accept(msg);
-            return randBound;
-        }
-
-        @Override
-        protected long minimumDelayMillis() {
-            return currentMin;
+            // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
+            // Its good to have a random window along the exponentially increasing curve
+            // so that not all bulk requests rest for the same amount of time
+            return currentMax;
         }
 
         @Override

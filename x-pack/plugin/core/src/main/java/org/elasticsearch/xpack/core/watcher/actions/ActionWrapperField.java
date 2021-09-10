@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 public final class ActionWrapperField {
     public static final ParseField ID = new ParseField("id");

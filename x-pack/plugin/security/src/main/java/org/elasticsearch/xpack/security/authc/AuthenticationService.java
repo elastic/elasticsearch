@@ -14,16 +14,16 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -193,7 +193,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportRequest transportRequest,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, transportRequest, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
+        new Authenticator(action, transportRequest, shouldFallbackToAnonymous(true), listener).consumeToken(token);
     }
 
     public void expire(String principal) {
@@ -305,7 +305,7 @@ public class AuthenticationService {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
             this.fallbackToAnonymous = fallbackToAnonymous;
-            this.defaultOrderedRealmList = realms.asList();
+            this.defaultOrderedRealmList = realms.getActiveRealms();
             this.listener = listener;
         }
 
@@ -314,9 +314,9 @@ public class AuthenticationService {
          * these operations are:
          *
          * <ol>
-         * <li>look for existing authentication {@link #lookForExistingAuthentication(Consumer)}</li>
+         * <li>look for existing authentication {@link #lookForExistingAuthentication()}</li>
          * <li>look for a user token</li>
-         * <li>token extraction {@link #extractToken(Consumer)}</li>
+         * <li>token extraction {@link #extractToken()}</li>
          * <li>token authentication {@link #consumeToken(AuthenticationToken)}</li>
          * <li>user lookup for run as if necessary {@link #consumeUser(User, Map)} and
          * {@link #lookupRunAsUser(User, String, Consumer)}</li>
@@ -330,14 +330,19 @@ public class AuthenticationService {
                 logger.debug("No realms available, failing authentication");
                 listener.onResponse(null);
             } else {
-                lookForExistingAuthentication((authentication) -> {
-                    if (authentication != null) {
-                        logger.trace("Found existing authentication [{}] in request [{}]", authentication, request);
-                        listener.onResponse(authentication);
-                    } else {
-                        checkForBearerToken();
-                    }
-                });
+                final Authentication authentication;
+                try {
+                    authentication = lookForExistingAuthentication();
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                if (authentication != null) {
+                    logger.trace("Found existing authentication [{}] in request [{}]", authentication, request);
+                    listener.onResponse(authentication);
+                } else {
+                    checkForBearerToken();
+                }
             }
         }
 
@@ -393,7 +398,14 @@ public class AuthenticationService {
                                 logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
                             }
                         }
-                        extractToken(this::consumeToken);
+                        final AuthenticationToken token;
+                        try {
+                            token = extractToken();
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
+                        }
+                        consumeToken(token);
                     }
                 },
                 e -> listener.onFailure(request.exceptionProcessingRequest(e, null))));
@@ -404,25 +416,20 @@ public class AuthenticationService {
          * consumer is called if no exception was thrown while trying to read the authentication and may be called with a {@code null}
          * value
          */
-        private void lookForExistingAuthentication(Consumer<Authentication> authenticationConsumer) {
-            Runnable action;
+        private Authentication lookForExistingAuthentication() {
+            final Authentication authentication;
             try {
-                final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
-                if (authentication != null && request instanceof AuditableRestRequest) {
-                    action = () -> listener.onFailure(request.tamperedRequest());
-                } else {
-                    action = () -> authenticationConsumer.accept(authentication);
-                }
+                authentication = authenticationSerializer.readFromContext(threadContext);
             } catch (Exception e) {
                 logger.error((Supplier<?>)
                         () -> new ParameterizedMessage("caught exception while trying to read authentication from request [{}]", request),
                     e);
-                action = () -> listener.onFailure(request.tamperedRequest());
+                throw request.tamperedRequest();
             }
-
-            // While we could place this call in the try block, the issue is that we catch all exceptions and could catch exceptions that
-            // have nothing to do with a tampered request.
-            action.run();
+            if (authentication != null && request instanceof AuditableRestRequest) {
+                throw request.tamperedRequest();
+            }
+            return authentication;
         }
 
         /**
@@ -431,28 +438,26 @@ public class AuthenticationService {
          * no exception was caught during the extraction process and may be called with a {@code null} token.
          */
         // pkg-private accessor testing token extraction with a consumer
-        void extractToken(Consumer<AuthenticationToken> consumer) {
-            Runnable action = () -> consumer.accept(null);
+        AuthenticationToken extractToken() {
             try {
                 if (authenticationToken != null) {
-                    action = () -> consumer.accept(authenticationToken);
+                    return authenticationToken;
                 } else {
                     for (Realm realm : defaultOrderedRealmList) {
                         final AuthenticationToken token = realm.token(threadContext);
                         if (token != null) {
                             logger.trace("Found authentication credentials [{}] for principal [{}] in request [{}]",
                                 token.getClass().getName(), token.principal(), request);
-                            action = () -> consumer.accept(token);
-                            break;
+                            return token;
                         }
                     }
                 }
             } catch (Exception e) {
                 logger.warn("An exception occurred while attempting to find authentication credentials", e);
-                action = () -> listener.onFailure(request.exceptionProcessingRequest(e, null));
+                throw request.exceptionProcessingRequest(e, null);
             }
 
-            action.run();
+            return null;
         }
 
         /**
@@ -606,19 +611,12 @@ public class AuthenticationService {
                 authentication = null;
             }
 
-            Runnable action;
             if (authentication != null) {
-                action = () -> writeAuthToContext(authentication);
+                writeAuthToContext(authentication);
             } else {
-                action = () -> {
-                    logger.debug("No valid credentials found in request [{}], rejecting", request);
-                    listener.onFailure(request.anonymousAccessDenied());
-                };
+                logger.debug("No valid credentials found in request [{}], rejecting", request);
+                listener.onFailure(request.anonymousAccessDenied());
             }
-
-            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing when
-            // an exception bubbles up even after successful authentication
-            action.run();
         }
 
         /**
@@ -712,10 +710,6 @@ public class AuthenticationService {
          * successful
          */
         void writeAuthToContext(Authentication authentication) {
-            Runnable action = () -> {
-                logger.trace("Established authentication [{}] for request [{}]", authentication, request);
-                listener.onResponse(authentication);
-            };
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
                 request.authenticationSuccess(authentication);
@@ -723,21 +717,16 @@ public class AuthenticationService {
                 // i.e. not read from either header or transient header
                 operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
             } catch (Exception e) {
-                action = () -> {
-                    logger.debug(
+                logger.debug(
                         new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, request), e);
-                    listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
-                };
+                listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
+                return;
             }
 
-            // we assign the listener call to an action to avoid calling the listener within a try block and auditing the wrong thing
-            // when an exception bubbles up even after successful authentication
-            action.run();
+            logger.trace("Established authentication [{}] for request [{}]", authentication, request);
+            listener.onResponse(authentication);
         }
 
-        private void authenticateToken(AuthenticationToken token) {
-            this.consumeToken(token);
-        }
     }
 
     abstract static class AuditableRequest {

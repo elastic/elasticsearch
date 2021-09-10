@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
@@ -45,4 +47,10 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
         assertThat(DiscoveryNode.getRolesFromSettings(removeRoles(Set.of(role))), not(hasItem(role)));
     }
 
+    public void testIsDedicatedFrozenNode() {
+        runRoleTest(DiscoveryNode::isDedicatedFrozenNode, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        assertTrue(DiscoveryNode.isDedicatedFrozenNode(addRoles(nonDataNode(), Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
+        assertFalse(DiscoveryNode.isDedicatedFrozenNode(
+            addRoles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))));
+    }
 }

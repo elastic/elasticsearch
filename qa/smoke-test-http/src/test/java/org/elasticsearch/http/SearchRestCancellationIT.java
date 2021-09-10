@@ -19,11 +19,11 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -49,13 +49,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
@@ -93,28 +92,15 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     public void testAutomaticCancellationDuringFetchPhase() throws Exception {
@@ -142,28 +128,15 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     private static Map<String, String> readNodesInfo() {

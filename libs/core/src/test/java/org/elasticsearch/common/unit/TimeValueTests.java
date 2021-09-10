@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;

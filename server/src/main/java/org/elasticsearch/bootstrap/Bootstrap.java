@@ -18,11 +18,10 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -89,8 +89,15 @@ final class Bootstrap {
         });
     }
 
-    /** initialize native resources */
-    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
+    /**
+     * Initialize native resources.
+     *
+     * @param tmpFile          the temp directory
+     * @param mlockAll         whether or not to lock memory
+     * @param systemCallFilter whether or not to install system call filters
+     * @param ctrlHandler      whether or not to install the ctrl-c handler (applies to Windows only)
+     */
+    static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
@@ -98,8 +105,12 @@ final class Bootstrap {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
-        // enable system call filter
         if (systemCallFilter) {
+            /*
+             * Try to install system call filters; if they fail to install; a bootstrap check will fail startup in production mode.
+             *
+             * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
+             */
             Natives.tryInstallSystemCallFilter(tmpFile);
         }
 
@@ -165,7 +176,7 @@ final class Bootstrap {
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
+                true, // always install system call filters, not user-configurable since 8.0.0
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed
@@ -226,37 +237,11 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
-        final KeyStoreWrapper keystore;
         try {
-            keystore = KeyStoreWrapper.load(initialEnv.configFile());
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-
-        SecureString password;
-        try {
-            if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(stdin, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
-            } else {
-                password = new SecureString(new char[0]);
-            }
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-
-        try (password) {
-            if (keystore == null) {
-                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-                keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
-                return keyStoreWrapper;
-            } else {
-                keystore.decrypt(password.getChars());
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
-            }
+            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
-        return keystore;
     }
 
     // visible for tests
@@ -331,7 +316,7 @@ final class Bootstrap {
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
-        BootstrapInfo.init();
+        BootstrapInfo.init(getSysOutReference());
 
         INSTANCE = new Bootstrap();
 
@@ -437,6 +422,11 @@ final class Bootstrap {
 
             throw e;
         }
+    }
+
+    @SuppressForbidden(reason = "Retain reference for System.out")
+    private static PrintStream getSysOutReference() {
+        return System.out;
     }
 
     @SuppressForbidden(reason = "System#out")

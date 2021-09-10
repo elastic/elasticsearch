@@ -12,11 +12,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class StringFieldScript extends AbstractFieldScript {
     /**
@@ -24,7 +24,41 @@ public abstract class StringFieldScript extends AbstractFieldScript {
      */
     public static final long MAX_CHARS = 1024 * 1024;
 
-    public static final ScriptContext<Factory> CONTEXT = newContext("string_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
+
+    public static final StringFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new StringFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -62,15 +96,11 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         resultsForDoc(docId).forEach(consumer);
     }
 
-    /**
-     * Reorders the values from the last time {@link #resultsForDoc(int)} was called to
-     * how this would appear in doc-values order.
-     */
-    public final String[] asDocValues() {
-        String[] values = new String[results.size()];
-        results.toArray(values);
-        Arrays.sort(values);
-        return values;
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v != null) {
+            emit(v.toString());
+        }
     }
 
     public final void emit(String v) {

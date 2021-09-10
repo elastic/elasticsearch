@@ -9,21 +9,17 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;
 
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<UnfollowFollowerIndexStep> {
 
@@ -32,7 +28,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         return new UnfollowFollowerIndexStep(key, nextKey, client);
     }
 
-    public void testUnFollow() {
+    public void testUnFollow() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -49,22 +45,8 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], is(true));
-        assertThat(failure[0], nullValue());
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
     }
 
     public void testRequestNotAcknowledged() {
@@ -82,23 +64,10 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], nullValue());
-        assertThat(failure[0], notNullValue());
-        assertThat(failure[0].getMessage(), is("unfollow request failed to be acknowledged"));
+        Exception e = expectThrows(Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f)));
+        assertThat(e.getMessage(), is("unfollow request failed to be acknowledged"));
     }
 
     public void testUnFollowUnfollowFailed() {
@@ -119,25 +88,12 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], nullValue());
-        assertThat(failure[0], sameInstance(error));
+        assertSame(error, expectThrows(RuntimeException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))));
     }
 
-    public void testFailureToReleaseRetentionLeases() {
+    public void testFailureToReleaseRetentionLeases() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -156,21 +112,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        AtomicBoolean completed = new AtomicBoolean(false);
-        AtomicReference<Exception> failure = new AtomicReference<>();
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-            }
-        });
-        assertThat(completed.get(), equalTo(true));
-        assertThat(failure.get(), nullValue());
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
     }
 }

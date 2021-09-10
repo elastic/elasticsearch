@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
+import static org.elasticsearch.core.Types.forciblyCast;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -106,7 +107,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                     @Override
@@ -174,7 +175,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -236,7 +237,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(),
-            EsExecutors.newDirectExecutorService(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest,
             null,
             shardsIter,
@@ -339,7 +340,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -353,7 +354,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             latch.await();
             ShardId[] expected = IntStream.range(0, shardIds.size())
                 .boxed()
-                .sorted(Comparator.comparing(minAndMaxes::get, MinAndMax.getComparator(order)).thenComparing(shardIds::get))
+                .sorted(Comparator.comparing(minAndMaxes::get, forciblyCast(MinAndMax.getComparator(order))).thenComparing(shardIds::get))
                 .map(shardIds::get)
                 .toArray(ShardId[]::new);
             if (shardToSkip.size() == expected.length) {
@@ -419,7 +420,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -723,7 +724,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             aliasFilters,
             Collections.emptyMap(),
-            EsExecutors.newDirectExecutorService(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest,
             null,
             shardsIter,

@@ -169,11 +169,11 @@ POST /museums/_search?size=0
 ==== Requests with additional bounding box filtering
 
 The `geotile_grid` aggregation supports an optional `bounds` parameter
-that restricts the points considered to those that fall within the
+that restricts the cells considered to those that intersects the
 bounds provided. The `bounds` parameter accepts the bounding box in
 all the same <<query-dsl-geo-bounding-box-query-accepted-formats,accepted formats>> of the
 bounds specified in the Geo Bounding Box Query. This bounding box can be used with or
-without an additional `geo_bounding_box` query filtering the points prior to aggregating.
+without an additional `geo_bounding_box` query for filtering the points prior to aggregating.
 It is an independent bounding box that can intersect with, be equal to, or be disjoint
 to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 

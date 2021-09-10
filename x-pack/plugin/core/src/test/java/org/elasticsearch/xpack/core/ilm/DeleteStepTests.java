@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -22,10 +22,9 @@ import org.mockito.Mockito;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
+public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     @Override
     public DeleteStep createRandomInstance() {
@@ -59,8 +58,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
@@ -69,7 +67,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         assertFalse(createRandomInstance().indexSurvives());
     }
 
-    public void testDeleted() {
+    public void testDeleted() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -83,25 +81,11 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
                 return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-
-        assertThat(actionCompleted.get(), equalTo(true));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -123,25 +107,12 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertThat(exceptionThrown.get(), equalTo(true));
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
+            f -> step.performAction(indexMetadata, clusterState, null, f))));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
@@ -159,9 +130,9 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         ).build();
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new AsyncActionStep.Listener() {
+            () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
                 @Override
-                public void onResponse(boolean complete) {
+                public void onResponse(Void complete) {
                     fail("unexpected listener callback");
                 }
 
@@ -170,9 +141,17 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
                     fail("unexpected listener callback");
                 }
             }));
-        assertThat(illegalStateException.getMessage(),
-            is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "]. stopping execution of lifecycle" +
-                " [test-ilm-policy] as a data stream's write index cannot be deleted. manually rolling over the index will resume the " +
-                "execution of the policy as the index will not be the data stream's write index anymore"));
+        assertThat(
+            illegalStateException.getMessage(),
+            is(
+                "index ["
+                    + indexName
+                    + "] is the write index for data stream ["
+                    + dataStreamName
+                    + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
+                    + "manually rolling over the index will resume the execution of the policy as the index will not be the "
+                    + "data stream's write index anymore"
+            )
+        );
     }
 }

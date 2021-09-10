@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.DirectoryStream;

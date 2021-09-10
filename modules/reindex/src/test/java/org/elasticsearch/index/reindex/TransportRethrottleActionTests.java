@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.theInstance;
@@ -91,8 +91,18 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
-            tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
-                Collections.emptyMap()));
+            tasks.add(new TaskInfo(
+                    new TaskId("test", 123),
+                    "test",
+                    "test",
+                    "test",
+                    status,
+                    0,
+                    0,
+                    true,
+                    false,
+                    new TaskId("test", task.getId()),
+                    Collections.emptyMap()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         rethrottleTestCase(slices,
@@ -112,8 +122,18 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = succeeded; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
-            tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
-                Collections.emptyMap()));
+            tasks.add(new TaskInfo(
+                    new TaskId("test", 123),
+                    "test",
+                    "test",
+                    "test",
+                    status,
+                    0,
+                    0,
+                    true,
+                    false,
+                    new TaskId("test", task.getId()),
+                    Collections.emptyMap()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         rethrottleTestCase(slices - succeeded,

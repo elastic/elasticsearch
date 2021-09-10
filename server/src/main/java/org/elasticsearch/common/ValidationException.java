@@ -21,22 +21,28 @@ public class ValidationException extends IllegalArgumentException {
         super("validation failed");
     }
 
+    public ValidationException(Throwable cause) {
+        super(cause);
+    }
+
     /**
      * Add a new validation error to the accumulating validation errors
      * @param error the error to add
      */
-    public final void addValidationError(String error) {
+    public final ValidationException addValidationError(String error) {
         validationErrors.add(error);
+        return this;
     }
 
     /**
      * Add a sequence of validation errors to the accumulating validation errors
      * @param errors the errors to add
      */
-    public final void addValidationErrors(Iterable<String> errors) {
+    public final ValidationException addValidationErrors(Iterable<String> errors) {
         for (String error : errors) {
             validationErrors.add(error);
         }
+        return this;
     }
 
     /**

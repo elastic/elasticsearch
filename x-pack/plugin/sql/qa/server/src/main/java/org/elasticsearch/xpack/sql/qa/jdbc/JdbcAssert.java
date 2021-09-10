@@ -58,8 +58,6 @@ public class JdbcAssert {
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
-
     static {
         for (EsType type : EsType.values()) {
             SQL_TO_TYPE.putIfAbsent(type.getVendorTypeNumber().intValue(), type);
@@ -315,7 +313,7 @@ public class JdbcAssert {
                         if (actualObject instanceof Geometry) {
                             // We need to convert the expected object to libs/geo Geometry for comparision
                             try {
-                                expectedObject = WKT.fromWKT(expectedObject.toString());
+                                expectedObject = WellKnownText.fromWKT(StandardValidator.instance(true), true, expectedObject.toString());
                             } catch (IOException | ParseException ex) {
                                 fail(ex.getMessage());
                             }

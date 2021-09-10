@@ -4,9 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
@@ -25,8 +25,6 @@ testClusters.all {
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
   setting 'xpack.security.enabled', 'false'
 }
-
-tasks.named("test").configure{enabled = false }
 
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC

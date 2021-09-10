@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -59,6 +59,10 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
@@ -69,6 +73,7 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -78,6 +83,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -105,6 +111,8 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;
@@ -148,6 +156,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_AS_REALM_FIELD_NAME = "user.run_as.realm";
     public static final String API_KEY_ID_FIELD_NAME = "apikey.id";
     public static final String API_KEY_NAME_FIELD_NAME = "apikey.name";
+    public static final String SERVICE_TOKEN_NAME_FIELD_NAME = "authentication.token.name";
+    public static final String SERVICE_TOKEN_TYPE_FIELD_NAME = "authentication.token.type";
     public static final String PRINCIPAL_ROLES_FIELD_NAME = "user.roles";
     public static final String AUTHENTICATION_TYPE_FIELD_NAME = "authentication.type";
     public static final String REALM_FIELD_NAME = "realm";
@@ -197,7 +207,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
             SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
             DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
-            DeletePrivilegesAction.NAME);
+            DeletePrivilegesAction.NAME, CreateServiceAccountTokenAction.NAME, DeleteServiceAccountTokenAction.NAME);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
@@ -396,18 +406,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
-                new LogEntryBuilder()
-                        .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
-                        .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                        .with(ACTION_FIELD_NAME, action)
-                        .with(PRINCIPAL_FIELD_NAME, token.principal())
-                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
-                        .withRequestId(requestId)
-                        .withRestOrTransportOrigin(transportRequest, threadContext)
-                        .with(INDICES_FIELD_NAME, indices.orElse(null))
-                        .withOpaqueId(threadContext)
-                        .withXForwardedFor(threadContext)
-                        .build();
+                final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                    .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                    .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
+                    .with(ACTION_FIELD_NAME, action)
+                    .with(PRINCIPAL_FIELD_NAME, token.principal())
+                    .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
+                    .withRequestId(requestId)
+                    .withRestOrTransportOrigin(transportRequest, threadContext)
+                    .with(INDICES_FIELD_NAME, indices.orElse(null))
+                    .withOpaqueId(threadContext)
+                    .withXForwardedFor(threadContext);
+                if (token instanceof ServiceAccountToken) {
+                    logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
+                }
+                logEntryBuilder.build();
             }
         }
     }
@@ -453,17 +466,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty(), Optional.empty())) == false) {
-            new LogEntryBuilder()
-                    .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                    .with(PRINCIPAL_FIELD_NAME, token.principal())
-                    .withRestUriAndMethod(request)
-                    .withRestOrigin(request)
-                    .withRequestBody(request)
-                    .withRequestId(requestId)
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
-                    .build();
+            final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
+                .with(PRINCIPAL_FIELD_NAME, token.principal())
+                .withRestUriAndMethod(request)
+                .withRestOrigin(request)
+                .withRequestBody(request)
+                .withRequestId(requestId)
+                .withOpaqueId(threadContext)
+                .withXForwardedFor(threadContext);
+            if (token instanceof ServiceAccountToken) {
+                logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
+            }
+            logEntryBuilder.build();
         }
     }
 
@@ -582,6 +598,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
+                } else if (msg instanceof CreateServiceAccountTokenRequest) {
+                    assert CreateServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
                 } else {
                     throw new IllegalStateException("Unknown message class type [" + msg.getClass().getSimpleName() +
                             "] for the \"security change\" action [" + action + "]");
@@ -1154,6 +1176,34 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_service_token");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("service_token")
+                .field("namespace", createServiceAccountTokenRequest.getNamespace())
+                .field("service", createServiceAccountTokenRequest.getServiceName())
+                .field("name", createServiceAccountTokenRequest.getTokenName())
+                .endObject() // service_token
+                .endObject();
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_service_token");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("service_token")
+                .field("namespace", deleteServiceAccountTokenRequest.getNamespace())
+                .field("service", deleteServiceAccountTokenRequest.getServiceName())
+                .field("name", deleteServiceAccountTokenRequest.getTokenName())
+                .endObject() // service_token
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRestUriAndMethod(RestRequest request) {
             final int queryStringIndex = request.uri().indexOf('?');
             int queryStringLength = request.uri().indexOf('#');
@@ -1265,6 +1315,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
+            }
+            if (authentication.isServiceAccount()) {
+                logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
+                    .with(SERVICE_TOKEN_TYPE_FIELD_NAME,
+                        ServiceAccountSettings.REALM_TYPE + "_" + authentication.getMetadata().get(TOKEN_SOURCE_FIELD));
             }
             return this;
         }

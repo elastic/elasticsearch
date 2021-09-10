@@ -24,7 +24,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -181,12 +180,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private boolean indexDirectoryExists(String nodeName, Index index) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
-        for (Path path : nodeEnv.indexPaths(index)) {
-            if (Files.exists(path)) {
-                return true;
-            }
-        }
-        return false;
+        return Files.exists(nodeEnv.indexPath(index));
     }
 
     private ImmutableOpenMap<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {

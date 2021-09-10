@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,9 +32,9 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-
-        MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", Version.CURRENT, false, true)
-            .build(new ContentPath()).fieldType();
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", version, false, true)
+            .build(MapperBuilderContext.ROOT).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
             List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));

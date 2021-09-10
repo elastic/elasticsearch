@@ -850,6 +850,7 @@ public class RestClient implements Closeable {
      */
     private static Exception extractAndWrapCause(Exception exception) {
         if (exception instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException("thread waiting for the response was interrupted", exception);
         }
         if (exception instanceof ExecutionException) {

@@ -621,6 +621,18 @@ setup:
   - match: { overall_buckets.0.result_type: overall_bucket }
 
 ---
+"Test overall buckets given no matching jobs":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-that-do-not-exist-*"
+        bucket_span: "2h"
+        overall_score: "41.0"
+        allow_no_match: true
+
+  - match: { count: 0 }
+  - length: { overall_buckets: 0 }
+
+---
 "Test overall buckets given bucket_span is smaller than max job bucket_span":
   - do:
       catch: /.*Param \[bucket_span\] must be greater or equal to the max bucket_span \[60m\]*/

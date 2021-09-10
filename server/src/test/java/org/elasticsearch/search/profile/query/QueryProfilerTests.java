@@ -118,6 +118,23 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(rewriteTime, greaterThan(0L));
     }
 
+    public void testNodeTime() throws IOException {
+        QueryProfiler profiler = new QueryProfiler();
+        searcher.setProfiler(profiler);
+        Query query = new TermQuery(new Term("foo", "bar"));
+        searcher.search(query, 1);
+        List<ProfileResult> results = profiler.getTree();
+        assertEquals(1, results.size());
+        Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
+
+        // test that nodeTime is sum of values excluding the _count values
+        long sum = 0;
+        for (QueryTimingType type : QueryTimingType.values()) {
+            sum += breakdown.get(type.toString());
+        }
+        assertEquals(results.get(0).getTime(), sum);
+    }
+
     public void testNoScoring() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
         searcher.setProfiler(profiler);

@@ -9,7 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -68,7 +68,7 @@ public class CloseToAssertion extends Assertion {
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is close to [{}] with error [{}] (field [{}])", actualValue, expectedValue, error, getField());
         if (actualValue instanceof Number) {
-            assertThat(((Number) expectedValue).doubleValue(), closeTo((Double) expectedValue, error));
+            assertThat(((Number) actualValue).doubleValue(), closeTo((Double) expectedValue, error));
         } else {
             throw new AssertionError("excpected a value close to " + expectedValue + " but got " + actualValue + ", which is not a number");
         }

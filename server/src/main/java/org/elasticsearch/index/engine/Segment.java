@@ -16,7 +16,8 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,7 +43,6 @@ public class Segment implements Writeable {
     public org.apache.lucene.util.Version version = null;
     public Boolean compound = null;
     public String mergeId;
-    public long memoryInBytes;
     public Sort segmentSort;
     public Accountable ramTree = null;
     public Map<String, String> attributes;
@@ -58,7 +58,9 @@ public class Segment implements Writeable {
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
-        memoryInBytes = in.readLong();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readLong(); // memoryInBytes
+        }
         if (in.readBoolean()) {
             // verbose mode
             ramTree = readRamTree(in);
@@ -123,13 +125,6 @@ public class Segment implements Writeable {
     }
 
     /**
-     * Estimation of the memory usage used by a segment.
-     */
-    public long getMemoryInBytes() {
-        return this.memoryInBytes;
-    }
-
-    /**
      * Return the sort order of this segment, or null if the segment has no sort.
      */
     public Sort getSegmentSort() {
@@ -171,7 +166,9 @@ public class Segment implements Writeable {
         out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
-        out.writeLong(memoryInBytes);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeLong(0); // memoryInBytes
+        }
 
         boolean verbose = ramTree != null;
         out.writeBoolean(verbose);
@@ -315,7 +312,6 @@ public class Segment implements Writeable {
                 ", version='" + version + '\'' +
                 ", compound=" + compound +
                 ", mergeId='" + mergeId + '\'' +
-                ", memoryInBytes=" + memoryInBytes +
                 (segmentSort != null ? ", sort=" + segmentSort : "") +
                 ", attributes=" + attributes +
                 '}';

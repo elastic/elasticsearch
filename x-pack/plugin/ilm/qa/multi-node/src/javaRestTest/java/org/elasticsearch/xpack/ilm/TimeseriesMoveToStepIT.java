@@ -14,9 +14,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -237,4 +238,122 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         });
     }
 
+    public void testMoveToStepWithoutStepName() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"action\": \"forcemerge\"\n" +
+            "  }\n" +
+            "}");
+
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually move on to and execute the forcemerge action
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testMoveToStepWithoutAction() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+       "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\"\n" +
+            "  }\n" +
+            "}");
+
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually move on to and execute the forcemerge action
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testInvalidToMoveToStepWithoutActionButWithName() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step with an invalid request
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"name\": \"forcemerge\"\n" +
+            "  }\n" +
+            "}");
+
+        assertBusy(() -> {
+            ResponseException exception =
+                expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
+            String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
+            String expectedErrorMessage = "phase; phase and action; or phase, action, and step must be provided, " +
+                "but a step name was specified without a corresponding action";
+            assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
+        });
+    }
+
+    public void testResolveToNonexistentStep() throws Exception {
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step with an invalid request
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"action\": \"shrink\"\n" +
+            "  }\n" +
+            "}");
+
+        assertBusy(() -> {
+            ResponseException exception =
+                expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
+            String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
+            String expectedErrorMessage = "unable to determine concrete step key from target next step key: " +
+                "{\\\"phase\\\":\\\"warm\\\",\\\"action\\\":\\\"shrink\\\"}";
+            assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
+        });
+    }
 }

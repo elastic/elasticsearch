@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -23,7 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private ProfileShardResult profileShardResults;
+    private SearchProfileQueryPhaseResult profileShardResults;
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
@@ -190,16 +191,27 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
-    public DelayableWriteable<InternalAggregations> consumeAggs() {
+    public InternalAggregations consumeAggs() {
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
-        DelayableWriteable<InternalAggregations> aggs = aggregations;
-        aggregations = null;
-        return aggs;
+        try {
+            return aggregations.expand();
+        } finally {
+            aggregations.close();
+            aggregations = null;
+        }
+    }
+
+    public void releaseAggs() {
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
+        }
     }
 
     public void aggregations(InternalAggregations aggregations) {
+        assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
     }
@@ -213,11 +225,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * This allows to free up memory once the profiled result is consumed.
      * @throws IllegalStateException if the profiled result has already been consumed.
      */
-    public ProfileShardResult consumeProfileResult() {
+    public SearchProfileQueryPhaseResult consumeProfileResult() {
         if (profileShardResults == null) {
             throw new IllegalStateException("profile results already consumed");
         }
-        ProfileShardResult result = profileShardResults;
+        SearchProfileQueryPhaseResult result = profileShardResults;
         profileShardResults = null;
         return result;
     }
@@ -233,16 +245,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (hasConsumedTopDocs() == false) {
             consumeTopDocs();
         }
-        if (hasAggs()) {
-            consumeAggs();
-        }
+        releaseAggs();
     }
 
     /**
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(ProfileShardResult shardResults) {
+    public void profileResults(SearchProfileQueryPhaseResult shardResults) {
         this.profileShardResults = shardResults;
         hasProfileResults = shardResults != null;
     }
@@ -319,21 +329,31 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (hasAggs = in.readBoolean()) {
-            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
-        }
-        if (in.readBoolean()) {
-            suggest = new Suggest(in);
-        }
-        searchTimedOut = in.readBoolean();
-        terminatedEarly = in.readOptionalBoolean();
-        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
-        hasProfileResults = profileShardResults != null;
-        serviceTimeEWMA = in.readZLong();
-        nodeQueueSize = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-            setRescoreDocIds(new RescoreDocIds(in));
+        hasAggs = in.readBoolean();
+        boolean success = false;
+        try {
+            if (hasAggs) {
+                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+            }
+            if (in.readBoolean()) {
+                suggest = new Suggest(in);
+            }
+            searchTimedOut = in.readBoolean();
+            terminatedEarly = in.readOptionalBoolean();
+            profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
+            hasProfileResults = profileShardResults != null;
+            serviceTimeEWMA = in.readZLong();
+            nodeQueueSize = in.readInt();
+            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+                setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+                setRescoreDocIds(new RescoreDocIds(in));
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                // in case we were not able to deserialize the full message we must release the aggregation buffer
+                Releasables.close(aggregations);
+            }
         }
     }
 

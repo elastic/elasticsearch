@@ -49,14 +49,14 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RankFeaturesFieldMapper build(ContentPath contentPath) {
+        public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                    name, new RankFeaturesFieldType(buildFullName(contentPath), meta.getValue(), positiveScoreImpact.getValue()),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), positiveScoreImpact.getValue());
+                    name, new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
@@ -116,10 +116,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("[rank_features] fields can't be used in multi-fields");
-        }
+    public void parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +
@@ -151,7 +148,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

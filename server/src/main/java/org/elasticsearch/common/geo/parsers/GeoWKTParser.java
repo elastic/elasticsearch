@@ -20,6 +20,7 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
@@ -51,19 +52,19 @@ public class GeoWKTParser {
     // no instance
     private GeoWKTParser() {}
 
-    public static ShapeBuilder parse(XContentParser parser, final AbstractShapeGeometryFieldMapper shapeMapper)
+    public static ShapeBuilder<?, ?, ?> parse(XContentParser parser, final AbstractShapeGeometryFieldMapper<?> shapeMapper)
             throws IOException, ElasticsearchParseException {
         return parseExpectedType(parser, null, shapeMapper);
     }
 
-    public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType)
+    public static ShapeBuilder<?, ?, ?> parseExpectedType(XContentParser parser, final GeoShapeType shapeType)
             throws IOException, ElasticsearchParseException {
         return parseExpectedType(parser, shapeType, null);
     }
 
     /** throws an exception if the parsed geometry type does not match the expected shape type */
-    public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
-                                                 final AbstractShapeGeometryFieldMapper shapeMapper)
+    public static ShapeBuilder<?, ?, ?> parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
+                                                 final AbstractShapeGeometryFieldMapper<?> shapeMapper)
             throws IOException, ElasticsearchParseException {
         try (StringReader reader = new StringReader(parser.text())) {
             boolean coerce = shapeMapper != null && shapeMapper.coerce();
@@ -80,14 +81,14 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue, coerce);
+            ShapeBuilder<?, ?, ?> builder = parseGeometry(tokenizer, shapeType, ignoreZValue, coerce);
             checkEOF(tokenizer);
             return builder;
         }
     }
 
     /** parse geometry from the stream tokenizer */
-    private static ShapeBuilder parseGeometry(StreamTokenizer stream, GeoShapeType shapeType, final boolean ignoreZValue,
+    private static ShapeBuilder<?, ?, ?> parseGeometry(StreamTokenizer stream, GeoShapeType shapeType, final boolean ignoreZValue,
                                               final boolean coerce)
             throws IOException, ElasticsearchParseException {
         final GeoShapeType type = GeoShapeType.forName(nextWord(stream));
@@ -245,7 +246,7 @@ public class GeoWKTParser {
             return null;
         }
         PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce),
-            ShapeBuilder.Orientation.RIGHT);
+            Orientation.RIGHT);
         while (nextCloserOrComma(stream).equals(COMMA)) {
             builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
         }

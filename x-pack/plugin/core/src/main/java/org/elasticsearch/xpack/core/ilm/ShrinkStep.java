@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
@@ -53,7 +54,8 @@ public class ShrinkStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         if (lifecycleState.getLifecycleDate() == null) {
             throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +
@@ -65,7 +67,7 @@ public class ShrinkStep extends AsyncActionStep {
             logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME, indexMetadata.getIndex().getName(),
                 LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()), shrunkenIndexName);
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
@@ -82,7 +84,7 @@ public class ShrinkStep extends AsyncActionStep {
         Settings relevantTargetSettings = builder.build();
 
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
-            .masterNodeTimeout(getMasterTimeout(currentState));
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
@@ -90,7 +92,7 @@ public class ShrinkStep extends AsyncActionStep {
             // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
             // eventual retry will not be able to succeed anymore (shrunk index was created already)
             // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
-            listener.onResponse(true);
+            listener.onResponse(null);
         }, listener::onFailure));
 
     }

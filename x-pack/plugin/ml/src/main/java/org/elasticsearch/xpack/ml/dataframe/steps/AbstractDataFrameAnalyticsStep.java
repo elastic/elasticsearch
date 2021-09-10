@@ -63,11 +63,14 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
             listener.onResponse(new StepResponse(true));
             return;
         }
-        doExecute(listener);
-
-        // We persist progress at the end of each step to ensure we do not have
-        // to repeat the step in case the node goes down without getting a chance to persist progress.
-        task.persistProgress();
+        doExecute(ActionListener.wrap(
+            stepResponse -> {
+                // We persist progress at the end of each step to ensure we do not have
+                // to repeat the step in case the node goes down without getting a chance to persist progress.
+                task.persistProgress(() -> listener.onResponse(stepResponse));
+            },
+            listener::onFailure
+        ));
     }
 
     protected abstract void doExecute(ActionListener<StepResponse> listener);

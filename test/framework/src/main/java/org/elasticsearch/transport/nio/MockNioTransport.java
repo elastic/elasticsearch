@@ -21,14 +21,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -122,8 +122,6 @@ public class MockNioTransport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
-
-            super.doStart();
             success = true;
         } catch (IOException e) {
             throw new ElasticsearchException(e);
@@ -171,6 +169,7 @@ public class MockNioTransport extends TcpTransport {
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
         builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
+        builder.setCompressionScheme(connectionProfile.getCompressionScheme());
         return builder.build();
     }
 
@@ -264,7 +263,6 @@ public class MockNioTransport extends TcpTransport {
         private final Releasable releasable;
 
         LeakAwareRefCounted(Releasable releasable) {
-            super("leak-aware-ref-counted");
             this.releasable = releasable;
             leak = LeakTracker.INSTANCE.track(releasable);
         }

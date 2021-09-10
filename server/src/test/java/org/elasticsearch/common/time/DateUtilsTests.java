@@ -34,10 +34,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends ESTestCase {
+    // list of ignored timezones.
+    // These should be cleaned up when all tested jdks (oracle, adoptopenjdk, openjdk etc) have the timezone db included
+    // see when a timezone was included in jdk version here https://www.oracle.com/java/technologies/tzdata-versions.html
     private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
         "Eire", "Europe/Dublin", // dublin timezone in joda does not account for DST
-        "Asia/Qostanay" // this has been added in joda 2.10.2 but is not part of the JDK 12.0.1 tzdata yet
+        "Asia/Qostanay", // part of tzdata2018h
+        "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
+        "America/Nuuk"// part of tzdata2020a
     ));
+
 
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));

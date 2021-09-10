@@ -81,7 +81,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
@@ -140,7 +140,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
@@ -201,7 +201,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
@@ -217,6 +217,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
     }
 
     private SearchPhaseController searchPhaseController() {
-        return new SearchPhaseController(writableRegistry(), request -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        return new SearchPhaseController(request -> InternalAggregationTestCase.emptyReduceContextBuilder());
     }
  }

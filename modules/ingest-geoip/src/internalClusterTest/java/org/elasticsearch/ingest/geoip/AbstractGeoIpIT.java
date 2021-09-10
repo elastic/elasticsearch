@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -21,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public abstract class AbstractGeoIpIT extends ESIntegTestCase {
@@ -58,7 +58,9 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Collections.singletonList(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope));
+            return List.of(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope),
+                Setting.timeSetting("ingest.geoip.database_validity", TimeValue.timeValueDays(3), Setting.Property.NodeScope,
+                    Setting.Property.Dynamic));
         }
     }
 }

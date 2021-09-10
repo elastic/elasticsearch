@@ -25,7 +25,7 @@ public class ToXContentTests extends ScriptTestCase {
     public void testUserFunction() {
         Map<?,?> func = getFunction("def twofive(int i) { return 25 + i; } int j = 23; twofive(j)", "twofive");
         assertFalse((Boolean)func.get("isInternal"));
-        assertTrue((Boolean)func.get("isStatic"));
+        assertFalse((Boolean)func.get("isStatic"));
         assertEquals("SFunction", func.get("node"));
         assertEquals("def", func.get("returns"));
         assertEquals(List.of("int"), func.get("parameterTypes"));

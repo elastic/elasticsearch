@@ -805,7 +805,8 @@ This yields the following aggregation profile output:
             },
             "debug": {
               "total_buckets": 1,
-              "result_strategy": "long_terms"
+              "result_strategy": "long_terms",
+              "built_buckets": 1
             }
           },
           {
@@ -825,6 +826,9 @@ This yields the following aggregation profile output:
               "build_leaf_collector_count": 1,
               "post_collection": 1584,
               "post_collection_count": 1
+            },
+            "debug": {
+              "built_buckets": 1
             },
             "children": [
               {
@@ -847,7 +851,8 @@ This yields the following aggregation profile output:
                 },
                 "debug": {
                   "total_buckets": 1,
-                  "result_strategy": "long_terms"
+                  "result_strategy": "long_terms",
+                  "built_buckets": 1
                 }
               }
             ]

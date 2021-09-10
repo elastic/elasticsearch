@@ -40,6 +40,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     private TransportPutRoleMappingAction action;
     private AtomicReference<PutRoleMappingRequest> requestRef;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
@@ -53,7 +54,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
             requestRef.set((PutRoleMappingRequest) args[0]);
-            ActionListener<Boolean> listener = (ActionListener) args[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
             listener.onResponse(true);
             return null;
         }).when(store).putRoleMapping(any(PutRoleMappingRequest.class), any(ActionListener.class)

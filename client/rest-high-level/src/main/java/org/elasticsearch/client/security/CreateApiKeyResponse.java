@@ -56,7 +56,7 @@ public final class CreateApiKeyResponse {
     }
 
     public SecureString getEncoded() {
-        return new SecureString(Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)).toCharArray());
+        return new SecureString(encode(id, key).toCharArray());
     }
 
     @Nullable
@@ -84,12 +84,15 @@ public final class CreateApiKeyResponse {
                 && Objects.equals(expiration, other.expiration);
     }
 
+    private static String encode(CharSequence id, CharSequence key) {
+        return Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+    }
+
     static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
         args -> {
             final String id = (String) args[1];
             final String key = (String) args[2];
-            if (args[4] != null
-                && false == args[4].equals(Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)))) {
+            if (args[4] != null && false == args[4].equals(encode(id, key))) {
                 throw new IllegalArgumentException("the encoded value does not match id and api_key");
             }
             return new CreateApiKeyResponse((String) args[0], id, new SecureString(key.toCharArray()),

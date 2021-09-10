@@ -25,106 +25,109 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-interface FieldsOptionSourceAdapter {
-    default void adaptRequest(Consumer<SearchSourceBuilder> sourceConsumer) {
-        // noop
-    };
-    default void adaptResponse(SearchHit[] searchHits) {
-        // noop
-    };
+public class FieldsOptionSourceAdapter {
 
-    default boolean getRemoveSourceOnResponse() {
-        return false;
-    }
-
-    String FIELDS_EMULATION_ERROR_MSG = "Cannot specify both 'fields' and '_source' 'includes' or 'excludes' in"
+    static String FIELDS_EMULATION_ERROR_MSG = "Cannot specify both 'fields' and '_source' 'includes' or 'excludes' in"
         + "a search request that is targeting pre version 7.10 nodes.";
 
-    static FieldsOptionSourceAdapter create(Version connectionVersion, SearchSourceBuilder searchSource) {
-        if (connectionVersion.before(Version.V_7_10_0)) {
-            List<FieldAndFormat> fetchFields = searchSource.fetchFields();
-            if (fetchFields != null && fetchFields.isEmpty() == false) {
-                String[] includes = fetchFields.stream().map(ff -> ff.field).toArray(i -> new String[i]);
-                CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
-                // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less space in the
-                // lookup automaton
-                Map<Boolean, List<String>> partitions = fetchFields.stream()
-                    .map(ff -> ff.field)
-                    .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
-                List<String> unmappedWildcardPattern = partitions.get(true);
-                List<String> unmappedConcreteFields = partitions.get(false);
-                if (unmappedWildcardPattern.isEmpty() == false) {
-                    unmappedFieldsFetchAutomaton = new CharacterRunAutomaton(
-                        Regex.simpleMatchToAutomaton(unmappedWildcardPattern.toArray(new String[unmappedWildcardPattern.size()])),
-                        100000
-                    );
-                }
-                final FieldFetcher fieldFetcher = new FieldFetcher(
-                    Collections.emptyMap(),
-                    unmappedFieldsFetchAutomaton,
-                    unmappedConcreteFields
-                );
+    private final SearchSourceBuilder originalSource;
+    private final boolean requestShouldBeAdapted;
+    private final boolean removeSourceOnResponse;
+    private final SearchSourceBuilder adaptedSource;
+    private FieldFetcher fieldFetcher;
 
-                FetchSourceContext fetchSource = searchSource.fetchSource();
-                final boolean removeSourceOnResponse;
-                final SearchSourceBuilder adaptedSource;
-
-                if (fetchSource == null || (fetchSource != null && fetchSource.fetchSource())) {
-                    // case 1: original request has source: true, but no includes/exclude -> do nothing on request
-                    if (fetchSource == null || fetchSource.includes().length == 0 && fetchSource.excludes().length == 0) {
-                        // change nothing, we can get everything from source and can leave it when translating the response
-                        removeSourceOnResponse = false;
-                        adaptedSource = searchSource;
-                    } else {
-                        // original request has source includes/excludes set. In this case we don't want to silently
-                        // overwrite the source parameter with something else, so we error instead
-                        throw new IllegalArgumentException(FIELDS_EMULATION_ERROR_MSG);
-                    }
+    public FieldsOptionSourceAdapter(SearchRequest request) {
+        originalSource = request.source() != null ? request.source() : new SearchSourceBuilder();
+        List<FieldAndFormat> fetchFields =  originalSource.fetchFields();
+        requestShouldBeAdapted = request.isFieldsOptionEmulationEnabled() && fetchFields != null && fetchFields.isEmpty() == false;
+        if (requestShouldBeAdapted) {
+            FetchSourceContext fetchSource = originalSource.fetchSource();
+            if (fetchSource == null || (fetchSource != null && fetchSource.fetchSource())) {
+                // case 1: original request has source: true, but no includes/exclude -> do nothing on request
+                if (fetchSource == null || fetchSource.includes().length == 0 && fetchSource.excludes().length == 0) {
+                    // change nothing, we can get everything from source and can leave it when translating the response
+                    removeSourceOnResponse = false;
+                    adaptedSource = originalSource;
                 } else {
-                    // case 2: original request has source: false
-                    adaptedSource = searchSource.shallowCopy();
-                    adaptedSource.fetchSource(new FetchSourceContext(true));
-                    adaptedSource.fetchSource(includes, null);
-                    removeSourceOnResponse = true;
+                    // original request has source includes/excludes set. In this case we don't want to silently
+                    // overwrite the source parameter with something else, so we error instead
+                    throw new IllegalArgumentException(FIELDS_EMULATION_ERROR_MSG);
                 }
-
-                return new FieldsOptionSourceAdapter() {
-
-                    @Override
-                    public void adaptRequest(Consumer<SearchSourceBuilder> sourceConsumer) {
-                        sourceConsumer.accept(adaptedSource);
-                    }
-
-                    @Override
-                    public void adaptResponse(SearchHit[] hits) {
-                        for (SearchHit hit : hits) {
-                            SourceLookup lookup = new SourceLookup();
-                            lookup.setSource(hit.getSourceAsMap());
-                            Map<String, DocumentField> documentFields = Collections.emptyMap();
-                            try {
-                                documentFields = fieldFetcher.fetch(lookup);
-                            } catch (IOException e) {
-                                // best effort fetching field, if this doesn't work continue
-                            }
-                            for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
-                                hit.setDocumentField(entry.getKey(), entry.getValue());
-                            }
-                            if (removeSourceOnResponse) {
-                                // original request didn't request source, so we remove it
-                                hit.sourceRef(null);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public boolean getRemoveSourceOnResponse() {
-                        return removeSourceOnResponse;
-                    }
-                };
+            } else {
+                // case 2: original request has source: false
+                adaptedSource = originalSource.shallowCopy();
+                adaptedSource.fetchSource(new FetchSourceContext(true));
+                String[] includes = fetchFields.stream().map(ff -> ff.field).toArray(i -> new String[i]);
+                adaptedSource.fetchSource(includes, null);
+                removeSourceOnResponse = true;
             }
+
+        } else {
+            removeSourceOnResponse = false;
+            adaptedSource = null;
         }
-        return FieldsOptionSourceAdapter.NOOP_ADAPTER;
     }
 
-    FieldsOptionSourceAdapter NOOP_ADAPTER = new FieldsOptionSourceAdapter() {};
+    /**
+     * Swaps the existing search source with one that has "source" fetching enabled and configured so that
+     * we retrieve the fields requested by the "fields" option in the original request.
+     * This is only done for connections to pre-7.10 nodes and if the fields emulation has been enabled, otherwise
+     * calling this method will be a no-op.
+     */
+    public void adaptRequest(Version connectionVersion, Consumer<SearchSourceBuilder> sourceConsumer) {
+        if (requestShouldBeAdapted && connectionVersion.before(Version.V_7_10_0) && adaptedSource != null) {
+            sourceConsumer.accept(adaptedSource);
+        }
+    }
+
+    /**
+     * Goes through all hits in the response and fetches fields requested by the "fields" option in the original request by
+     * fetching them from source. If the original request has "source" disabled, this method will also delete the
+     * source section in the hit.
+     * This is only done for connections to pre-7.10 nodes and if the fields emulation has been enabled, otherwise
+     * calling this method will be a no-op.
+     */
+    public void adaptResponse(Version connectionVersion, SearchHit[] hits) {
+        if (requestShouldBeAdapted && connectionVersion.before(Version.V_7_10_0)) {
+            for (SearchHit hit : hits) {
+                SourceLookup lookup = new SourceLookup();
+                lookup.setSource(hit.getSourceAsMap());
+                Map<String, DocumentField> documentFields = Collections.emptyMap();
+                try {
+                    if (fieldFetcher == null) {
+                        CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
+                        // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less space in the
+                        // lookup automaton
+                        Map<Boolean, List<String>> partitions = originalSource.fetchFields().stream()
+                            .map(ff -> ff.field)
+                            .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
+                        List<String> unmappedWildcardPattern = partitions.get(true);
+                        List<String> unmappedConcreteFields = partitions.get(false);
+                        if (unmappedWildcardPattern.isEmpty() == false) {
+                            unmappedFieldsFetchAutomaton = new CharacterRunAutomaton(
+                                Regex.simpleMatchToAutomaton(unmappedWildcardPattern.toArray(new String[unmappedWildcardPattern.size()])),
+                                100000
+                            );
+                        }
+                        fieldFetcher = new FieldFetcher(Collections.emptyMap(), unmappedFieldsFetchAutomaton, unmappedConcreteFields);
+
+                    }
+                    documentFields = fieldFetcher.fetch(lookup);
+                } catch (IOException e) {
+                    // best effort fetching field, if this doesn't work continue
+                }
+                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
+                    hit.setDocumentField(entry.getKey(), entry.getValue());
+                }
+                if (removeSourceOnResponse) {
+                    // original request didn't request source, so we remove it
+                    hit.sourceRef(null);
+                }
+            }
+        }
+    }
+
+    boolean getRemoveSourceOnResponse() {
+        return removeSourceOnResponse;
+    }
 }

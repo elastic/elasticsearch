@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -58,12 +59,10 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -363,25 +362,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            FieldsOptionSourceAdapter adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
-            if (searchRequest.isFieldsOptionEmulationEnabled()) {
-                try {
-                    Connection connection = remoteClusterService.getConnection(clusterAlias);
-                    adapter = FieldsOptionSourceAdapter.create(connection.getVersion(), searchRequest.source());
-                } catch (NoSuchRemoteClusterException ex) {
-                    // no connection version, adapter creation not possible if cluster not connected
-                }
-            }
+
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
-            adapter.adaptRequest(ccsSearchRequest::source);
-            final FieldsOptionSourceAdapter finalAdapter = adapter;
+            final FieldsOptionSourceAdapter adapter = new FieldsOptionSourceAdapter(searchRequest);
+            final Version connectionVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
+            adapter.adaptRequest(connectionVersion, ccsSearchRequest::source);
 
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    finalAdapter.adaptResponse(searchResponse.getHits().getHits());
+                    adapter.adaptResponse(connectionVersion, searchResponse.getHits().getHits());
                     Map<String, SearchProfileQueryPhaseResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
                         ? null : new SearchProfileResults(profileResults);
@@ -410,19 +402,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
+            FieldsOptionSourceAdapter adapter = new FieldsOptionSourceAdapter(searchRequest);
             for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                FieldsOptionSourceAdapter adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
-                if (searchRequest.isFieldsOptionEmulationEnabled()) {
-                    try {
-                        Connection connection = remoteClusterService.getConnection(clusterAlias);
-                        adapter = FieldsOptionSourceAdapter.create(connection.getVersion(), searchRequest.source());
-                    } catch (NoSuchRemoteClusterException ex) {
-                        // don't create fields option adapter in this case
-                    }
-                }
                 SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
                     parentTaskId,
                     searchRequest,
@@ -431,7 +415,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider.getAbsoluteStartMillis(),
                     false
                 );
-                adapter.adaptRequest(ccsSearchRequest::source);
+                Version connectionVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
+                adapter.adaptRequest(connectionVersion, ccsSearchRequest::source);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
                     clusterAlias,
                     skipUnavailable,
@@ -441,7 +426,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     totalClusters,
                     listener,
-                    adapter
+                    adapter,
+                    connectionVersion
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
@@ -456,7 +442,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     totalClusters,
                     listener,
-                    FieldsOptionSourceAdapter.NOOP_ADAPTER
+                    null,
+                    null
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
@@ -522,12 +509,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
                                                              ActionListener<SearchResponse> originalListener,
-                                                             FieldsOptionSourceAdapter adapter) {
+                                                             FieldsOptionSourceAdapter adapter,
+                                                             Version connectionVersion) {
         return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
             exceptions, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                adapter.adaptResponse(searchResponse.getHits().getHits());
+                if (adapter != null && connectionVersion != null) {
+                    adapter.adaptResponse(connectionVersion, searchResponse.getHits().getHits());
+                }
                 searchResponseMerger.add(searchResponse);
             }
 

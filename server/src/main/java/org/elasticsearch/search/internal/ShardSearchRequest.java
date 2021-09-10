@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -18,8 +20,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,14 +27,16 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -48,6 +50,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
@@ -406,10 +409,21 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             if (differentiator != null) {
                 differentiator.accept(this, out);
             }
-            return new BytesArray(sha256().digest(out.bytes().array()));
+
+            return new BytesArray(getHashedCacheKey(out.bytes()));
         } finally {
             out.reset();
         }
+    }
+
+    private byte[] getHashedCacheKey(BytesReference bytesReference) throws IOException {
+        MessageDigest hasher = sha256();
+        BytesRefIterator iterator = bytesReference.iterator();
+        BytesRef slice;
+        while ((slice = iterator.next()) != null) {
+            hasher.update(slice.bytes, slice.offset, slice.length);
+        }
+        return hasher.digest();
     }
 
     public String getClusterAlias() {

@@ -440,40 +440,41 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         // you need to add an additional index with no fields in order to trigger this (or potentially a shard)
         // so that there is an UnmappedTerms in the list to reduce.
         createIndex("foo_1");
-
+        // @formatter:off
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
-            .startObject("@timestamp")
-            .field("type", "date")
+              .startObject("@timestamp")
+                .field("type", "date")
+              .endObject()
+              .startObject("license")
+                .startObject("properties")
+                  .startObject("count")
+                    .field("type", "long")
+                  .endObject()
+                  .startObject("partnumber")
+                    .field("type", "text")
+                    .startObject("fields")
+                      .startObject("keyword")
+                        .field("type", "keyword")
+                        .field("ignore_above", 256)
+                      .endObject()
+                    .endObject()
+                  .endObject()
+                .endObject()
+              .endObject()
             .endObject()
-            .startObject("license")
-            .startObject("properties")
-            .startObject("count")
-            .field("type", "long")
-            .endObject()
-            .startObject("partnumber")
-            .field("type", "text")
-            .startObject("fields")
-            .startObject("keyword")
-            .field("type", "keyword")
-            .field("ignore_above", 256)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+          .endObject();
+        // @formatter:on
         assertAcked(client().admin().indices().prepareCreate("foo_2").setMapping(builder).get());
-
+        // @formatter:off
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")
-            .field("partnumber", "foobar")
-            .field("count", 2)
+              .field("partnumber", "foobar")
+              .field("count", 2)
             .endObject()
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
-            .endObject();
-
+          .endObject();
+        // @formatter:on
         client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();

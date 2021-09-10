@@ -143,8 +143,11 @@ public class OsProbeTests extends ESTestCase {
                 assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(0L));
                 // These could be null if transported from a node running an older version, but shouldn't be null on the current node
                 assertThat(stats.getCgroup().getMemoryControlGroup(), notNullValue());
-                assertThat(stats.getCgroup().getMemoryLimitInBytes(), notNullValue());
-                assertThat(new BigInteger(stats.getCgroup().getMemoryLimitInBytes()), greaterThan(BigInteger.ZERO));
+                String memoryLimitInBytes = stats.getCgroup().getMemoryLimitInBytes();
+                assertThat(memoryLimitInBytes, notNullValue());
+                if (memoryLimitInBytes.equals("max") == false) {
+                    assertThat(new BigInteger(memoryLimitInBytes), greaterThan(BigInteger.ZERO));
+                }
                 assertThat(stats.getCgroup().getMemoryUsageInBytes(), notNullValue());
                 assertThat(new BigInteger(stats.getCgroup().getMemoryUsageInBytes()), greaterThan(BigInteger.ZERO));
             }

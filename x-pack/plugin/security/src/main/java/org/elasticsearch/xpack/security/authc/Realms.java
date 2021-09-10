@@ -361,7 +361,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
-            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "realm_name_with_reserved_prefix",
+            deprecationLogger.critical(DeprecationCategory.SECURITY, "realm_name_with_reserved_prefix",
                 "Found realm " + (realmIdentifiers.size() == 1 ? "name" : "names") + " with reserved prefix [{}]: [{}]. " +
                     "In a future major release, node will fail to start if any realm names start with reserved prefix.",
                 RealmSettings.RESERVED_REALM_NAME_PREFIX,

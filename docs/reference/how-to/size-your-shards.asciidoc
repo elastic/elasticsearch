@@ -29,8 +29,8 @@ cluster sizing video]. As you test different shard configurations, use {kib}'s
 cluster's stability and performance.
 
 The following sections provide some reminders and guidelines you should consider
-when designing your sharding strategy. If your cluster has shard-related
-problems, see <<fix-an-oversharded-cluster>>.
+when designing your sharding strategy. If your cluster is already oversharded,
+see <<reduce-cluster-shard-count>>.
 
 [discrete]
 [[shard-sizing-considerations]]
@@ -214,13 +214,12 @@ PUT my-index-000001/_settings
 --------------------------------------------------
 // TEST[setup:my_index]
 
-
 [discrete]
-[[fix-an-oversharded-cluster]]
-=== Fix an oversharded cluster
+[[reduce-cluster-shard-count]]
+=== Reduce a cluster's shard count
 
-If your cluster is experiencing stability issues due to oversharded indices,
-you can use one or more of the following methods to fix them.
+If your cluster is already oversharded, you can use one or more of the following
+methods to reduce a cluster's shard count.
 
 [discrete]
 [[create-indices-that-cover-longer-time-periods]]
@@ -311,6 +310,57 @@ POST _reindex
   },
   "dest": {
     "index": "my-index-2099.10"
+  }
+}
+----
+
+[discrete]
+[[troubleshoot-shard-related-errors]]
+=== Troubleshoot shard-related errors
+
+Here’s how to resolve common shard-related errors.
+
+[discrete]
+==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
+
+The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
+setting limits the maximum number of open shards for a cluster. This error
+indicates an action would exceed this limit.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,update
+cluster settings API>> and retry the action.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.max_shards_per_node": 1200
+  }
+}
+----
+
+This increase should only be temporary. As a long-term solution, we recommend
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>>. To get a
+cluster's current shard count after making changes, use the
+<<cluster-stats,cluster stats API>>.
+
+[source,console]
+----
+GET _cluster/stats?filter_path=indices.shards.total
+----
+
+When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node` limit.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.max_shards_per_node": null
   }
 }
 ----

@@ -99,7 +99,10 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                 }
 
                 if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
-                    waitExistingResetTaskToComplete(job.getBlocked().getTaskId(), request, listener);
+                    waitExistingResetTaskToComplete(job.getBlocked().getTaskId(), request, ActionListener.wrap(
+                        r -> resetIfJobIsStillBlockedOnReset(task, request, listener),
+                        listener::onFailure
+                    ));
                 } else {
                     ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
                     jobConfigProvider.updateJobBlockReason(job.getId(), new Blocked(Blocked.Reason.RESET, taskId), ActionListener.wrap(
@@ -139,6 +142,35 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             },
             listener::onFailure
         ));
+    }
+
+    private void resetIfJobIsStillBlockedOnReset(Task task, ResetJobAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
+            jobResponse -> {
+                Job job = jobResponse.build();
+                if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
+                    // This means the previous reset task finished successfully as it managed to unset the blocked reason.
+                    logger.debug(() -> new ParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId()));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                } else if (job.getBlocked().getReason() == Blocked.Reason.RESET){
+                    // Seems like the task was removed abruptly as it hasn't unset the block on reset.
+                    // Let us try reset again.
+                    logger.debug(() -> new ParameterizedMessage("[{}] Existing reset task was interrupted; retrying reset",
+                        request.getJobId()));
+                    ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client,
+                        new TaskId(clusterService.localNode().getId(), task.getId()));
+                    resetJob(taskClient, (CancellableTask) task, request, listener);
+                } else {
+                    // Blocked reason is now different. Let us just communicate the conflict.
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                        "cannot reset job while it is blocked with [" + job.getBlocked().getReason() + "]"));
+                }
+            },
+            listener::onFailure
+        );
+
+        // Get job again to check if it is still blocked
+        jobConfigProvider.getJob(request.getJobId(), jobListener);
     }
 
     private void resetJob(ParentTaskAssigningClient taskClient, CancellableTask task, ResetJobAction.Request request,

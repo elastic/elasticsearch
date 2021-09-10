@@ -54,6 +54,12 @@ public class JsonXContentParser extends AbstractXContentParser {
         super(xContentRegistry, deprecationHandler, restApiVersion);
         JsonParser filtered = parser;
         if (exclude != null) {
+            for (FilterPath e : exclude) {
+                if (e.hasDoubleWildcard()) {
+                    // Fixed in Jackson 2.13 - https://github.com/FasterXML/jackson-core/issues/700
+                    throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");
+                }
+            }
             filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(exclude, false), true, true);
         }
         if (include != null) {

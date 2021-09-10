@@ -52,7 +52,7 @@ public class FilterPath {
         return doubleWildcard;
     }
 
-    boolean hasDoubleWildcard() {
+    public boolean hasDoubleWildcard() {
         if (filter == null) {
             return false;
         }

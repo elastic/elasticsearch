@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.LongAdder;
 
 public class HttpStats implements Writeable, ToXContentFragment {
 
@@ -93,28 +92,36 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     public static class ClientStats implements Writeable, ToXContentFragment {
+        public static final long NOT_CLOSED = -1L;
+
         final int id;
-        String agent;
-        String localAddress;
-        String remoteAddress;
-        String lastUri;
-        String forwardedFor;
-        String opaqueId;
-        long openedTimeMillis;
-        long closedTimeMillis = -1;
-        volatile long lastRequestTimeMillis = -1;
-        final LongAdder requestCount = new LongAdder();
-        final LongAdder requestSizeBytes = new LongAdder();
+        final String agent;
+        final String localAddress;
+        final String remoteAddress;
+        final String lastUri;
+        final String forwardedFor;
+        final String opaqueId;
+        final long openedTimeMillis;
+        final long closedTimeMillis;
+        final long lastRequestTimeMillis;
+        final long requestCount;
+        final long requestSizeBytes;
 
-        ClientStats(long openedTimeMillis) {
-            this.id = System.identityHashCode(this);
-            this.openedTimeMillis = openedTimeMillis;
-        }
-
-        // visible for testing
-        public ClientStats(String agent, String localAddress, String remoteAddress, String lastUri, String forwardedFor, String opaqueId,
-            long openedTimeMillis, long closedTimeMillis, long lastRequestTimeMillis, long requestCount, long requestSizeBytes) {
-            this.id = System.identityHashCode(this);
+        public ClientStats(
+            int id,
+            String agent,
+            String localAddress,
+            String remoteAddress,
+            String lastUri,
+            String forwardedFor,
+            String opaqueId,
+            long openedTimeMillis,
+            long closedTimeMillis,
+            long lastRequestTimeMillis,
+            long requestCount,
+            long requestSizeBytes
+        ) {
+            this.id = id;
             this.agent = agent;
             this.localAddress = localAddress;
             this.remoteAddress = remoteAddress;
@@ -124,8 +131,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.openedTimeMillis = openedTimeMillis;
             this.closedTimeMillis = closedTimeMillis;
             this.lastRequestTimeMillis = lastRequestTimeMillis;
-            this.requestCount.add(requestCount);
-            this.requestSizeBytes.add(requestSizeBytes);
+            this.requestCount = requestCount;
+            this.requestSizeBytes = requestSizeBytes;
         }
 
         ClientStats(StreamInput in) throws IOException {
@@ -139,8 +146,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.openedTimeMillis = in.readLong();
             this.closedTimeMillis = in.readLong();
             this.lastRequestTimeMillis = in.readLong();
-            this.requestCount.add(in.readLong());
-            this.requestSizeBytes.add(in.readLong());
+            this.requestCount = in.readLong();
+            this.requestSizeBytes = in.readLong();
         }
 
         @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -165,12 +172,12 @@ public class HttpStats implements Writeable, ToXContentFragment {
                 builder.field(Fields.CLIENT_OPAQUE_ID, opaqueId);
             }
             builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, openedTimeMillis);
-            if (closedTimeMillis != -1) {
+            if (closedTimeMillis != NOT_CLOSED) {
                 builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, closedTimeMillis);
             }
             builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, lastRequestTimeMillis);
-            builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount.longValue());
-            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes.longValue());
+            builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount);
+            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes);
             builder.endObject();
             return builder;
         }
@@ -187,8 +194,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             out.writeLong(openedTimeMillis);
             out.writeLong(closedTimeMillis);
             out.writeLong(lastRequestTimeMillis);
-            out.writeLong(requestCount.longValue());
-            out.writeLong(requestSizeBytes.longValue());
+            out.writeLong(requestCount);
+            out.writeLong(requestSizeBytes);
         }
     }
 }

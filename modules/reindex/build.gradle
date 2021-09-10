@@ -155,11 +155,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
   }
 }
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
 
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
       systemProperty 'tests.rest.blacklist', [
           'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
           'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.

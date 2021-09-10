@@ -36,9 +36,9 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
-import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 
 import javax.net.ssl.SSLException;
 import java.io.ByteArrayOutputStream;

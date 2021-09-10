@@ -92,7 +92,7 @@ public class TypeParsers {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecate(
+                    deprecationLogger.critical(
                         DeprecationCategory.INDICES,
                         "multifield_within_multifield",
                         "At least one multi-field, ["

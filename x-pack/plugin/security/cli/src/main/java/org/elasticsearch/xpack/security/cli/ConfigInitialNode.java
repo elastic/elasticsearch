@@ -426,7 +426,9 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         }
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
-        assert isInitialNodeAutoConfigured(env);
+        // TODO: Do we need to assert this here ? If so we need to somehow rebuild the environment using the elasticsearch.yml
+        // we just wrote, otherwise this will always be false.
+        //assert isInitialNodeAutoConfigured(env);
     }
 
     @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")

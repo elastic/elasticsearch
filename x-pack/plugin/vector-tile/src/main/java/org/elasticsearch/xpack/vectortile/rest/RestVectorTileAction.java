@@ -208,9 +208,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                 tileAggBuilder.subAggregations(request.getAggBuilder());
                 final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
                 for (AggregationBuilder aggregation : aggregations) {
-                    searchRequestBuilder.addAggregation(
-                        new StatsBucketPipelineAggregationBuilder(aggregation.getName(), GRID_FIELD + ">" + aggregation.getName())
-                    );
+                    // we add the metric (.value) to the path in order to support aggregation names with '.'
+                    final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
+                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
                 }
             }
         }

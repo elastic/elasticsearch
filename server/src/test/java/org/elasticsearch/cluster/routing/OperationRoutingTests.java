@@ -9,8 +9,12 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,11 +36,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends ESTestCase{
@@ -687,4 +697,65 @@ public class OperationRoutingTests extends ESTestCase{
         terminate(threadPool);
     }
 
+    public void testComputeTargetShards() {
+        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        int shards = between(1, 5);
+        int replicas = between(0, 5);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(shards).numberOfReplicas(replicas)
+            .build();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.addAsNew(indexMetadata);
+
+        final ClusterState stateWithUnassigned = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(targetNode).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(routingTableBuilder.build()).build();
+        Set<String> routingValues = IntStream.range(0, 5).mapToObj(i -> randomAlphaOfLength(5)).collect(Collectors.toSet());;
+        assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, null), empty());
+        assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, Map.of("test", routingValues)),
+            empty());
+        assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, Map.of("not_test", routingValues)),
+            empty());
+
+        RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.AbstractRoutingChangesObserver();
+        RoutingNodes routingNodes = new RoutingNodes(stateWithUnassigned, false);
+        int initializeCount = between(1, shards);
+        Set<ShardRouting> initialized = new HashSet<>();
+        for (RoutingNodes.UnassignedShards.UnassignedIterator iterator = routingNodes.unassigned().iterator(); iterator.hasNext(); ) {
+            ShardRouting next = iterator.next();
+            if (next.primary()) {
+                initialized.add(iterator.initialize(targetNode.getId(), null, 0, routingChangesObserver));
+            }
+            if (initialized.size() >= initializeCount) {
+                break;
+            }
+        }
+
+        final ClusterState stateWithInitialized = ClusterState.builder(stateWithUnassigned)
+            .routingTable(new RoutingTable.Builder().updateNodes(stateWithUnassigned.routingTable().version(), routingNodes).build())
+            .build();
+        assertThat(OperationRouting.computeTargetedShards(stateWithInitialized, new String[]{"test"}, null), empty());
+        assertThat(OperationRouting.computeTargetedShards(stateWithInitialized, new String[]{"test"}, Map.of("test", routingValues)),
+            empty());
+        assertThat(OperationRouting.computeTargetedShards(stateWithInitialized, new String[]{"test"}, Map.of("not_test", routingValues)),
+            empty());
+
+        RoutingNodes routingNodesWithStarted = new RoutingNodes(stateWithInitialized, false);
+        Set<ShardRouting> startedShards = new HashSet<>();
+        for (ShardRouting shardRouting : initialized) {
+            startedShards.add(routingNodesWithStarted.startShard(logger, shardRouting, routingChangesObserver));
+        }
+
+        final ClusterState stateWithStarted = ClusterState.builder(stateWithInitialized)
+            .routingTable(new RoutingTable.Builder().updateNodes(stateWithInitialized.routingTable().version(), routingNodesWithStarted)
+                .build())
+            .build();
+        assertThat(OperationRouting.computeTargetedShards(stateWithStarted, new String[]{"test"}, null), hasSize(startedShards.size()));
+        assertThat(OperationRouting.computeTargetedShards(stateWithStarted, new String[]{"test"}, Map.of("test", routingValues)).size(),
+            allOf(lessThanOrEqualTo(startedShards.size()), greaterThan(0)));
+        assertThat(OperationRouting.computeTargetedShards(stateWithStarted, new String[]{"test"}, Map.of("not_test", routingValues)),
+            hasSize(startedShards.size()));
+    }
 }

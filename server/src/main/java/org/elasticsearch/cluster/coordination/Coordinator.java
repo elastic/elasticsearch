@@ -688,8 +688,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return new DiscoveryStats(
             new PendingClusterStateStats(0, 0, 0),
             publicationHandler.stats(),
-            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
-        );
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null,
+            clusterApplier.getStats());
     }
 
     @Override

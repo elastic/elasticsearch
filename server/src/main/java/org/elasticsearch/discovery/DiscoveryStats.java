@@ -9,6 +9,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterApplierTimeTracker;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,15 +26,17 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     private final PendingClusterStateStats queueStats;
     private final PublishClusterStateStats publishStats;
     private final ClusterStateUpdateStats clusterStateUpdateStats;
+    private final ClusterApplierTimeTracker.Stats timeTrackerStats;
 
     public DiscoveryStats(
         PendingClusterStateStats queueStats,
         PublishClusterStateStats publishStats,
-        ClusterStateUpdateStats clusterStateUpdateStats
-    ) {
+        ClusterStateUpdateStats clusterStateUpdateStats,
+        ClusterApplierTimeTracker.Stats timeTrackerStats) {
         this.queueStats = queueStats;
         this.publishStats = publishStats;
         this.clusterStateUpdateStats = clusterStateUpdateStats;
+        this.timeTrackerStats = timeTrackerStats;
     }
 
     public DiscoveryStats(StreamInput in) throws IOException {
@@ -44,6 +47,11 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         } else {
             clusterStateUpdateStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            timeTrackerStats = new ClusterApplierTimeTracker.Stats(in);
+        } else {
+            timeTrackerStats = null;
+        }
     }
 
     @Override
@@ -52,6 +60,9 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(publishStats);
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalWriteable(clusterStateUpdateStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(timeTrackerStats);
         }
     }
 
@@ -66,6 +77,9 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         }
         if (clusterStateUpdateStats != null) {
             clusterStateUpdateStats.toXContent(builder, params);
+        }
+        if (timeTrackerStats != null) {
+            timeTrackerStats.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -85,5 +99,9 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
 
     public PublishClusterStateStats getPublishStats() {
         return publishStats;
+    }
+
+    public ClusterApplierTimeTracker.Stats getTimeTrackerStats() {
+        return timeTrackerStats;
     }
 }

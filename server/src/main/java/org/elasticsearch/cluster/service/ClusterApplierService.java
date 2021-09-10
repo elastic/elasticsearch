@@ -84,6 +84,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final String nodeName;
 
+    private final ClusterApplierTimeTracker tracker;
+
     private NodeConnectionsService nodeConnectionsService;
 
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
@@ -91,6 +93,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
+        this.tracker = new ClusterApplierTimeTracker();
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
@@ -185,6 +188,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addHighPriorityApplier(ClusterStateApplier applier) {
         highPriorityStateAppliers.add(applier);
+        tracker.addApplier(applier.toString());
     }
 
     /**
@@ -192,6 +196,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addLowPriorityApplier(ClusterStateApplier applier) {
         lowPriorityStateAppliers.add(applier);
+        tracker.addApplier(applier.toString());
     }
 
     /**
@@ -199,6 +204,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addStateApplier(ClusterStateApplier applier) {
         normalPriorityStateAppliers.add(applier);
+        tracker.addApplier(applier.toString());
     }
 
     /**
@@ -208,6 +214,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         normalPriorityStateAppliers.remove(applier);
         highPriorityStateAppliers.remove(applier);
         lowPriorityStateAppliers.remove(applier);
+        tracker.removeApplier(applier.toString());
     }
 
     /**
@@ -215,6 +222,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addListener(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
+        tracker.addListener(listener.toString());
     }
 
     /**
@@ -222,6 +230,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void removeListener(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
+        tracker.removeListener(listener.toString());
     }
 
     /**
@@ -229,6 +238,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void removeTimeoutListener(TimeoutClusterStateListener listener) {
         final NotifyTimeout timeout = timeoutClusterStateListeners.remove(listener);
+        // TODO: Maybe not track these? These listeners appear and disappear quickly.
+        tracker.removeListener(listener.toString());
         if (timeout != null) {
             timeout.cancel();
         }
@@ -260,6 +271,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     final NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
                     final NotifyTimeout previous = timeoutClusterStateListeners.put(listener, notifyTimeout);
                     assert previous == null : "Added same listener [" + listener + "]";
+                    // TODO: Maybe not track these? These listeners appear and disappear quickly.
+                    tracker.addListener(listener.toString());
                     if (lifecycle.stoppedOrClosed()) {
                         listener.onClose();
                         return;
@@ -502,17 +515,20 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     private void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent, StopWatch stopWatch) {
-        callClusterStateAppliers(clusterChangedEvent, stopWatch, highPriorityStateAppliers);
-        callClusterStateAppliers(clusterChangedEvent, stopWatch, normalPriorityStateAppliers);
-        callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
+        callClusterStateAppliers(clusterChangedEvent, stopWatch, highPriorityStateAppliers, tracker);
+        callClusterStateAppliers(clusterChangedEvent, stopWatch, normalPriorityStateAppliers, tracker);
+        callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers, tracker);
     }
 
     private static void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent, StopWatch stopWatch,
-                                                 Collection<ClusterStateApplier> clusterStateAppliers) {
+                                                 Collection<ClusterStateApplier> clusterStateAppliers, ClusterApplierTimeTracker tracker) {
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
-            try (Releasable ignored = stopWatch.timing("running applier [" + applier + "]")) {
+            final String name = applier.toString();
+            try (Releasable ignored = stopWatch.timing("running applier [" + name + "]")) {
                 applier.applyClusterState(clusterChangedEvent);
+            } finally {
+                tracker.incrementTimeSpentApplier(name, stopWatch.lastTaskTime());
             }
         }
     }
@@ -527,8 +543,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateListener listener : listeners) {
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
-                try (Releasable ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
+                final String name = listener.toString();
+                try (Releasable ignored = stopWatch.timing("notifying listener [" + name + "]")) {
                     listener.clusterChanged(clusterChangedEvent);
+                } finally {
+                    tracker.incrementTimeSpentListener(name, stopWatch.lastTaskTime());
                 }
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
@@ -618,5 +637,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     // overridden by tests that need to check behaviour in the event of an application failure without tripping assertions
     protected boolean applicationMayFail() {
         return false;
+    }
+
+    @Override
+    public ClusterApplierTimeTracker.Stats getStats() {
+        return tracker.getStats();
     }
 }

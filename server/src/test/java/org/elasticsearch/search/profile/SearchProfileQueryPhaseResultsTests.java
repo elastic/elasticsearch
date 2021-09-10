@@ -8,25 +8,88 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public class SearchProfileQueryPhaseResultsTests extends AbstractWireSerializingTestCase<SearchProfileResultsBuilder> {
-    @Override
-    protected SearchProfileResultsBuilder createTestInstance() {
-        int size = rarely() ? 0 : randomIntBetween(1, 2);
-        Map<String, SearchProfileQueryPhaseResult> shards = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            shards.put(randomAlphaOfLengthBetween(5, 10), SearchProfileQueryPhaseResultTests.createTestItem());
-        }
-        return new SearchProfileResultsBuilder(shards);
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
+
+public class SearchProfileQueryPhaseResultsTests extends ESTestCase {
+    public void testFetchWithoutQuery() {
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
+        FetchSearchResult fetchPhase = fetchResult(
+            randomValueOtherThanMany(searchPhase::containsKey, SearchProfileQueryPhaseResultsTests::randomTarget),
+            null
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));
+        assertThat(
+            e.getMessage(),
+            matchesPattern(
+                "Profile returned fetch phase information for .+ but didn't return query phase information\\. Query phase keys were .+"
+            )
+        );
     }
 
-    @Override
-    protected Reader<SearchProfileResultsBuilder> instanceReader() {
-        return SearchProfileResultsBuilder::new;
+    public void testQueryWithoutAnyFetch() {
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
+        FetchSearchResult fetchPhase = fetchResult(searchPhase.keySet().iterator().next(), null);
+        SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
+        assertThat(
+            result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
+            equalTo((long) searchPhase.size())
+        );
+        assertThat(result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(), equalTo(0L));
+    }
+
+    public void testQueryAndFetch() {
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
+        List<FetchSearchResult> fetchPhase = searchPhase.entrySet()
+            .stream()
+            .map(e -> fetchResult(e.getKey(), new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
+            .collect(toList());
+        SearchProfileResults result = builder(searchPhase).build(fetchPhase);
+        assertThat(
+            result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
+            equalTo((long) searchPhase.size())
+        );
+        assertThat(
+            result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(),
+            equalTo((long) searchPhase.size())
+        );
+    }
+
+    private static Map<SearchShardTarget, SearchProfileQueryPhaseResult> randomSearchPhaseResults() {
+        int size = rarely() ? 0 : randomIntBetween(1, 2);
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> results = new HashMap<>(size);
+        while (results.size() < size) {
+            results.put(randomTarget(), SearchProfileQueryPhaseResultTests.createTestItem());
+        }
+        return results;
+    }
+
+    private static SearchProfileResultsBuilder builder(Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase) {
+        return new SearchProfileResultsBuilder(
+            searchPhase.entrySet().stream().collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+        );
+    }
+
+    private static FetchSearchResult fetchResult(SearchShardTarget target, ProfileResult profileResult) {
+        FetchSearchResult fetchResult = new FetchSearchResult();
+        fetchResult.shardResult(SearchHits.empty(), profileResult);
+        fetchResult.setSearchShardTarget(target);
+        return fetchResult;
+    }
+
+    private static SearchShardTarget randomTarget() {
+        return new SearchShardTarget(randomAlphaOfLength(5), new ShardId(randomAlphaOfLength(5), "uuid", randomInt(6)), null, null);
     }
 }

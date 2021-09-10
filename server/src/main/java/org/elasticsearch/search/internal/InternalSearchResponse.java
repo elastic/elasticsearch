@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,12 +15,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * {@link SearchResponseSections} subclass that can be serialized over the wire.
@@ -51,14 +48,6 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             new SearchProfileResults(in),
             in.readVInt()
         );
-    }
-
-    private static SearchProfileResults readProfile(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            return in.readOptionalWriteable(SearchProfileResults::new);
-        }
-        SearchProfileResultsBuilder shardProfileResult = in.readOptionalWriteable(SearchProfileResultsBuilder::new);
-        return shardProfileResult == null ? null : shardProfileResult.merge(List.of());
     }
 
     @Override

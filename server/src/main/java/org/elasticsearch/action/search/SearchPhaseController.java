@@ -464,13 +464,13 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileResultsBuilder profileResults = profileShardResults.isEmpty()
+        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
-            topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, profileResults, sortedTopDocs,
+            topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, profileBuilder, sortedTopDocs,
             sortValueFormats, numReducePhases, size, from, false);
     }
 
@@ -539,7 +539,7 @@ public final class SearchPhaseController {
         // the reduced internal aggregations
         final InternalAggregations aggregations;
         // the reduced profile results
-        final SearchProfileResultsBuilder searchPhaseProfileResults;
+        final SearchProfileResultsBuilder profileBuilder;
         // the number of reduces phases
         final int numReducePhases;
         //encloses info about the merged top docs, the sort fields used to sort the score docs etc.
@@ -561,7 +561,7 @@ public final class SearchPhaseController {
             Boolean terminatedEarly,
             Suggest suggest,
             InternalAggregations aggregations,
-            SearchProfileResultsBuilder searchPhaseProfileResults,
+            SearchProfileResultsBuilder profileBuilder,
             SortedTopDocs sortedTopDocs,
             DocValueFormat[] sortValueFormats,
             int numReducePhases,
@@ -579,7 +579,7 @@ public final class SearchPhaseController {
             this.terminatedEarly = terminatedEarly;
             this.suggest = suggest;
             this.aggregations = aggregations;
-            this.searchPhaseProfileResults = searchPhaseProfileResults;
+            this.profileBuilder = profileBuilder;
             this.numReducePhases = numReducePhases;
             this.sortedTopDocs = sortedTopDocs;
             this.size = size;
@@ -598,12 +598,12 @@ public final class SearchPhaseController {
         }
 
         private SearchProfileResults mergeProfile(Collection<? extends SearchPhaseResult> fetchResults) {
-            if (searchPhaseProfileResults == null) {
+            if (profileBuilder == null) {
                 assert fetchResults.stream()
                     .allMatch(r -> r.fetchResult().profileResult() == null) : "found fetch profile without search profile";
                 return null;
             }
-            return searchPhaseProfileResults.merge(fetchResults);
+            return profileBuilder.build(fetchResults);
         }
     }
 

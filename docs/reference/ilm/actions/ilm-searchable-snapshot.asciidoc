@@ -31,6 +31,10 @@ Using a policy that makes use of the <<ilm-rollover, rollover>> action
 in the hot phase will avoid this situation and the need for a manual rollover for future
 managed indices.
 
+[NOTE]
+Migration from the warm to the cold tier requires snapshotting the data in the repo
+and reading it back to the node which incurs data transfer costs.
+
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
 

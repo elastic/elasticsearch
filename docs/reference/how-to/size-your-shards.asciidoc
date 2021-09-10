@@ -255,7 +255,7 @@ unneeded indices.
 
 [source,console]
 ----
-DELETE my-index-*
+DELETE my-index-000001
 ----
 // TEST[setup:my_index]
 
@@ -280,12 +280,6 @@ POST my-index-000001/_forcemerge
 
 If you no longer write to an index, you can use the
 <<indices-shrink-index,shrink index API>> to reduce its shard count.
-
-[source,console]
-----
-POST my-index-000001/_shrink/my-shrunken-index-000001
-----
-// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
 
 {ilm-init} also has a <<ilm-shrink,shrink action>> for indices in the
 warm phase.

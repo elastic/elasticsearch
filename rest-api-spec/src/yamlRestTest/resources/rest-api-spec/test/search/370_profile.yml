@@ -42,7 +42,8 @@ fetch fields:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - match: { profile.shards.0.fetch.children.0.type: Fields }
+  - length: { profile.shards.0.fetch.children: 1 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
@@ -69,7 +70,8 @@ fetch source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - match: { profile.shards.0.fetch.children.0.type: Source }
+  - length: { profile.shards.0.fetch.children: 1 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
@@ -131,8 +133,14 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - match: { profile.shards.0.fetch.children.0.type: InnerHits }
+  - length: { profile.shards.0.fetch.children: 2 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }

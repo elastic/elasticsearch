@@ -166,7 +166,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
 
         ProfileResult result() {
-            return new ProfileResult(type, description, toBreakdownMap(), toDebugMap(), toNodeTime(), processor.childProfiles());
+            return new ProfileResult(type, description, toBreakdownMap(), toDebugMap(), toNodeTime(), List.of());
         }
     }
 

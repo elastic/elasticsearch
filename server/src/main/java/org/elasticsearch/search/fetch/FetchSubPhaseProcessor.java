@@ -10,10 +10,8 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.profile.ProfileResult;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,12 +35,5 @@ public interface FetchSubPhaseProcessor {
      */
     default Map<String, Object> getDebugInfo() {
         return null;
-    }
-
-    /**
-     * Profiles from child-phases.
-     */
-    default List<ProfileResult> childProfiles() {
-        return List.of();
     }
 }

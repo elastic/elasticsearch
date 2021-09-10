@@ -185,8 +185,7 @@ public class FetchPhase {
             for (FetchSubPhase fsp : fetchSubPhases) {
                 FetchSubPhaseProcessor processor = fsp.getProcessor(context);
                 if (processor != null) {
-                    String type = fsp.getClass().getSimpleName().replaceAll("^Fetch", "").replaceAll("(FetchSub)?Phase$", "");
-                    processors.add(profiler.profile(type, "", processor));
+                    processors.add(profiler.profile(fsp.getClass().getSimpleName(), "", processor));
                 }
             }
             return processors;

@@ -179,7 +179,7 @@ The API returns the following result:
           },
           "children": [
             {
-              "type": "Source",
+              "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
               "breakdown": {
@@ -996,7 +996,7 @@ And here is the fetch profile:
           },
           "children": [
             {
-              "type": "Source",
+              "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
               "breakdown": {

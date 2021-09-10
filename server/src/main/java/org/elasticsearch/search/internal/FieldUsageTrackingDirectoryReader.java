@@ -23,7 +23,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
@@ -86,12 +85,12 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TermVectors getTermVectorsReader() {
-            TermVectors in = super.getTermVectorsReader();
-            if (in != null) {
-                return new FieldUsageTrackingTermVectors(in);
+        public Fields getTermVectors(int docID) throws IOException {
+            Fields f = super.getTermVectors(docID);
+            if (f != null) {
+                f = new FieldUsageTrackingTermVectorFields(f);
             }
-            return in;
+            return f;
         }
 
         @Override
@@ -324,20 +323,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 return terms;
             }
 
-        }
-
-        private class FieldUsageTrackingTermVectors extends TermVectors {
-
-            final TermVectors in;
-
-            private FieldUsageTrackingTermVectors(TermVectors in) {
-                this.in = in;
-            }
-
-            @Override
-            public Fields get(int doc) throws IOException {
-                return new FieldUsageTrackingTermVectorFields(in.get(doc));
-            }
         }
 
         private class FieldUsageStoredFieldVisitor extends FilterStoredFieldVisitor {

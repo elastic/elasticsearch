@@ -299,11 +299,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         final String mappedFieldName = "price";
         dataset.addAll(
             Arrays.asList(
-                createDocument(mappedFieldName, 103L),
-                createDocument(mappedFieldName, 51L),
-                createDocument(mappedFieldName, 56L),
-                createDocument(mappedFieldName, 105L),
-                createDocument(mappedFieldName, 25L)
+                createDocument(mappedFieldName, 103),
+                createDocument(mappedFieldName, 51),
+                createDocument(mappedFieldName, 56),
+                createDocument(mappedFieldName, 105),
+                createDocument(mappedFieldName, 25)
             )
         );
 

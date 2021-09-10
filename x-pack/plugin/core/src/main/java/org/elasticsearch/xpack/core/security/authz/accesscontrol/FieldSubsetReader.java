@@ -22,7 +22,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
-import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -30,12 +29,12 @@ import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
@@ -150,23 +149,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public TermVectors getTermVectorsReader() {
-        TermVectors in = super.getTermVectorsReader();
-        if (in == null) {
+    public Fields getTermVectors(int docID) throws IOException {
+        Fields f = super.getTermVectors(docID);
+        if (f == null) {
             return null;
         }
-        return new TermVectors() {
-            @Override
-            public Fields get(int doc) throws IOException {
-                Fields f = in.get(doc);
-                if (f == null) {
-                    return null;
-                }
-                f = new FieldFilterFields(f);
-                // we need to check for emptyness, so we can return null:
-                return f.iterator().hasNext() ? f : null;
-            }
-        };
+        f = new FieldFilterFields(f);
+        // we need to check for emptyness, so we can return null:
+        return f.iterator().hasNext() ? f : null;
     }
 
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */

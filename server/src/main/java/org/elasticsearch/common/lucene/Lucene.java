@@ -24,6 +24,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -47,7 +48,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -1030,7 +1030,7 @@ public class Lucene {
             }
 
             @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k) throws IOException {
+            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
                 return null;
             }
 
@@ -1050,7 +1050,7 @@ public class Lucene {
             }
 
             @Override
-            public TermVectors getTermVectorsReader() {
+            public Fields getTermVectors(int docID) throws IOException {
                 return null;
             }
 

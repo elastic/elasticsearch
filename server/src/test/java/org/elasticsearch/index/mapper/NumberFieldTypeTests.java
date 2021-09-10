@@ -419,9 +419,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
+    /*
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
+    */
 
     public void testIndexSortLongRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.LONG, random()::nextLong);

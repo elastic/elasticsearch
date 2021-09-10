@@ -136,6 +136,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("swedishminimalstem", MovedToAnalysisCommon.class),
         entry("synonym", MovedToAnalysisCommon.class),
         entry("synonymgraph", MovedToAnalysisCommon.class),
+        entry("telugunormalization", MovedToAnalysisCommon.class),
+        entry("telugustem", MovedToAnalysisCommon.class),
         entry("trim", MovedToAnalysisCommon.class),
         entry("truncate", MovedToAnalysisCommon.class),
         entry("turkishlowercase", MovedToAnalysisCommon.class),

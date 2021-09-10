@@ -29,7 +29,7 @@ import org.apache.logging.log4j.Logger;
 public class DeprecationLogger {
     /**
      * Deprecation messages are logged at this level.
-     * More serious that WARN by 1, but less serious than ERROR
+     * More serious than WARN by 1, but less serious than ERROR
      */
     public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
 

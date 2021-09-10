@@ -30,18 +30,18 @@ public class DieWithDignityIT extends ESRestTestCase {
     public void testDieWithDignity() throws Exception {
         // there should be an Elasticsearch process running with the die.with.dignity.test system property
         {
-            final Map<String, String> jvmCommandLines = getJvmCommandLines();
-            final boolean found = jvmCommandLines.values().stream().anyMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
-            assertTrue(String.join(",", jvmCommandLines.values()), found);
+            final Map<String, String> esCommandLines = getElasticsearchCommandLines();
+            final boolean found = esCommandLines.values().stream().anyMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
+            assertTrue(esCommandLines.toString(), found);
         }
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
-            final Map<String, String> jvmCommandLines = getJvmCommandLines();
-            final boolean notFound = jvmCommandLines.values().stream().noneMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
-            assertTrue(String.join(",", jvmCommandLines.values()), notFound);
+            final Map<String, String> esCommandLines = getElasticsearchCommandLines();
+            final boolean notFound = esCommandLines.values().stream().noneMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
+            assertTrue(esCommandLines.toString(), notFound);
         });
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
@@ -77,13 +77,13 @@ public class DieWithDignityIT extends ESRestTestCase {
         }
     }
 
-    private Map<String, String> getJvmCommandLines() throws IOException {
+    private Map<String, String> getElasticsearchCommandLines() throws IOException {
         /*
          * jps will truncate the command line to 1024 characters; so we collect the pids and then run jcmd <pid> VM.command_line to get the
          * full command line.
          */
         final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-        final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
+        final Process process = new ProcessBuilder().command(jpsPath, "-q").start();
 
         final List<String> pids = new ArrayList<>();
         try (
@@ -92,27 +92,36 @@ public class DieWithDignityIT extends ESRestTestCase {
         ) {
             String line;
             while ((line = in.readLine()) != null) {
-                pids.add(line.substring(0, line.indexOf(' ')));
+                pids.add(line);
             }
         }
 
         final String jcmdPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jcmd").toString();
-        final Map<String, String> jvmCommandLines = new HashMap<>();
+        final Map<String, String> esCommandLines = new HashMap<>();
         for (final String pid : pids) {
             final Process jcmdProcess = new ProcessBuilder().command(jcmdPath, pid, "VM.command_line").start();
             try (
                 InputStream is = jcmdProcess.getInputStream();
                 BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
             ) {
+                boolean isElasticsearch = false;
+                String jvmArgs = null;
                 String line;
                 while ((line = in.readLine()) != null) {
-                    if (line.startsWith("jvm_args")) {
-                        jvmCommandLines.put(pid, line);
+                    if (line.equals("java_command: org.elasticsearch.bootstrap.Elasticsearch")) {
+                        isElasticsearch = true;
                     }
+                    if (line.startsWith("jvm_args")) {
+                        jvmArgs = line;
+                    }
+                }
+                if (isElasticsearch) {
+                    assertNotNull(pid, jvmArgs);
+                    esCommandLines.put(pid, jvmArgs);
                 }
             }
         }
-        return jvmCommandLines;
+        return esCommandLines;
     }
 
     private boolean containsAll(String line, String... subStrings) {

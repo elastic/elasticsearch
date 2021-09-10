@@ -147,11 +147,12 @@ API key information.
 <1> Unique `id` for this API key
 <2> Optional expiration in milliseconds for this API key
 <3> Generated API key
-<4> API key credentials which is the Base64-encoded string in UTF-8 format created
-by combining the `id` and `api_key` with a colon (`:`).
+<4> API key credentials which is the Base64-encoding of the UTF-8 
+representation of the `id` and `api_key` joined by a colon (`:`).
 
 To use the generated API key, send a request with an `Authorization` header that
-contains an `ApiKey` prefix followed by the API key credentials.
+contains an `ApiKey` prefix followed by the API key credentials
+(the `encoded` value from the response).
 
 [source,shell]
 ----

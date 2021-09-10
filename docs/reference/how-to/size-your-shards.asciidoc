@@ -219,7 +219,7 @@ PUT my-index-000001/_settings
 === Reduce a cluster's shard count
 
 If your cluster is already oversharded, you can use one or more of the following
-methods to reduce a cluster's shard count.
+methods to reduce its shard count.
 
 [discrete]
 [[create-indices-that-cover-longer-time-periods]]

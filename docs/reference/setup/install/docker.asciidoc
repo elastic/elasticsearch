@@ -407,10 +407,8 @@ instead. The command must:
 * Bind-mount the `config` directory. The command will create an
   `elasticsearch.keystore` file in this directory. To avoid errors, do
   not directly bind-mount the `elasticsearch.keystore` file.
-* Use the `elasticsearch-keystore` tool with the `create` option.
-* Provide a keystore password using the `KEYSTORE_PASSWORD` or
-  `KEYSTORE_PASSWORD_FILE` environment variables. Alternatively, you can use
-  `elasticsearch-keystore` tool's `-p` option to use a password prompt.
+* Use the `elasticsearch-keystore` tool with the `create -p` option. You'll be
+  prompted to enter a password for the keystore.
 
 ifeval::["{release-state}"!="unreleased"]
 For example:
@@ -420,12 +418,12 @@ For example:
 docker run -it --rm \
 -v full_path_to/config:/usr/share/elasticsearch/config \
 docker.elastic.co/elasticsearch/elasticsearch:{version} \
-bin/elasticsearch-keystore create \
--E KEYSTORE_PASSWORD=mypassword
+bin/elasticsearch-keystore create -p
 ----
 
 You can also use a `docker run` command to add or update secure settings in the
-keystore. You'll receive a prompt to enter setting values.
+keystore. You'll be prompted to enter the setting values. If the keystore is
+encrypted, you'll also be prompted to enter the keystore password.
 
 [source,sh,subs="attributes"]
 ----
@@ -434,9 +432,25 @@ docker run -it --rm \
 docker.elastic.co/elasticsearch/elasticsearch:{version} \
 bin/elasticsearch-keystore \
 add my.secure.setting \
-my.other.secure.setting \
+my.other.secure.setting
 ----
 endif::[]
+
+If you've already created the keystore and don't need to update it, you can
+bind-mount the `elasticsearch.keystore` file directly. For example, you can
+add the following to `docker-compose.yml`:
+
+[source,yaml]
+----
+elasticsearch:
+...
+  volumes:
+    ...
+    - type: bind
+      source: full_path_to/config/elasticsearch.keystore
+      target: /usr/share/elasticsearch/config/elasticsearch.keystore
+----
+
 
 [[_c_customized_image]]
 ===== Using custom Docker images

@@ -90,7 +90,7 @@ public class RestGraphAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            deprecationLogger.compatibleApiWarning("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("graph_with_types", TYPES_DEPRECATION_MESSAGE);
             request.param("type");
         }
 

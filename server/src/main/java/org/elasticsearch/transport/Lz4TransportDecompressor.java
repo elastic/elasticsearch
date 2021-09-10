@@ -24,7 +24,6 @@
 package org.elasticsearch.transport;
 
 import net.jpountz.lz4.LZ4Exception;
-import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.apache.lucene.util.BytesRef;
@@ -120,7 +119,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     private boolean hasSkippedESHeader = false;
 
     public Lz4TransportDecompressor(PageCacheRecycler recycler) {
-        this.decompressor = LZ4Factory.safeInstance().fastDecompressor();
+        this.decompressor = Compression.Scheme.lz4Decompressor();
         this.recycler = recycler;
         this.pages = new ArrayDeque<>(4);
     }

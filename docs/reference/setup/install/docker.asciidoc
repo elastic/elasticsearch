@@ -442,7 +442,6 @@ add the following to `docker-compose.yml`:
 
 [source,yaml]
 ----
-elasticsearch:
 ...
   volumes:
     ...

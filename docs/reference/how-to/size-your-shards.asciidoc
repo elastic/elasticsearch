@@ -342,9 +342,10 @@ PUT _cluster/settings
 ----
 
 This increase should only be temporary. As a long-term solution, we recommend
-you add non-frozen data notes or <<reduce-cluster-shard-count,reduce your
-cluster's shard count>>. To get a cluster's current shard count after making
-changes, use the <<cluster-stats,cluster stats API>>.
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>>. To get a
+cluster's current shard count after making changes, use the
+<<cluster-stats,cluster stats API>>.
 
 [source,console]
 ----

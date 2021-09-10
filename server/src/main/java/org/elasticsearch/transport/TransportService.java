@@ -32,7 +32,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.NodeClosedException;
@@ -241,6 +240,7 @@ public class TransportService extends AbstractLifecycleComponent
                     holderToNotify.handler().handleException(new SendRequestTransportException(holderToNotify.connection().getNode(),
                             holderToNotify.action(), new NodeClosedException(localNode)));
                 } catch (Exception e) {
+                    assert false : e;
                     logger.warn(() -> new ParameterizedMessage("failed to notify response handler on exception, action: {}",
                             holderToNotify.action()), e);
                 }
@@ -998,27 +998,28 @@ public class TransportService extends AbstractLifecycleComponent
         if (pruned.isEmpty()) {
             return;
         }
-        try {
-            // callback that an exception happened, but on a different thread since we don't
-            // want handlers to worry about stack overflows
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                @SuppressWarnings("rawtypes")
-                public void run() {
-                    for (Transport.ResponseContext holderToNotify : pruned) {
-                        holderToNotify.handler().handleException(
-                            new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
-                    }
-                }
 
-                @Override
-                public String toString() {
-                    return "onConnectionClosed(" + connection.getNode() + ")";
+        // callback that an exception happened, but on a different thread since we don't
+        // want handlers to worry about stack overflows
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            public void doRun() {
+                for (Transport.ResponseContext<?> holderToNotify : pruned) {
+                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
                 }
-            });
-        } catch (EsRejectedExecutionException ex) {
-            logger.debug("Rejected execution on onConnectionClosed", ex);
-        }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+                logger.warn(() -> new ParameterizedMessage("failed to notify response handler on connection close [{}]", connection), e);
+            }
+
+            @Override
+            public String toString() {
+                return "onConnectionClosed(" + connection.getNode() + ")";
+            }
+        });
     }
 
     final class TimeoutHandler implements Runnable {

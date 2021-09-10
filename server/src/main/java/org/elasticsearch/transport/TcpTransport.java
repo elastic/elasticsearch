@@ -552,6 +552,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     protected final void doStop() {
         assert Transports.assertNotTransportThread("Must not block transport thread that might be needed for closing channels below");
+        assert threadPool.generic().isShutdown() == false : "Must stop transport before terminating underlying threadpool";
         closeLock.writeLock().lock();
         try {
             keepAlive.close();

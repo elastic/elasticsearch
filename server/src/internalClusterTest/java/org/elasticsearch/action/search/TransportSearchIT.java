@@ -24,10 +24,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -53,7 +53,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.tasks.TaskId;
@@ -82,9 +81,13 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList((FetchContext fetchContext) -> new FetchSubPhaseProcessor() {
+            /**
+             * Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
+             */
+            return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
                 @Override
-                public void setNextReader(LeafReaderContext readerContext) {}
+                public void setNextReader(LeafReaderContext readerContext) {
+                }
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {

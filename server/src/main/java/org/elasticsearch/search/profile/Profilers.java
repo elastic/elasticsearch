@@ -25,7 +25,6 @@ public final class Profilers {
     private final ContextIndexSearcher searcher;
     private final List<QueryProfiler> queryProfilers = new ArrayList<>();
     private final AggregationProfiler aggProfiler = new AggregationProfiler();
-    private final FetchProfiler fetchProfiler = new FetchProfiler();
 
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
@@ -60,8 +59,11 @@ public final class Profilers {
         return aggProfiler;
     }
 
-    public FetchProfiler getFetchProfiler() {
-        return fetchProfiler;
+    /**
+     * Build a profiler for the fetch phase.
+     */
+    public FetchProfiler startProfilingFetchPhase() {
+        return new FetchProfiler();
     }
 
     /**

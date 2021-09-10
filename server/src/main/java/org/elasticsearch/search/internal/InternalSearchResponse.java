@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.SearchProfileQueryPhaseResults;
+import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -48,7 +48,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readBoolean() ? new Suggest(in) : null,
             in.readBoolean(),
             in.readOptionalBoolean(),
-            readProfile(in),
+            new SearchProfileResults(in),
             in.readVInt()
         );
     }
@@ -57,7 +57,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             return in.readOptionalWriteable(SearchProfileResults::new);
         }
-        SearchProfileQueryPhaseResults shardProfileResult = in.readOptionalWriteable(SearchProfileQueryPhaseResults::new);
+        SearchProfileResultsBuilder shardProfileResult = in.readOptionalWriteable(SearchProfileResultsBuilder::new);
         return shardProfileResult == null ? null : shardProfileResult.merge(List.of());
     }
 

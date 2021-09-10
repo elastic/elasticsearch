@@ -23,31 +23,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FetchProfilerTests extends ESTestCase {
     public void testTime() {
-        FixedTimeProfiler profiler = new FixedTimeProfiler();
-        profiler.start();
+        long startTime = randomLongBetween(0, Long.MAX_VALUE / 2);
+        FetchProfiler profiler = new FetchProfiler(startTime);
         long elapsed = randomLongBetween(0, Long.MAX_VALUE / 2);
-        profiler.nanoTime += elapsed;
-        ProfileResult result = profiler.stop();
+        ProfileResult result = profiler.finish(startTime + elapsed);
         assertThat(result.getTime(), equalTo(elapsed));
     }
 
     public void testStoredFieldsIsOrdered() throws IOException {
         FetchProfiler profiler = new FetchProfiler();
-        profiler.start();
         profiler.visitor(new CustomFieldsVisitor(Set.of(), true));
-        ProfileResult result = profiler.stop();
+        ProfileResult result = profiler.finish();
         assertMap(result.getDebugInfo(), matchesMap().entry("stored_fields", List.of("_id", "_routing", "_source")));
         // Make sure that serialization preserves the order
         ProfileResult copy = copyWriteable(result, new NamedWriteableRegistry(List.of()), ProfileResult::new);
         assertMap(copy.getDebugInfo(), matchesMap().entry("stored_fields", List.of("_id", "_routing", "_source")));
-    }
-
-    private static class FixedTimeProfiler extends FetchProfiler {
-        long nanoTime = randomLongBetween(0, Long.MAX_VALUE / 2);
-
-        @Override
-        long nanoTime() {
-            return nanoTime;
-        }
     }
 }

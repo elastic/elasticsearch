@@ -166,7 +166,7 @@ The API returns the following result:
         "aggregations": [],
         "fetch": {
           "type": "fetch",
-          "description": "fetch",
+          "description": "",
           "time_in_nanos": 660555,
           "breakdown": {
             "next_reader": 7292,
@@ -179,8 +179,8 @@ The API returns the following result:
           },
           "children": [
             {
-              "type": "source",
-              "description": "load _source",
+              "type": "Source",
+              "description": "",
               "time_in_nanos": 20443,
               "breakdown": {
                 "next_reader": 745,
@@ -189,7 +189,6 @@ The API returns the following result:
                 "process_count": 5
               },
               "debug": {
-                "loaded_nested": 0,
                 "fast_path": 5
               }
             }
@@ -984,7 +983,7 @@ And here is the fetch profile:
       {
         "fetch": {
           "type": "fetch",
-          "description": "fetch",
+          "description": "",
           "time_in_nanos": 660555,
           "breakdown": {
             "next_reader": 7292,
@@ -997,8 +996,8 @@ And here is the fetch profile:
           },
           "children": [
             {
-              "type": "source",
-              "description": "load _source",
+              "type": "Source",
+              "description": "",
               "time_in_nanos": 20443,
               "breakdown": {
                 "next_reader": 745,
@@ -1007,8 +1006,7 @@ And here is the fetch profile:
                 "process_count": 5
               },
               "debug": {
-                "fast_path": 4,
-                "loaded_nested": 0
+                "fast_path": 4
               }
             }
           ]

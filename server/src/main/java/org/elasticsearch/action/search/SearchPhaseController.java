@@ -41,7 +41,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
-import org.elasticsearch.search.profile.SearchProfileQueryPhaseResults;
+import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -464,9 +464,9 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileQueryPhaseResults profileResults = profileShardResults.isEmpty()
+        final SearchProfileResultsBuilder profileResults = profileShardResults.isEmpty()
             ? null
-            : new SearchProfileQueryPhaseResults(profileShardResults);
+            : new SearchProfileResultsBuilder(profileShardResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
@@ -539,7 +539,7 @@ public final class SearchPhaseController {
         // the reduced internal aggregations
         final InternalAggregations aggregations;
         // the reduced profile results
-        final SearchProfileQueryPhaseResults searchPhaseProfileResults;
+        final SearchProfileResultsBuilder searchPhaseProfileResults;
         // the number of reduces phases
         final int numReducePhases;
         //encloses info about the merged top docs, the sort fields used to sort the score docs etc.
@@ -561,7 +561,7 @@ public final class SearchPhaseController {
             Boolean terminatedEarly,
             Suggest suggest,
             InternalAggregations aggregations,
-            SearchProfileQueryPhaseResults searchPhaseProfileResults,
+            SearchProfileResultsBuilder searchPhaseProfileResults,
             SortedTopDocs sortedTopDocs,
             DocValueFormat[] sortValueFormats,
             int numReducePhases,

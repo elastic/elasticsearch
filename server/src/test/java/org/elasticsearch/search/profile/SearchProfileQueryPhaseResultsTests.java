@@ -14,19 +14,19 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchProfileQueryPhaseResultsTests extends AbstractWireSerializingTestCase<SearchProfileQueryPhaseResults> {
+public class SearchProfileQueryPhaseResultsTests extends AbstractWireSerializingTestCase<SearchProfileResultsBuilder> {
     @Override
-    protected SearchProfileQueryPhaseResults createTestInstance() {
+    protected SearchProfileResultsBuilder createTestInstance() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);
         Map<String, SearchProfileQueryPhaseResult> shards = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             shards.put(randomAlphaOfLengthBetween(5, 10), SearchProfileQueryPhaseResultTests.createTestItem());
         }
-        return new SearchProfileQueryPhaseResults(shards);
+        return new SearchProfileResultsBuilder(shards);
     }
 
     @Override
-    protected Reader<SearchProfileQueryPhaseResults> instanceReader() {
-        return SearchProfileQueryPhaseResults::new;
+    protected Reader<SearchProfileResultsBuilder> instanceReader() {
+        return SearchProfileResultsBuilder::new;
     }
 }

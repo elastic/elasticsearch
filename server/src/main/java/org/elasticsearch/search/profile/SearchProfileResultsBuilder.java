@@ -23,14 +23,14 @@ import java.util.Map;
 /**
  * Profile results for the query phase run on all shards.
  */
-public final class SearchProfileQueryPhaseResults implements Writeable { // This is Writeable for backwards compatibility
+public final class SearchProfileResultsBuilder implements Writeable { // This is Writeable for backwards compatibility
     private Map<String, SearchProfileQueryPhaseResult> shardResults;
 
-    public SearchProfileQueryPhaseResults(Map<String, SearchProfileQueryPhaseResult> shardResults) {
+    public SearchProfileResultsBuilder(Map<String, SearchProfileQueryPhaseResult> shardResults) {
         this.shardResults =  Collections.unmodifiableMap(shardResults);
     }
 
-    public SearchProfileQueryPhaseResults(StreamInput in) throws IOException {
+    public SearchProfileResultsBuilder(StreamInput in) throws IOException {
         int size = in.readInt();
         shardResults = new HashMap<>(size);
 
@@ -84,7 +84,7 @@ public final class SearchProfileQueryPhaseResults implements Writeable { // This
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        SearchProfileQueryPhaseResults other = (SearchProfileQueryPhaseResults) obj;
+        SearchProfileResultsBuilder other = (SearchProfileResultsBuilder) obj;
         return shardResults.equals(other.shardResults);
     }
 

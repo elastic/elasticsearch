@@ -84,14 +84,13 @@ public class FetchPhase {
             return;
         }
 
-        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : context.getProfilers().getFetchProfiler();
-        profiler.start();
+        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : context.getProfilers().startProfilingFetchPhase();
         SearchHits hits = null;
         try {
             hits = buildSearchHits(context, profiler);
         } finally {
-            // Always stop profiling
-            ProfileResult profileResult = profiler.stop();
+            // Always finish profiling
+            ProfileResult profileResult = profiler.finish();
             // Only set the shardResults if building search hits was successful
             if (hits != null) {
                 context.fetchResult().shardResult(hits, profileResult);
@@ -475,9 +474,7 @@ public class FetchPhase {
     }
 
     interface Profiler {
-        void start();
-
-        ProfileResult stop();
+        ProfileResult finish();
 
         FetchSubPhaseProcessor profile(String type, String description, FetchSubPhaseProcessor processor);
 
@@ -493,10 +490,7 @@ public class FetchPhase {
 
         Profiler NOOP = new Profiler() {
             @Override
-            public void start() {}
-
-            @Override
-            public ProfileResult stop() {
+            public ProfileResult finish() {
                 return null;
             }
 

@@ -26,23 +26,35 @@ import java.util.Map;
 import static java.util.stream.Collectors.toList;
 
 public class FetchProfiler implements FetchPhase.Profiler {
-    private FetchProfileBreakdown current;
+    private final FetchProfileBreakdown current;
 
-    long nanoTime() {
-        return System.nanoTime();
+    /**
+     * Start profiling at the current time.
+     */
+    public FetchProfiler() {
+        this(System.nanoTime());
     }
 
-    @Override
-    public void start() {
-        assert current == null;
-        current = new FetchProfileBreakdown(nanoTime());
+    /**
+     * Build the profiler starting at a fixed time.
+     */
+    public FetchProfiler(long nanoTime) {
+        current = new FetchProfileBreakdown(nanoTime);
     }
 
+    /**
+     * Finish profiling at the current time.
+     */
     @Override
-    public ProfileResult stop() {
-        ProfileResult result = current.result(nanoTime());
-        current = null;
-        return result;
+    public ProfileResult finish() {
+        return finish(System.nanoTime());
+    }
+
+    /**
+     * Finish profiling at a fixed time.
+     */
+    public ProfileResult finish(long nanoTime) {
+        return current.result(nanoTime);
     }
 
     @Override
@@ -122,7 +134,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
                 .sorted(Comparator.comparing(b -> b.type))
                 .map(FetchSubPhaseProfileBreakdown::result)
                 .collect(toList());
-            return new ProfileResult("fetch", "fetch", toBreakdownMap(), toDebugMap(), stop - start, children);
+            return new ProfileResult("fetch", "", toBreakdownMap(), toDebugMap(), stop - start, children);
         }
     }
 

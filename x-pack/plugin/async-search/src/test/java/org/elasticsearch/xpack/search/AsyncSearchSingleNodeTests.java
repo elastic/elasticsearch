@@ -22,7 +22,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -119,7 +118,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
     public static final class SubFetchPhasePlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList((FetchContext fetchContext) -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList(searchContext -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {}
 
@@ -128,6 +127,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
                     if (hitContext.hit().getId().startsWith("boom")) {
                         throw new RuntimeException("boom");
                     }
+
                 }
             });
         }

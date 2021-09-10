@@ -45,7 +45,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readBoolean() ? new Suggest(in) : null,
             in.readBoolean(),
             in.readOptionalBoolean(),
-            new SearchProfileResults(in),
+            in.readOptionalWriteable(SearchProfileResults::new),
             in.readVInt()
         );
     }

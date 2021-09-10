@@ -41,6 +41,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -409,7 +410,7 @@ public final class SearchPhaseController {
                 null,
                 null,
                 null,
-                SearchProfileResultsBuilder.build(Map.of()),
+                null,
                 SortedTopDocs.EMPTY,
                 null,
                 numReducePhases,
@@ -477,7 +478,9 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileResultsBuilder profileBuilder = SearchProfileResultsBuilder.build(profileShardResults);
+        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
+            ? null
+            : new SearchProfileResultsBuilder(profileShardResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
@@ -608,11 +611,23 @@ public final class SearchPhaseController {
                 hits,
                 aggregations,
                 suggest,
-                profileBuilder.build(fetchResults),
+                buildSearchProfileResults(fetchResults),
                 timedOut,
                 terminatedEarly,
                 numReducePhases
             );
+        }
+
+        private SearchProfileResults buildSearchProfileResults(Collection<? extends SearchPhaseResult> fetchResults) {
+            if (profileBuilder == null) {
+                assert fetchResults.stream()
+                    .map(SearchPhaseResult::fetchResult)
+                    .filter(r -> r != null)
+                    .allMatch(r -> r.profileResult() == null) : "found fetch profile without search profile";
+                return null;
+
+            }
+            return profileBuilder.build(fetchResults);
         }
     }
 

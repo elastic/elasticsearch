@@ -20,27 +20,9 @@ import java.util.Map;
  * Profile results for the query phase run on all shards.
  */
 public class SearchProfileResultsBuilder {
-    public static SearchProfileResultsBuilder build(Map<String, SearchProfileQueryPhaseResult> queryPhaseResults) {
-        if (queryPhaseResults.isEmpty()) {
-            return NOT_PROFILING;
-        }
-        return new SearchProfileResultsBuilder(queryPhaseResults);
-    }
-
-    private static final SearchProfileResultsBuilder NOT_PROFILING = new SearchProfileResultsBuilder(Map.of()) {
-        @Override
-        public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults) {
-            assert fetchResults.stream()
-                .map(SearchPhaseResult::fetchResult)
-                .filter(r -> r != null)
-                .allMatch(r -> r.profileResult() == null) : "found fetch profile without search profile";
-            return null;
-        }
-    };
-
     private final Map<String, SearchProfileQueryPhaseResult> queryPhaseResults;
 
-    private SearchProfileResultsBuilder(Map<String, SearchProfileQueryPhaseResult> queryPhaseResults) {
+    public SearchProfileResultsBuilder(Map<String, SearchProfileQueryPhaseResult> queryPhaseResults) {
         this.queryPhaseResults = Collections.unmodifiableMap(queryPhaseResults);
     }
 

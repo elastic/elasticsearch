@@ -60,14 +60,15 @@ Use the get snapshot API to return information about one or more snapshots, incl
 `<repository>`::
 (Required, string)
 Comma-separated list of snapshot repository names used to limit the request.
-Wildcard (`*`) expressions are supported.
+Wildcard (`*`) expressions are supported including combining wildcards with exclude patterns starting with `-`.
 +
 To get information about all snapshot repositories registered in the
 cluster, omit this parameter or use `*` or `_all`.
 
 `<snapshot>`::
 (Required, string)
-Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`).
+Comma-separated list of snapshot names to retrieve.
+Wildcard (`*`) expressions are supported including combining wildcards with exclude patterns starting with `-`.
 +
 * To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
 * To get information about any snapshots that are currently running, use `_current`.
@@ -151,8 +152,8 @@ exclusive with using the `after` parameter. Defaults to `0`.
 `slm_policy_filter`::
 (Optional, string)
 Filter snapshots by a comma-separated list of SLM policy names that snapshots belong to. Also accepts wildcards (`\*`) and combinations
-of wildcards followed by exclude patterns starting in `-`. For example, the pattern `*,-policy-a-\*` will return all snapshots except
-for those that were created by an SLM policy with a name starting in `policy-a-`. Note that the wildcard pattern `*` matches all snapshots
+of wildcards followed by exclude patterns starting with `-`. For example, the pattern `*,-policy-a-\*` will return all snapshots except
+for those that were created by an SLM policy with a name starting with `policy-a-`. Note that the wildcard pattern `*` matches all snapshots
 created by an SLM policy but not those snapshots that were not created by an SLM policy. To include snapshots not created by an SLM
 policy you can use the special pattern `_none` that will match all snapshots without an SLM policy.
 
@@ -547,3 +548,83 @@ The API returns the following response:
 // TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
 // TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+
+The following request returns information for all snapshots with prefix `snapshot` in the `my_repository` repository,
+except for the one named `snapshot_3`
+
+[source,console]
+----
+GET /_snapshot/my_repository/snapshot*,-snapshot_3?sort=name
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_1",
+      "uuid": "dKb54xw67gvdRctLCxSket",
+      "repository": "my_repository",
+      "version_id": <version_id>,
+      "version": <version>,
+      "indices": [],
+      "data_streams": [],
+      "feature_states": [],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2020-07-06T21:55:18.129Z",
+      "start_time_in_millis": 1593093628850,
+      "end_time": "2020-07-06T21:55:18.129Z",
+      "end_time_in_millis": 1593094752018,
+      "duration_in_millis": 0,
+      "failures": [],
+      "shards": {
+        "total": 0,
+        "failed": 0,
+        "successful": 0
+      }
+    },
+    {
+      "snapshot": "snapshot_2",
+      "uuid": "vdRctLCxSketdKb54xw67g",
+      "repository": "my_repository",
+      "version_id": <version_id>,
+      "version": <version>,
+      "indices": [],
+      "data_streams": [],
+      "feature_states": [],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2020-07-06T21:55:18.130Z",
+      "start_time_in_millis": 1593093628851,
+      "end_time": "2020-07-06T21:55:18.130Z",
+      "end_time_in_millis": 1593094752019,
+      "duration_in_millis": 1,
+      "failures": [],
+      "shards": {
+        "total": 0,
+        "failed": 0,
+        "successful": 0
+      },
+    }
+  ],
+  "total": 2,
+  "remaining": 0
+}
+----
+// TESTRESPONSE[s/"uuid": "dKb54xw67gvdRctLCxSket"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshots.1.uuid/]
+// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
+// TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.130Z"/"start_time": $body.snapshots.1.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628851/"start_time_in_millis": $body.snapshots.1.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.130Z"/"end_time": $body.snapshots.1.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593094752019/"end_time_in_millis": $body.snapshots.1.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 1/"duration_in_millis": $body.snapshots.1.duration_in_millis/]

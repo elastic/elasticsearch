@@ -56,6 +56,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.HISTORY_UUID_KEY;
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -198,9 +199,10 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             writeRandomDocs(store, randomIntBetween(10, 100));
             Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
 
+            Version snapshotVersion = randomFrom(Version.fromId(Integer.MAX_VALUE), randomCompatibleVersion(random(), Version.CURRENT));
             // The snapshot shardStateIdentifier is the same as the source, but the files are different.
             // This can happen after a primary fail-over.
-            ShardSnapshot latestSnapshot = createShardSnapshotThatDoNotShareSegmentFiles("repo");
+            ShardSnapshot latestSnapshot = createShardSnapshotThatDoNotShareSegmentFiles("repo", snapshotVersion);
             String shardStateIdentifier = latestSnapshot.getShardStateIdentifier();
 
             long startingSeqNo = randomNonNegativeLong();
@@ -220,7 +222,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 true
             );
 
-            if (shareFilesWithSource) {
+            if (shareFilesWithSource || snapshotVersion.after(Version.CURRENT)) {
                 assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
                 assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
                 assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetSourceMetadata);
@@ -559,12 +561,16 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
+        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT);
+    }
+
+    private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName, Version version) {
         List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = randomList(10, 20, () -> {
             StoreFileMetadata storeFileMetadata = randomStoreFileMetadata();
             return new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
         });
 
-        return createShardSnapshot(repoName, snapshotFiles);
+        return createShardSnapshot(repoName, snapshotFiles, version);
     }
 
     private ShardSnapshot createShardSnapshotThatSharesSegmentFiles(Store store,
@@ -578,11 +584,12 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles);
+        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT);
     }
 
     private ShardSnapshot createShardSnapshot(String repoName,
-                                              List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
+                                              List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
+                                              Version version) {
         String shardIdentifier = randomAlphaOfLength(10);
 
         Snapshot snapshot = new Snapshot(repoName, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
@@ -590,7 +597,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         ShardSnapshotInfo shardSnapshotInfo =
             new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier, clock.incrementAndGet());
 
-        return new ShardSnapshot(shardSnapshotInfo, snapshotFiles, Collections.singletonMap(ES_VERSION, Version.CURRENT.toString()));
+        return new ShardSnapshot(shardSnapshotInfo, snapshotFiles, Collections.singletonMap(ES_VERSION, version.toString()));
     }
 
     private StoreFileMetadata randomStoreFileMetadata() {

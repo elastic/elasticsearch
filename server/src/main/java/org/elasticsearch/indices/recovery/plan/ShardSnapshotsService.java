@@ -143,10 +143,10 @@ public class ShardSnapshotsService {
         return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
     }
 
-    static final class InMemoryDirectory extends BaseDirectory {
+    private static final class InMemoryDirectory extends BaseDirectory {
         private final Map<String, StoreFileMetadata> files;
 
-        InMemoryDirectory(Map<String, StoreFileMetadata> files) {
+        private InMemoryDirectory(Map<String, StoreFileMetadata> files) {
             super(new SingleInstanceLockFactory());
             this.files = files;
         }

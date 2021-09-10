@@ -171,6 +171,7 @@ import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
@@ -6136,6 +6137,30 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(engine.isClosed.get());
         } finally {
             IndexWriterMaxDocsChanger.restoreMaxDocs();
+        }
+    }
+
+    public void testCurrentVersionIsCommitted() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config =
+                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+
+            store.createEmpty();
+            final String translogUUID = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUUID);
+
+            try (InternalEngine engine = createEngine(config)) {
+                engine.flush();
+                Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                assertThat(userData, hasKey(ES_VERSION));
+                assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+            }
         }
     }
 }

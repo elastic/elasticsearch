@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,7 +188,10 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
 
             assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
-            assertThat(shardSnapshotData.getLuceneCommitUserData(), is(not(anEmptyMap())));
+            Map<String, String> luceneCommitUserData = shardSnapshotData.getLuceneCommitUserData();
+            assertThat(luceneCommitUserData, is(not(anEmptyMap())));
+            assertThat(luceneCommitUserData.containsKey(ES_VERSION), is(equalTo(true)));
+            assertThat(luceneCommitUserData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));

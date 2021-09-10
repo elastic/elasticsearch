@@ -1028,4 +1028,16 @@ public class StoreTests extends ESTestCase {
             }
         }
     }
+
+    public void testVersionIsIncludedInBootstrapCommit() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
+
+            store.createEmpty();
+
+            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.ES_VERSION));
+            assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(org.elasticsearch.Version.CURRENT.toString())));
+        }
+    }
 }

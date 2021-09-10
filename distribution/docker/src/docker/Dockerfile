@@ -76,7 +76,7 @@ RUN chmod 0555 /bin/tini
 ################################################################################
 FROM alpine:3.13 AS curl
 
-ENV VERSION 7.78.0
+ENV VERSION 7.71.0
 ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 
@@ -104,7 +104,7 @@ RUN gpg --import --always-trust "curl-gpg.pub" && \\
 RUN set -e ; \\
     tar xfJ "\${TARBALL_PATH}" ; \\
     cd "curl-\${VERSION}" ; \\
-    if ! ./configure --with-openssl --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
+    if ! ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
         [[ -e config.log ]] && cat config.log ; \\
         exit 1 ; \\
     fi ; \\

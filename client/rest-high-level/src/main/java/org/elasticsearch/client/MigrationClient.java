@@ -11,6 +11,10 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
+import org.elasticsearch.client.migration.GetFeatureUpgradeStatusRequest;
+import org.elasticsearch.client.migration.GetFeatureUpgradeStatusResponse;
+import org.elasticsearch.client.migration.PostFeatureUpgradeRequest;
+import org.elasticsearch.client.migration.PostFeatureUpgradeResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,4 +58,52 @@ public final class MigrationClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
             DeprecationInfoResponse::fromXContent, listener, Collections.emptySet());
     }
+
+    public GetFeatureUpgradeStatusResponse getFeatureUpgradeStatus(
+        GetFeatureUpgradeStatusRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            MigrationRequestConverters::getFeatureUpgradeStatus,
+            options,
+            GetFeatureUpgradeStatusResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    public Cancellable getFeatureUpgradeStatusAsync(GetFeatureUpgradeStatusRequest request,
+                                                    RequestOptions options, ActionListener<GetFeatureUpgradeStatusResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            MigrationRequestConverters::getFeatureUpgradeStatus,
+            options,
+            GetFeatureUpgradeStatusResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    public PostFeatureUpgradeResponse postFeatureUpgrade(
+        PostFeatureUpgradeRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            MigrationRequestConverters::postFeatureUpgrade,
+            options,
+            PostFeatureUpgradeResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    public Cancellable postFeatureUpgradeAsync(
+        PostFeatureUpgradeRequest request, RequestOptions options,
+        ActionListener<PostFeatureUpgradeResponse> listener) throws IOException {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            MigrationRequestConverters::postFeatureUpgrade,
+            options,
+            PostFeatureUpgradeResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
 }

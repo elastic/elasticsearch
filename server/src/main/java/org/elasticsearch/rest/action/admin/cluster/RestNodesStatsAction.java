@@ -77,7 +77,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if(request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("types")){
-            deprecationLogger.compatibleApiWarning("nodes_stats_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("nodes_stats_types", TYPES_DEPRECATION_MESSAGE);
             request.param("types");
         }
 

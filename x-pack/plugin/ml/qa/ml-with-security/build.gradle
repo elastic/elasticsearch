@@ -20,10 +20,11 @@ tasks.named("yamlRestTest").configure {
     // Remove these tests because they don't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
     'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
-    'ml/ml_standard_analyze/Test analyze API with the standard 7.14 ML analyzer',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with blank lines',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with multiple multiline messages',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
+    'ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with blank lines',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with multiple multiline messages',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with stop words in messages',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with stop words in messages and strange lines without letters',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',

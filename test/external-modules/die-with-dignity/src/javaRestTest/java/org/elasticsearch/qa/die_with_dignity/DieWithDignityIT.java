@@ -8,6 +8,7 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -28,6 +29,7 @@ import java.util.Map;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
+        assumeFalse("Mute on Windows, see https://github.com/elastic/elasticsearch/issues/77282", Constants.WINDOWS);
         // there should be an Elasticsearch process running with the die.with.dignity.test system property
         {
             final Map<String, String> esCommandLines = getElasticsearchCommandLines();

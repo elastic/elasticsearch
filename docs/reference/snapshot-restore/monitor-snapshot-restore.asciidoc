@@ -31,6 +31,8 @@ PUT /_snapshot/my_fs_backup
 }
 
 PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+
+PUT /_snapshot/my_backup/some_other_snapshot?wait_for_completion=true
 -----------------------------------
 // TESTSETUP
 

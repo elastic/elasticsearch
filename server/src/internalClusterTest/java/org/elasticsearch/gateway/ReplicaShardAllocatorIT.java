@@ -252,8 +252,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 100))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
+        if (usually()) {
+            indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(1, 100))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
+        }
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));

@@ -14,10 +14,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -35,6 +37,13 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
 
     private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
     private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "001";
+
+    @Override
+    protected Settings nodeSettings() {
+        // TODO Change this to run with security enabled
+        // https://github.com/elastic/elasticsearch/issues/75940
+        return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+    }
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {
 

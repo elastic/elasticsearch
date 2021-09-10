@@ -16,8 +16,6 @@ _service-accounts_::
 +
 --
 
-beta::[]
-
 The <<service-accounts,service accounts>> use either the
 <<security-api-create-service-token,create service account token API>>
 or the <<service-tokens-command,elasticsearch-service-tokens>> CLI tool to

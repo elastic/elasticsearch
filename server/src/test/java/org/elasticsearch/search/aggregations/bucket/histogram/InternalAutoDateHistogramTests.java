@@ -64,9 +64,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected InternalAutoDateHistogram createTestInstance(String name,
-                                                       Map<String, Object> metadata,
-                                                       InternalAggregations aggregations) {
+    protected InternalAutoDateHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         RoundingInfo[] roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int roundingIndex = between(0, roundingInfos.length - 1);
         return createTestInstance(
@@ -90,19 +88,21 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         // Since we pass 0 as the starting index to getAppropriateRounding, we'll also use
         // an innerInterval that is quite large, such that targetBuckets * roundings[i].getMaximumInnerInterval()
         // will be larger than the estimate.
-        roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone,
-            1000L, "s", 1000);
-        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone,
-            60 * 1000L, "m", 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone,
-            60 * 60 * 1000L, "h", 1, 3, 12);
+        roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone, 1000L, "s", 1000);
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone, 60 * 60 * 1000L, "h", 1, 3, 12);
 
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
         // We want to pass a roundingIdx of zero, because in order to reproduce this bug, we need the function
         // to increment the rounding (because the bug was that the function would not use the innerIntervals
         // from the new rounding.
-        int result = InternalAutoDateHistogram.getAppropriateRounding(timestamp.toEpochSecond()*1000,
-            timestamp.plusDays(1).toEpochSecond()*1000, 0, roundings, 25);
+        int result = InternalAutoDateHistogram.getAppropriateRounding(
+            timestamp.toEpochSecond() * 1000,
+            timestamp.plusDays(1).toEpochSecond() * 1000,
+            0,
+            roundings,
+            25
+        );
         assertThat(result, equalTo(2));
     }
 
@@ -115,7 +115,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         List<InternalAutoDateHistogram> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long thisResultStart = startingDate;
-            thisResultStart += usually() ? 0 :randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS).toMillis(between(1, 10000));
+            thisResultStart += usually() ? 0 : randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS).toMillis(between(1, 10000));
             result.add(createTestInstance(name, null, InternalAggregations.EMPTY, thisResultStart, roundingInfos, roundingIndex, format));
         }
         return result;
@@ -153,7 +153,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
          * than we need but it is quick.
          */
         if (normalizedDuration != 0) {
-            for (int j = roundingInfo.innerIntervals.length-1; j >= 0; j--) {
+            for (int j = roundingInfo.innerIntervals.length - 1; j >= 0; j--) {
                 int interval = roundingInfo.innerIntervals[j];
                 if (normalizedDuration / interval < reduced.getBuckets().size()) {
                     innerIntervalIndex = j;
@@ -203,8 +203,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                         long roundedBucketKey = prepared.round(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli());
                         long docCount = bucket.getDocCount();
                         if (roundedBucketKey >= keyForBucket && roundedBucketKey < nextKey) {
-                            expectedCounts.compute(key,
-                                (k, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
+                            expectedCounts.compute(key, (k, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
                         }
                     }
                 }
@@ -221,8 +220,10 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         // pick out the actual reduced values to the make the assertion more readable
         Map<Instant, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+            actualCounts.compute(
+                ((ZonedDateTime) bucket.getKey()).toInstant(),
+                (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+            );
         }
         assertEquals(expectedCounts, actualCounts);
 
@@ -230,7 +231,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         if (reduced.getBuckets().size() == 1) {
             expectedInterval = reduced.getInterval();
         } else {
-            expectedInterval = new DateHistogramInterval(innerIntervalToUse+roundingInfo.unitAbbreviation);
+            expectedInterval = new DateHistogramInterval(innerIntervalToUse + roundingInfo.unitAbbreviation);
         }
         assertThat(reduced.getInterval(), equalTo(expectedInterval));
     }
@@ -260,61 +261,84 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         BucketInfo bucketInfo = instance.getBucketInfo();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(new InternalAutoDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), instance.getFormatter(),
-                    InternalAggregations.EMPTY));
-            break;
-        case 2:
-            int roundingIdx = bucketInfo.roundingIdx == bucketInfo.roundingInfos.length - 1 ? 0 : bucketInfo.roundingIdx + 1;
-            bucketInfo = new BucketInfo(bucketInfo.roundingInfos, roundingIdx, bucketInfo.emptySubAggregations);
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(
+                    new InternalAutoDateHistogram.Bucket(
+                        randomNonNegativeLong(),
+                        randomIntBetween(1, 100),
+                        instance.getFormatter(),
+                        InternalAggregations.EMPTY
+                    )
+                );
+                break;
+            case 2:
+                int roundingIdx = bucketInfo.roundingIdx == bucketInfo.roundingInfos.length - 1 ? 0 : bucketInfo.roundingIdx + 1;
+                bucketInfo = new BucketInfo(bucketInfo.roundingInfos, roundingIdx, bucketInfo.emptySubAggregations);
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, instance.getFormatter(), metadata, 1);
     }
 
     public void testReduceSecond() {
-        InternalAutoDateHistogram h = new ReduceTestBuilder(10)
-            .bucket("1970-01-01T00:00:01", 1).bucket("1970-01-01T00:00:02", 1).bucket("1970-01-01T00:00:03", 1)
+        InternalAutoDateHistogram h = new ReduceTestBuilder(10).bucket("1970-01-01T00:00:01", 1)
+            .bucket("1970-01-01T00:00:02", 1)
+            .bucket("1970-01-01T00:00:03", 1)
             .finishShardResult("s", 1)
-            .bucket("1970-01-01T00:00:03", 1).bucket("1970-01-01T00:00:04", 1)
+            .bucket("1970-01-01T00:00:03", 1)
+            .bucket("1970-01-01T00:00:04", 1)
             .finishShardResult("s", 1)
             .reduce();
-        assertThat(keys(h), equalTo(Arrays.asList(
-            "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", "1970-01-01T00:00:03Z", "1970-01-01T00:00:04Z")));
+        assertThat(
+            keys(h),
+            equalTo(Arrays.asList("1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", "1970-01-01T00:00:03Z", "1970-01-01T00:00:04Z"))
+        );
         assertThat(docCounts(h), equalTo(Arrays.asList(1, 1, 2, 1)));
     }
 
     public void testReduceThirtySeconds() {
-        InternalAutoDateHistogram h = new ReduceTestBuilder(10)
-            .bucket("1970-01-01T00:00:00", 1).bucket("1970-01-01T00:00:30", 1).bucket("1970-01-01T00:02:00", 1)
+        InternalAutoDateHistogram h = new ReduceTestBuilder(10).bucket("1970-01-01T00:00:00", 1)
+            .bucket("1970-01-01T00:00:30", 1)
+            .bucket("1970-01-01T00:02:00", 1)
             .finishShardResult("s", 1)
-            .bucket("1970-01-01T00:00:30", 1).bucket("1970-01-01T00:01:00", 1)
+            .bucket("1970-01-01T00:00:30", 1)
+            .bucket("1970-01-01T00:01:00", 1)
             .finishShardResult("s", 1)
             .reduce();
-        assertThat(keys(h), equalTo(Arrays.asList(
-            "1970-01-01T00:00:00Z", "1970-01-01T00:00:30Z", "1970-01-01T00:01:00Z", "1970-01-01T00:01:30Z", "1970-01-01T00:02:00Z")));
+        assertThat(
+            keys(h),
+            equalTo(
+                Arrays.asList(
+                    "1970-01-01T00:00:00Z",
+                    "1970-01-01T00:00:30Z",
+                    "1970-01-01T00:01:00Z",
+                    "1970-01-01T00:01:30Z",
+                    "1970-01-01T00:02:00Z"
+                )
+            )
+        );
         assertThat(docCounts(h), equalTo(Arrays.asList(1, 2, 1, 0, 1)));
     }
 
     public void testReduceBumpsInnerRange() {
-        InternalAutoDateHistogram h = new ReduceTestBuilder(2)
-            .bucket("1970-01-01T00:00:01", 1).bucket("1970-01-01T00:00:02", 1)
+        InternalAutoDateHistogram h = new ReduceTestBuilder(2).bucket("1970-01-01T00:00:01", 1)
+            .bucket("1970-01-01T00:00:02", 1)
             .finishShardResult("s", 1)
-            .bucket("1970-01-01T00:00:00", 1).bucket("1970-01-01T00:00:05", 1)
+            .bucket("1970-01-01T00:00:00", 1)
+            .bucket("1970-01-01T00:00:05", 1)
             .finishShardResult("s", 5)
             .reduce();
         assertThat(keys(h), equalTo(Arrays.asList("1970-01-01T00:00:00Z", "1970-01-01T00:00:05Z")));
@@ -322,10 +346,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     public void testReduceBumpsRounding() {
-        InternalAutoDateHistogram h = new ReduceTestBuilder(2)
-            .bucket("1970-01-01T00:00:01", 1).bucket("1970-01-01T00:00:02", 1)
+        InternalAutoDateHistogram h = new ReduceTestBuilder(2).bucket("1970-01-01T00:00:01", 1)
+            .bucket("1970-01-01T00:00:02", 1)
             .finishShardResult("s", 1)
-            .bucket("1970-01-01T00:00:00", 1).bucket("1970-01-01T00:01:00", 1)
+            .bucket("1970-01-01T00:00:00", 1)
+            .bucket("1970-01-01T00:01:00", 1)
             .finishShardResult("m", 1)
             .reduce();
         assertThat(keys(h), equalTo(Arrays.asList("1970-01-01T00:00:00Z", "1970-01-01T00:01:00Z")));
@@ -334,7 +359,10 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
     private static class ReduceTestBuilder {
         private static final DocValueFormat FORMAT = new DocValueFormat.DateTime(
-            DateFormatter.forPattern("date_time_no_millis"), ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
+            DateFormatter.forPattern("date_time_no_millis"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
         private final List<InternalAggregation> results = new ArrayList<>();
         private final List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>();
         private final int targetBuckets;
@@ -344,8 +372,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
 
         ReduceTestBuilder bucket(String key, long docCount) {
-            buckets.add(new InternalAutoDateHistogram.Bucket(
-                utcMillis(key), docCount, FORMAT, InternalAggregations.EMPTY));
+            buckets.add(new InternalAutoDateHistogram.Bucket(utcMillis(key), docCount, FORMAT, InternalAggregations.EMPTY));
             return this;
         }
 
@@ -359,11 +386,22 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                 }
             }
             assertThat("rounding [" + whichRounding + "] should be in " + Arrays.toString(roundings), roundingIdx, greaterThan(-1));
-            assertTrue(Arrays.toString(roundings[roundingIdx].innerIntervals) + " must contain " + innerInterval,
-                    Arrays.binarySearch(roundings[roundingIdx].innerIntervals, innerInterval) >= 0);
+            assertTrue(
+                Arrays.toString(roundings[roundingIdx].innerIntervals) + " must contain " + innerInterval,
+                Arrays.binarySearch(roundings[roundingIdx].innerIntervals, innerInterval) >= 0
+            );
             BucketInfo bucketInfo = new BucketInfo(roundings, roundingIdx, InternalAggregations.EMPTY);
-            results.add(new InternalAutoDateHistogram("test", new ArrayList<>(buckets), targetBuckets, bucketInfo,
-                    FORMAT, emptyMap(), innerInterval));
+            results.add(
+                new InternalAutoDateHistogram(
+                    "test",
+                    new ArrayList<>(buckets),
+                    targetBuckets,
+                    bucketInfo,
+                    FORMAT,
+                    emptyMap(),
+                    innerInterval
+                )
+            );
             buckets.clear();
             return this;
         }
@@ -389,8 +427,14 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     public void testCreateWithReplacementBuckets() {
         InternalAutoDateHistogram noInterval = createTestInstance();
         InternalAutoDateHistogram orig = new InternalAutoDateHistogram(
-            noInterval.getName(), noInterval.getBuckets(), noInterval.getTargetBuckets(), noInterval.getBucketInfo(),
-            noInterval.getFormatter(), noInterval.getMetadata(), randomLong());
+            noInterval.getName(),
+            noInterval.getBuckets(),
+            noInterval.getTargetBuckets(),
+            noInterval.getBucketInfo(),
+            noInterval.getFormatter(),
+            noInterval.getMetadata(),
+            randomLong()
+        );
         InternalAutoDateHistogram copy = orig.create(List.of());
         assertThat(copy.getName(), equalTo(orig.getName()));
         assertThat(copy.getBuckets(), hasSize(0));

@@ -247,9 +247,9 @@ PUT _transform/suspicious_client_ips
          "filter": { 
             "term": { "response" : "404"}}
         },
-      "error503" : {
-         "filter": { 
-            "term": { "response" : "503"}}
+      "error5xx" : {
+         "filter": {
+            "range": { "response" : { "gte": 500, "lt": 600}}}
         },
       "timestamp.min": { "min": { "field": "timestamp" }},
       "timestamp.max": { "max": { "field": "timestamp" }},
@@ -273,9 +273,10 @@ PUT _transform/suspicious_client_ips
 field to synchronize the source and destination indices. The worst case 
 ingestion delay is 60 seconds.
 <3> The data is grouped by the `clientip` field.
-<4> Filter aggregation that counts the occurrences of successful (`200`) 
-responses in the `response` field. The following two aggregations (`error404` 
-and `error503`) count the error responses by error codes.
+<4> Filter aggregation that counts the occurrences of successful (`200`)
+responses in the `response` field. The following two aggregations (`error404`
+and `error5xx`) count the error responses by error codes, matching an exact
+value or a range of response codes.
 <5> This `bucket_script` calculates the duration of the `clientip` access based
 on the results of the aggregation.
 

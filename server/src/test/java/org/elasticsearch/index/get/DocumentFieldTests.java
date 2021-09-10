@@ -10,7 +10,7 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,6 +23,7 @@ import org.elasticsearch.test.RandomObjects;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -123,10 +124,13 @@ public class DocumentFieldTests extends ESTestCase {
                     DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                     return Tuple.tuple(listField, listField);
                 case 2:
-                    List<Object> objectValues = randomList(1, 5, () ->
-                        Map.of(randomAlphaOfLength(5), randomInt(),
-                            randomAlphaOfLength(5), randomBoolean(),
-                            randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                    List<Object> objectValues = randomList(1, 5, () -> {
+                        Map<String, Object> values = new HashMap<>();
+                        values.put(randomAlphaOfLength(5), randomInt());
+                        values.put(randomAlphaOfLength(5), randomBoolean());
+                        values.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+                        return values;
+                    });
                     DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                     return Tuple.tuple(objectField, objectField);
                 default:

@@ -12,13 +12,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.XCombinedFieldQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -75,8 +75,8 @@ public class CustomFieldQuery extends FieldQuery {
             for (Term term : synQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }
-        } else if (sourceQuery instanceof CombinedFieldQuery) {
-            CombinedFieldQuery combinedFieldQuery = (CombinedFieldQuery) sourceQuery;
+        } else if (sourceQuery instanceof XCombinedFieldQuery) {
+            XCombinedFieldQuery combinedFieldQuery = (XCombinedFieldQuery) sourceQuery;
             for (Term term : combinedFieldQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }

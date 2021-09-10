@@ -23,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction;
@@ -52,14 +53,13 @@ public class Latest extends AbstractCompositeAggFunction {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(LatestConfig config) {
-        List<CompositeValuesSourceBuilder<?>> sources =
-            config.getUniqueKey().stream()
-                .map(field -> new TermsValuesSourceBuilder(field).field(field).missingBucket(true))
-                .collect(toList());
-        TopHitsAggregationBuilder topHitsAgg =
-            AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
-                .size(1)  // we are only interested in the top-1
-                .sorts(config.getSorts());  // we copy the sort config directly from the function config
+        List<CompositeValuesSourceBuilder<?>> sources = config.getUniqueKey()
+            .stream()
+            .map(field -> new TermsValuesSourceBuilder(field).field(field).missingBucket(true))
+            .collect(toList());
+        TopHitsAggregationBuilder topHitsAgg = AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
+            .size(1)  // we are only interested in the top-1
+            .sorts(config.getSorts());  // we copy the sort config directly from the function config
         return AggregationBuilders.composite(COMPOSITE_AGGREGATION_NAME, sources).subAggregation(topHitsAgg);
     }
 
@@ -73,15 +73,22 @@ public class Latest extends AbstractCompositeAggFunction {
         return new LatestChangeCollector(synchronizationField);
     }
 
-    private static Map<String, Object> convertBucketToDocument(CompositeAggregation.Bucket bucket,
-                                                               LatestConfig config,
-                                                               TransformIndexerStats transformIndexerStats) {
+    private static Map<String, Object> convertBucketToDocument(
+        CompositeAggregation.Bucket bucket,
+        LatestConfig config,
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress progress
+    ) {
         transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
+        progress.incrementDocsProcessed(bucket.getDocCount());
+        progress.incrementDocsIndexed(1L);
 
         TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
         if (topHits.getHits().getHits().length != 1) {
             throw new ElasticsearchException(
-                "Unexpected number of hits in the top_hits aggregation result. Wanted: 1, was: {}", topHits.getHits().getHits().length);
+                "Unexpected number of hits in the top_hits aggregation result. Wanted: 1, was: {}",
+                topHits.getHits().getHits().length
+            );
         }
         Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
@@ -121,9 +128,10 @@ public class Latest extends AbstractCompositeAggFunction {
     protected Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats transformIndexerStats
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress transformProgress
     ) {
-        return agg.getBuckets().stream().map(bucket -> convertBucketToDocument(bucket, config, transformIndexerStats));
+        return agg.getBuckets().stream().map(bucket -> convertBucketToDocument(bucket, config, transformIndexerStats, transformProgress));
     }
 
     @Override

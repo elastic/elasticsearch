@@ -10,8 +10,8 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.AbstractRefCounted;
 
 /**
  * Handles the shutdown of the wrapped {@link AmazonEC2} using reference
@@ -22,7 +22,6 @@ public class AmazonEc2Reference extends AbstractRefCounted implements Releasable
     private final AmazonEC2 client;
 
     AmazonEc2Reference(AmazonEC2 client) {
-        super("AWS_EC2_CLIENT");
         this.client = client;
     }
 

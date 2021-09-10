@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -173,7 +173,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
         return new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter("first_non_blank_line")
+            .addCharFilter("first_line_with_letters")
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()

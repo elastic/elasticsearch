@@ -6,8 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
-
 .Reindex from remote now re-encodes URL-encoded index names.
 [%collapsible]
 ====
@@ -52,3 +50,4 @@ Similarly, the `size` parameter has been renamed to `max_docs` for
 Use the replacement parameters. Requests containing the `size` parameter will
 return an error.
 ====
+//end::notable-breaking-changes[]

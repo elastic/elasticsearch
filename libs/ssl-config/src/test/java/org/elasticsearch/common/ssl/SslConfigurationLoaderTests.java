@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +36,11 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     private Settings settings;
     private MockSecureSettings secureSettings = new MockSecureSettings();
     private SslConfigurationLoader loader = new SslConfigurationLoader("test.ssl.") {
+        @Override
+        protected boolean hasSettings(String prefix) {
+            return true;
+        }
+
         @Override
         protected String getSettingAsString(String key) throws Exception {
             return settings.get(key);

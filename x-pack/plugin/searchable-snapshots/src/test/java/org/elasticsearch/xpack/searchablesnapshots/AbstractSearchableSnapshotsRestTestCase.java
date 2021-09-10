@@ -521,8 +521,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
         final Set<String> searchableSnapshotsThreadPools = Set.of(
-            SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
         );
         assertBusy(() -> {
             final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats/thread_pool"));

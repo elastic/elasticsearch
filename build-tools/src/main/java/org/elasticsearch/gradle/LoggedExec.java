@@ -55,7 +55,8 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
             doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    if (LoggedExec.this.getExecResult().getExitValue() != 0) {
+                    int exitValue = LoggedExec.this.getExecutionResult().get().getExitValue();
+                    if (exitValue != 0) {
                         try {
                             LoggedExec.this.getLogger().error("Output for " + LoggedExec.this.getExecutable() + ":");
                             outputLogger.accept(LoggedExec.this.getLogger());
@@ -67,7 +68,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
                                 "Process '%s %s' finished with non-zero exit value %d",
                                 LoggedExec.this.getExecutable(),
                                 LoggedExec.this.getArgs(),
-                                LoggedExec.this.getExecResult().getExitValue()
+                                    exitValue
                             )
                         );
                     }

@@ -19,8 +19,10 @@ import java.util.Map;
 /**
  * Register repository request builder
  */
-public class PutRepositoryRequestBuilder
-        extends AcknowledgedRequestBuilder<PutRepositoryRequest, AcknowledgedResponse, PutRepositoryRequestBuilder> {
+public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
+    PutRepositoryRequest,
+    AcknowledgedResponse,
+    PutRepositoryRequestBuilder> {
 
     /**
      * Constructs register repository request

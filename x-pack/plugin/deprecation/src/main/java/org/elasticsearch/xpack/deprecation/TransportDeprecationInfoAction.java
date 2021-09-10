@@ -27,10 +27,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
 
 import java.util.Collections;
 import java.util.List;

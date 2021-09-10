@@ -12,8 +12,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,17 +27,16 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -53,7 +50,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
-import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -63,15 +59,14 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -114,13 +109,17 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -221,8 +220,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
+        Version createdVersion =
+            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
         Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
@@ -260,8 +262,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
-        logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
-        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        logger.info("--> creating legacy index [{}] with data_path [{}]", index, indexDataPath);
+        Version createdVersion =
+            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
+            .build();
+        createIndex(index, settings);
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
@@ -549,71 +557,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         } finally {
             newShard.close("just do it", randomBoolean());
         }
-    }
-
-    /** Check that the accounting breaker correctly matches the segments API for memory usage */
-    private void checkAccountingBreaker() {
-        CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        long usedMem = acctBreaker.getUsed();
-        assertThat(usedMem, greaterThan(0L));
-        NodesStatsResponse response = client().admin().cluster().prepareNodesStats().setIndices(true).setBreaker(true).get();
-        NodeStats stats = response.getNodes().get(0);
-        assertNotNull(stats);
-        SegmentsStats segmentsStats = stats.getIndices().getSegments();
-        CircuitBreakerStats breakerStats = stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING);
-        assertEquals(usedMem, segmentsStats.getMemoryInBytes());
-        assertEquals(usedMem, breakerStats.getEstimated());
-    }
-
-    public void testCircuitBreakerIncrementedByIndexShard() throws Exception {
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
-
-        // Generate a couple of segments
-        client().prepareIndex("test").setId("1")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
-        // Use routing so 2 documents are guaranteed to be on the same shard
-        String routing = randomAlphaOfLength(5);
-        client().prepareIndex("test").setId("2")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-        client().prepareIndex("test").setId("3")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-
-        checkAccountingBreaker();
-        // Test that force merging causes the breaker to be correctly adjusted
-        logger.info("--> force merging to a single segment");
-        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).setFlush(randomBoolean()).get();
-        client().admin().indices().prepareRefresh().get();
-        checkAccountingBreaker();
-
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb")).get();
-
-        // Test that we're now above the parent limit due to the segments
-        Exception e = expectThrows(Exception.class,
-                () -> client().prepareSearch("test")
-                    .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
-        logger.info("--> got an expected exception", e);
-        assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [preallocate[aggregations]]"));
-
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
-                        .putNull("indices.breaker.total.limit")
-                        .putNull("network.breaker.inflight_requests.overhead")).get();
-
-        // Test that deleting the index causes the breaker to correctly be decremented
-        logger.info("--> deleting index");
-        client().admin().indices().prepareDelete("test").get();
-
-        // Accounting breaker should now be 0
-        CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(acctBreaker.getUsed(), equalTo(0L));
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {

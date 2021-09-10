@@ -8,12 +8,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -53,32 +52,23 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed) throws IOException;
 
-        /**
-         * Given a parsed value and a format string, formats the value into a plain Java object.
-         *
-         * Supported formats include 'geojson' and 'wkt'. The different formats are defined
-         * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
-         */
-        public abstract Object format(T value, String format);
-
-        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, String format) {
+        private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(format(v, format)), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(v), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
+
     }
 
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
         protected final Parser<T> geometryParser;
-        protected final boolean parsesArrayValue;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                            boolean parsesArrayValue, Parser<T> geometryParser, Map<String, String> meta) {
+                                            Parser<T> geometryParser, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
-            this.parsesArrayValue = parsesArrayValue;
             this.geometryParser = geometryParser;
         }
 
@@ -88,29 +78,22 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     + name() + "]");
         }
 
+        /**
+         * Gets the formatter by name.
+         */
+        protected abstract Function<List<T>, List<Object>> getFormatter(String format);
+
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-
-            if (parsesArrayValue) {
-                return new ArraySourceValueFetcher(name(), context) {
-                    @Override
-                    protected Object parseSourceValue(Object value) {
-                        List<Object> values = new ArrayList<>();
-                        geometryParser.fetchFromSource(value, values::add, geoFormat);
-                        return values;
-                    }
-                };
-            } else {
-                return new SourceValueFetcher(name(), context) {
-                    @Override
-                    protected Object parseSourceValue(Object value) {
-                        SetOnce<Object> holder = new SetOnce<>();
-                        geometryParser.fetchFromSource(value, holder::set, geoFormat);
-                        return holder.get();
-                    }
-                };
-            }
+            Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+            return new ArraySourceValueFetcher(name(), context) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    final List<T> values = new ArrayList<>();
+                    geometryParser.fetchFromSource(value, values::add);
+                    return formatter.apply(values);
+                }
+            };
         }
     }
 
@@ -151,12 +134,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public AbstractGeometryFieldType<T> fieldType() {
         return (AbstractGeometryFieldType<T>) mappedFieldType;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
@@ -165,10 +149,10 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
      * @param context   the ParseContext holding the document
      * @param geometry  the parsed geometry object
      */
-    protected abstract void index(ParseContext context, T geometry) throws IOException;
+    protected abstract void index(DocumentParserContext context, T geometry) throws IOException;
 
     @Override
-    public final void parse(ParseContext context) throws IOException {
+    public final void parse(DocumentParserContext context) throws IOException {
         if (hasScript) {
             throw new MapperParsingException("failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter"));
@@ -190,5 +174,10 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     public boolean ignoreZValue() {
         return ignoreZValue.value();
+    }
+
+    @Override
+    public final boolean parsesArrayValue() {
+        return true;
     }
 }

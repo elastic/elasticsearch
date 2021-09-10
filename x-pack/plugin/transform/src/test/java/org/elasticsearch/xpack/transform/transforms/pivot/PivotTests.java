@@ -105,14 +105,14 @@ public class PivotTests extends ESTestCase {
 
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("non_existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -123,14 +123,16 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize),
             new SettingsConfig(),
-            Version.CURRENT
+            Version.CURRENT,
+            Collections.emptySet()
         );
         assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
 
         pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null),
             new SettingsConfig(),
-            Version.CURRENT
+            Version.CURRENT,
+            Collections.emptySet()
         );
         assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
 
@@ -142,7 +144,7 @@ public class PivotTests extends ESTestCase {
         // search has failures although they might just be temporary
         SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -153,7 +155,12 @@ public class PivotTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), new SettingsConfig(), Version.CURRENT);
+            Function pivot = new Pivot(
+                getValidPivotConfig(aggregationConfig),
+                new SettingsConfig(),
+                Version.CURRENT,
+                Collections.emptySet()
+            );
             assertValidTransform(client, source, pivot);
         }
     }
@@ -162,13 +169,20 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), new SettingsConfig(), Version.CURRENT);
+            Function pivot = new Pivot(
+                getValidPivotConfig(aggregationConfig),
+                new SettingsConfig(),
+                Version.CURRENT,
+                Collections.emptySet()
+            );
 
             pivot.validateConfig(ActionListener.wrap(r -> { fail("expected an exception but got a response"); }, e -> {
                 assertThat(e, is(instanceOf(ValidationException.class)));
                 assertThat(
                     "expected aggregations to be unsupported, but they were",
-                    e.getMessage(), containsString("Unsupported aggregation type [" + agg + "]"));
+                    e.getMessage(),
+                    containsString("Unsupported aggregation type [" + agg + "]")
+                );
             }));
         }
     }
@@ -186,7 +200,7 @@ public class PivotTests extends ESTestCase {
         assertThat(groupConfig.validate(null), is(nullValue()));
 
         PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
-        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
@@ -311,9 +325,7 @@ public class PivotTests extends ESTestCase {
             );
         }
         if (agg.equals("global")) {
-            return parseAggregations(
-                "{\"pivot_global\": {\"global\": {}}}"
-            );
+            return parseAggregations("{\"pivot_global\": {\"global\": {}}}");
         }
 
         return parseAggregations(
@@ -361,7 +373,7 @@ public class PivotTests extends ESTestCase {
 
         @Override
         protected XPackLicenseState getLicenseState() {
-            return new XPackLicenseState(Settings.EMPTY, System::currentTimeMillis);
+            return new XPackLicenseState(System::currentTimeMillis);
         }
 
     }

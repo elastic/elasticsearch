@@ -363,72 +363,6 @@ setup:
                     ]
 
 ---
-"Composite aggregation with format":
-  - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
-      features: warnings
-
-  - do:
-      warnings:
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          aggregations:
-            test:
-              composite:
-                sources: [
-                  {
-                    "date": {
-                      "date_histogram": {
-                        "field": "date",
-                        "interval": "1d",
-                        "format": "yyyy-MM-dd"
-                      }
-                    }
-                  }
-                ]
-
-  - match: {hits.total: 6}
-  - length: { aggregations.test.buckets: 2 }
-  - match: { aggregations.test.buckets.0.key.date: "2017-10-20" }
-  - match: { aggregations.test.buckets.0.doc_count: 1 }
-  - match: { aggregations.test.buckets.1.key.date: "2017-10-21" }
-  - match: { aggregations.test.buckets.1.doc_count: 1 }
-
-  - do:
-        warnings:
-          - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
-        search:
-          rest_total_hits_as_int: true
-          index: test
-          body:
-            aggregations:
-              test:
-                composite:
-                  after: {
-                    date: "2017-10-20"
-                  }
-                  sources: [
-                    {
-                      "date": {
-                        "date_histogram": {
-                          "field": "date",
-                          "interval": "1d",
-                          "format": "yyyy-MM-dd"
-                        }
-                      }
-                    }
-                  ]
-
-  - match: {hits.total: 6}
-  - length: { aggregations.test.buckets: 1 }
-  - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
-  - match: { aggregations.test.buckets.0.doc_count: 1 }
-
----
 "Composite aggregation with format and calendar_interval":
   - skip:
       version: " - 7.1.99"
@@ -489,6 +423,61 @@ setup:
   - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
 
+---
+"Composite aggregation with invalid format":
+  - skip:
+      version: " - 7.13.99"
+      reason:  After key parse checking added in 7.14
+
+  - do:
+      catch: /created output it couldn't parse/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        # mixes week based and month based
+                        "format": "YYYY-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+---
+"Composite aggregation with lossy format":
+  - skip:
+      version: " - 7.13.99"
+      reason:  After key parse checking added in 7.14
+
+  - do:
+      catch: /created output it couldn't parse/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        # format is lower resolution than buckets, after key will lose data
+                        "format": "yyyy-MM"
+                      }
+                    }
+                  }
+                ]
 ---
 "Composite aggregation with date_histogram offset":
   - skip:
@@ -910,6 +899,76 @@ setup:
   - match: { hits.total.relation: eq }
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.date: "2017-10-21T00:00:00.000-02:00" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"date_histogram with time_zone epoch format":
+# Same as above, but with a different format.  We had a bug about this specifically:
+# https://github.com/elastic/elasticsearch/issues/68963
+  - skip:
+      version: " - 7.6.0"
+      reason: Fixed in 7.6.0
+  - do:
+      index:
+        index:   test
+        id:      7
+        body:    { "date": "2017-10-22T01:00:00" }
+        refresh: true
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "epoch_second"
+                    }
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "1508464800" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "1508551200" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                after: {
+                  date: "1508464800"
+                }
+                sources: [
+                {
+                  "date": {
+                    "date_histogram": {
+                      "field": "date",
+                      "calendar_interval": "1d",
+                      "time_zone": "-02:00",
+                      "format": "epoch_second"
+                    }
+                  }
+                }
+            ]
+
+  - match: { hits.total.value: 7 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "1508551200" }
   - match: { aggregations.test.buckets.0.doc_count: 2 }
 
 ---

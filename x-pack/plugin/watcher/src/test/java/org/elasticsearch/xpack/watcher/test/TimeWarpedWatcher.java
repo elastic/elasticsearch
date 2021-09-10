@@ -59,7 +59,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry){
+            protected TriggerEngine<?, ?> getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry){
                 return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
             }
 

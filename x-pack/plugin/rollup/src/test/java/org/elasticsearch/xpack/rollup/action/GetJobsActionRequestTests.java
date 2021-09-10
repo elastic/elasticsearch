@@ -39,9 +39,11 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
     public void testStateCheckNoPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("foo");
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0L, Collections.emptyMap())))
-                .build();
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, Collections.emptyMap()))
+            )
+            .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertFalse(hasRollupJobs);
     }
@@ -49,21 +51,24 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
     public void testStateCheckAllNoPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("_all");
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0L, Collections.emptyMap())))
-                .build();
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, Collections.emptyMap()))
+            )
+            .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertFalse(hasRollupJobs);
     }
 
     public void testStateCheckNoMatchingPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("foo");
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks
-                = Collections.singletonMap("bar", new PersistentTasksCustomMetadata.PersistentTask<>("bar", "bar", null, 1, null));
+        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = Collections.singletonMap(
+            "bar",
+            new PersistentTasksCustomMetadata.PersistentTask<>("bar", "bar", null, 1, null)
+        );
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0L, tasks)))
-                .build();
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, tasks)))
+            .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertFalse(hasRollupJobs);
     }
@@ -71,12 +76,13 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
     public void testStateCheckMatchingPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("foo");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks
-                = Collections.singletonMap("foo", new PersistentTasksCustomMetadata.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
+        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = Collections.singletonMap(
+            "foo",
+            new PersistentTasksCustomMetadata.PersistentTask<>("foo", RollupJob.NAME, job, 1, null)
+        );
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0L, tasks)))
-                .build();
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, tasks)))
+            .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertTrue(hasRollupJobs);
     }
@@ -84,12 +90,13 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
     public void testStateCheckAllMatchingPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("_all");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks
-                = Collections.singletonMap("foo", new PersistentTasksCustomMetadata.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
+        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = Collections.singletonMap(
+            "foo",
+            new PersistentTasksCustomMetadata.PersistentTask<>("foo", RollupJob.NAME, job, 1, null)
+        );
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0L, tasks)))
-                .build();
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, tasks)))
+            .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertTrue(hasRollupJobs);
     }
@@ -102,12 +109,9 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
         tasks.put("foo", new PersistentTasksCustomMetadata.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
         tasks.put("bar", new PersistentTasksCustomMetadata.PersistentTask<>("bar", RollupJob.NAME, job2, 1, null));
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0L, tasks)))
-                .build();
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, tasks)))
+            .build();
         boolean hasRollupJobs = TransportGetRollupJobAction.stateHasRollupJobs(request, state);
         assertTrue(hasRollupJobs);
     }
 }
-
-

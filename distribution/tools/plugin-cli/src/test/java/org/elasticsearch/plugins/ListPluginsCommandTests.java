@@ -8,14 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
@@ -26,6 +18,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends ESTestCase {

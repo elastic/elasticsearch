@@ -14,10 +14,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,7 +38,6 @@ import java.util.Map;
 import javax.security.auth.login.LoginContext;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -92,7 +91,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
         assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17-ea".equals(System.getProperty("java.version")));
+            "17".equals(System.getProperty("java.version")));
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -103,7 +102,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
         assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17-ea".equals(System.getProperty("java.version")));
+            "17".equals(System.getProperty("java.version")));
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -114,7 +113,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
         assumeFalse("This test fails often on Java 17. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17-ea".equals(System.getProperty("java.version")));
+            "17".equals(System.getProperty("java.version")));
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));

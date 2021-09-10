@@ -10,10 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -36,7 +37,6 @@ import org.elasticsearch.transport.nio.TcpReadWriteHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -69,7 +69,7 @@ public class SecurityNioTransport extends NioTransport {
     private final SecurityTransportExceptionHandler exceptionHandler;
     private final IPFilter ipFilter;
     private final SSLService sslService;
-    private final Map<String, SSLConfiguration> profileConfiguration;
+    private final Map<String, SslConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
@@ -83,8 +83,8 @@ public class SecurityNioTransport extends NioTransport {
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
-            final SSLConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
-            Map<String, SSLConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, transportConfiguration);
+            final SslConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
+            Map<String, SslConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
         } else {
             profileConfiguration = Collections.emptyMap();
@@ -183,9 +183,9 @@ public class SecurityNioTransport extends NioTransport {
 
         protected SSLEngine createSSLEngine(Config.Socket socketConfig) throws IOException {
             SSLEngine sslEngine;
-            SSLConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
-            SSLConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
-            boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
+            SslConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
+            SslConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
+            boolean hostnameVerificationEnabled = sslConfig.getVerificationMode().isHostnameVerificationEnabled();
             if (hostnameVerificationEnabled && socketConfig.isAccepted() == false) {
                 InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
                 // we create the socket based on the name given. don't reverse DNS

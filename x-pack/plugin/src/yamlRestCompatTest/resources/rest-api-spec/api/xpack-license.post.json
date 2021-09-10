@@ -1,0 +1,38 @@
+{
+  "xpack-license.post":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/update-license.html",
+      "description":"Updates the license for the cluster."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/license",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "acknowledge":{
+        "type":"boolean",
+        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      }
+    },
+    "body":{
+      "description":"licenses to be installed"
+    }
+  }
+}

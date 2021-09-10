@@ -20,11 +20,13 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocValueFormatTests extends ESTestCase {
@@ -223,5 +225,124 @@ public class DocValueFormatTests extends ESTestCase {
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo(1415580798601L));
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo("2014-11-10 01:53:18"));
+    }
+
+    public void testBadUtf8() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DocValueFormat.RAW.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("0.0.0.0"))))
+        );
+        assertNotNull("wrapped exception should have a cause", e.getCause());
+        assertThat(e.getMessage(), containsString("mapping"));
+        assertThat(e.getMessage(), containsString("UTF8"));
+    }
+
+    public void testBadIp() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DocValueFormat.IP.format(new BytesRef("cat"))
+        );
+        assertNotNull("wrapped exception should have a cause", e.getCause());
+        assertThat(e.getMessage(), containsString("mapping"));
+        assertThat(e.getMessage(), containsString("IP address"));
+    }
+
+    /**
+     * <p>Test that if we format a datetime using the `epoch_second` format, we can then parse the result
+     * back into the same value we started with, for all timezones</p>
+     *
+     * <p>"Why would you put a timezone on epoch_seconds? it doesn't make sense" you might be asking.
+     * I was.  The key to remember here is that we use the same time zone parameter for date histogram
+     * bucket generation and formatting.  So, while asking for (e.g.) epoch_seconds in New York time
+     * is nonsensical, asking for day-buckets in New York time with the keys formatted in epoch_seconds
+     * is pretty standard.</p>
+     *
+     * <p>This test validates that if someone does this in composite, we can then parse the after key
+     * we generated into the correct value.  Parsing also happens on missing values.</p>
+     */
+    public void testParseEpochSecondsTimezone() {
+        ZoneId zone = randomZone();
+        DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_second"),
+            zone,
+            Resolution.MILLISECONDS
+        );
+        long millis = randomNonNegativeLong();
+        // Convert to seconds
+        millis -= (millis % 1000);
+        assertEquals(
+            "failed formatting for tz " + zone,
+            millis,
+            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+    }
+
+    public void testParseEpochMillisTimezone() {
+        ZoneId zone = randomZone();
+        DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_millis"),
+            zone,
+            Resolution.MILLISECONDS
+        );
+        long millis = randomNonNegativeLong();
+        assertEquals(
+            "failed formatting for tz " + zone,
+            millis,
+            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+    }
+
+
+    public void testDateHMSTimezone() {
+        DocValueFormat.DateTime tokyo = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("date_hour_minute_second"),
+            ZoneOffset.ofHours(9),
+            Resolution.MILLISECONDS
+        );
+        DocValueFormat.DateTime utc = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("date_hour_minute_second"),
+            ZoneOffset.UTC,
+            Resolution.MILLISECONDS
+        );
+        long millis = 1622567918000L;
+        assertEquals("2021-06-01T17:18:38", utc.format(millis));
+        assertEquals("2021-06-02T02:18:38", tokyo.format(millis));
+        assertEquals(
+            "couldn't parse UTC",
+            millis,
+            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+        assertEquals(
+            "couldn't parse Tokyo",
+            millis,
+            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+    }
+
+    public void testDateTimeWithTimezone() {
+
+        DocValueFormat.DateTime tokyo = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("basic_date_time_no_millis"),
+            ZoneOffset.ofHours(9),
+            Resolution.MILLISECONDS
+        );
+        DocValueFormat.DateTime utc = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("basic_date_time_no_millis"),
+            ZoneOffset.UTC,
+            Resolution.MILLISECONDS
+        );
+        long millis = 1622567918000L;
+        assertEquals("20210601T171838Z", utc.format(millis));
+        assertEquals("20210602T021838+09:00", tokyo.format(millis));
+        assertEquals(
+            "couldn't parse UTC",
+            millis,
+            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+        assertEquals(
+            "couldn't parse Tokyo",
+            millis,
+            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
     }
 }

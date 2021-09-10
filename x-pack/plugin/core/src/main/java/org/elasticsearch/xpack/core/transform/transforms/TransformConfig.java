@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -508,7 +508,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
-            && transformConfig.getVersion().onOrAfter(Version.V_7_11_0)
+            && transformConfig.getVersion().onOrAfter(Version.V_7_15_0)
             && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
@@ -538,7 +538,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 new SettingsConfig(
                     maxPageSearchSize,
                     builder.getSettings().getDocsPerSecond(),
-                    builder.getSettings().getDatesAsEpochMillis()
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    builder.getSettings().getAlignCheckpoints()
                 )
             );
         }
@@ -546,7 +547,22 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
         if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_11_0)) {
             builder.setSettings(
-                new SettingsConfig(builder.getSettings().getMaxPageSearchSize(), builder.getSettings().getDocsPerSecond(), true)
+                new SettingsConfig(
+                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getDocsPerSecond(),
+                    true,
+                    builder.getSettings().getAlignCheckpoints())
+            );
+        }
+
+        // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
+        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
+            builder.setSettings(
+                new SettingsConfig(
+                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    false)
             );
         }
 

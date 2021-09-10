@@ -15,12 +15,13 @@ import com.sun.net.httpserver.HttpServer;
 import fixture.azure.AzureHttpHandler;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -29,7 +30,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
@@ -58,6 +59,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -172,7 +174,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
                 .build());
 
-        return new AzureBlobContainer(BlobPath.EMPTY, new AzureBlobStore(repositoryMetadata, service));
+        return new AzureBlobContainer(BlobPath.EMPTY, new AzureBlobStore(repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE));
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
@@ -389,6 +391,82 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
+    }
+
+    public void testWriteLargeBlobStreaming() throws Exception {
+        final int maxRetries = randomIntBetween(2, 5);
+
+        final int blobSize = (int) ByteSizeUnit.MB.toBytes(10);
+        final byte[] data = randomBytes(blobSize);
+
+        final int nbErrors = 2; // we want all requests to fail at least once
+        final AtomicInteger counterUploads = new AtomicInteger(0);
+        final AtomicLong bytesReceived = new AtomicLong(0L);
+        final CountDown countDownComplete = new CountDown(nbErrors);
+
+        final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
+        httpServer.createContext("/account/container/write_large_blob_streaming", exchange -> {
+
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+
+                final String blockId = params.get("blockid");
+                assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
+
+                if (Strings.hasText(blockId) && (counterUploads.incrementAndGet() % 2 == 0)) {
+                    final BytesReference blockData = Streams.readFully(exchange.getRequestBody());
+                    blocks.put(blockId, blockData);
+                    bytesReceived.addAndGet(blockData.length());
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    exchange.close();
+                    return;
+                }
+
+                final String complete = params.get("comp");
+                if ("blocklist".equals(complete) && (countDownComplete.countDown())) {
+                    final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                    final List<String> blockUids = Arrays.stream(blockList.split("<Latest>"))
+                            .filter(line -> line.contains("</Latest>"))
+                            .map(line -> line.substring(0, line.indexOf("</Latest>")))
+                            .collect(Collectors.toList());
+
+                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
+                    for (String blockUid : blockUids) {
+                        BytesReference block = blocks.remove(blockUid);
+                        assert block != null;
+                        block.writeTo(blob);
+                    }
+                    assertArrayEquals(data, blob.toByteArray());
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    exchange.close();
+                    return;
+                }
+            }
+
+            if (randomBoolean()) {
+                Streams.readFully(exchange.getRequestBody());
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            }
+            exchange.close();
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
+        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+            int outstanding = data.length;
+            while (outstanding > 0) {
+                if (randomBoolean()) {
+                    int toWrite = Math.toIntExact(Math.min(randomIntBetween(64, data.length), outstanding));
+                    out.write(data, data.length - outstanding, toWrite);
+                    outstanding -= toWrite;
+                } else {
+                    out.write(data[data.length - outstanding]);
+                    outstanding--;
+                }
+            }
+        });
+        assertEquals(blobSize, bytesReceived.get());
     }
 
     public void testRetryUntilFail() throws Exception {

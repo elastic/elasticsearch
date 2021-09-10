@@ -22,6 +22,8 @@ public class PyTorchBuilder {
     public static final String PROCESS_NAME = "pytorch_inference";
     private static final String PROCESS_PATH = "./" + PROCESS_NAME;
 
+    private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
+
     private final Supplier<Path> tempDirPathSupplier;
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
@@ -44,6 +46,10 @@ public class PyTorchBuilder {
     private List<String> buildCommand() {
         List<String> command = new ArrayList<>();
         command.add(PROCESS_PATH);
+
+        // License was validated when the trained model was started
+        command.add(LICENSE_KEY_VALIDATED_ARG + true);
+
         return command;
     }
 }

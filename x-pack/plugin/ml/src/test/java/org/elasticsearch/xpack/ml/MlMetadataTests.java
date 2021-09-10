@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
@@ -25,9 +26,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests.createDatafeedConfig;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -40,7 +44,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         int numJobs = randomIntBetween(0, 10);
         for (int i = 0; i < numJobs; i++) {
-            Job job = JobTests.createRandomizedJob();
+            Job.Builder job = new Job.Builder(JobTests.createRandomizedJob());
+            job.setDeleting(false);
+            job.setBlocked(Blocked.none());
             if (randomBoolean()) {
                 AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig());
                 analysisConfig.setLatency(null);
@@ -49,11 +55,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 if (datafeedConfig.hasAggregations()) {
                     analysisConfig.setSummaryCountFieldName("doc_count");
                 }
-                job = new Job.Builder(job).setAnalysisConfig(analysisConfig).build();
-                builder.putJob(job, false);
+                job.setAnalysisConfig(analysisConfig).build();
+                builder.putJob(job.build(), false);
                 builder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             } else {
-                builder.putJob(job, false);
+                builder.putJob(job.build(), false);
             }
         }
         return builder.isResetMode(randomBoolean()).isUpgradeMode(randomBoolean()).build();
@@ -141,6 +147,22 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(mlMetadata.expandDatafeedIds("foo-1-feed,bar-1*", false), contains("bar-1-feed", "foo-1-feed"));
     }
 
+    public void testGetDatafeedsByJobIds() {
+        MlMetadata.Builder mlMetadataBuilder = newMlMetadataWithJobs("bar-1", "foo-1", "foo-2");
+        List<DatafeedConfig> datafeeds = new ArrayList<>();
+        datafeeds.add(createDatafeedConfig("bar-1-feed", "bar-1").build());
+        datafeeds.add(createDatafeedConfig("foo-1-feed", "foo-1").build());
+        datafeeds.add(createDatafeedConfig("foo-2-feed", "foo-2").build());
+        mlMetadataBuilder.putDatafeeds(datafeeds);
+        MlMetadata mlMetadata = mlMetadataBuilder.build();
+
+        Map<String, DatafeedConfig> datafeedsByJobIds = mlMetadata.getDatafeedsByJobIds(Set.of("bar-1", "foo-1", "foo-2"));
+        assertThat(datafeedsByJobIds, allOf(hasKey("bar-1"), hasKey("foo-1"), hasKey("foo-2")));
+        assertThat(datafeedsByJobIds.get("bar-1").getId(), equalTo("bar-1-feed"));
+        assertThat(datafeedsByJobIds.get("foo-1").getId(), equalTo("foo-1-feed"));
+        assertThat(datafeedsByJobIds.get("foo-2").getId(), equalTo("foo-2-feed"));
+    }
+
     private static MlMetadata.Builder newMlMetadataWithJobs(String... jobIds) {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         for (String jobId : jobIds) {
@@ -181,7 +203,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             if (datafeedConfig.hasAggregations()) {
                 analysisConfig.setSummaryCountFieldName("doc_count");
             }
-            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
+            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).setDeleting(false).setBlocked(Blocked.none()).build();
             metadataBuilder.putJob(randomJob, false);
             metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             break;

@@ -21,12 +21,17 @@ public class ShutdownPluginsStatus implements Writeable, ToXContentObject {
 
     private final SingleNodeShutdownMetadata.Status status;
 
-    public ShutdownPluginsStatus() {
-        this.status = SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+    public ShutdownPluginsStatus(boolean safeToShutdown) {
+        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE :
+            SingleNodeShutdownMetadata.Status.IN_PROGRESS;
     }
 
     public ShutdownPluginsStatus(StreamInput in) throws IOException {
-        this.status = SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
+    }
+
+    public SingleNodeShutdownMetadata.Status getStatus() {
+        return this.status;
     }
 
     @Override
@@ -39,7 +44,7 @@ public class ShutdownPluginsStatus implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        out.writeEnum(this.status);
     }
 
     @Override

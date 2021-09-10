@@ -10,7 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,7 +83,7 @@ public final class TrackingResultProcessor implements Processor {
                     processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
                         actualProcessor.getDescription(), conditionalWithResult));
                     Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                        verbosePipelineProcessor);
+                        pipeline.getMetadata(), verbosePipelineProcessor);
                     ingestDocument.executePipeline(verbosePipeline, handler);
                 }
             });

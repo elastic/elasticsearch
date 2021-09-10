@@ -106,7 +106,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request returns a response when the restore
-operation completes. If `false`, the request returns a response when the restore
+operation completes. The operation is complete when it finishes all attempts to
+<<_monitoring_restore_operations,recover primary shards>> for restored indices.
+This applies even if one or more of the recovery attempts fail.
++
+If `false`, the request returns a response when the restore
 operation initializes. Defaults to `false`.
 
 [role="child_attributes"]

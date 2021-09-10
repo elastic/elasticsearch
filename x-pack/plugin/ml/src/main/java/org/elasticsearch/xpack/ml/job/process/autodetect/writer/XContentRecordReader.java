@@ -174,9 +174,9 @@ class XContentRecordReader {
 
     /**
      * Get the text representation of the current token unless it's a null.
-     * Nulls are replaced with empty strings to match the way the rest of the
-     * product treats them (which in turn is shaped by the fact that CSV
-     * cannot distinguish empty string and null).
+     * Nulls are replaced with empty strings to match the way the C++ process
+     * treats them (which, for historical interest, was originally shaped by
+     * the fact that CSV cannot distinguish empty string and null).
      */
     private String tokenToString(XContentParser.Token token) throws IOException {
         if (token == null || token == XContentParser.Token.VALUE_NULL) {

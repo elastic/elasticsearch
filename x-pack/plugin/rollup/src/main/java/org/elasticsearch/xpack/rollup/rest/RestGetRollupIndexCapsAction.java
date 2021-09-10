@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -26,15 +27,16 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_rollup/data"));
+        return List.of(
+            Route.builder(GET, "/{index}/_rollup/data").replaces(GET, "/{index}/_xpack/rollup/data", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String index = restRequest.param(INDEX.getPreferredName());
         IndicesOptions options = IndicesOptions.fromRequest(restRequest, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
-        GetRollupIndexCapsAction.Request request =
-            new GetRollupIndexCapsAction.Request(Strings.splitStringByCommaToArray(index), options);
+        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(Strings.splitStringByCommaToArray(index), options);
         return channel -> client.execute(GetRollupIndexCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

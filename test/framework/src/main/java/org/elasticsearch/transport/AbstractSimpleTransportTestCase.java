@@ -22,8 +22,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,9 +34,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
@@ -89,8 +89,10 @@ import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -555,7 +557,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder()
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.TRUE)
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
+                    randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
+                .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
 
@@ -598,7 +604,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder()
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.TRUE)
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
+                    randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
+                .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
 
@@ -628,6 +638,70 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             StringMessageResponse message = res.get();
             assertThat("hello moshe", equalTo(message.message));
+        }
+    }
+
+    public void testIndexingDataCompression() throws Exception {
+        try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
+            String component = "cccccccccooooooooooooooommmmmmmmmmmppppppppppprrrrrrrreeeeeeeeeessssssssiiiiiiiiiibbbbbbbbllllllllleeeeee";
+            String text = component.repeat(30);
+            TransportRequestHandler<StringMessageRequest> handler = (request, channel, task) -> {
+                assertThat(text, equalTo(request.message));
+                try {
+                    channel.sendResponse(new StringMessageResponse(""));
+                } catch (IOException e) {
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
+                }
+            };
+            serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
+            serviceC.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
+
+            Settings settingsWithCompress = Settings.builder()
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.INDEXING_DATA)
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
+                    randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
+                .build();
+            ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
+            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceA, serviceC.getLocalDiscoNode(), connectionProfile);
+
+            TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<>() {
+                @Override
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public void handleResponse(StringMessageResponse response) {
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.error("Unexpected failure", exp);
+                    fail("got exception instead of a response: " + exp.getMessage());
+                }
+            };
+
+            Future<StringMessageResponse> compressed = submitRequest(serviceC, serviceA.getLocalDiscoNode(), "internal:sayHello",
+                new StringMessageRequest(text, -1, true), responseHandler);
+            Future<StringMessageResponse> uncompressed = submitRequest(serviceA, serviceC.getLocalDiscoNode(), "internal:sayHello",
+                new StringMessageRequest(text, -1, false), responseHandler);
+
+            compressed.get();
+            uncompressed.get();
+            final long bytesLength;
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                new StringMessageRequest(text, -1).writeTo(output);
+                bytesLength = output.bytes().length();
+            }
+            assertThat(serviceA.transport().getStats().getRxSize().getBytes(), lessThan(bytesLength));
+            assertThat(serviceC.transport().getStats().getRxSize().getBytes(), greaterThan(bytesLength));
         }
     }
 
@@ -859,6 +933,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -918,6 +993,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     latch.countDown();
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -1142,14 +1218,20 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public static class StringMessageRequest extends TransportRequest {
+    public static class StringMessageRequest extends TransportRequest implements RawIndexingDataTransportRequest {
 
         private String message;
         private long timeout;
+        private boolean isRawIndexingData = false;
 
         StringMessageRequest(String message, long timeout) {
+            this(message, timeout, false);
+        }
+
+        StringMessageRequest(String message, long timeout, boolean isRawIndexingData) {
             this.message = message;
             this.timeout = timeout;
+            this.isRawIndexingData = isRawIndexingData;
         }
 
         public StringMessageRequest(StreamInput in) throws IOException {
@@ -1164,6 +1246,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         public long timeout() {
             return timeout;
+        }
+
+        @Override
+        public boolean isRawIndexingData() {
+            return isRawIndexingData;
         }
 
         @Override
@@ -1495,6 +1582,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -2258,7 +2346,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 transportResponseHandler);
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
-                TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
@@ -2623,14 +2711,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testFailToSendTransportException() throws InterruptedException {
+        TransportException exception = doFailToSend(new TransportException("fail to send"));
+        assertThat(exception.getMessage(), equalTo("fail to send"));
+        assertThat(exception.getCause(), nullValue());
+    }
+
+    public void testFailToSendIllegalStateException() throws InterruptedException {
+        TransportException exception = doFailToSend(new IllegalStateException("fail to send"));
+        assertThat(exception, instanceOf(SendRequestTransportException.class));
+        assertThat(exception.getMessage(), containsString("fail-to-send-action"));
+        assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(exception.getCause().getMessage(), equalTo("fail to send"));
+    }
+
     // test that the response handler is invoked on a failure to send
-    public void testFailToSend() throws InterruptedException {
-        final RuntimeException failToSendException;
-        if (randomBoolean()) {
-            failToSendException = new IllegalStateException("fail to send");
-        } else {
-            failToSendException = new TransportException("fail to send");
-        }
+    private TransportException doFailToSend(RuntimeException failToSendException) throws InterruptedException {
         final TransportInterceptor interceptor = new TransportInterceptor() {
             @Override
             public AsyncSender interceptSender(final AsyncSender sender) {
@@ -2666,7 +2762,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     public void onFailure(final Exception e) {
                         fail(e.getMessage());
                     }
-            });
+                });
             latch.await();
             final AtomicReference<TransportException> te = new AtomicReference<>();
             final Transport.Connection connection = serviceC.getConnection(nodeA);
@@ -2687,17 +2783,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
             assertThat(te.get(), not(nullValue()));
-
-            if (failToSendException instanceof IllegalStateException) {
-                assertThat(te.get().getMessage(), equalTo("failure to send"));
-                assertThat(te.get().getCause(), instanceOf(IllegalStateException.class));
-                assertThat(te.get().getCause().getMessage(), equalTo("fail to send"));
-            } else {
-                assertThat(te.get().getMessage(), equalTo("fail to send"));
-                assertThat(te.get().getCause(), nullValue());
-            }
+            return te.get();
         }
-
     }
 
     private void closeConnectionChannel(Transport.Connection connection) {

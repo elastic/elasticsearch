@@ -121,8 +121,11 @@ public class FirstNonBlankLineCharFilterTests extends ESTestCase {
         assertThat(new String(output), equalTo(expectedOutput));
 
         int expectedOutputIndex = input.indexOf(expectedOutput);
-        for (int i = 0; i <= expectedOutput.length(); ++i) {
+        for (int i = 0; i < expectedOutput.length(); ++i) {
             assertThat(filter.correctOffset(i), equalTo(expectedOutputIndex + i));
         }
+        // When the input gets chopped by a char filter immediately after a token, that token must be reported as
+        // ending at the very end of the original input, otherwise multi-message analysis will have incorrect offsets
+        assertThat(filter.correctOffset(expectedOutput.length()), equalTo(input.length()));
     }
 }

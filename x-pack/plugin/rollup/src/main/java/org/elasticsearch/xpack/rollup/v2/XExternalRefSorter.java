@@ -1,11 +1,4 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
-
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -20,6 +13,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modifications copyright (C) 2020 Elasticsearch B.V.
  */
 package org.elasticsearch.xpack.rollup.v2;
 
@@ -86,8 +81,10 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
             input = null;
         }
 
-        OfflineSorter.ByteSequencesReader reader =
-            sorter.getReader(sorter.getDirectory().openChecksumInput(sortedFileName, IOContext.READONCE), sortedFileName);
+        OfflineSorter.ByteSequencesReader reader = sorter.getReader(
+            sorter.getDirectory().openChecksumInput(sortedFileName, IOContext.READONCE),
+            sortedFileName
+        );
         return new ByteSequenceIterator(reader);
     }
 
@@ -108,9 +105,7 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
             closeWriter();
         } finally {
             if (input == null) {
-                deleteFilesIgnoringExceptions(sorter.getDirectory(),
-                    input == null ? null : input.getName(),
-                    sortedFileName);
+                deleteFilesIgnoringExceptions(sorter.getDirectory(), input == null ? null : input.getName(), sortedFileName);
             }
         }
     }
@@ -151,7 +146,7 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
     }
 
     private static void deleteFilesIgnoringExceptions(Directory dir, String... files) {
-        for(String name : files) {
+        for (String name : files) {
             if (name != null) {
                 try {
                     dir.deleteFile(name);

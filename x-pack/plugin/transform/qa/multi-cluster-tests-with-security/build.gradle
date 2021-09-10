@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
@@ -63,5 +63,4 @@ tasks.register("integTest") {
   dependsOn 'mixed-cluster'
 }
 
-tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test
 tasks.named("check").configure { dependsOn("integTest") }

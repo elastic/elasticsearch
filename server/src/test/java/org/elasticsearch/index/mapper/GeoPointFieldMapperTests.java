@@ -211,7 +211,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        ParseContext.Document doc = mapper.parse(source(b -> b.field("field", "POINT (2 3)"))).rootDoc();
+        LuceneDocument doc = mapper.parse(source(b -> b.field("field", "POINT (2 3)"))).rootDoc();
         assertThat(doc.getFields("field"), arrayWithSize(1));
         assertThat(doc.getField("field"), hasToString(both(containsString("field:2.999")).and(containsString("1.999"))));
         assertThat(doc.getFields("field.geohash"), arrayWithSize(1));
@@ -229,7 +229,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        ParseContext.Document doc = mapper.parse(source(b -> b.array("field", "POINT (2 3)", "POINT (4 5)"))).rootDoc();
+        LuceneDocument doc = mapper.parse(source(b -> b.array("field", "POINT (2 3)", "POINT (4 5)"))).rootDoc();
         assertThat(doc.getFields("field.geohash"), arrayWithSize(2));
         assertThat(doc.getFields("field.geohash")[0].binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
         assertThat(doc.getFields("field.geohash")[1].binaryValue().utf8ToString(), equalTo("s0fu7n0xng81"));

@@ -1,0 +1,60 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+/*
+ * We need this separate project as tests related to the enrollment process require
+ * test clusters with a specific TLS setup which is also not FIPS 140-2 compliant
+ * (as it uses PKCS#12 keystores). In order to not disable the entire rest-high-level
+ * project when running in fips mode, we moved enrollment tests in this subproject.
+ *
+ */
+
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
+dependencies {
+  javaRestTestImplementation(testArtifact(project(':client:rest-high-level')))
+}
+
+tasks.matching{ it.name == "javaRestTest" }.configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
+  systemProperty 'tests.rest.cluster.username', providers.systemProperty('tests.rest.cluster.username')
+          .orElse('test_user')
+          .forUseAtConfigurationTime()
+          .get()
+  systemProperty 'tests.rest.cluster.password', providers.systemProperty('tests.rest.cluster.password')
+          .orElse('test-user-password')
+          .forUseAtConfigurationTime()
+          .get()
+}
+
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.enrollment.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+
+  extraConfigFile 'httpCa.p12', file('./src/javaRestTest/resources/httpCa.p12')
+  extraConfigFile 'transport.p12', file('./src/javaRestTest/resources/transport.p12')
+
+  // TBD: sync these settings (which options are set) with the ones we will be generating in #74868
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.keystore.path', 'httpCa.p12'
+  setting 'xpack.security.transport.ssl.keystore.path', 'transport.p12'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+
+
+  keystore 'xpack.security.http.ssl.keystore.secure_password', 'password'
+  keystore 'xpack.security.transport.ssl.keystore.secure_password', 'password'
+  user username: 'admin_user', password: 'admin-password', role: 'superuser'
+}

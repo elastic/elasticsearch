@@ -16,3 +16,10 @@ restResources {
     include '_common', 'indices', 'index', 'cluster', 'search'
   }
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // search.query is owned by server, these should be moved to errorquery
+  ignoreClasses 'org.elasticsearch.search.query.ErrorQueryBuilder',
+    'org.elasticsearch.search.query.ErrorQueryPlugin',
+    'org.elasticsearch.search.query.IndexError'
+}

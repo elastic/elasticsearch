@@ -54,7 +54,7 @@ public class JarHellTask extends DefaultTask {
     public void runJarHellCheck() throws IOException{
         LoggedExec.javaexec(execOperations, spec -> {
             spec.environment("CLASSPATH", getJarHellRuntimeClasspath().plus(getClasspath()).getAsPath());
-            spec.setMain("org.elasticsearch.bootstrap.JarHell");
+            spec.getMainClass().set("org.elasticsearch.jdk.JarHell");
         });
         writeMarker();
     }

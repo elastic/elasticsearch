@@ -38,7 +38,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
         assertEquals("_feature", termQuery.getTerm().field());

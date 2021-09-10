@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
@@ -119,6 +119,9 @@ public class InboundPipeline implements Releasable {
             if (fragment instanceof Header) {
                 assert aggregator.isAggregating() == false;
                 aggregator.headerReceived((Header) fragment);
+            } else if (fragment instanceof Compression.Scheme) {
+                assert aggregator.isAggregating();
+                aggregator.updateCompressionScheme((Compression.Scheme) fragment);
             } else if (fragment == InboundDecoder.PING) {
                 assert aggregator.isAggregating() == false;
                 messageHandler.accept(channel, PING_MESSAGE);

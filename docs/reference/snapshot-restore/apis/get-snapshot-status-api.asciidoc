@@ -115,8 +115,10 @@ To retrieve a list of all snapshots in a specified repository, omit this paramet
 NOTE: Wildcard (`*`) expressions are not supported for `<snapshot>`.
 
 [role="child_attributes"]
-[[get-snapshot-status-api-request-body]]
-==== {api-request-body-title}
+[[get-snapshot-status-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `ignore_unavailable`::
 (Optional, Boolean)

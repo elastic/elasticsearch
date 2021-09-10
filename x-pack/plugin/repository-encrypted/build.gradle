@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.OS
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -18,9 +16,3 @@ dependencies {
     compileOnly project(path: xpackModule('core'))
     testImplementation(testArtifact(project(xpackModule('core'))))
 }
-
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-tasks.named("internalClusterTest").configure {
-  onlyIf { OS.current() != OS.WINDOWS }
-}
-

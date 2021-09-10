@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -24,6 +23,8 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -44,13 +45,13 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isNumeric(left, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isNumeric(left, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
 
         }
 
-        return right == null ? TypeResolution.TYPE_RESOLVED : isInteger(right, sourceText(), ParamOrdinal.SECOND);
+        return right == null ? TypeResolution.TYPE_RESOLVED : isInteger(right, sourceText(), SECOND);
     }
 
     @Override

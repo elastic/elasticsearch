@@ -29,8 +29,8 @@ cluster sizing video]. As you test different shard configurations, use {kib}'s
 cluster's stability and performance.
 
 The following sections provide some reminders and guidelines you should consider
-when designing your sharding strategy. If your cluster has shard-related
-problems, see <<fix-an-oversharded-cluster>>.
+when designing your sharding strategy. If your cluster is already oversharded,
+see <<reduce-cluster-shard-count>>.
 
 [discrete]
 [[shard-sizing-considerations]]
@@ -97,9 +97,6 @@ deleted indices directly from the file system and free up resources.
 time-based backing indices. You can use <<index-lifecycle-management,{ilm}
 ({ilm-init})>> to automatically manage these backing indices.
 
-[role="screenshot"]
-image:images/ilm/index-lifecycle-policies.png[]
-
 One advantage of this setup is
 <<getting-started-index-lifecycle-management,automatic rollover>>, which creates
 a new write index when the current one meets a defined `max_primary_shard_size`,
@@ -131,8 +128,10 @@ Large shards may make a cluster less likely to recover from failure. When a node
 fails, {es} rebalances the node's shards across the data tier's remaining nodes.
 Large shards can be harder to move across a network and may tax node resources.
 
-While not a hard limit, shards between 10GB and 50GB tend to work well. You may
-be able to use larger shards depending on your network and use case.
+While not a hard limit, shards between 10GB and 50GB tend to work well for logs
+and time series data. You may be able to use larger shards depending on
+your network and use case. Smaller shards may be appropriate for
+{enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
 `max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB.
@@ -167,6 +166,10 @@ heap memory. For example, a node with 30GB of heap memory should
 have at most 600 shards. The further below this limit you can keep your nodes,
 the better. If you find your nodes exceeding more than 20 shards per GB,
 consider adding another node.
+
+Some system indices for {enterprise-search-ref}/index.html[Enterprise Search]
+are nearly empty and rarely used. Due to their low overhead, you shouldn't count
+shards for these indices toward a node's shard limit.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.
@@ -211,13 +214,12 @@ PUT my-index-000001/_settings
 --------------------------------------------------
 // TEST[setup:my_index]
 
-
 [discrete]
-[[fix-an-oversharded-cluster]]
-=== Fix an oversharded cluster
+[[reduce-cluster-shard-count]]
+=== Reduce a cluster's shard count
 
-If your cluster is experiencing stability issues due to oversharded indices,
-you can use one or more of the following methods to fix them.
+If your cluster is already oversharded, you can use one or more of the following
+methods to reduce its shard count.
 
 [discrete]
 [[create-indices-that-cover-longer-time-periods]]
@@ -308,6 +310,57 @@ POST _reindex
   },
   "dest": {
     "index": "my-index-2099.10"
+  }
+}
+----
+
+[discrete]
+[[troubleshoot-shard-related-errors]]
+=== Troubleshoot shard-related errors
+
+Here’s how to resolve common shard-related errors.
+
+[discrete]
+==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
+
+The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
+setting limits the maximum number of open shards for a cluster. This error
+indicates an action would exceed this limit.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,update
+cluster settings API>> and retry the action.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.max_shards_per_node": 1200
+  }
+}
+----
+
+This increase should only be temporary. As a long-term solution, we recommend
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>>. To get a
+cluster's current shard count after making changes, use the
+<<cluster-stats,cluster stats API>>.
+
+[source,console]
+----
+GET _cluster/stats?filter_path=indices.shards.total
+----
+
+When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node` limit.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.max_shards_per_node": null
   }
 }
 ----

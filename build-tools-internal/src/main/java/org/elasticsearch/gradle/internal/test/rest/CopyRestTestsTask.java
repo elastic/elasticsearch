@@ -7,10 +7,8 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.apache.tools.ant.filters.ReplaceTokens;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
@@ -20,7 +18,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
@@ -28,10 +26,11 @@ import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
-import javax.inject.Inject;
 import java.io.File;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 
@@ -46,6 +45,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore;
     private final ListProperty<String> includeXpack;
+    private Map<String, String> substitutions;
     private final DirectoryProperty outputResourceDir;
 
     private FileCollection coreConfig;
@@ -59,14 +59,12 @@ public class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
-    private final ArchiveOperations archiveOperations;
 
     @Inject
     public CopyRestTestsTask(
         ProjectLayout projectLayout,
         Factory<PatternSet> patternSetFactory,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations,
         ObjectFactory objectFactory
     ) {
         this.includeCore = objectFactory.listProperty(String.class);
@@ -76,7 +74,6 @@ public class CopyRestTestsTask extends DefaultTask {
         this.xpackPatternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
-        this.archiveOperations = archiveOperations;
     }
 
     @Input
@@ -89,6 +86,16 @@ public class CopyRestTestsTask extends DefaultTask {
         return includeXpack;
     }
 
+    public void setSubstitutions(Map<String, String> substitutions) {
+        this.substitutions = substitutions;
+    }
+
+    @Input
+    @Optional
+    public Map<String, String> getSubstitutions() {
+        return substitutions;
+    }
+
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {
@@ -99,12 +106,8 @@ public class CopyRestTestsTask extends DefaultTask {
             xpackFileTree = xpackConfigToFileTree.apply(xpackConfig).matching(xpackPatternSet);
         }
         if (includeCore.get().isEmpty() == false) {
-            if (BuildParams.isInternal()) {
-                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
-            } else {
-                coreFileTree = coreConfig.getAsFileTree(); // jar file
-            }
+            corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+            coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
         }
         FileCollection fileCollection = additionalConfig == null
             ? projectLayout.files(coreFileTree, xpackFileTree)
@@ -131,27 +134,15 @@ public class CopyRestTestsTask extends DefaultTask {
 
         // only copy core tests if explicitly instructed
         if (includeCore.get().isEmpty() == false) {
-            if (BuildParams.isInternal()) {
-                getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
-                fileSystemOperations.copy(c -> {
-                    c.from(coreConfigToFileTree.apply(coreConfig));
-                    c.into(restTestOutputDir);
-                    c.include(corePatternSet.getIncludes());
-                });
-            } else {
-                getLogger().debug(
-                    "Rest tests for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
-                    projectPath,
-                    VersionProperties.getElasticsearch()
-                );
-                fileSystemOperations.copy(c -> {
-                    c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
-                    c.into(outputResourceDir);
-                    c.include(
-                        includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
-                    );
-                });
-            }
+            getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
+            fileSystemOperations.copy(c -> {
+                c.from(coreConfigToFileTree.apply(coreConfig));
+                c.into(restTestOutputDir);
+                c.include(corePatternSet.getIncludes());
+                if (substitutions != null) {
+                    c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                }
+            });
         }
         // only copy x-pack tests if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
@@ -160,6 +151,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(restTestOutputDir);
                 c.include(xpackPatternSet.getIncludes());
+                if (substitutions != null) {
+                    c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                }
             });
         }
         // copy any additional config
@@ -167,6 +161,9 @@ public class CopyRestTestsTask extends DefaultTask {
             fileSystemOperations.copy(c -> {
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(restTestOutputDir);
+                if (substitutions != null) {
+                    c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                }
             });
         }
     }
@@ -195,13 +192,4 @@ public class CopyRestTestsTask extends DefaultTask {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 
-    @Internal
-    public FileCollection getCoreConfig() {
-        return coreConfig;
-    }
-
-    @Internal
-    public FileCollection getXpackConfig() {
-        return xpackConfig;
-    }
 }

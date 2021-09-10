@@ -20,8 +20,8 @@ public final class SslUtil {
         // utility class
     }
 
-    public static String calculateFingerprint(X509Certificate certificate) throws CertificateEncodingException {
-        final MessageDigest sha1 = messageDigest("SHA-1");
+    public static String calculateFingerprint(X509Certificate certificate, String algorithm) throws CertificateEncodingException {
+        final MessageDigest sha1 = messageDigest(algorithm);
         sha1.update(certificate.getEncoded());
         return toHexString(sha1.digest());
     }

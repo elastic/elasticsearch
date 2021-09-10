@@ -48,7 +48,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
@@ -89,7 +89,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -499,15 +499,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults =
+            Map<String, SearchProfileQueryPhaseResult> profilingResults =
                     searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
+            for (Map.Entry<String, SearchProfileQueryPhaseResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
-                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+                SearchProfileQueryPhaseResult profileShardResult = profilingResult.getValue(); // <4>
             }
             // end::search-request-profiling-get
 
-            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            SearchProfileQueryPhaseResult profileShardResult = profilingResults.values().iterator().next();
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
@@ -743,8 +743,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         openRequest.keepAlive(TimeValue.timeValueMinutes(30)); // <2>
         OpenPointInTimeResponse openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
         String pitId = openResponse.getPointInTimeId(); // <3>
-        assertNotNull(pitId);
         // end::open-point-in-time
+        assertNotNull(pitId);
 
         // tag::search-point-in-time
         SearchRequest searchRequest = new SearchRequest();
@@ -752,14 +752,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         pointInTimeBuilder.setKeepAlive("2m"); // <2>
         searchRequest.source(new SearchSourceBuilder().pointInTimeBuilder(pointInTimeBuilder)); // <3>
         SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
-        assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
         // end::search-point-in-time
+        assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
 
         // tag::close-point-in-time
         ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId); // <1>
         ClearScrollResponse closeResponse = client.closePointInTime(closeRequest, RequestOptions.DEFAULT);
-        assertTrue(closeResponse.isSucceeded());
+        boolean succeeded = closeResponse.isSucceeded();
         // end::close-point-in-time
+        assertTrue(succeeded);
 
         // Open a point in time with optional arguments
         {
@@ -770,7 +771,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::open-point-in-time-routing
             openRequest.routing("routing"); // <1>
-            // end::explain-request-routing
+            // end::open-point-in-time-routing
 
             // tag::open-point-in-time-preference
             openRequest.preference("_local"); // <1>
@@ -780,45 +781,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             pitId = openResponse.getPointInTimeId();
             client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT);
         }
-    }
-
-    public void testSearchAfterWithPointInTime() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-        int numDocs = between(50, 100);
-        BulkRequest request = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            request.add(new IndexRequest("posts").id(Integer.toString(i)).source(XContentType.JSON, "field", i));
-        }
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
-        assertSame(RestStatus.OK, bulkResponse.status());
-        assertFalse(bulkResponse.hasFailures());
-
-        // tag::search-after-with-point-in-time
-        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("posts");
-        openRequest.keepAlive(TimeValue.timeValueMinutes(20));
-        String pitId = client.openPointInTime(openRequest, RequestOptions.DEFAULT).getPointInTimeId(); // <1>
-        assertNotNull(pitId);
-
-        SearchResponse searchResponse = null;
-        int totalHits = 0;
-        do {
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("field").size(5)); // <2>
-            if (searchResponse != null) {
-                final SearchHit[] lastHits = searchResponse.getHits().getHits();
-                searchRequest.source().searchAfter(lastHits[lastHits.length - 1].getSortValues()); // <3>
-            }
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId)); // <4>
-            searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
-            assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
-            totalHits += searchResponse.getHits().getHits().length;
-        } while (searchResponse.getHits().getHits().length > 0);
-
-        assertThat(totalHits, equalTo(numDocs));
-
-        ClearScrollResponse closeResponse = client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT); // <5>
-        assertTrue(closeResponse.isSucceeded());
-        // end::search-after-with-point-in-time
     }
 
     public void testSearchTemplateWithInlineScript() throws Exception {

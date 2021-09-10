@@ -8,6 +8,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -26,8 +27,11 @@ public class RestPutLicenseAction extends BaseRestHandler {
     public List<Route> routes() {
         // TODO: remove POST endpoint?
         return List.of(
-            new Route(POST, "/_license"),
-            new Route(PUT, "/_license"));
+            Route.builder(POST, "/_license")
+                .replaces(POST, "/_xpack/license", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_license")
+                .replaces(PUT, "/_xpack/license", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

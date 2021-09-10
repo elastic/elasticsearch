@@ -11,14 +11,14 @@ package org.elasticsearch.threadpool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -268,6 +268,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      */
     public long relativeTimeInNanos() {
         return cachedTimeThread.relativeTimeInNanos();
+    }
+
+    /**
+     * Returns a value of milliseconds that may be used for relative time calculations. Similar to {@link #relativeTimeInMillis()} except
+     * that this method is more expensive: the return value is computed directly from {@link System#nanoTime} and is not cached. You should
+     * use {@link #relativeTimeInMillis()} unless the extra accuracy offered by this method is worth the costs.
+     *
+     * When computing a time interval by comparing relative times in milliseconds, you should make sure that both endpoints use cached
+     * values returned from {@link #relativeTimeInMillis()} or that they both use raw values returned from this method. It doesn't really
+     * make sense to compare a raw value to a cached value, even if in practice the result of such a comparison will be approximately
+     * sensible.
+     */
+    public long rawRelativeTimeInMillis() {
+        return TimeValue.nsecToMSec(System.nanoTime());
     }
 
     /**

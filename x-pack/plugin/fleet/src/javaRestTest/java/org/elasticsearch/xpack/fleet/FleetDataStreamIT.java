@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -110,9 +109,11 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // The rest of these produce a warning
         RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(
-                warnings -> Collections.singletonList(
+                warnings -> List.of(
                     "this request accesses system indices: [.fleet-artifacts-7], but "
-                        + "in a future major version, direct access to system indices will be prevented by default"
+                        + "in a future major version, direct access to system indices will be prevented by default",
+                    "this request accesses aliases with names reserved for system indices: [.fleet-artifacts], but in a future major "
+                        + "version, direct access to system indices and their aliases will not be allowed"
                 ).equals(warnings) == false
             )
             .build();

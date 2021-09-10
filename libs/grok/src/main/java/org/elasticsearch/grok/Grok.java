@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -31,10 +32,14 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class Grok {
+
+    public static final String[] ECS_COMPATIBILITY_MODES = {"disabled", "v1"};
+
     /**
      * Patterns built in to the grok library.
      */
-    public static final Map<String, String> BUILTIN_PATTERNS = loadBuiltinPatterns();
+    private static Map<String, String> LEGACY_PATTERNS;
+    private static Map<String, String> ECS_V1_PATTERNS;
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
@@ -79,11 +84,7 @@ public final class Grok {
         this.namedCaptures = namedCaptures;
         this.matcherWatchdog = matcherWatchdog;
 
-        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
-            String name = entry.getKey();
-            String pattern = entry.getValue();
-            forbidCircularReferences(name, new ArrayList<>(), pattern);
-        }
+        forbidCircularReferences();
 
         String expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
@@ -104,8 +105,27 @@ public final class Grok {
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
-    private void forbidCircularReferences(String patternName, List<String> path, String pattern) {
-        if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
+    private void forbidCircularReferences() {
+
+        // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
+        // containing an immediate reference to itself) as those can cause the remainder of this algorithm
+        // to recurse infinitely
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            if (patternReferencesItself(entry.getValue(), entry.getKey())) {
+                throw new IllegalArgumentException("circular reference in pattern [" + entry.getKey() + "][" + entry.getValue() + "]");
+            }
+        }
+
+        // next, recursively check any other pattern names referenced in each pattern
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            String name = entry.getKey();
+            String pattern = entry.getValue();
+            innerForbidCircularReferences(name, new ArrayList<>(), pattern);
+        }
+    }
+
+    private void innerForbidCircularReferences(String patternName, List<String> path, String pattern) {
+        if (patternReferencesItself(pattern, patternName)) {
             String message;
             if (path.isEmpty()) {
                 message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
@@ -120,24 +140,29 @@ public final class Grok {
             throw new IllegalArgumentException(message);
         }
 
+        // next check any other pattern names found in the pattern
         for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
             int begin = i + 2;
-            int brackedIndex = pattern.indexOf('}', begin);
+            int bracketIndex = pattern.indexOf('}', begin);
             int columnIndex = pattern.indexOf(':', begin);
             int end;
-            if (brackedIndex != -1 && columnIndex == -1) {
-                end = brackedIndex;
-            } else if (columnIndex != -1 && brackedIndex == -1) {
+            if (bracketIndex != -1 && columnIndex == -1) {
+                end = bracketIndex;
+            } else if (columnIndex != -1 && bracketIndex == -1) {
                 end = columnIndex;
-            } else if (brackedIndex != -1 && columnIndex != -1) {
-                end = Math.min(brackedIndex, columnIndex);
+            } else if (bracketIndex != -1 && columnIndex != -1) {
+                end = Math.min(bracketIndex, columnIndex);
             } else {
                 throw new IllegalArgumentException("pattern [" + pattern + "] has circular references to other pattern definitions");
             }
             String otherPatternName = pattern.substring(begin, end);
             path.add(otherPatternName);
-            forbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
+            innerForbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
         }
+    }
+
+    private static boolean patternReferencesItself(String pattern, String patternName) {
+        return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
     }
 
     private String groupMatch(String name, Region region, String pattern) {
@@ -276,16 +301,51 @@ public final class Grok {
     /**
      * Load built-in patterns.
      */
-    private static Map<String, String> loadBuiltinPatterns() {
-        String[] patternNames = new String[] {
+    public static synchronized Map<String, String> getBuiltinPatterns(boolean ecsCompatibility) {
+        if (ecsCompatibility) {
+            if (ECS_V1_PATTERNS == null) {
+                ECS_V1_PATTERNS = loadPatterns(ecsCompatibility);
+            }
+            return ECS_V1_PATTERNS;
+        } else {
+            if (LEGACY_PATTERNS == null) {
+                LEGACY_PATTERNS = loadPatterns(ecsCompatibility);
+            }
+            return LEGACY_PATTERNS;
+        }
+    }
+
+    public static Map<String, String> getBuiltinPatterns(String ecsCompatibility) {
+        if (isValidEcsCompatibilityMode(ecsCompatibility)) {
+            return getBuiltinPatterns(ECS_COMPATIBILITY_MODES[1].equals(ecsCompatibility));
+        } else {
+            throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
+        }
+    }
+
+    public static boolean isValidEcsCompatibilityMode(String ecsCompatibility) {
+        return Arrays.asList(ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
+    }
+
+    private static Map<String, String> loadPatterns(boolean ecsCompatibility) {
+        String[] legacyPatternNames = {
             "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-            "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
+            "httpd", "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
             "postgresql", "rails", "redis", "ruby", "squid"
         };
+        String[] ecsPatternNames = {
+            "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+            "httpd", "java", "junos", "linux-syslog", "maven", "mcollective", "mongodb", "nagios",
+            "postgresql", "rails", "redis", "ruby", "squid", "zeek"
+        };
+
+        String[] patternNames = ecsCompatibility ? ecsPatternNames : legacyPatternNames;
+        String directory = ecsCompatibility ? "/patterns/ecs-v1/" : "/patterns/legacy/";
+
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
         for (String pattern : patternNames) {
             try {
-                try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                try (InputStream is = Grok.class.getResourceAsStream(directory + pattern)) {
                     loadPatterns(builtinPatterns, is);
                 }
             } catch (IOException e) {

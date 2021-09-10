@@ -22,10 +22,13 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -55,7 +58,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState clusterState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         // These allocation deciders were chosen because these are the conditions that can prevent
         // allocation long-term, and that we can inspect in advance. Most other allocation deciders
         // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
@@ -64,7 +67,8 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             new FilterAllocationDecider(clusterState.getMetadata().settings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new DataTierAllocationDecider(),
-            new NodeVersionAllocationDecider()
+            new NodeVersionAllocationDecider(),
+            new NodeShutdownAllocationDecider()
         ));
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,
@@ -92,12 +96,13 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
             if (nodeId.isPresent()) {
                 Settings settings = Settings.builder()
-                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
+                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get())
+                        .putNull(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
-                        .masterNodeTimeout(getMasterTimeout(clusterState))
+                        .masterNodeTimeout(TimeValue.MAX_VALUE)
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
-                        ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+                        ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
             } else {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);

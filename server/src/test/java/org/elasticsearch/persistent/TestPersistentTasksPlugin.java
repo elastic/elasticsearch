@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -339,6 +339,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                         return;
                     } else if ("fail".equals(testTask.getOperation())) {
                         task.markAsFailed(new RuntimeException("Simulating failure"));
+                        return;
+                    }  else if ("abort_locally".equals(testTask.getOperation())) {
+                        task.markAsLocallyAborted("Simulating local abort");
                         return;
                     } else if ("update_status".equals(testTask.getOperation())) {
                         testTask.setOperation(null);

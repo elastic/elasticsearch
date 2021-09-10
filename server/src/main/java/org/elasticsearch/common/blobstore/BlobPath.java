@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.Collections;

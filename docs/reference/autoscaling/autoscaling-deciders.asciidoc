@@ -20,6 +20,10 @@ Estimates required storage capacity as a percentage of the total data set of
 partially mounted indices.
 Available for policies governing frozen data nodes.
 
+<<autoscaling-frozen-existence-decider,Frozen existence decider>>::
+Estimates a minimum require frozen memory and storage capacity when any index is
+in the frozen <<index-lifecycle-management,ILM>> phase.
+
 <<autoscaling-machine-learning-decider,Machine learning decider>>::
 Estimates required memory capacity based on machine learning jobs.
 Available for policies governing machine learning nodes.
@@ -31,5 +35,6 @@ include::deciders/reactive-storage-decider.asciidoc[]
 include::deciders/proactive-storage-decider.asciidoc[]
 include::deciders/frozen-shards-decider.asciidoc[]
 include::deciders/frozen-storage-decider.asciidoc[]
+include::deciders/frozen-existence-decider.asciidoc[]
 include::deciders/machine-learning-decider.asciidoc[]
 include::deciders/fixed-decider.asciidoc[]

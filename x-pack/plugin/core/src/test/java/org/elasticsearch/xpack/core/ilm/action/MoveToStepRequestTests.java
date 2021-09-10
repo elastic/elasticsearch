@@ -27,7 +27,7 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
 
     @Override
     protected Request createTestInstance() {
-        return new Request(index, stepKeyTests.createTestInstance(), stepKeyTests.createTestInstance());
+        return new Request(index, stepKeyTests.createTestInstance(), randomStepSpecification());
     }
 
     @Override
@@ -49,7 +49,7 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
     protected Request mutateInstance(Request request) {
         String index = request.getIndex();
         StepKey currentStepKey = request.getCurrentStepKey();
-        StepKey nextStepKey = request.getNextStepKey();
+        Request.PartialStepKey nextStepKey = request.getNextStepKey();
 
         switch (between(0, 2)) {
             case 0:
@@ -59,12 +59,24 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
                 currentStepKey = stepKeyTests.mutateInstance(currentStepKey);
                 break;
             case 2:
-                nextStepKey = stepKeyTests.mutateInstance(nextStepKey);
+                nextStepKey = randomValueOtherThan(nextStepKey, MoveToStepRequestTests::randomStepSpecification);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
         return new Request(index, currentStepKey, nextStepKey);
+    }
+
+    private static Request.PartialStepKey randomStepSpecification() {
+        if (randomBoolean()) {
+            StepKey key = stepKeyTests.createTestInstance();
+            return new Request.PartialStepKey(key.getPhase(), key.getAction(), key.getName());
+        } else {
+            String phase = randomAlphaOfLength(10);
+            String action = randomBoolean() ? null : randomAlphaOfLength(6);
+            String name = action == null ? null : (randomBoolean() ? null : randomAlphaOfLength(6));
+            return new Request.PartialStepKey(phase, action, name);
+        }
     }
 }

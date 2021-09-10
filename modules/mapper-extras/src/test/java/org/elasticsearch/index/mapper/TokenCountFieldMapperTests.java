@@ -133,19 +133,19 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     public void testParseNullValue() throws Exception {
         DocumentMapper mapper = createIndexWithTokenCountField();
-        ParseContext.Document doc = parseDocument(mapper, createDocument(null));
+        LuceneDocument doc = parseDocument(mapper, createDocument(null));
         assertNull(doc.getField("test.tc"));
     }
 
     public void testParseEmptyValue() throws Exception {
         DocumentMapper mapper = createIndexWithTokenCountField();
-        ParseContext.Document doc = parseDocument(mapper, createDocument(""));
+        LuceneDocument doc = parseDocument(mapper, createDocument(""));
         assertEquals(0, doc.getField("test.tc").numericValue());
     }
 
     public void testParseNotNullValue() throws Exception {
         DocumentMapper mapper = createIndexWithTokenCountField();
-        ParseContext.Document doc = parseDocument(mapper, createDocument("three tokens string"));
+        LuceneDocument doc = parseDocument(mapper, createDocument("three tokens string"));
         assertEquals(3, doc.getField("test.tc").numericValue());
     }
 
@@ -173,7 +173,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         return source(b -> b.field("test", fieldValue));
     }
 
-    private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
+    private LuceneDocument parseDocument(DocumentMapper mapper, SourceToParse request) {
         return mapper.parse(request)
             .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
     }

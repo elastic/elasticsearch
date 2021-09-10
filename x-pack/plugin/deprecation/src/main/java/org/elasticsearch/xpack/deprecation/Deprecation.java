@@ -29,8 +29,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingTemplateRegistry;
 

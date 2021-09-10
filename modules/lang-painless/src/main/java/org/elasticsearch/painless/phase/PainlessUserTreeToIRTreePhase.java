@@ -324,15 +324,21 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         }
     }
 
-    // decorate the execute method with nodes to wrap the user statements with
-    // the sandboxed errors as follows:
-    // } catch (PainlessExplainError e) {
-    //     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
-    // }
-    // and
-    // } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
-    //     throw this.convertToScriptException(e, e.getHeaders())
-    // }
+    /*
+     * Decorate the execute method with nodes to wrap the user statements with
+     * the sandboxed errors as follows:
+     *
+     * } catch (PainlessExplainError e) {
+     *     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
+     * }
+     *
+     * and
+     *
+     * } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
+     *     throw this.convertToScriptException(e, e.getHeaders())
+     * }
+     *
+     */
     protected void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);

@@ -24,29 +24,56 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.stream.Collectors;
 
-public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAction<GetSnapshottableFeaturesRequest,
+public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAction<
+    GetSnapshottableFeaturesRequest,
     GetSnapshottableFeaturesResponse> {
 
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportSnapshottableFeaturesAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                SystemIndices systemIndices) {
-        super(SnapshottableFeaturesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetSnapshottableFeaturesRequest::new, indexNameExpressionResolver, GetSnapshottableFeaturesResponse::new,
-            ThreadPool.Names.SAME);
+    public TransportSnapshottableFeaturesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            SnapshottableFeaturesAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetSnapshottableFeaturesRequest::new,
+            indexNameExpressionResolver,
+            GetSnapshottableFeaturesResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.systemIndices = systemIndices;
     }
 
     @Override
-    protected void masterOperation(Task task, GetSnapshottableFeaturesRequest request, ClusterState state,
-                                   ActionListener<GetSnapshottableFeaturesResponse> listener) throws Exception {
-        listener.onResponse(new GetSnapshottableFeaturesResponse(systemIndices.getFeatures().entrySet().stream()
-            .map(featureEntry -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                featureEntry.getKey(),
-                featureEntry.getValue().getDescription()))
-            .collect(Collectors.toList())));
+    protected void masterOperation(
+        Task task,
+        GetSnapshottableFeaturesRequest request,
+        ClusterState state,
+        ActionListener<GetSnapshottableFeaturesResponse> listener
+    ) throws Exception {
+        listener.onResponse(
+            new GetSnapshottableFeaturesResponse(
+                systemIndices.getFeatures()
+                    .entrySet()
+                    .stream()
+                    .map(
+                        featureEntry -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
+                            featureEntry.getKey(),
+                            featureEntry.getValue().getDescription()
+                        )
+                    )
+                    .collect(Collectors.toList())
+            )
+        );
     }
 
     @Override

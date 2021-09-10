@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -58,16 +59,29 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
 
         for (int count = successfulShards; count < totalShards; ++count) {
-            shardFailures.add(new SnapshotShardFailure(
-                "node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason"));
+            shardFailures.add(
+                new SnapshotShardFailure("node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason")
+            );
         }
 
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTestUtils.randomUserMetadata(), startTime, Collections.emptyMap()
-            ));
+            new SnapshotInfo(
+                new Snapshot("test-repo", snapshotId),
+                indices,
+                dataStreams,
+                featureStates,
+                reason,
+                endTime,
+                totalShards,
+                shardFailures,
+                globalState,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                startTime,
+                Collections.emptyMap()
+            )
+        );
     }
 
     @Override

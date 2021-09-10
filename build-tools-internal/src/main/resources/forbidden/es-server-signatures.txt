@@ -61,8 +61,8 @@ org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 java.util.concurrent.Future#cancel(boolean)
 
 @defaultMessage Don't try reading from paths that are not configured in Environment, resolve from Environment instead
-org.elasticsearch.common.io.PathUtils#get(java.lang.String, java.lang.String[])
-org.elasticsearch.common.io.PathUtils#get(java.net.URI)
+org.elasticsearch.core.PathUtils#get(java.lang.String, java.lang.String[])
+org.elasticsearch.core.PathUtils#get(java.net.URI)
 
 @defaultMessage Constructing a DateTime without a time zone is dangerous
 org.joda.time.DateTime#<init>()

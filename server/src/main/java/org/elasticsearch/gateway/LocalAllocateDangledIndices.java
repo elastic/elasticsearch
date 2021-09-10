@@ -104,10 +104,14 @@ public class LocalAllocateDangledIndices {
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetadata indexMetadata : request.indices) {
                         if (indexMetadata.getCreationVersion().before(minIndexCompatibilityVersion)) {
-                            logger.warn("ignoring dangled index [{}] on node [{}]" +
-                                " since it's created version [{}] is not supported by at least one node in the cluster minVersion [{}]",
-                                indexMetadata.getIndex(), request.fromNode, indexMetadata.getCreationVersion(),
-                                minIndexCompatibilityVersion);
+                            logger.warn(
+                                "ignoring dangled index [{}] on node [{}] since it's created version [{}] is not supported by at "
+                                    + "least one node in the cluster minVersion [{}]",
+                                indexMetadata.getIndex(),
+                                request.fromNode,
+                                indexMetadata.getCreationVersion(),
+                                minIndexCompatibilityVersion
+                            );
                             continue;
                         }
                         if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCreationVersion())) {

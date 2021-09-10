@@ -29,6 +29,11 @@ DELETE _scripts/my-stored-script
 ----
 // TEST[continued]
 
+[[delete-stored-script-api-request]]
+==== {api-request-title}
+
+`DELETE _scripts/<script-id>`
+
 [[delete-stored-script-api-prereqs]]
 ==== {api-prereq-title}
 

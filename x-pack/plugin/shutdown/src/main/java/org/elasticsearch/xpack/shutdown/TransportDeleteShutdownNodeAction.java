@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.shutdown;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -60,8 +61,8 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     ) throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
             NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
-            if (nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
-                throw new IllegalArgumentException("node [" + request.getNodeId() + "] is not currently shutting down");
+            if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
+                throw new ResourceNotFoundException("node [" + request.getNodeId() + "] is not currently shutting down");
             }
         }
 

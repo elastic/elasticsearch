@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -516,6 +517,16 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public Builder setAggregations(AggProvider aggProvider) {
             this.aggProvider = aggProvider;
+            return this;
+        }
+
+        // Used only in testing
+        public Builder setParsedAggregations(AggregatorFactories.Builder aggregations) {
+            try {
+                this.aggProvider = AggProvider.fromParsedAggs(aggregations);
+            } catch (IOException exception) {
+                throw new UncheckedIOException(exception);
+            }
             return this;
         }
 

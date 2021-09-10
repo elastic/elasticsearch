@@ -55,7 +55,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     private LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan, configuration.versionIncompatibleClusters());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }

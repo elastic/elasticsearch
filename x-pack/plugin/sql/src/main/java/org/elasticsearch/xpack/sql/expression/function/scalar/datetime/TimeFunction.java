@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
 import java.time.ZoneId;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrTime;
 
 public abstract class TimeFunction extends DateTimeFunction {
@@ -24,7 +24,7 @@ public abstract class TimeFunction extends DateTimeFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isDateOrTime(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        return isDateOrTime(field(), sourceText(), DEFAULT);
     }
 
     @Override

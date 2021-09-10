@@ -11,7 +11,8 @@ package org.elasticsearch.gradle.internal;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
-import org.elasticsearch.gradle.internal.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
@@ -22,6 +23,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
@@ -39,6 +41,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // Default test task should run only unit tests
@@ -48,7 +51,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            File testOutputDir = new File(test.getReports().getJunitXml().getDestination(), "output");
+            File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
             test.getExtensions().add("errorReportingTestListener", listener);
@@ -100,6 +103,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
+                "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
@@ -117,12 +121,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             Map<String, String> sysprops = Map.of(
                 "java.awt.headless",
                 "true",
-                "tests.gradle",
-                "true",
                 "tests.artifact",
                 project.getName(),
-                "tests.task",
-                test.getPath(),
                 "tests.security.manager",
                 "true",
                 "jna.nosys",
@@ -138,14 +138,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability
-            File gradleHome = project.getGradle().getGradleUserHomeDir();
-            String gradleVersion = project.getGradle().getGradleVersion();
-            nonInputProperties.systemProperty("gradle.dist.lib", new File(project.getGradle().getGradleHomeDir(), "lib"));
-            nonInputProperties.systemProperty(
-                "gradle.worker.jar",
-                gradleHome + "/caches/" + gradleVersion + "/workerMain/gradle-worker.jar"
-            );
-            nonInputProperties.systemProperty("gradle.user.home", gradleHome);
+            File gradleUserHome = project.getGradle().getGradleUserHomeDir();
+            nonInputProperties.systemProperty("gradle.user.home", gradleUserHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
@@ -187,17 +181,17 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
             project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-                // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                FileCollection mainRuntime = project.getExtensions()
-                    .getByType(SourceSetContainer.class)
-                    .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
-                    .getRuntimeClasspath();
-                // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
-                // Add the shadow JAR artifact itself
-                FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
-
-                test.setClasspath(test.getClasspath().minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
+                if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
+                    // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
+                    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+                    FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+                    // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
+                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
+                    // Add the shadow JAR artifact itself
+                    FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
+                    FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+                    test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
+                }
             });
         });
     }

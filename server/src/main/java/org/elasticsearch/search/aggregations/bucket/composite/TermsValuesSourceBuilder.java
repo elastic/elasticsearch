@@ -47,6 +47,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             SortOrder order
         );
     }
+
     static final String TYPE = "terms";
     static final ValuesSourceRegistry.RegistryKey<TermsCompositeSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         TYPE,
@@ -139,7 +140,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     }
                 );
             },
-            false);
+            false
+        );
 
         builder.register(
             REGISTRY_KEY,
@@ -160,12 +162,12 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
 
                     if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
-                        ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
-                            .valuesSource();
-                        return new GlobalOrdinalValuesSource(
+                        ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
+                        return new OrdinalValuesSource(
                             bigArrays,
+                            addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
-                            vs::globalOrdinalsValues,
+                            vs::ordinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             size,
@@ -186,7 +188,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     }
                 }
             ),
-            false);
+            false
+        );
     }
 
     @Override

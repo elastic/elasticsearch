@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -37,6 +37,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
 
     private final Environment env;
     private final NativeController nativeController;
+    private final String nodeName;
     private volatile Duration processConnectTimeout;
 
     public NativePyTorchProcessFactory(Environment env,
@@ -44,6 +45,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
                                        ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.nodeName = clusterService.getNodeName();
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -95,8 +97,11 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            logger.warn("Interrupted while launching PyTorch process");
         } catch (IOException e) {
-            throw ExceptionsHelper.serverError("Failed to launch PyTorch process");
+            String msg = "Failed to launch PyTorch process";
+            logger.error(msg);
+            throw ExceptionsHelper.serverError(msg + " on [" + nodeName + "]", e);
         }
     }
 

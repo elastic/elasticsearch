@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -84,7 +84,6 @@ public abstract class GeoShapeValues {
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */
     public static class GeoShapeValue implements ToXContentFragment {
-        private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
         private static final GeoShapeIndexer MISSING_GEOSHAPE_INDEXER = new GeoShapeIndexer(true, "missing");
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
@@ -99,7 +98,7 @@ public abstract class GeoShapeValues {
         /**
          * reset the geometry.
          */
-        public void reset(BytesRef bytesRef) {
+        public void reset(BytesRef bytesRef) throws IOException {
             this.reader.reset(bytesRef);
             this.boundingBox.reset(reader.getExtent(), CoordinateEncoder.GEO);
         }
@@ -108,7 +107,7 @@ public abstract class GeoShapeValues {
             return boundingBox;
         }
 
-        public GeoRelation relate(Rectangle rectangle) {
+        public GeoRelation relate(Rectangle rectangle) throws IOException {
             int minX = CoordinateEncoder.GEO.encodeX(rectangle.getMinX());
             int maxX = CoordinateEncoder.GEO.encodeX(rectangle.getMaxX());
             int minY = CoordinateEncoder.GEO.encodeY(rectangle.getMinY());
@@ -122,27 +121,28 @@ public abstract class GeoShapeValues {
             return reader.getDimensionalShapeType();
         }
 
-        public double weight() {
+        public double weight() throws IOException {
             return reader.getSumCentroidWeight();
         }
 
         /**
          * @return the latitude of the centroid of the shape
          */
-        public double lat() {
+        public double lat() throws IOException {
             return CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         }
 
         /**
          * @return the longitude of the centroid of the shape
          */
-        public double lon() {
+        public double lon() throws IOException {
             return CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         }
 
         public static GeoShapeValue missing(String missing) {
             try {
-                final Geometry geometry = MISSING_GEOSHAPE_INDEXER.prepareForIndexing(MISSING_GEOMETRY_PARSER.fromWKT(missing));
+                final Geometry geometry =
+                    MISSING_GEOSHAPE_INDEXER.prepareForIndexing(WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing));
                 final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
                 field.add(MISSING_GEOSHAPE_INDEXER.indexShape(geometry), geometry);
                 final GeoShapeValue value = new GeoShapeValue();

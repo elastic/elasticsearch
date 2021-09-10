@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.core.RefCounted;
 
 import java.io.IOException;
 
@@ -67,7 +67,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
 
     @Override
     public boolean tryIncRef() {
-        return bytes.decRef();
+        return bytes.tryIncRef();
     }
 
     @Override

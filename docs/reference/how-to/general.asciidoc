@@ -40,3 +40,11 @@ better. For instance if a user searches for two words `foo` and `bar`, a match
 across different chapters is probably very poor, while a match within the same
 paragraph is likely good.
 
+[discrete]
+[[dedicated-hosts]]
+=== Dedicated host
+
+We recommend the Elasticsearch service be ran on a dedicated host or as the primary
+service. This removes performance concerns over shared-resource starvation. For
+example, you might run Metricbeat along side Elasticsearch for cluster statistics,
+but we recommend putting a heavy pipeline Logstash on to its own dedicated host.

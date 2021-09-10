@@ -331,7 +331,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // Run this test last so that removing the existing keystore doesn't make subsequent tests fail
         assumeTrue("Packages and docker are installed with a keystore file", distribution.isArchive());
         rmKeystoreIfExists();
-
+        // Elasticsearch was auto-configured for security. We need to remove that configuration as it depended on settings in the previous
+        // keystore
+        ServerUtils.disableSecurityFeatures(installation);
         startElasticsearch();
         stopElasticsearch();
 

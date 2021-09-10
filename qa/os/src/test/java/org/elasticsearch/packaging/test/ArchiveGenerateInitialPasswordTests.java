@@ -54,7 +54,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.isEmpty(), is(true));
         String response = ServerUtils.makeRequest(
-            Request.Get("http://localhost:9200"),
+            Request.Get("https://localhost:9200"),
             "elastic",
             "some-password-here",
             ServerUtils.getCaCert(installation)
@@ -96,7 +96,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         assertThat(usersAndPasswords.containsKey("kibana_system"), is(true));
         for (Map.Entry<String, String> userpass : usersAndPasswords.entrySet()) {
             String response = ServerUtils.makeRequest(
-                Request.Get("http://localhost:9200"),
+                Request.Get("https://localhost:9200"),
                 userpass.getKey(),
                 userpass.getValue(),
                 ServerUtils.getCaCert(installation)

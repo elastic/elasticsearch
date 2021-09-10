@@ -785,7 +785,6 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that it when configuring logging to write to disk, the container can be restarted.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73126")
     public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
         runContainer(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "file")));
 

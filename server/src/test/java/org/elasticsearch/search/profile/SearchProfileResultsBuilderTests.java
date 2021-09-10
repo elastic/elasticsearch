@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchProfileQueryPhaseResultsTests extends ESTestCase {
+public class SearchProfileResultsBuilderTests extends ESTestCase {
     public void testNotProfiling() {
         FetchSearchResult fetchPhase = fetchResult(randomTarget(), null);
         assertThat(builder(Map.of()).build(List.of(fetchPhase)), nullValue());
@@ -33,7 +33,7 @@ public class SearchProfileQueryPhaseResultsTests extends ESTestCase {
     public void testFetchWithoutQuery() {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
         FetchSearchResult fetchPhase = fetchResult(
-            randomValueOtherThanMany(searchPhase::containsKey, SearchProfileQueryPhaseResultsTests::randomTarget),
+            randomValueOtherThanMany(searchPhase::containsKey, SearchProfileResultsBuilderTests::randomTarget),
             null
         );
         Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));

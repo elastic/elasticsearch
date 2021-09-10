@@ -6,6 +6,8 @@ dependencies {
 }
 
 testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

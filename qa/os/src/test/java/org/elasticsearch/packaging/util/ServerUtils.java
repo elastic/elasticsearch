@@ -207,7 +207,7 @@ public class ServerUtils {
                 try {
 
                     final HttpResponse response = execute(
-                        Request.Get((caCert != null ? "https" : "http") + "//localhost:9200/_cluster/health")
+                        Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/_cluster/health")
                             .connectTimeout((int) timeoutLength)
                             .socketTimeout((int) timeoutLength),
                         username,

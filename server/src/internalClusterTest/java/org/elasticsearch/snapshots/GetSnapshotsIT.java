@@ -283,6 +283,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertThat(clusterAdmin().prepareGetSnapshots(matchAllPattern()).setSnapshots("other*", "-o*").get().getSnapshots(), empty());
         assertThat(clusterAdmin().prepareGetSnapshots("other*", "-o*").setSnapshots(matchAllPattern()).get().getSnapshots(), empty());
+        assertThat(clusterAdmin().prepareGetSnapshots("other*", otherRepo, "-o*").setSnapshots(matchAllPattern()).get()
+            .getSnapshots(), empty());
+        assertThat(clusterAdmin().prepareGetSnapshots(matchAllPattern()).setSnapshots("non-existing*", otherPrefixSnapshot1, "-o*")
+            .get().getSnapshots(), empty());
     }
 
     public void testNamesStartingInDash() {

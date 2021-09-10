@@ -313,12 +313,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
                         toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshot).collect(Collectors.toList()));
                     } else {
-                        final Snapshot found = allSnapshotIds.get(snapshotOrPattern);
-                        if (found != null) {
-                            toResolve.add(found);
-                        } else if (ignoreUnavailable == false) {
+                        if (ignoreUnavailable == false && allSnapshotIds.containsKey(snapshotOrPattern) == false) {
                             throw new SnapshotMissingException(repo, snapshotOrPattern);
                         }
+                        includePatterns.add(snapshotOrPattern);
                     }
                 }
             }

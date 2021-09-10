@@ -1,8 +1,3 @@
-package org.elasticsearch.search.profile;
-
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -10,6 +5,11 @@ import org.elasticsearch.common.Strings;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.search.profile;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

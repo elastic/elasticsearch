@@ -42,7 +42,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
-import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -402,8 +401,22 @@ public final class SearchPhaseController {
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             final TotalHits totalHits = topDocsStats.getTotalHits();
-            return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
-                false, null, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
+            return new ReducedQueryPhase(
+                totalHits,
+                topDocsStats.fetchHits,
+                topDocsStats.getMaxScore(),
+                false,
+                null,
+                null,
+                null,
+                SearchProfileResultsBuilder.build(Map.of()),
+                SortedTopDocs.EMPTY,
+                null,
+                numReducePhases,
+                0,
+                0,
+                true
+            );
         }
         int total = queryResults.size();
         queryResults = queryResults.stream()
@@ -464,9 +477,7 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
-            ? null
-            : new SearchProfileResultsBuilder(profileShardResults);
+        final SearchProfileResultsBuilder profileBuilder = SearchProfileResultsBuilder.build(profileShardResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
@@ -593,17 +604,15 @@ public final class SearchPhaseController {
          * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
          */
         public InternalSearchResponse buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
-            SearchProfileResults profileResults = mergeProfile(fetchResults);
-            return new InternalSearchResponse(hits, aggregations, suggest, profileResults, timedOut, terminatedEarly, numReducePhases);
-        }
-
-        private SearchProfileResults mergeProfile(Collection<? extends SearchPhaseResult> fetchResults) {
-            if (profileBuilder == null) {
-                assert fetchResults.stream()
-                    .allMatch(r -> r.fetchResult().profileResult() == null) : "found fetch profile without search profile";
-                return null;
-            }
-            return profileBuilder.build(fetchResults);
+            return new InternalSearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                profileBuilder.build(fetchResults),
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
         }
     }
 

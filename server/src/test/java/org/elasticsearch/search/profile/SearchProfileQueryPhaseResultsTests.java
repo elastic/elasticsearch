@@ -22,8 +22,14 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SearchProfileQueryPhaseResultsTests extends ESTestCase {
+    public void testNotProfiling() {
+        FetchSearchResult fetchPhase = fetchResult(randomTarget(), null);
+        assertThat(builder(Map.of()).build(List.of(fetchPhase)), nullValue());
+    }
+
     public void testFetchWithoutQuery() {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
         FetchSearchResult fetchPhase = fetchResult(
@@ -77,7 +83,7 @@ public class SearchProfileQueryPhaseResultsTests extends ESTestCase {
     }
 
     private static SearchProfileResultsBuilder builder(Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase) {
-        return new SearchProfileResultsBuilder(
+        return SearchProfileResultsBuilder.build(
             searchPhase.entrySet().stream().collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
         );
     }

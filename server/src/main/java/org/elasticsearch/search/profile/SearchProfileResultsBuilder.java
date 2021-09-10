@@ -1,3 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.search.SearchPhaseResult;
@@ -11,11 +19,29 @@ import java.util.Map;
 /**
  * Profile results for the query phase run on all shards.
  */
-public final class SearchProfileResultsBuilder {
-    private final Map<String, SearchProfileQueryPhaseResult> shardResults;
+public class SearchProfileResultsBuilder {
+    public static SearchProfileResultsBuilder build(Map<String, SearchProfileQueryPhaseResult> queryPhaseResults) {
+        if (queryPhaseResults.isEmpty()) {
+            return NOT_PROFILING;
+        }
+        return new SearchProfileResultsBuilder(queryPhaseResults);
+    }
 
-    public SearchProfileResultsBuilder(Map<String, SearchProfileQueryPhaseResult> shardResults) {
-        this.shardResults = Collections.unmodifiableMap(shardResults);
+    private static final SearchProfileResultsBuilder NOT_PROFILING = new SearchProfileResultsBuilder(Map.of()) {
+        @Override
+        public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults) {
+            assert fetchResults.stream()
+                .map(SearchPhaseResult::fetchResult)
+                .filter(r -> r != null)
+                .allMatch(r -> r.profileResult() == null) : "found fetch profile without search profile";
+            return null;
+        }
+    };
+
+    private final Map<String, SearchProfileQueryPhaseResult> queryPhaseResults;
+
+    private SearchProfileResultsBuilder(Map<String, SearchProfileQueryPhaseResult> queryPhaseResults) {
+        this.queryPhaseResults = Collections.unmodifiableMap(queryPhaseResults);
     }
 
     /**
@@ -23,22 +49,22 @@ public final class SearchProfileResultsBuilder {
      * profiling information.
      */
     public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults) {
-        Map<String, SearchProfileShardResult> mergedShardResults = new HashMap<>(shardResults.size());
+        Map<String, SearchProfileShardResult> mergedShardResults = new HashMap<>(queryPhaseResults.size());
         for (SearchPhaseResult r : fetchResults) {
             FetchSearchResult fr = r.fetchResult();
             String key = fr.getSearchShardTarget().toString();
-            SearchProfileQueryPhaseResult queryPhase = shardResults.get(key);
+            SearchProfileQueryPhaseResult queryPhase = queryPhaseResults.get(key);
             if (queryPhase == null) {
                 throw new IllegalStateException(
                     "Profile returned fetch phase information for ["
                         + key
                         + "] but didn't return query phase information. Query phase keys were "
-                        + shardResults.keySet()
+                        + queryPhaseResults.keySet()
                 );
             }
             mergedShardResults.put(key, new SearchProfileShardResult(queryPhase, fr.profileResult()));
         }
-        for (Map.Entry<String, SearchProfileQueryPhaseResult> e : shardResults.entrySet()) {
+        for (Map.Entry<String, SearchProfileQueryPhaseResult> e : queryPhaseResults.entrySet()) {
             if (false == mergedShardResults.containsKey(e.getKey())) {
                 mergedShardResults.put(e.getKey(), new SearchProfileShardResult(e.getValue(), null));
             }
@@ -52,11 +78,11 @@ public final class SearchProfileResultsBuilder {
             return false;
         }
         SearchProfileResultsBuilder other = (SearchProfileResultsBuilder) obj;
-        return shardResults.equals(other.shardResults);
+        return queryPhaseResults.equals(other.queryPhaseResults);
     }
 
     @Override
     public int hashCode() {
-        return shardResults.hashCode();
+        return queryPhaseResults.hashCode();
     }
 }

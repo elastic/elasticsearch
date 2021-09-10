@@ -115,6 +115,7 @@ public final class ClusterApplierTimeTracker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(timeSpentPerApplier, StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeMap(timeSpentPerListener, StreamOutput::writeString, StreamOutput::writeVLong);
         }
     }
 }

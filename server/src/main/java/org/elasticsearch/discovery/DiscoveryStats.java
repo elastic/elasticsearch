@@ -48,7 +48,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
             clusterStateUpdateStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            timeTrackerStats = new ClusterApplierTimeTracker.Stats(in);
+            timeTrackerStats = in.readOptionalWriteable(ClusterApplierTimeTracker.Stats::new);
         } else {
             timeTrackerStats = null;
         }

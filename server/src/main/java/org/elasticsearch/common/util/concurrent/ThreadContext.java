@@ -29,6 +29,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -111,15 +112,8 @@ public final class ThreadContext implements Writeable {
          * Otherwise when context is stash, it should be empty.
          */
 
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_ID)) {
-            Map<String, String> map = new HashMap<>(2, 1);
-            if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-                map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
-            }
-            if (context.requestHeaders.containsKey(Task.TRACE_ID)) {
-                map.put(Task.TRACE_ID, context.requestHeaders.get(Task.TRACE_ID));
-            }
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
+        if (context.hasTracingIdInHeaders()) {
+            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(context.tracingHeaders());
             threadLocal.set(threadContextStruct);
         }
         else {
@@ -657,19 +651,43 @@ public final class ThreadContext implements Writeable {
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
+
+        boolean hasTracingIdInHeaders() {
+            return (requestHeaders.containsKey(Task.X_OPAQUE_ID) || requestHeaders.containsKey(Task.TRACE_ID));
+        }
+
+        Map<String, String> tracingHeaders() {
+            Map<String, String> result = new HashMap<>(2, 1);
+            if (requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+                result.put(Task.X_OPAQUE_ID, requestHeaders.get(Task.X_OPAQUE_ID));
+            }
+            if (requestHeaders.containsKey(Task.TRACE_ID)) {
+                result.put(Task.TRACE_ID, requestHeaders.get(Task.TRACE_ID));
+            }
+
+            return result;
+        }
     }
 
-    public interface WithXOpaqueIdInThreadName {
-        String ID_LABEL = " X-Opaque-Id=";
+    public interface WithTracingIdsInThreadName {
+        String ID_LABEL = " tracing-ids=";
+
+        private String tracingHeadersAsString(ThreadContextStruct context) {
+            Map<String, String> tracingHeaders = context.tracingHeaders();
+            StringBuilder resultBuilder = new StringBuilder();
+            tracingHeaders.forEach((key, value) -> resultBuilder.append(String.format(Locale.ROOT, "[%s:%s]", key, value)));
+
+            return resultBuilder.toString();
+        }
+
         default void addLabelToThreadName(ThreadContextStruct context) {
-            String xOpaqueId = context.requestHeaders.get(Task.X_OPAQUE_ID);
-            if (xOpaqueId != null && xOpaqueId.isEmpty() == false) {
+            if (context.hasTracingIdInHeaders()) {
                 String originalName = Thread.currentThread().getName();
 
                 assert (originalName.contains(ID_LABEL) == false) :
-                    "Encountered double label of a thread name : " + originalName;
+                    "Encountered double labelling of a thread name : " + originalName;
 
-                Thread.currentThread().setName(originalName + ID_LABEL + xOpaqueId);
+                Thread.currentThread().setName(originalName + ID_LABEL + tracingHeadersAsString(context));
             }
         }
 
@@ -685,7 +703,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    private class ContextPreservingRunnable implements WrappedRunnable, WithXOpaqueIdInThreadName {
+    private class ContextPreservingRunnable implements WrappedRunnable, WithTracingIdsInThreadName {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -719,7 +737,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable, WithXOpaqueIdInThreadName {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable, WithTracingIdsInThreadName {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
 

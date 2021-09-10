@@ -1047,6 +1047,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Settings getSettings() {
+            return settings;
+        }
+
         public MappingMetadata mapping() {
             return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }

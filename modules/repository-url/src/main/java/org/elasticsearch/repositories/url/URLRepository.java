@@ -109,7 +109,7 @@ public class URLRepository extends BlobStoreRepository {
 
     // only use for testing
     @Override
-    protected BlobContainer blobContainer() {
+    public BlobContainer blobContainer() {
         return super.blobContainer();
     }
 

@@ -169,4 +169,8 @@ public interface IndexEventListener {
      */
     default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
     }
+
+    default void afterFilesRestoredFromRepository(IndexShard indexShard) {
+
+    }
 }

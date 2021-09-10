@@ -259,4 +259,17 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
+    @Override
+    public void afterFilesRestoredFromRepository(IndexShard indexShard) {
+        for (IndexEventListener listener  : listeners) {
+            try {
+                listener.afterFilesRestoredFromRepository(indexShard);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("failed to invoke the listener after files restored from repo for {}",
+                    indexShard.shardId()), e);
+                throw e;
+            }
+        }
+    }
 }

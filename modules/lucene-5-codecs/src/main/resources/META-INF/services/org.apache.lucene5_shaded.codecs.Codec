@@ -1,0 +1,19 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+org.apache.lucene5_shaded.codecs.lucene40.Lucene40Codec
+org.apache.lucene5_shaded.codecs.lucene41.Lucene41Codec
+org.apache.lucene5_shaded.codecs.lucene42.Lucene42Codec
+org.apache.lucene5_shaded.codecs.lucene45.Lucene45Codec
+org.apache.lucene5_shaded.codecs.lucene46.Lucene46Codec
+org.apache.lucene5_shaded.codecs.lucene49.Lucene49Codec
+org.apache.lucene5_shaded.codecs.lucene410.Lucene410Codec
+org.apache.lucene5_shaded.codecs.lucene50.Lucene50Codec
+org.apache.lucene5_shaded.codecs.lucene53.Lucene53Codec
+org.apache.lucene5_shaded.codecs.lucene54.Lucene54Codec
+

@@ -1,0 +1,18 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+org.elasticsearch.oldcodecs.WrappedLucene40Codec
+org.elasticsearch.oldcodecs.WrappedLucene41Codec
+org.elasticsearch.oldcodecs.WrappedLucene42Codec
+org.elasticsearch.oldcodecs.WrappedLucene45Codec
+org.elasticsearch.oldcodecs.WrappedLucene46Codec
+org.elasticsearch.oldcodecs.WrappedLucene49Codec
+org.elasticsearch.oldcodecs.WrappedLucene410Codec
+org.elasticsearch.oldcodecs.WrappedLucene50Codec
+org.elasticsearch.oldcodecs.WrappedLucene53Codec
+org.elasticsearch.oldcodecs.WrappedLucene54Codec

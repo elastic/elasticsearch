@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
+import org.elasticsearch.index.store.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;

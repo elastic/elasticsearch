@@ -140,6 +140,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -696,7 +697,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * maintains single lazy instance of {@link BlobContainer}
      */
-    protected BlobContainer blobContainer() {
+    public BlobContainer blobContainer() {
         assertSnapshotOrGenericThread();
 
         if (lifecycle.started() == false) {
@@ -2900,6 +2901,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RecoveryState recoveryState,
         ActionListener<Void> listener
     ) {
+        restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener, this::loadShardSnapshot);
+    }
+
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                             ActionListener<Void> listener,
+                             BiFunction<BlobContainer, SnapshotId, BlobStoreIndexShardSnapshot> shardSnapshotLoader) {
         final ShardId shardId = store.shardId();
         final ActionListener<Void> restoreListener = listener.delegateResponse(
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))
@@ -2930,7 +2937,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             ActionListener.onResponse(onEmptyListeners, null);
         }), l -> {
-            final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
+            final BlobStoreIndexShardSnapshot snapshot = shardSnapshotLoader.apply(container, snapshotId);
             final SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), null);
             new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override

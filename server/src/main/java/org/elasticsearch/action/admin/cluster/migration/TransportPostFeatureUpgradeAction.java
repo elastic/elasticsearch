@@ -8,5 +8,58 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
-public class TransportPostFeatureUpgradeAction {
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction<
+    PostFeatureUpgradeRequest,
+    PostFeatureUpgradeResponse> {
+
+    private final SystemIndices systemIndices;
+
+    @Inject
+    public TransportPostFeatureUpgradeAction(
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            PostFeatureUpgradeAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PostFeatureUpgradeRequest::new,
+            indexNameExpressionResolver,
+            PostFeatureUpgradeResponse::new,
+            ThreadPool.Names.SAME
+        );
+        this.systemIndices = systemIndices;
+    }
+
+    @Override
+    protected void masterOperation(Task task, PostFeatureUpgradeRequest request, ClusterState state,
+                                   ActionListener<PostFeatureUpgradeResponse> listener) throws Exception {
+        listener.onResponse(new PostFeatureUpgradeResponse(
+            // TODO: implement operation for this action
+        ));
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(PostFeatureUpgradeRequest request, ClusterState state) {
+        return null;
+    }
 }

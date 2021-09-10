@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.migration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +37,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         SystemIndices systemIndices
     ) {
         super(
-            ResetFeatureStateAction.NAME,
+            GetFeatureUpgradeStatusAction.NAME,
             transportService,
             clusterService,
             threadPool,

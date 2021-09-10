@@ -114,7 +114,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        setKeystorePassword(KEYSTORE_PASSWORD);
+        createKeystore(KEYSTORE_PASSWORD);
 
         assertPasswordProtectedKeystore();
 

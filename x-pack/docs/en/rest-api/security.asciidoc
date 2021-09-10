@@ -69,6 +69,7 @@ without requiring basic authentication:
 * <<security-api-invalidate-api-key,Invalidate API key>>
 * <<security-api-clear-api-key-cache,Clear API key cache>>
 * <<security-api-grant-api-key,Grant API key>>
+* <<security-api-query-api-key,Query API key>>
 
 [discrete]
 [[security-user-apis]]
@@ -143,6 +144,7 @@ include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
 include::security/get-api-keys.asciidoc[]
+include::security/query-api-key.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
 include::security/get-builtin-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]

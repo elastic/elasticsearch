@@ -17,7 +17,7 @@ restResources {
 
 
 testClusters {
-  'remote-cluster' {
+  register('remote-cluster') {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
     setting 'node.roles', '[data,ingest,master]'
@@ -28,7 +28,7 @@ testClusters {
     user username: "test_user", password: "x-pack-test-password"
   }
 
-  'mixed-cluster' {
+  register('mixed-cluster') {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
     // Node roles are configured this way in order to verify redirecting the transform request from the node lacking
@@ -39,7 +39,7 @@ testClusters {
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.my_remote_cluster.seeds', {
-      testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
+      testClusters.named('remote-cluster').get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
     }
     setting 'cluster.remote.connections_per_cluster', "1"
 

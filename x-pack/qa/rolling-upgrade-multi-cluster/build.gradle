@@ -14,40 +14,40 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
 
   testClusters {
-    "${baseName}-leader" {
+    def baseLeaderCluster = register("${baseName}-leader") {
       numberOfNodes = 3
     }
-    "${baseName}-follower" {
+    def baseFollowerCluster = register("${baseName}-follower") {
       numberOfNodes = 3
     }
-  }
-  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
-    testDistribution = "DEFAULT"
-    versions = [bwcVersion.toString(), project.version]
+    matching { it.name.startsWith("${baseName}-") }.configureEach {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
 
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'trial'
+    }
   }
-
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster testClusters."${baseName}-leader"
-    useCluster testClusters."${baseName}-follower"
+    useCluster baseLeaderCluster.get()
+    useCluster baseFollowerCluster.get()
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
 
     doFirst {
+      def baseCluster = testClusters.named("${baseName}-${kindExt}").get()
       if (name.endsWith("#clusterTest") == false) {
         println "Upgrade node $it"
-        testClusters."${baseName}-${kindExt}".nextNodeToNextVersion()
+        baseCluster.nextNodeToNextVersion()
       }
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}-${kindExt}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.allHttpSocketURI.join(",")}")
       nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}-${kindExt}".getName()}")
-      nonInputProperties.systemProperty('tests.leader_host', "${-> testClusters."${baseName}-leader".allHttpSocketURI.last()}")
-      nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> testClusters."${baseName}-leader".allTransportPortURI.last()}")
-      nonInputProperties.systemProperty('tests.follower_host', "${-> testClusters."${baseName}-follower".allHttpSocketURI.last()}")
-      nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> testClusters."${baseName}-follower".allTransportPortURI.last()}")
+      nonInputProperties.systemProperty('tests.leader_host', "${-> baseLeaderCluster.allHttpSocketURI.last()}")
+      nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> baseLeaderCluster.get().allTransportPortURI.last()}")
+      nonInputProperties.systemProperty('tests.follower_host', "${-> baseFollowerCluster.get().allHttpSocketURI.last()}")
+      nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> baseFollowerCluster.get().allTransportPortURI.last()}")
     }
   }
 

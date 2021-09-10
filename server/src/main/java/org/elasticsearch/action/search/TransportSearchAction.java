@@ -59,6 +59,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -349,6 +350,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.collapse().getInnerHits().isEmpty();
     }
 
+    private static Version getConnectionVersionFieldsEmulation(RemoteClusterService remoteClusterService, String clusterAlias) {
+        try {
+            return remoteClusterService.getConnection(clusterAlias).getVersion();
+        } catch (NoSuchRemoteClusterException ex) {
+            // if the cluster is not connected, use CURRENT so fields emulation will be skipped
+            return Version.CURRENT;
+        }
+    }
+
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,
                                 Map<String, OriginalIndices> remoteIndices, SearchTimeProvider timeProvider,
                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
@@ -366,7 +376,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
             final FieldsOptionSourceAdapter adapter = new FieldsOptionSourceAdapter(searchRequest);
-            final Version connectionVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
+            final Version connectionVersion = getConnectionVersionFieldsEmulation(remoteClusterService, clusterAlias);
             adapter.adaptRequest(connectionVersion, ccsSearchRequest::source);
 
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
@@ -415,7 +425,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider.getAbsoluteStartMillis(),
                     false
                 );
-                Version connectionVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
+                final Version connectionVersion = getConnectionVersionFieldsEmulation(remoteClusterService, clusterAlias);
                 adapter.adaptRequest(connectionVersion, ccsSearchRequest::source);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
                     clusterAlias,

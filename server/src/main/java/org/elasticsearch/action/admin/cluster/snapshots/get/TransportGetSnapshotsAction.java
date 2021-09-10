@@ -302,6 +302,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             final List<String> includePatterns = new ArrayList<>();
             final List<String> excludePatterns = new ArrayList<>();
+            boolean hasCurrent = false;
             boolean seenWildcard = false;
             for (String snapshotOrPattern : snapshots) {
                 if (seenWildcard && snapshotOrPattern.length() > 1 && snapshotOrPattern.startsWith("-")) {
@@ -311,7 +312,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         seenWildcard = true;
                         includePatterns.add(snapshotOrPattern);
                     } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
-                        toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshot).collect(Collectors.toList()));
+                        hasCurrent = true;
+                        seenWildcard = true;
                     } else {
                         if (ignoreUnavailable == false && allSnapshotIds.containsKey(snapshotOrPattern) == false) {
                             throw new SnapshotMissingException(repo, snapshotOrPattern);
@@ -328,6 +330,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     && Regex.simpleMatch(includes, entry.getKey())
                     && Regex.simpleMatch(excludes, entry.getKey()) == false) {
                     toResolve.add(snapshot);
+                }
+            }
+            if (hasCurrent) {
+                for (SnapshotInfo snapshotInfo : currentSnapshots) {
+                    final Snapshot snapshot = snapshotInfo.snapshot();
+                    if (Regex.simpleMatch(excludes, snapshot.getSnapshotId().getName()) == false) {
+                        toResolve.add(snapshot);
+                    }
                 }
             }
             if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly(snapshots) == false) {

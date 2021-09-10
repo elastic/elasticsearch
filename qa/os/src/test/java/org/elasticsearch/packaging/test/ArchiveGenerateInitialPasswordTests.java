@@ -53,7 +53,12 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.isEmpty(), is(true));
-        String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), "elastic", "some-password-here", null);
+        String response = ServerUtils.makeRequest(
+            Request.Get("http://localhost:9200"),
+            "elastic",
+            "some-password-here",
+            ServerUtils.getCaCert(installation)
+        );
         assertThat(response, containsString("You Know, for Search"));
     }
 
@@ -90,7 +95,12 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         assertThat(usersAndPasswords.containsKey("elastic"), is(true));
         assertThat(usersAndPasswords.containsKey("kibana_system"), is(true));
         for (Map.Entry<String, String> userpass : usersAndPasswords.entrySet()) {
-            String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
+            String response = ServerUtils.makeRequest(
+                Request.Get("http://localhost:9200"),
+                userpass.getKey(),
+                userpass.getValue(),
+                ServerUtils.getCaCert(installation)
+            );
             assertThat(response, containsString("You Know, for Search"));
         }
     }

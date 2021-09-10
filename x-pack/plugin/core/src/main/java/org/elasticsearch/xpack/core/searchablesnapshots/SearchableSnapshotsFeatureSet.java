@@ -39,7 +39,7 @@ public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
+        return SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

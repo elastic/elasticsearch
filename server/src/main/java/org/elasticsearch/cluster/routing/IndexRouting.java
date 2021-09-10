@@ -21,14 +21,14 @@ public abstract class IndexRouting {
      * Build the routing from {@link IndexMetadata}.
      */
     public static IndexRouting fromIndexMetadata(IndexMetadata indexMetadata) {
-        if (indexMetadata.getRoutingPartitionSize() == 1) {
-            return new Unpartitioned(indexMetadata.getRoutingNumShards(), indexMetadata.getRoutingFactor());
+        if (indexMetadata.isRoutingPartitionedIndex()) {
+            return new Partitioned(
+                indexMetadata.getRoutingNumShards(),
+                indexMetadata.getRoutingFactor(),
+                indexMetadata.getRoutingPartitionSize()
+            );
         }
-        return new Partitioned(
-            indexMetadata.getRoutingNumShards(),
-            indexMetadata.getRoutingFactor(),
-            indexMetadata.getRoutingPartitionSize()
-        );
+        return new Unpartitioned(indexMetadata.getRoutingNumShards(), indexMetadata.getRoutingFactor());
     }
 
     private final int routingNumShards;

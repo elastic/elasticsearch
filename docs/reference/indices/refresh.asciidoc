@@ -4,9 +4,10 @@
 <titleabbrev>Refresh</titleabbrev>
 ++++
 
-Makes recent changes to one or more indices available for search. For data
-streams, the API runs the restore operation on the stream's backing indices. For
-more information about restores, see <<near-real-time, near real-time search>>.
+Makes recent operations performed on one or more indices available for search.
+For data streams, the API runs the restore operation on the stream's backing
+indices. For more information about restores, see <<near-real-time, near
+real-time search>>.
 
 [source,console]
 ----

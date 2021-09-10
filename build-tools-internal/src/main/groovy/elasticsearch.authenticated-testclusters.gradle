@@ -8,7 +8,7 @@
 
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-ext.clusterCredentials = [
+def clusterCredentials = [
         username: providers.systemProperty('tests.rest.cluster.username')
                 .forUseAtConfigurationTime()
                 .getOrElse('test_admin'),

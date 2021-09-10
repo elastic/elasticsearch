@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -368,15 +369,10 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
                             Environment env, int keysize, int days) throws Exception {
         if (caCertPath != null) {
             assert caKeyPath != null;
-            final String resolvedCaCertPath = resolvePath(caCertPath).toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + caCertPath + "] but found [" +
-                    certificates.length + "]");
-            }
-            Certificate caCert = certificates[0];
+            final Path resolvedCaCert = resolvePath(caCertPath);
+            X509Certificate caCert = CertParsingUtils.readX509Certificate(resolvedCaCert);
             PrivateKey privateKey = readPrivateKey(caKeyPath, keyPass, terminal, prompt);
-            return new CAInfo((X509Certificate) caCert, privateKey);
+            return new CAInfo(caCert, privateKey);
         }
 
         // generate the CA keys and cert

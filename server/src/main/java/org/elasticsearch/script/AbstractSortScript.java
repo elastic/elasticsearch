@@ -24,13 +24,13 @@ abstract class AbstractSortScript extends DocBasedScript implements ScorerAware 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "sort-script_doc",
+                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "sort-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an sort-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
             "_doc", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "sort-script__doc",
+                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "sort-script__doc",
                         "Accessing variable [doc] via [params._doc] from within an sort-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;

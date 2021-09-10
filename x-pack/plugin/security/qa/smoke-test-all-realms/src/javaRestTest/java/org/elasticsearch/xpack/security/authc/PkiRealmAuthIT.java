@@ -33,7 +33,7 @@ public class PkiRealmAuthIT extends SecurityRealmSmokeTestCase {
         return builder.build();
     }
 
-    public void testAuthenticationUsingFileRealm() throws IOException {
+    public void testAuthenticationUsingPkiRealm() throws IOException {
         Map<String, Object> authenticate = super.authenticate(RequestOptions.DEFAULT.toBuilder());
 
         assertUsername(authenticate, USERNAME);

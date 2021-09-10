@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,8 +34,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentResponse;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -81,13 +82,13 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             .put("keystore.path", httpCaPath)
             .setSecureSettings(secureSettings)
             .build();
-        final SSLConfiguration httpSslConfiguration = new SSLConfiguration(httpSettings);
+        final SslConfiguration httpSslConfiguration = SslSettingsLoader.load(httpSettings, null, env);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(httpSslConfiguration);
         final Settings transportSettings = Settings.builder()
             .put("keystore.path", transportPath)
             .put("keystore.password", "password")
             .build();
-        final SSLConfiguration transportSslConfiguration = new SSLConfiguration(transportSettings);
+        final SslConfiguration transportSslConfiguration = SslSettingsLoader.load(transportSettings, null, env);
         when(sslService.getTransportSSLConfiguration()).thenReturn(transportSslConfiguration);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -131,7 +132,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             Collections.emptySet());
 
         final TransportNodeEnrollmentAction action =
-            new TransportNodeEnrollmentAction(transportService, sslService, client, mock(ActionFilters.class), env);
+            new TransportNodeEnrollmentAction(transportService, sslService, client, mock(ActionFilters.class));
         final NodeEnrollmentRequest request = new NodeEnrollmentRequest();
         final PlainActionFuture<NodeEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);

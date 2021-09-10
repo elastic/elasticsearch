@@ -8,13 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import java.io.IOException;
-import java.nio.CharBuffer;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.nio.CharBuffer;
 
 public class ParsedStringRareTerms extends ParsedRareTerms {
     @Override
@@ -22,8 +22,11 @@ public class ParsedStringRareTerms extends ParsedRareTerms {
         return StringRareTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedStringRareTerms, Void> PARSER =
-        new ObjectParser<>(ParsedStringRareTerms.class.getSimpleName(), true, ParsedStringRareTerms::new);
+    private static final ObjectParser<ParsedStringRareTerms, Void> PARSER = new ObjectParser<>(
+        ParsedStringRareTerms.class.getSimpleName(),
+        true,
+        ParsedStringRareTerms::new
+    );
 
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);

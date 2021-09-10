@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
@@ -351,7 +352,7 @@ public class IndexNameExpressionResolver {
 
         if (resolvedSystemIndices.isEmpty() == false) {
             Collections.sort(resolvedSystemIndices);
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", resolvedSystemIndices);
         }
@@ -784,6 +785,10 @@ public class IndexNameExpressionResolver {
             systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         }
         return systemIndexAccessLevelPredicate;
+    }
+
+    public Automaton getSystemNameAutomaton() {
+        return systemIndices.getSystemNameAutomaton();
     }
 
     public Predicate<String> getNetNewSystemIndexPredicate() {

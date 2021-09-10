@@ -40,8 +40,13 @@ abstract class SortedDocsProducer {
      * Returns true if the queue is full and the current <code>leadSourceBucket</code> did not produce any competitive
      * composite buckets.
      */
-    protected boolean processBucket(CompositeValuesCollectorQueue queue, LeafReaderContext context, DocIdSetIterator iterator,
-                                    Comparable<?> leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
+    protected boolean processBucket(
+        CompositeValuesCollectorQueue queue,
+        LeafReaderContext context,
+        DocIdSetIterator iterator,
+        Comparable<?> leadSourceBucket,
+        @Nullable DocIdSetBuilder builder
+    ) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
         final DocCountProvider docCountProvider = new DocCountProvider();
@@ -69,7 +74,7 @@ abstract class SortedDocsProducer {
                             remainingBits = 128;
                         }
                         adder.add(doc);
-                        remainingBits --;
+                        remainingBits--;
                         lastDoc = doc;
                     }
                 }
@@ -82,9 +87,7 @@ abstract class SortedDocsProducer {
                 collector.collect(iterator.docID());
             }
         }
-        if (queue.isFull() &&
-                hasCollected[0] &&
-                topCompositeCollected[0] == 0) {
+        if (queue.isFull() && hasCollected[0] && topCompositeCollected[0] == 0) {
             return true;
         }
         return false;
@@ -95,6 +98,6 @@ abstract class SortedDocsProducer {
      * Returns the {@link DocIdSet} of the documents that contain a top composite bucket in this leaf or
      * {@link DocIdSet#EMPTY} if <code>fillDocIdSet</code> is false.
      */
-    abstract DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue,
-                                  LeafReaderContext context, boolean fillDocIdSet) throws IOException;
+    abstract DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet)
+        throws IOException;
 }

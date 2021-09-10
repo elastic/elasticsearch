@@ -113,7 +113,10 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.indices.recovery.plan.SnapshotsRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -303,7 +306,7 @@ public class Node implements Closeable {
                 logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
@@ -317,7 +320,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
@@ -669,8 +672,7 @@ public class Node implements Closeable {
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(
-                        namedWriteableRegistry, searchService::aggReduceContextBuilder));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
@@ -682,10 +684,18 @@ public class Node implements Closeable {
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
+                        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
+                            repositoryService,
+                            threadPool,
+                            clusterService
+                        );
+                        final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
+                        final SnapshotFilesProvider snapshotFilesProvider =
+                            new SnapshotFilesProvider(repositoryService);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
-                            indicesService, recoverySettings, SourceOnlyRecoveryPlannerService.INSTANCE));
+                            indicesService, recoverySettings, recoveryPlannerService));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,
-                            transportService, recoverySettings, clusterService));
+                            transportService, recoverySettings, clusterService, snapshotFilesProvider));
                     }
                     b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                     pluginComponents.forEach(p -> {

@@ -119,7 +119,6 @@ public class Netty4Transport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
-            super.doStart();
             success = true;
         } finally {
             if (success == false) {

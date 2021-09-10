@@ -90,7 +90,7 @@ public class IpFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, indexed, hasDocValues);
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .setValidator(v -> {
+                .addValidator(v -> {
                     if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                         throw new IllegalArgumentException(
                             "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
@@ -120,7 +120,7 @@ public class IpFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
+                    DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
                         nullValue.getValue() + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;
                 }
@@ -144,11 +144,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(ContentPath contentPath) {
+        public IpFieldMapper build(MapperBuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+                new IpFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue(), dimension.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
     }
@@ -355,6 +355,11 @@ public class IpFieldMapper extends FieldMapper {
             public int size() {
                 return count;
             }
+
+            @Override
+            public org.elasticsearch.script.Field<String> toField(String fieldName) {
+                return new org.elasticsearch.script.Field.IpField(fieldName, this);
+            }
         }
 
         @Override
@@ -373,13 +378,8 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return DocValueFormat.IP;
         }
 

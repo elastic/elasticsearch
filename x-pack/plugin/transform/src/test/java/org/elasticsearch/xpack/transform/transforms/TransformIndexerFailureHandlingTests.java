@@ -29,7 +29,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -176,7 +177,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest());
+                SearchResponse response = searchFunction.apply(buildSearchRequest().v2());
                 nextPhase.onResponse(response);
             } catch (Exception e) {
                 nextPhase.onFailure(e);
@@ -242,7 +243,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                         // Simulate completely null aggs
                         null,
                         new Suggest(Collections.emptyList()),
-                        new SearchProfileShardResults(Collections.emptyMap()),
+                        new SearchProfileResults(Collections.emptyMap()),
                         false,
                         false,
                         1
@@ -308,7 +309,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
             null
@@ -382,7 +383,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
             null
@@ -393,7 +394,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 // Simulate completely null aggs
                 null,
                 new Suggest(Collections.emptyList()),
-                new SearchProfileShardResults(Collections.emptyMap()),
+                new SearchProfileResults(Collections.emptyMap()),
                 false,
                 false,
                 1
@@ -445,7 +446,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
             null
@@ -540,7 +541,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 // Simulate completely null aggs
                 null,
                 new Suggest(Collections.emptyList()),
-                new SearchProfileShardResults(Collections.emptyMap()),
+                new SearchProfileResults(Collections.emptyMap()),
                 false,
                 false,
                 1
@@ -641,7 +642,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 // Simulate completely null aggs
                 null,
                 new Suggest(Collections.emptyList()),
-                new SearchProfileShardResults(Collections.emptyMap()),
+                new SearchProfileResults(Collections.emptyMap()),
                 false,
                 false,
                 1
@@ -723,7 +724,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomSourceConfig(),
             randomDestConfig(),
             null,
-            null,
+            new TimeSyncConfig("time", TimeSyncConfig.DEFAULT_DELAY),
             null,
             randomPivotConfig(),
             null,
@@ -740,7 +741,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 // Simulate completely null aggs
                 null,
                 new Suggest(Collections.emptyList()),
-                new SearchProfileShardResults(Collections.emptyMap()),
+                new SearchProfileResults(Collections.emptyMap()),
                 false,
                 false,
                 1
@@ -815,7 +816,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         indexer.start();
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
         assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
         secondLatch.countDown();

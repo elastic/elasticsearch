@@ -24,7 +24,6 @@ import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
@@ -43,13 +42,13 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     }
 
     @AfterClass
-    public static void tearDownHttpClient() throws IOException {
+    public static void tearDownHttpClient() {
         factory.close();
     }
 
     @Override
-    protected String downloadStorageEndpoint(String blob) {
-        return "/" + blob;
+    protected String downloadStorageEndpoint(BlobContainer container, String blob) {
+        return "/" + container.path().buildAsString() + blob;
     }
 
     @Override
@@ -74,8 +73,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     protected BlobContainer createBlobContainer(Integer maxRetries,
                                                 TimeValue readTimeout,
                                                 Boolean disableChunkedEncoding,
-                                                ByteSizeValue bufferSize,
-                                                BlobPath path) {
+                                                ByteSizeValue bufferSize) {
         Settings.Builder settingsBuilder = Settings.builder();
 
         if (maxRetries != null) {
@@ -91,7 +89,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
             URLBlobStore urlBlobStore =
                 new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
-            return urlBlobStore.blobContainer(path == null ? BlobPath.EMPTY : path);
+            return urlBlobStore.blobContainer(BlobPath.EMPTY);
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

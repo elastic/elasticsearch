@@ -32,7 +32,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.NodeClosedException;
@@ -52,7 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -201,15 +199,6 @@ public class TransportService extends AbstractLifecycleComponent
         return new TaskManager(settings, threadPool, taskHeaders);
     }
 
-    /**
-     * The executor service for this transport service.
-     *
-     * @return the executor service
-     */
-    private ExecutorService getExecutorService() {
-        return threadPool.generic();
-    }
-
     void setTracerLogInclude(List<String> tracerLogInclude) {
         this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
@@ -247,33 +236,14 @@ public class TransportService extends AbstractLifecycleComponent
             // in case the transport is not connected to our local node (thus cleaned on node disconnect)
             // make sure to clean any leftover on going handles
             for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
-                // callback that an exception happened, but on a different thread since we don't
-                // want handlers to worry about stack overflows
-                getExecutorService().execute(new AbstractRunnable() {
-                    @Override
-                    public void onRejection(Exception e) {
-                        // if we get rejected during node shutdown we don't wanna bubble it up
-                        logger.debug(
-                            () -> new ParameterizedMessage(
-                                "failed to notify response handler on rejection, action: {}",
-                                holderToNotify.action()),
-                            e);
-                    }
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to notify response handler on exception, action: {}",
-                                holderToNotify.action()),
-                            e);
-                    }
-                    @Override
-                    public void doRun() {
-                        TransportException ex = new SendRequestTransportException(holderToNotify.connection().getNode(),
-                            holderToNotify.action(), new NodeClosedException(localNode));
-                        holderToNotify.handler().handleException(ex);
-                    }
-                });
+                try {
+                    holderToNotify.handler().handleException(new SendRequestTransportException(holderToNotify.connection().getNode(),
+                            holderToNotify.action(), new NodeClosedException(localNode)));
+                } catch (Exception e) {
+                    assert false : e;
+                    logger.warn(() -> new ParameterizedMessage("failed to notify response handler on exception, action: {}",
+                            holderToNotify.action()), e);
+                }
             }
         }
     }
@@ -1023,29 +993,33 @@ public class TransportService extends AbstractLifecycleComponent
 
     @Override
     public void onConnectionClosed(Transport.Connection connection) {
-        try {
-            List<Transport.ResponseContext<? extends TransportResponse>> pruned =
+        List<Transport.ResponseContext<? extends TransportResponse>> pruned =
                 responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));
-            // callback that an exception happened, but on a different thread since we don't
-            // want handlers to worry about stack overflows
-            getExecutorService().execute(new Runnable() {
-                @Override
-                @SuppressWarnings("rawtypes")
-                public void run() {
-                    for (Transport.ResponseContext holderToNotify : pruned) {
-                        holderToNotify.handler().handleException(
-                            new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
-                    }
-                }
-
-                @Override
-                public String toString() {
-                    return "onConnectionClosed(" + connection.getNode() + ")";
-                }
-            });
-        } catch (EsRejectedExecutionException ex) {
-            logger.debug("Rejected execution on onConnectionClosed", ex);
+        if (pruned.isEmpty()) {
+            return;
         }
+
+        // callback that an exception happened, but on a different thread since we don't
+        // want handlers to worry about stack overflows
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            public void doRun() {
+                for (Transport.ResponseContext<?> holderToNotify : pruned) {
+                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+                logger.warn(() -> new ParameterizedMessage("failed to notify response handler on connection close [{}]", connection), e);
+            }
+
+            @Override
+            public String toString() {
+                return "onConnectionClosed(" + connection.getNode() + ")";
+            }
+        });
     }
 
     final class TimeoutHandler implements Runnable {

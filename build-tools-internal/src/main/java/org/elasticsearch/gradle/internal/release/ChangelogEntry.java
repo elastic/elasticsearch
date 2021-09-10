@@ -37,7 +37,6 @@ public class ChangelogEntry {
     private Highlight highlight;
     private Breaking breaking;
     private Deprecation deprecation;
-    private List<String> versions;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
@@ -113,14 +112,6 @@ public class ChangelogEntry {
         this.deprecation = deprecation;
     }
 
-    public List<String> getVersions() {
-        return versions;
-    }
-
-    public void setVersions(List<String> versions) {
-        this.versions = versions;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -136,20 +127,19 @@ public class ChangelogEntry {
             && Objects.equals(type, that.type)
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
-            && Objects.equals(breaking, that.breaking)
-            && Objects.equals(versions, that.versions);
+            && Objects.equals(breaking, that.breaking);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, versions);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking);
     }
 
     @Override
     public String toString() {
         return String.format(
             Locale.ROOT,
-            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s versions=%s}",
+            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s}",
             pr,
             issues,
             area,
@@ -157,8 +147,7 @@ public class ChangelogEntry {
             summary,
             highlight,
             breaking,
-            deprecation,
-            versions
+            deprecation
         );
     }
 

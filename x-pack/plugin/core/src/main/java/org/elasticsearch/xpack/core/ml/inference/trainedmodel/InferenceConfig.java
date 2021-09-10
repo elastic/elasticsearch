@@ -23,4 +23,6 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
     default boolean requestingImportance() {
         return false;
     }
+
+    boolean isAllocateOnly();
 }

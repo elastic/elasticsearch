@@ -216,13 +216,12 @@ public class RetryTests extends ESTestCase {
         }
 
         private BulkItemResponse successfulResponse() {
-            return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse(
-                new ShardId("test", "test", 0), "test", 0, 0, 0, false));
+            return BulkItemResponse.success(1, OpType.DELETE, new DeleteResponse(new ShardId("test", "test", 0), "test", 0, 0, 0, false));
         }
 
         private BulkItemResponse failedResponse() {
-            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "1",
-                new EsRejectedExecutionException("pool full")));
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test", "1", new EsRejectedExecutionException("pool full"));
+            return BulkItemResponse.failure(1, OpType.INDEX, failure);
         }
     }
 }

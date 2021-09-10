@@ -8,7 +8,7 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -26,6 +26,10 @@ testClusters.all {
 configurations {
   spi
   compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    // Eclipse buildship doesn't know about compileOnlyApi
+    api.extendsFrom(spi)
+  }
 }
 
 dependencies {
@@ -54,16 +58,11 @@ tasks.named("test").configure {
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
-tasks.named("yamlRestCompatTest").configure {
-    systemProperty 'tests.rest.blacklist', [
-    ].join(',')
-}
-
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
-  classpath = sourceSets.main.runtimeClasspath + configurations.spi.classpath
+  classpath = sourceSets.main.compileClasspath + sourceSets.main.output
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
@@ -74,6 +73,9 @@ tasks.register("apiJavadocJar", Jar) {
 }
 
 tasks.named("assemble").configure {
+  dependsOn "apiJavadocJar"
+}
+tasks.named("check").configure {
   dependsOn "apiJavadocJar"
 }
 
@@ -160,7 +162,17 @@ dependencies {
 }
 
 String grammarPath = 'src/main/antlr'
+// TODO: we shouldn't be generating files into the main source directory. Then we wouldn't
+// need to customize the spotless config below.
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {

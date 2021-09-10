@@ -54,6 +54,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
@@ -1402,7 +1403,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     finalizeSnapshotContext::updatedClusterState,
                     ActionListener.wrap(newRepoData -> {
                         if (writeShardGens) {
-                            cleanupOldShardGens(existingRepositoryData, newRepoData);
+                            cleanupOldShardGens(existingRepositoryData, newRepoData, finalizeSnapshotContext);
                         }
                         finalizeSnapshotContext.onResponse(Tuple.tuple(newRepoData, snapshotInfo));
                     }, onUpdateFailure)
@@ -1457,8 +1458,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
-    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
-        final List<String> toDelete = new ArrayList<>();
+    private void cleanupOldShardGens(
+        RepositoryData existingRepositoryData,
+        RepositoryData updatedRepositoryData,
+        FinalizeSnapshotContext finalizeSnapshotContext
+    ) {
+        final Set<String> toDelete = new HashSet<>();
         final int prefixPathLen = basePath().buildAsString().length();
         updatedRepositoryData.shardGenerations()
             .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
@@ -1469,6 +1474,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     )
                 )
             );
+        for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
+            .entrySet()) {
+            final String containerPath = shardContainer(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).path()
+                .buildAsString()
+                .substring(prefixPathLen) + INDEX_FILE_PREFIX;
+            for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
+                toDelete.add(containerPath + shardGeneration);
+            }
+        }
         try {
             deleteFromContainer(blobContainer(), toDelete.iterator());
         } catch (Exception e) {
@@ -2537,7 +2551,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private for testing
     long readSnapshotIndexLatestBlob() throws IOException {
-        return Numbers.bytesToLong(Streams.readFully(blobContainer().readBlob(INDEX_LATEST_BLOB)).toBytesRef());
+        final BytesReference content = Streams.readFully(Streams.limitStream(blobContainer().readBlob(INDEX_LATEST_BLOB), Long.BYTES + 1));
+        if (content.length() != Long.BYTES) {
+            throw new RepositoryException(
+                metadata.name(),
+                "exception reading blob ["
+                    + INDEX_LATEST_BLOB
+                    + "]: expected 8 bytes but blob was "
+                    + (content.length() < Long.BYTES ? content.length() + " bytes" : "longer")
+            );
+        }
+        return Numbers.bytesToLong(content.toBytesRef());
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {
@@ -3438,6 +3462,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public boolean hasAtomicOverwrites() {
         return true;
+    }
+
+    public int getReadBufferSizeInBytes() {
+        return bufferSize;
     }
 
     /**

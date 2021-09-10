@@ -393,7 +393,7 @@ The loss function used during {regression}. Available options are `mse` (mean
 squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber
 loss). Defaults to `mse`.
 Refer to
-{ml-docs}/ml-dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses]
+{ml-docs}/dfa-regression-lossfunction.html[Loss functions for {regression} analyses]
 to learn more.
 
 `loss_function_parameter`::::

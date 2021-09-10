@@ -655,6 +655,30 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testCopyToWithNullValue() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b ->
+            b.startObject("properties")
+                .startObject("keyword_copy")
+                    .field("type", "keyword")
+                    .field("null_value", "default-value")
+                .endObject()
+                .startObject("keyword")
+                    .field("type", "keyword")
+                    .array("copy_to", "keyword_copy")
+                .endObject()
+            .endObject()));
+
+        BytesReference json = BytesReference.bytes(jsonBuilder().startObject()
+                .nullField("keyword")
+            .endObject());
+
+        LuceneDocument document = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        assertEquals(0, document.getFields("keyword").length);
+
+        IndexableField[] fields = document.getFields("keyword_copy");
+        assertEquals(2, fields.length);
+    }
+
     public void testCopyToGeoPoint() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
                 b.startObject("properties");

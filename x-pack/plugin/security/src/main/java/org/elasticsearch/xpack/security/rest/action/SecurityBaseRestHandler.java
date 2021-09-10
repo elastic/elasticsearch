@@ -22,7 +22,7 @@ import java.io.IOException;
  */
 public abstract class SecurityBaseRestHandler extends BaseRestHandler {
 
-    private final Settings settings;
+    protected final Settings settings;
     protected final XPackLicenseState licenseState;
 
     /**

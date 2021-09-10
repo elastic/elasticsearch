@@ -54,7 +54,6 @@ public class SharedBytes extends AbstractRefCounted {
 
     SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
         throws IOException {
-        super("shared-bytes");
         this.numRegions = numRegions;
         this.regionSize = regionSize;
         final long fileSize = numRegions * regionSize;
@@ -158,7 +157,6 @@ public class SharedBytes extends AbstractRefCounted {
         private final long pageStart;
 
         private IO(final int sharedBytesPos) {
-            super("shared-bytes-io");
             this.sharedBytesPos = sharedBytesPos;
             pageStart = getPhysicalOffset(sharedBytesPos);
         }

@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -194,23 +193,6 @@ public abstract class PeerFinder {
 
     public List<TransportAddress> getLastResolvedAddresses() {
         return lastResolvedAddresses;
-    }
-
-    public interface TransportAddressConnector {
-        /**
-         * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
-         */
-        void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
-    }
-
-    public interface ConfiguredHostsResolver {
-        /**
-         * Attempt to resolve the configured hosts list to a list of transport addresses.
-         *
-         * @param consumer Consumer for the resolved list. May not be called if an error occurs or if another resolution attempt is in
-         *                 progress.
-         */
-        void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer);
     }
 
     public Iterable<DiscoveryNode> getFoundPeers() {

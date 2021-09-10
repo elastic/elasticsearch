@@ -12,6 +12,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.Field;
+import org.elasticsearch.script.FieldValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
@@ -114,6 +116,17 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         @Override
         public int size() {
             return value == null ? 0 : 1;
+        }
+
+        @Override
+        public Field<GeoShapeValues.GeoShapeValue> toField(String fieldName) {
+            return new GeoShapeField(fieldName, this);
+        }
+    }
+
+    public static class GeoShapeField extends Field<GeoShapeValues.GeoShapeValue> {
+        public GeoShapeField(String name, FieldValues<GeoShapeValues.GeoShapeValue> values) {
+            super(name, values);
         }
     }
 }

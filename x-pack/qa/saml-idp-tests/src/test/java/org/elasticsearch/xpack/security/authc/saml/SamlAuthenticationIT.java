@@ -60,7 +60,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.security.SecureRandom;
-import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -462,8 +461,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
 
     private SSLContext getClientSslContext() throws Exception {
         final Path pem = getDataPath("/idp-browser.pem");
-        final Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(pem));
-        final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(certificates);
+        final X509ExtendedTrustManager trustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(pem));
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());
         return context;

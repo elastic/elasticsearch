@@ -12,6 +12,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetSnapshotsRequestTests extends ESTestCase {
 
@@ -61,5 +62,18 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
+        {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").policies("some-policy").verbose(false);
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("can't use slm policy filter with verbose=false"));
+        }
+    }
+
+    public void testGetDescription() {
+        final GetSnapshotsRequest request = new GetSnapshotsRequest(
+            new String[] { "repo1", "repo2" },
+            new String[] { "snapshotA", "snapshotB" }
+        );
+        assertThat(request.getDescription(), equalTo("repositories[repo1,repo2], snapshots[snapshotA,snapshotB]"));
     }
 }

@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -31,10 +32,14 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class Grok {
+
+    public static final String[] ECS_COMPATIBILITY_MODES = {"disabled", "v1"};
+
     /**
      * Patterns built in to the grok library.
      */
-    public static final Map<String, String> BUILTIN_PATTERNS = loadBuiltinPatterns();
+    private static Map<String, String> LEGACY_PATTERNS;
+    private static Map<String, String> ECS_V1_PATTERNS;
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
@@ -296,16 +301,51 @@ public final class Grok {
     /**
      * Load built-in patterns.
      */
-    private static Map<String, String> loadBuiltinPatterns() {
-        String[] patternNames = new String[] {
+    public static synchronized Map<String, String> getBuiltinPatterns(boolean ecsCompatibility) {
+        if (ecsCompatibility) {
+            if (ECS_V1_PATTERNS == null) {
+                ECS_V1_PATTERNS = loadPatterns(ecsCompatibility);
+            }
+            return ECS_V1_PATTERNS;
+        } else {
+            if (LEGACY_PATTERNS == null) {
+                LEGACY_PATTERNS = loadPatterns(ecsCompatibility);
+            }
+            return LEGACY_PATTERNS;
+        }
+    }
+
+    public static Map<String, String> getBuiltinPatterns(String ecsCompatibility) {
+        if (isValidEcsCompatibilityMode(ecsCompatibility)) {
+            return getBuiltinPatterns(ECS_COMPATIBILITY_MODES[1].equals(ecsCompatibility));
+        } else {
+            throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
+        }
+    }
+
+    public static boolean isValidEcsCompatibilityMode(String ecsCompatibility) {
+        return Arrays.asList(ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
+    }
+
+    private static Map<String, String> loadPatterns(boolean ecsCompatibility) {
+        String[] legacyPatternNames = {
             "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-            "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
+            "httpd", "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
             "postgresql", "rails", "redis", "ruby", "squid"
         };
+        String[] ecsPatternNames = {
+            "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+            "httpd", "java", "junos", "linux-syslog", "maven", "mcollective", "mongodb", "nagios",
+            "postgresql", "rails", "redis", "ruby", "squid", "zeek"
+        };
+
+        String[] patternNames = ecsCompatibility ? ecsPatternNames : legacyPatternNames;
+        String directory = ecsCompatibility ? "/patterns/ecs-v1/" : "/patterns/legacy/";
+
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
         for (String pattern : patternNames) {
             try {
-                try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                try (InputStream is = Grok.class.getResourceAsStream(directory + pattern)) {
                     loadPatterns(builtinPatterns, is);
                 }
             } catch (IOException e) {

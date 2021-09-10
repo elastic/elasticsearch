@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.Map;
@@ -15,6 +17,12 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class SearchableSnapshotsConstants {
+
+    // This should really be in the searchable-snapshots module, but ILM needs access to it
+    // to short-circuit if not allowed. We should consider making the coupling looser,
+    // perhaps through SPI.
+    public static final LicensedFeature.Momentary SEARCHABLE_SNAPSHOT_FEATURE =
+        LicensedFeature.momentary(null, "searchable-snapshots", License.OperationMode.PLATINUM);
 
     public static final Setting<Boolean> SNAPSHOT_PARTIAL_SETTING = Setting.boolSetting(
         SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY,

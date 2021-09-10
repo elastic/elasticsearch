@@ -99,8 +99,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
                     public boolean advanceExact(int target) throws IOException {
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

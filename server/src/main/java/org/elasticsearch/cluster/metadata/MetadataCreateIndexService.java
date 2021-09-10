@@ -48,7 +48,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -69,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -204,7 +202,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "index_name_starts_with_dot",
+                deprecationLogger.critical(DeprecationCategory.INDICES, "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -366,7 +364,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
+                    deprecationLogger.critical(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -796,6 +794,7 @@ public class MetadataCreateIndexService {
         validateSoftDeleteSettings(indexSettings);
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSetting(indexSettings);
+        validateNoCustomPath(indexSettings);
         return indexSettings;
     }
 
@@ -1047,7 +1046,7 @@ public class MetadataCreateIndexService {
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
-        List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataFile());
+        List<String> validationErrors = new ArrayList<>();
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
@@ -1068,27 +1067,16 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates that the configured index data path (if any) is a sub-path of the configured shared data path (if any)
+     * Validates an index data path is not specified.
      *
      * @param settings the index configured settings
-     * @param sharedDataPath the configured `path.shared_data` (if any)
-     * @return a list containing validaton errors or an empty list if there aren't any errors
      */
-    private static List<String> validateIndexCustomPath(Settings settings, @Nullable Path sharedDataPath) {
-        String customPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
-        List<String> validationErrors = new ArrayList<>();
-        if (Strings.isEmpty(customPath) == false) {
-            if (sharedDataPath == null) {
-                validationErrors.add("path.shared_data must be set in order to use custom data paths");
-            } else {
-                Path resolvedPath = PathUtils.get(new Path[]{sharedDataPath}, customPath);
-                if (resolvedPath == null) {
-                    validationErrors.add("custom path [" + customPath +
-                        "] is not a sub-path of path.shared_data [" + sharedDataPath + "]");
-                }
-            }
+    static void validateNoCustomPath(Settings settings) {
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_8_0_0) &&
+            IndexMetadata.INDEX_DATA_PATH_SETTING.exists(settings)) {
+            throw new IllegalArgumentException("per-index custom data path using setting ["
+                + IndexMetadata.INDEX_DATA_PATH_SETTING.getKey() + "] is no longer supported on new indices");
         }
-        return validationErrors;
     }
 
     /**
@@ -1274,16 +1262,19 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
-                "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+            deprecationLogger.critical(
+                DeprecationCategory.SETTINGS,
+                "translog_retention",
+                "Translog retention settings [index.translog.retention.age] and [index.translog.retention.size] are deprecated and "
+                    + "effectively ignored. They will be removed in a future version."
+            );
         }
     }
 
     public static void validateStoreTypeSetting(Settings indexSettings) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+            deprecationLogger.critical(DeprecationCategory.SETTINGS, "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
                     "or equivalent performance to [simplefs].");

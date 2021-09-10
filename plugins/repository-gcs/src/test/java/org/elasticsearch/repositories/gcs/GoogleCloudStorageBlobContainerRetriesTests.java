@@ -82,8 +82,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     @Override
-    protected String downloadStorageEndpoint(String blob) {
-        return "/download/storage/v1/b/bucket/o/" + blob;
+    protected String downloadStorageEndpoint(BlobContainer container, String blob) {
+        return "/download/storage/v1/b/bucket/o/" + container.path().buildAsString() + blob;
     }
 
     @Override
@@ -100,8 +100,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     protected BlobContainer createBlobContainer(final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
-        final @Nullable ByteSizeValue bufferSize,
-        final @Nullable BlobPath path) {
+        final @Nullable ByteSizeValue bufferSize) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(client).getKey(), httpServerUrl());
@@ -144,16 +143,18 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
             BigArrays.NON_RECYCLING_INSTANCE, randomIntBetween(1, 8) * 1024);
 
-        return new GoogleCloudStorageBlobContainer(BlobPath.EMPTY, blobStore);
+        return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
     }
 
     public void testReadLargeBlobWithRetries() throws Exception {
         final int maxRetries = randomIntBetween(2, 10);
         final AtomicInteger countDown = new AtomicInteger(maxRetries);
 
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+
         // SDK reads in 2 MB chunks so we use twice that to simulate 2 chunks
         final byte[] bytes = randomBytes(1 << 22);
-        httpServer.createContext("/download/storage/v1/b/bucket/o/large_blob_retries", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
             final Tuple<Long, Long> range = getRange(exchange);
@@ -169,7 +170,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.close();
         });
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
         try (InputStream inputStream = blobContainer.readBlob("large_blob_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
@@ -179,13 +179,14 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final int maxRetries = randomIntBetween(2, 10);
         final CountDown countDown = new CountDown(maxRetries);
 
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
                 Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
                 assertThat(content.isPresent(), is(true));
-                assertThat(content.get().v1(), equalTo("write_blob_max_retries"));
+                assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
                     byte[] response = ("{\"bucket\":\"bucket\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -206,7 +207,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         }));
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
@@ -216,7 +216,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     public void testWriteBlobWithReadTimeouts() {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
@@ -263,6 +263,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final AtomicReference<String> sessionUploadId = new AtomicReference<>(UUIDs.randomBase64UUID());
         logger.debug("starting with resumable upload id [{}]", sessionUploadId.get());
 
+        final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
+        final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null);
+
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
 
@@ -271,7 +274,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             assertThat(params.get("uploadType"), equalTo("resumable"));
 
             if ("POST".equals(exchange.getRequestMethod())) {
-                assertThat(params.get("name"), equalTo("write_large_blob"));
+                assertThat(params.get("name"), equalTo(blobContainer.path().buildAsString() + "write_large_blob"));
                 if (countInits.decrementAndGet() <= 0) {
                     byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -356,9 +359,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         }));
 
-        final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
-
-        final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null, null);
         if (randomBoolean()) {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
                 blobContainer.writeBlob("write_large_blob", stream, data.length, false);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.List;
@@ -35,6 +36,7 @@ final class ElasticServiceAccounts {
                     .builder()
                     .indices(".fleet-*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure")
+                    .allowRestrictedIndices(true)
                     .build()
             },
             null,
@@ -43,9 +45,11 @@ final class ElasticServiceAccounts {
             null,
             null
         ));
+    private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT =
+        new ElasticServiceAccount("kibana", ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana"));
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
-        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));;
+    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT).stream()
+        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
     private ElasticServiceAccounts() {}
 

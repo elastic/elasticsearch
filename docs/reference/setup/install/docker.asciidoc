@@ -451,7 +451,6 @@ elasticsearch:
       target: /usr/share/elasticsearch/config/elasticsearch.keystore
 ----
 
-
 [[_c_customized_image]]
 ===== Using custom Docker images
 In some environments, it might make more sense to prepare a custom image that contains

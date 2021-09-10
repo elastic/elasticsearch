@@ -27,7 +27,7 @@ public class DeprecationIssueTests extends ESTestCase {
 
     private DeprecationIssue issue;
 
-    public static DeprecationIssue createTestInstance() {
+    static DeprecationIssue createTestInstance() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(Level.values()), randomAlphaOfLength(10),
             randomAlphaOfLength(10), details, randomBoolean(),

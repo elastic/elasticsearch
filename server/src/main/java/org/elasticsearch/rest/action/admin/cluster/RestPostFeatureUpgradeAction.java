@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
+import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -16,15 +16,15 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.List;
 
-public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
+public class RestPostFeatureUpgradeAction extends BaseRestHandler {
     @Override
     public String getName() {
-        return "get_feature_upgrade_status";
+        return "post_feature_upgrade";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_migration/system_features"));
+        return List.of(new Route(RestRequest.Method.POST, "/_migration/system_features"));
     }
 
     @Override
@@ -35,6 +35,6 @@ public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
-        return restChannel -> client.execute(null, new GetFeatureUpgradeStatusRequest());
+        return restChannel -> client.execute(null, new PostFeatureUpgradeRequest());
     }
 }

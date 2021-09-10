@@ -14,13 +14,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class GetFeatureUpgradeStatusRequest extends MasterNodeRequest<GetFeatureUpgradeStatusRequest> {
+public class PostFeatureUpgradeRequest extends MasterNodeRequest<PostFeatureUpgradeRequest> {
 
-    public GetFeatureUpgradeStatusRequest() {
+    public PostFeatureUpgradeRequest() {
         super();
     }
 
-    public GetFeatureUpgradeStatusRequest(StreamInput in) throws IOException {
+    public PostFeatureUpgradeRequest(StreamInput in) throws IOException {
         super(in);
     }
 

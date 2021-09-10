@@ -63,7 +63,7 @@ public class Docker {
 
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
-    public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
+    public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 2000;
     public static final int STARTUP_ATTEMPTS_MAX = 10;
 
     /**
@@ -153,7 +153,7 @@ public class Docker {
 
         do {
             try {
-                // Give the container a chance to crash out
+                // Give the container enough time for security auto-configuration or a chance to crash out or
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
                 // Set COLUMNS so that `ps` doesn't truncate its output

@@ -25,7 +25,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -66,8 +65,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -160,10 +157,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public Supplier<CircuitBreaker> getInflightBreaker() {
         return () -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-    }
-
-    @Override
-    protected void doStart() {
     }
 
     @Override
@@ -288,8 +281,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                                ActionListener<Transport.Connection> listener) {
+    private void initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                    ActionListener<Connection> listener) {
         int numConnections = connectionProfile.getNumConnections();
         assert numConnections > 0 : "A connection profile must be configured with at least one connection";
 
@@ -303,11 +296,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             } catch (ConnectTransportException e) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(e);
-                return channels;
+                return;
             } catch (Exception e) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));
-                return channels;
+                return;
             }
         }
 
@@ -320,7 +313,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
         threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
-        return channels;
     }
 
     @Override
@@ -559,42 +551,31 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     protected final void doStop() {
-        final CountDownLatch latch = new CountDownLatch(1);
-        // make sure we run it on another thread than a possible IO handler thread
+        assert Transports.assertNotTransportThread("Must not block transport thread that might be needed for closing channels below");
         assert threadPool.generic().isShutdown() == false : "Must stop transport before terminating underlying threadpool";
-        threadPool.generic().execute(() -> {
-            closeLock.writeLock().lock();
-            try {
-                keepAlive.close();
+        closeLock.writeLock().lock();
+        try {
+            keepAlive.close();
 
-                // first stop to accept any incoming connections so nobody can connect to this transport
-                for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
-                    String profile = entry.getKey();
-                    List<TcpServerChannel> channels = entry.getValue();
-                    ActionListener<Void> closeFailLogger = ActionListener.wrap(c -> {
+            // first stop to accept any incoming connections so nobody can connect to this transport
+            for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
+                String profile = entry.getKey();
+                List<TcpServerChannel> channels = entry.getValue();
+                ActionListener<Void> closeFailLogger = ActionListener.wrap(c -> {
                         },
                         e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e));
-                    channels.forEach(c -> c.addCloseListener(closeFailLogger));
-                    CloseableChannel.closeChannels(channels, true);
-                }
-                serverChannels.clear();
-
-                // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
-                CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
-                acceptedChannels.clear();
-
-                stopInternal();
-            } finally {
-                closeLock.writeLock().unlock();
-                latch.countDown();
+                channels.forEach(c -> c.addCloseListener(closeFailLogger));
+                CloseableChannel.closeChannels(channels, true);
             }
-        });
+            serverChannels.clear();
 
-        try {
-            latch.await(30, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            // ignore
+            // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
+            CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
+            acceptedChannels.clear();
+
+            stopInternal();
+        } finally {
+            closeLock.writeLock().unlock();
         }
     }
 
@@ -845,7 +826,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public final TransportStats getStats() {
-        final MeanMetric writeBytesMetric = statsTracker.getWriteBytes();
         final long bytesWritten = statsTracker.getBytesWritten();
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();

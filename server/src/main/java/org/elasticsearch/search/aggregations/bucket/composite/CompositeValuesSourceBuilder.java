@@ -303,6 +303,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected abstract ValuesSourceType getDefaultValuesSourceType();
 
     public final CompositeValuesSourceConfig build(AggregationContext context) throws IOException {
+        if (missingBucket == false && missingOrder != MissingOrder.DEFAULT) {
+            throw new IllegalArgumentException("missingOrder can only be set if missingBucket is true");
+        }
+
         ValuesSourceConfig config = ValuesSourceConfig.resolve(
             context,
             userValueTypeHint,

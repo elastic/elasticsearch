@@ -1337,6 +1337,7 @@ setup:
       version: " - 7.99.0"
       reason: "`missing_order` has been introduced in 7.16"
   - do:
+      catch: /missingOrder can only be set if missingBucket is true/
       search:
         rest_total_hits_as_int: true
         index: test
@@ -1354,10 +1355,6 @@ setup:
                     }
                 ]
 
-  - length: { aggregations.test.buckets: 2 }
-  - match: { aggregations.test.buckets.0.key.kw: "bar" }
-  - match: { aggregations.test.buckets.1.key.kw: "foo" }
-
 ---
 "missing_order without missing_bucket":
   - skip:
@@ -1365,6 +1362,7 @@ setup:
       version: " - 7.99.0"
       reason: "`missing_order` has been introduced in 7.16"
   - do:
+      catch: /missingOrder can only be set if missingBucket is true/
       search:
         rest_total_hits_as_int: true
         index: test
@@ -1376,14 +1374,10 @@ setup:
                     "kw": {
                       "terms": {
                         "field": "keyword",
-                        "missing_order": "first" # ignored because missing_bucket is not true
+                        "missing_order": "first"
                       }
                     }
                 ]
-
-  - length: { aggregations.test.buckets: 2 }
-  - match: { aggregations.test.buckets.0.key.kw: "bar" }
-  - match: { aggregations.test.buckets.1.key.kw: "foo" }
 
 ---
 "Nested Composite aggregation with missing_order":

@@ -365,8 +365,8 @@ public class ServerUtils {
         Path yamlFile = installation.config("elasticsearch.yml");
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yamlFile).stream()) {
-            lines = allLines.filter(l -> l.startsWith("xpack.security.http.ssl.enabled:") == false)
-                .filter(l -> l.startsWith("xpack.security.transport.ssl.enabled:") == false)
+            lines = allLines.filter(l -> l.startsWith("xpack.security.http.ssl") == false)
+                .filter(l -> l.startsWith("xpack.security.transport.ssl") == false)
                 .filter(l -> l.startsWith("xpack.security.enabled:") == false)
                 .collect(Collectors.toList());
         }

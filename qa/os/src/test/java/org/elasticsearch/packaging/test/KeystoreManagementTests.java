@@ -334,9 +334,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // Elasticsearch was auto-configured for security. We need to remove that configuration as it depended on settings in the previous
         // keystore
         ServerUtils.disableSecurityFeatures(installation);
-        Path yamlFile = installation.config("elasticsearch.yml");
-        logger.info("DEBUG OUTPUT IOANNIS:");
-        logger.info(Files.readString(yamlFile));
+
         startElasticsearch();
         stopElasticsearch();
 

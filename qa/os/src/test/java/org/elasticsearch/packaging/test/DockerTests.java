@@ -127,13 +127,13 @@ public class DockerTests extends PackagingTestCase {
         } catch (Exception e) {
             // couldn't get the file.
         }
+        waitForElasticsearch(installation, USERNAME, PASSWORD, httpCaPath);
         final int statusCode = ServerUtils.makeRequestAndGetStatus(
             Request.Get("https://localhost:9200"),
             USERNAME,
             "wrong_password",
             httpCaPath
         );
-        waitForElasticsearch(installation, USERNAME, PASSWORD, httpCaPath);
         assertThat(statusCode, equalTo(401));
     }
 

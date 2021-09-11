@@ -120,7 +120,6 @@ public class DockerTests extends PackagingTestCase {
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
         Path httpCaPath = null;
         try {
             httpCaPath = Path.of(findInContainer(installation.config, "dir", "tls_auto_config*"));
@@ -134,6 +133,7 @@ public class DockerTests extends PackagingTestCase {
             "wrong_password",
             httpCaPath
         );
+        waitForElasticsearch(installation, USERNAME, PASSWORD, httpCaPath);
         assertThat(statusCode, equalTo(401));
     }
 

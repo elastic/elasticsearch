@@ -49,6 +49,7 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -120,11 +121,18 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test011SecurityEnabledStatus() throws Exception {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
+        Path httpCaPath = null;
+        try {
+            httpCaPath = Path.of(findInContainer(installation.config, "dir", "tls_auto_config*"));
+            copyFromContainer(httpCaPath.resolve("http_ca.crt"), tempDir.resolve("http_ca.crt"));
+        } catch (Exception e) {
+            // couldn't get the file.
+        }
         final int statusCode = ServerUtils.makeRequestAndGetStatus(
             Request.Get("https://localhost:9200"),
             USERNAME,
             "wrong_password",
-            ServerUtils.getCaCert(installation)
+            httpCaPath
         );
         assertThat(statusCode, equalTo(401));
     }
@@ -134,14 +142,12 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test012SecurityCanBeDisabled() throws Exception {
         // restart container with security disabled
-        runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));
-        waitForElasticsearch(installation);
-        final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(
-            Request.Get("https://localhost:9200"),
-            null,
-            null,
-            ServerUtils.getCaCert(installation)
+        runContainer(
+            distribution(),
+            builder().envVars(Map.of("xpack.security.enabled", "false", "xpack.security.http.ssl.enabled", "false"))
         );
+        waitForElasticsearch(installation);
+        final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("https://localhost:9200"), null, null, null);
         assertThat(unauthStatusCode, equalTo(200));
     }
 
@@ -394,7 +400,12 @@ public class DockerTests extends PackagingTestCase {
         // ELASTIC_PASSWORD_FILE
         Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + passwordFilename,
+            "xpack.security.autoconfiguration.enabled",
+            "false"
+        );
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
@@ -409,7 +420,7 @@ public class DockerTests extends PackagingTestCase {
 
         // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
-            waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+            waitForElasticsearch(installation, "elastic", "hunter2");
         } catch (Exception e) {
             throw new AssertionError(
                 "Failed to check whether Elasticsearch had started. This could be because "
@@ -555,10 +566,13 @@ public class DockerTests extends PackagingTestCase {
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
-        installation = runContainer(distribution(), builder().envVars(Map.of("ELASTIC_PASSWORD", "hunter2")));
+        installation = runContainer(
+            distribution(),
+            builder().envVars(Map.of("ELASTIC_PASSWORD", "hunter2", "xpack.security.autoconfiguration.enabled", "false"))
+        );
 
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
-        waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+        waitForElasticsearch(installation, "elastic", "hunter2");
 
         sh.getEnv().put("http.host", "this.is.not.valid");
 
@@ -770,7 +784,18 @@ public class DockerTests extends PackagingTestCase {
     public void test121CanUseStackLoggingConfig() throws Exception {
         runContainer(
             distribution(),
-            builder().envVars(Map.of("ES_LOG_STYLE", "file", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVars(
+                Map.of(
+                    "ES_LOG_STYLE",
+                    "file",
+                    "ingest.geoip.downloader.enabled",
+                    "false",
+                    "ELASTIC_PASSWORD",
+                    PASSWORD,
+                    "xpack.security.autoconfiguration.enabled",
+                    "false"
+                )
+            )
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -792,7 +817,18 @@ public class DockerTests extends PackagingTestCase {
     public void test122CanUseDockerLoggingConfig() throws Exception {
         runContainer(
             distribution(),
-            builder().envVars(Map.of("ES_LOG_STYLE", "console", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVars(
+                Map.of(
+                    "ES_LOG_STYLE",
+                    "console",
+                    "ingest.geoip.downloader.enabled",
+                    "false",
+                    "ELASTIC_PASSWORD",
+                    PASSWORD,
+                    "xpack.security.autoconfiguration.enabled",
+                    "false"
+                )
+            )
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -817,7 +853,12 @@ public class DockerTests extends PackagingTestCase {
      * Check that it when configuring logging to write to disk, the container can be restarted.
      */
     public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file", "ELASTIC_PASSWORD", PASSWORD)));
+        runContainer(
+            distribution(),
+            builder().envVars(
+                Map.of("ES_LOG_STYLE", "file", "ELASTIC_PASSWORD", PASSWORD, "xpack.security.autoconfiguration.enabled", "false")
+            )
+        );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -895,7 +936,16 @@ public class DockerTests extends PackagingTestCase {
             distribution(),
             builder().memory("942m")
                 .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
-                .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+                .envVars(
+                    Map.of(
+                        "ingest.geoip.downloader.enabled",
+                        "false",
+                        "ELASTIC_PASSWORD",
+                        PASSWORD,
+                        "xpack.security.autoconfiguration.enabled",
+                        "false"
+                    )
+                )
         );
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 

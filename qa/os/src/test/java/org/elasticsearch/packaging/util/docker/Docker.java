@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Distribution.Packaging;
@@ -269,6 +270,16 @@ public class Docker {
         return result.isSuccess();
     }
 
+    public static String findInContainer(Path base, String type, String pattern) {
+        logger.debug("Trying to look for " + pattern + " ( " + type + ") in " + base + " in the container");
+        final String script = "docker exec " + containerId + " find " + base + " -type " + type + " " + pattern;
+        final Shell.Result result = sh.run(script);
+        if (result.isSuccess() && Strings.isNullOrEmpty(result.stdout) == false) {
+            return result.stdout;
+        }
+        return null;
+    }
+
     /**
      * Run privilege escalated shell command on the local file system via a bind mount inside a Docker container.
      * @param shellCmd The shell command to execute on the localPath e.g. `mkdir /containerPath/dir`.
@@ -460,14 +471,13 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(installation));
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
-        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        waitForElasticsearch(installation, username, password, null);
     }
 
-    public static void waitForElasticsearch(Installation installation, String username, String password) {
+    public static void waitForElasticsearch(Installation installation, String username, String password, Path caCert) {
         try {
-            waitForElasticsearch("green", null, installation, username, password);
+            withLogging(() -> ServerUtils.waitForElasticsearch("green", null, installation, username, password, caCert));
         } catch (Exception e) {
             throw new AssertionError(
                 "Failed to check whether Elasticsearch had started. This could be because "

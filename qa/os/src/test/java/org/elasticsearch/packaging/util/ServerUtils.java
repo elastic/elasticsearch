@@ -172,7 +172,8 @@ public class ServerUtils {
         Path configFilePath = installation.config("elasticsearch.yml");
         String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
         boolean enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
-        if (enrollmentEnabled) {
+        boolean httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
+        if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
             Path autoConfigTlsDir = Files.list(installation.config)
                 .filter(p -> p.getFileName().toString().startsWith("tls_auto_config_initial_node_"))
@@ -188,9 +189,14 @@ public class ServerUtils {
         return caCert;
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
-
+    public static void waitForElasticsearch(
+        String status,
+        String index,
+        Installation installation,
+        String username,
+        String password,
+        Path caCert
+    ) throws Exception {
         Objects.requireNonNull(status);
 
         // we loop here rather than letting httpclient handle retries so we can measure the entire waiting time
@@ -199,8 +205,9 @@ public class ServerUtils {
         long timeElapsed = 0;
         boolean started = false;
         Throwable thrownException = null;
-
-        Path caCert = getCaCert(installation);
+        if (caCert == null) {
+            caCert = getCaCert(installation);
+        }
 
         while (started == false && timeElapsed < waitTime) {
             if (System.currentTimeMillis() - lastRequest > requestInterval) {
@@ -263,6 +270,11 @@ public class ServerUtils {
 
         final String body = makeRequest(Request.Get(url), username, password, caCert);
         assertThat("cluster health response must contain desired status", body, containsString(status));
+    }
+
+    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
+        throws Exception {
+        waitForElasticsearch(status, index, installation, username, password, null);
     }
 
     public static void runElasticsearchTests() throws Exception {

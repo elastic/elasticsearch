@@ -16,9 +16,8 @@ Elasticsearch 5.3 to prepare users for Elasticsearch 6.0, where content type
 auto detection was removed for HTTP requests.
 
 *Impact* +
-Discontinue use of the `http.content_type.required` system property.
-Specifying this property in `elasticsearch.yml` will result in an error on
-startup.
+Discontinue use of the `http.content_type.required` setting. Specifying this
+setting in `elasticsearch.yml` will result in an error on startup.
 ====
 
 .The `http.tcp_no_delay` setting has been replaced by `http.tcp.no_delay`.
@@ -44,9 +43,6 @@ In these previous versions, if your application required handling `+` as a singl
 to be supported in version 8.
 
 *Impact* +
-Update your workflow and applications to assume `+` in a URL is encoded as
-`%2B`. Discontinue use of the `es.rest.url_plus_as_space` system property.
-Specifying this property in `elasticsearch.yml` will result in an error on
-startup.
+Update your application or workflow to assume `+` in a URL is encoded as `%2B`.
 ====
 // end::notable-breaking-changes[]

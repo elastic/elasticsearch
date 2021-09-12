@@ -52,11 +52,11 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
+        verifyArchiveInstallation(installation, distribution());
         Result result = sh.run(
             installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
         );
         assumeTrue(result.isSuccess());
-        verifyArchiveInstallation(installation, distribution());
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {
@@ -253,8 +253,8 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.getEnv().put("ES_JAVA_HOME", "");
 
+        startElasticsearch();
         ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
-        ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 

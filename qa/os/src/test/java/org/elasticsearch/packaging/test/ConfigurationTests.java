@@ -11,14 +11,20 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 public class ConfigurationTests extends PackagingTestCase {
+
+    private static String superuser = "test_superuser";
+    private static String superuserPassword = "test_superuser";
 
     @Before
     public void filterDistros() {
@@ -27,6 +33,10 @@ public class ConfigurationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        Shell.Result result = sh.run(
+            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
+        );
+        assumeTrue(result.isSuccess());
     }
 
     public void test60HostnameSubstitution() throws Exception {
@@ -38,7 +48,12 @@ public class ConfigurationTests extends PackagingTestCase {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
             assertWhileRunning(() -> {
-                final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).strip();
+                final String nameResponse = makeRequest(
+                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                    superuser,
+                    superuserPassword,
+                    ServerUtils.getCaCert(installation)
+                ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
         });

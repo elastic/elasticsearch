@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
@@ -28,6 +29,8 @@ public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";
     private static final Path EXAMPLE_PLUGIN_ZIP;
+    private static String superuser = "test_superuser";
+    private static String superuserPassword = "test_superuser";
     static {
         // re-read before each test so the plugin path can be manipulated within tests
         EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin"));
@@ -56,6 +59,10 @@ public class PluginCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        Shell.Result result = sh.run(
+            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
+        );
+        assumeTrue(result.isSuccess());
     }
 
     public void test20SymlinkPluginsDir() throws Exception {
@@ -69,11 +76,21 @@ public class PluginCliTests extends PackagingTestCase {
         Files.createSymbolicLink(pluginsDir, linkedPlugins);
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/_cat/plugins?h=component")).strip();
+                final String pluginsResponse = makeRequest(
+                    Request.Get("https://localhost:9200/_cat/plugins?h=component"),
+                    superuser,
+                    superuserPassword,
+                    ServerUtils.getCaCert(installation)
+                ).strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
-                final String settingsResponse = makeRequest(Request.Get("http://localhost:9200/" + settingsPath)).strip();
+                final String settingsResponse = makeRequest(
+                    Request.Get("http://localhost:9200/" + settingsPath),
+                    superuser,
+                    superuserPassword,
+                    ServerUtils.getCaCert(installation)
+                ).strip();
                 assertThat(settingsResponse, equalTo("{\"defaults\":{\"custom\":{\"simple\":\"foo\"}}}"));
             });
         });

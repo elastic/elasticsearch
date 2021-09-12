@@ -49,7 +49,6 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
-import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -96,9 +95,21 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
+        // We disable auto-configuration because it's tricky to get the auto-generated HTTP CA cert from the container because
+        // we also have to use it for making the HTTPS calls to determine if Elasticsearch is up. We test auto-configuration
+        // for docker on its own.
         installation = runContainer(
             distribution(),
-            builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVars(
+                Map.of(
+                    "ingest.geoip.downloader.enabled",
+                    "false",
+                    "ELASTIC_PASSWORD",
+                    PASSWORD,
+                    "xpack.security.autoconfiguration.enabled",
+                    "false"
+                )
+            )
         );
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
@@ -120,20 +131,8 @@ public class DockerTests extends PackagingTestCase {
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        Path httpCaPath = null;
-        try {
-            httpCaPath = Path.of(findInContainer(installation.config, "dir", "tls_auto_config*"));
-            copyFromContainer(httpCaPath.resolve("http_ca.crt"), tempDir.resolve("http_ca.crt"));
-        } catch (Exception e) {
-            // couldn't get the file.
-        }
-        waitForElasticsearch(installation, USERNAME, PASSWORD, httpCaPath);
-        final int statusCode = ServerUtils.makeRequestAndGetStatus(
-            Request.Get("https://localhost:9200"),
-            USERNAME,
-            "wrong_password",
-            httpCaPath
-        );
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("https://localhost:9200"), USERNAME, "wrong_password", null);
         assertThat(statusCode, equalTo(401));
     }
 

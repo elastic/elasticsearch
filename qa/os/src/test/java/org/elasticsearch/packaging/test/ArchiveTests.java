@@ -248,8 +248,6 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test54ForceBundledJdkEmptyJavaHome() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
-        // cleanup from previous test
-        rm(installation.config("elasticsearch.keystore"));
 
         sh.getEnv().put("ES_JAVA_HOME", "");
 

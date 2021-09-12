@@ -275,7 +275,9 @@ public class DockerTests extends PackagingTestCase {
                         "ingest.geoip.downloader.enabled",
                         "false",
                         "ELASTIC_PASSWORD",
-                        PASSWORD
+                        PASSWORD,
+                        "xpack.security.autoconfiguration.enabled",
+                        "false"
                     )
                 )
         );
@@ -378,9 +380,16 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container
         runContainer(
             distribution(),
-            builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
-                .uid(501, 501)
-                .extraArgs("--group-add 0")
+            builder().envVars(
+                Map.of(
+                    "ingest.geoip.downloader.enabled",
+                    "false",
+                    "ELASTIC_PASSWORD",
+                    PASSWORD,
+                    "xpack.security.autoconfiguration.enabled",
+                    "false"
+                )
+            ).uid(501, 501).extraArgs("--group-add 0")
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -449,7 +458,12 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + symlinkFilename,
+            "xpack.security.autoconfiguration.enabled",
+            "false"
+        );
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values. The wrapper will resolve the symlink
@@ -471,9 +485,14 @@ public class DockerTests extends PackagingTestCase {
 
         Files.writeString(tempDir.resolve(passwordFilename), "other_hunter2\n");
 
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD", "hunter2");
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD",
+            "hunter2",
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + passwordFilename,
+            "xpack.security.autoconfiguration.enabled",
+            "false"
+        );
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
@@ -498,7 +517,12 @@ public class DockerTests extends PackagingTestCase {
 
         Files.writeString(tempDir.resolve(passwordFilename), "hunter2\n");
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + passwordFilename,
+            "xpack.security.autoconfiguration.enabled",
+            "false"
+        );
 
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
@@ -535,7 +559,12 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + symlinkFilename,
+            "xpack.security.autoconfiguration.enabled",
+            "false"
+        );
 
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);

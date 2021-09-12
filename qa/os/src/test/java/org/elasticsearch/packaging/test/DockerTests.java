@@ -310,7 +310,17 @@ public class DockerTests extends PackagingTestCase {
 
             runContainer(
                 distribution(),
-                builder().volumes(volumes).envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+                builder().volumes(volumes)
+                    .envVars(
+                        Map.of(
+                            "ingest.geoip.downloader.enabled",
+                            "false",
+                            "ELASTIC_PASSWORD",
+                            PASSWORD,
+                            "xpack.security.autoconfiguration.enabled",
+                            "false"
+                        )
+                    )
             );
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -365,7 +375,16 @@ public class DockerTests extends PackagingTestCase {
         runContainer(
             distribution(),
             builder().volumes(volumes)
-                .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+                .envVars(
+                    Map.of(
+                        "ingest.geoip.downloader.enabled",
+                        "false",
+                        "ELASTIC_PASSWORD",
+                        PASSWORD,
+                        "xpack.security.autoconfiguration.enabled",
+                        "false"
+                    )
+                )
                 .uid(501, 501)
         );
 

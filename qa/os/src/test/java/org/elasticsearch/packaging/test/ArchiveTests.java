@@ -277,7 +277,7 @@ public class ArchiveTests extends PackagingTestCase {
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
-
+            logger.info("IOANNIS: " + Files.readString(tempConf.resolve("elasticsearch.yml")));
             startElasticsearch();
 
             final String nodesResponse = makeRequest(

@@ -233,8 +233,8 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("ES_JAVA_HOME", testJavaHome);
 
                 // verify ES can start, stop and run plugin list
+                startElasticsearch();
                 ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
-
                 stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";

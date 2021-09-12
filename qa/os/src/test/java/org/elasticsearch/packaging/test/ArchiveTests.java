@@ -20,9 +20,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -277,7 +280,18 @@ public class ArchiveTests extends PackagingTestCase {
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
-            logger.info("IOANNIS: " + Files.readString(tempConf.resolve("elasticsearch.yml")));
+            // Auto-configuration file paths are absolute so we need to replace them in the config now that we copied them to tempConf
+            Path yml = tempConf.resolve("elasticsearch.yml");
+            List<String> lines;
+            try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+                lines = allLines.map(l -> {
+                    if (l.contains(installation.config.toString())) {
+                        return l.replace(installation.config.toString(), tempConf.toString());
+                    }
+                    return l;
+                }).collect(Collectors.toList());
+            }
+            Files.write(yml, lines, TRUNCATE_EXISTING);
             startElasticsearch();
 
             final String nodesResponse = makeRequest(
@@ -361,8 +375,19 @@ public class ArchiveTests extends PackagingTestCase {
     public void test80RelativePathConf() throws Exception {
 
         withCustomConfig(tempConf -> {
-            append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
-
+            // Auto-configuration file paths are absolute so we need to replace them in the config now that we copied them to tempConf
+            Path yml = tempConf.resolve("elasticsearch.yml");
+            List<String> lines;
+            try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+                lines = allLines.map(l -> {
+                    if (l.contains(installation.config.toString())) {
+                        return l.replace(installation.config.toString(), tempConf.toString());
+                    }
+                    return l;
+                }).collect(Collectors.toList());
+            }
+            lines.add("node.name: relative");
+            Files.write(yml, lines, TRUNCATE_EXISTING);
             startElasticsearch();
 
             final String nodesResponse = makeRequest(

@@ -49,7 +49,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -62,7 +62,7 @@ public class DatafeedRunner {
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final Supplier<Long> currentTimeSupplier;
+    private final LongSupplier currentTimeSupplier;
     private final AnomalyDetectionAuditor auditor;
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
@@ -72,7 +72,7 @@ public class DatafeedRunner {
     private final DatafeedContextProvider datafeedContextProvider;
 
     public DatafeedRunner(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                          Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
+                          LongSupplier currentTimeSupplier, AnomalyDetectionAuditor auditor,
                           AutodetectProcessManager autodetectProcessManager, DatafeedContextProvider datafeedContextProvider) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -346,7 +346,7 @@ public class DatafeedRunner {
     }
 
     private TimeValue computeNextDelay(long next) {
-        return new TimeValue(Math.max(1, next - currentTimeSupplier.get()));
+        return new TimeValue(Math.max(1, next - currentTimeSupplier.getAsLong()));
     }
 
     /**

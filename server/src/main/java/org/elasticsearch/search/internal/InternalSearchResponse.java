@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     }
 
     public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly,
+                                  SearchProfileResults profileResults, boolean timedOut, Boolean terminatedEarly,
                                   int numReducePhases) {
         super(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases);
     }
@@ -45,7 +45,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
                 in.readBoolean() ? new Suggest(in) : null,
                 in.readBoolean(),
                 in.readOptionalBoolean(),
-                in.readOptionalWriteable(SearchProfileShardResults::new),
+                in.readOptionalWriteable(SearchProfileResults::new),
                 in.readVInt()
         );
     }

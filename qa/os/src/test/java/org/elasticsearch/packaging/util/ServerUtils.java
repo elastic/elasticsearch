@@ -168,11 +168,16 @@ public class ServerUtils {
     }
 
     public static Path getCaCert(Installation installation) throws IOException {
+        boolean enrollmentEnabled = false;
+        boolean httpSslEnabled = false;
         Path caCert = installation.config("certs/ca/ca.crt");
         Path configFilePath = installation.config("elasticsearch.yml");
-        String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-        boolean enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
-        boolean httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
+        if (Files.exists(configFilePath)) {
+            // In docker we might not even have a file, and if we do it's not readable in the host's FS
+            String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
+            enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
+            httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
+        }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
             Path autoConfigTlsDir = Files.list(installation.config)

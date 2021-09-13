@@ -9,6 +9,7 @@
               {
                 "grok" : {
                   "field" : "log",
+                  "ecs_compatibility": "disabled",
                   "patterns": ["%{COMBINEDAPACHELOG}"]
                 }
               },
@@ -78,7 +79,6 @@
               {
                 "grok" : {
                   "field" : "log",
-                  "ecs_compatibility": "v1",
                   "patterns": ["%{COMBINEDAPACHELOG}"]
                 }
               },

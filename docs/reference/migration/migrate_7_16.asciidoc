@@ -34,7 +34,7 @@ logging>>.
 [[breaking_716_monitoring_changes]]
 ==== Monitoring deprecations
 
-[[monitoring-ingest-settings-deprecation]]
+[[monitoring-use-ingest-setting-deprecation]]
 .The `use_ingest` setting on Monitoring exporter configurations is deprecated.
 [%collapsible]
 ====
@@ -47,7 +47,7 @@ indices that currently have no function.
 Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.
 ====
 
-[[monitoring-ingest-settings-deprecation]]
+[[monitoring-pipeline-master-timeout-setting-deprecation]]
 .The `index.pipeline.master_timeout` setting on Monitoring HTTP exporter configurations is deprecated.
 [%collapsible]
 ====

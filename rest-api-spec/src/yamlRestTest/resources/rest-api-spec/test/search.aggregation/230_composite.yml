@@ -1118,7 +1118,7 @@ setup:
                   "nested": { "path": "courses" },
                   "aggregations": {
                       "names": {
-                          "composite": { 
+                          "composite": {
                               "sources": [
                                   "kw": {"terms": {"field": "courses.name"}}
                               ]
@@ -1264,7 +1264,7 @@ setup:
                         "aggs":  {
                             "keez": {
                                 "composite": {
-                                    "sources": [ 
+                                    "sources": [
                                         "key": {"terms": {"field": "kw"}}
                                     ]
                                 }
@@ -1278,3 +1278,149 @@ setup:
   - length: {aggregations.not_one.keez.buckets: 2}
   - match: {aggregations.not_one.keez.buckets.0.key.key: "three"}
   - match: {aggregations.not_one.keez.buckets.1.key.key: "two"}
+
+---
+"Simple Composite aggregation with missing_bucket":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_bucket": true
+                      }
+                    }
+                ]
+
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.0.key.kw: null }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"Simple Composite aggregation with missing_order":
+  - skip:
+      # TODO: replace with 7.15.99 once PR is backported to 7.16
+      version: " - 7.99.0"
+      reason: "`missing_order` has been introduced in 7.16"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "kw": {
+                    "terms": {
+                      "field": "keyword",
+                      "missing_bucket": true,
+                      "missing_order": "last"
+                    }
+                  }
+                ]
+
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.2.key.kw: null }
+  - match: { aggregations.test.buckets.2.doc_count: 2 }
+
+---
+"missing_order with missing_bucket = false":
+  - skip:
+      # TODO: replace with 7.15.99 once PR is backported to 7.16
+      version: " - 7.99.0"
+      reason: "`missing_order` has been introduced in 7.16"
+  - do:
+      catch: /missingOrder can only be set if missingBucket is true/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_bucket": false,
+                        "missing_order": "first"
+                      }
+                    }
+                ]
+
+---
+"missing_order without missing_bucket":
+  - skip:
+      # TODO: replace with 7.15.99 once PR is backported to 7.16
+      version: " - 7.99.0"
+      reason: "`missing_order` has been introduced in 7.16"
+  - do:
+      catch: /missingOrder can only be set if missingBucket is true/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_order": "first"
+                      }
+                    }
+                ]
+
+---
+"Nested Composite aggregation with missing_order":
+  - skip:
+      # TODO: replace with 7.15.99 once PR is backported to 7.16
+      version: " - 7.99.0"
+      reason: "`missing_order` has been introduced in 7.16"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "long": {
+                      "terms": {
+                        "field": "long",
+                        "missing_bucket": true,
+                        "missing_order": "default"
+                      }
+                    }
+                  },
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_bucket": true,
+                        "missing_order": "last"
+                      }
+                    }
+                  }
+                ]
+
+  - length: { aggregations.test.buckets: 8 }
+  - match: { aggregations.test.buckets.0.key.long: null}
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.long: null}
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.long: null}
+  - match: { aggregations.test.buckets.2.key.kw: null }
+  - match: { aggregations.test.buckets.2.doc_count: 2 }

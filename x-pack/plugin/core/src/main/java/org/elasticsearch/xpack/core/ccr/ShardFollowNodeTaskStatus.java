@@ -9,17 +9,18 @@ package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -68,41 +69,40 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ShardFollowNodeTaskStatus, Void> STATUS_PARSER =
-            new ConstructingObjectParser<>(
-                    STATUS_PARSER_NAME,
-                    args -> new ShardFollowNodeTaskStatus(
-                            (String) args[0],
-                            (String) args[1],
-                            (String) args[2],
-                            (int) args[3],
-                            (long) args[4],
-                            (long) args[5],
-                            (long) args[6],
-                            (long) args[7],
-                            (long) args[8],
-                            (int) args[9],
-                            (int) args[10],
-                            (int) args[11],
-                            (long) args[12],
-                            (long) args[13],
-                            (long) args[14],
-                            (long) args[15],
-                            (long) args[16],
-                            (long) args[17],
-                            (long) args[18],
-                            (long) args[19],
-                            (long) args[20],
-                            (long) args[21],
-                            (long) args[22],
-                            (long) args[23],
-                            (long) args[24],
-                            (long) args[25],
-                            new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26])
-                                            .stream()
-                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[27],
-                            (ElasticsearchException) args[28]));
+        new ConstructingObjectParser<>(
+            STATUS_PARSER_NAME,
+            args -> new ShardFollowNodeTaskStatus(
+                (String) args[0],
+                (String) args[1],
+                (String) args[2],
+                (int) args[3],
+                (long) args[4],
+                (long) args[5],
+                (long) args[6],
+                (long) args[7],
+                (long) args[8],
+                (int) args[9],
+                (int) args[10],
+                (int) args[11],
+                (long) args[12],
+                (long) args[13],
+                (long) args[14],
+                (long) args[15],
+                (long) args[16],
+                (long) args[17],
+                (long) args[18],
+                (long) args[19],
+                (long) args[20],
+                (long) args[21],
+                (long) args[22],
+                (long) args[23],
+                (long) args[24],
+                (long) args[25],
+                ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26])
+                    .stream()
+                    .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
+                (long) args[27],
+                (ElasticsearchException) args[28]));
 
     public static final String READ_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-read-exceptions-entry";
 

@@ -74,10 +74,13 @@ public class PluginCliTests extends PackagingTestCase {
         Path linkedPlugins = createTempDir("symlinked-plugins");
         Platforms.onLinux(() -> sh.run("chown elasticsearch:elasticsearch " + linkedPlugins.toString()));
         Files.createSymbolicLink(pluginsDir, linkedPlugins);
+        // Packaged installation don't get autoconfigured yet
+        // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
+        String protocol = distribution.isPackage() ? "http" : "https";
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
                 final String pluginsResponse = makeRequest(
-                    Request.Get("https://localhost:9200/_cat/plugins?h=component"),
+                    Request.Get(protocol + "://localhost:9200/_cat/plugins?h=component"),
                     superuser,
                     superuserPassword,
                     ServerUtils.getCaCert(installation)
@@ -86,7 +89,7 @@ public class PluginCliTests extends PackagingTestCase {
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
                 final String settingsResponse = makeRequest(
-                    Request.Get("https://localhost:9200/" + settingsPath),
+                    Request.Get(protocol + "://localhost:9200/" + settingsPath),
                     superuser,
                     superuserPassword,
                     ServerUtils.getCaCert(installation)

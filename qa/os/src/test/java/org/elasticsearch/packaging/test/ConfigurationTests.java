@@ -64,9 +64,12 @@ public class ConfigurationTests extends PackagingTestCase {
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
+            // Packaged installation don't get autoconfigured yet
+            // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
+            String protocol = distribution.isPackage() ? "http" : "https";
             assertWhileRunning(() -> {
                 final String nameResponse = makeRequest(
-                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                    Request.Get(protocol + "://mytesthost:9200/_cat/nodes?h=name"),
                     superuser,
                     superuserPassword,
                     ServerUtils.getCaCert(installation)

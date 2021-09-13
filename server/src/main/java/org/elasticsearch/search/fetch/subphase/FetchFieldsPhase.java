@@ -24,7 +24,6 @@ import java.util.Map;
  * retrieves the field values from _source and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();

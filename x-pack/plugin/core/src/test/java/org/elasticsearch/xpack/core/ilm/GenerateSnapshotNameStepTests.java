@@ -94,6 +94,30 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(executionState.getSnapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
     }
 
+    public void testPerformActionRejectsNonexistentRepository() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder()
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .build()).build();
+
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState));
+        assertThat(illegalStateException.getMessage(), is("repository [" + generateSnapshotNameStep.getSnapshotRepository() + "] " +
+            "is missing. [test-ilm-policy] policy for index [" + indexName + "] cannot continue until the repository " +
+            "is created or the policy is changed"));
+    }
+
     public void testNameGeneration() {
         long time = 1552684146542L; // Fri Mar 15 2019 21:09:06 UTC
         assertThat(generateSnapshotName("name"), startsWith("name-"));

@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Information about a snapshot
@@ -379,9 +380,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             Version.CURRENT,
             entry.startTime(),
             0L,
-            0,
-            0,
-            Collections.emptyList(),
+            entry.shards().size(),
+            Math.toIntExact(entry.shards().stream().filter(c -> c.getValue().state() != SnapshotsInProgress.ShardState.FAILED).count()),
+            entry.shards()
+                .stream()
+                .filter(c -> c.getValue().state() == SnapshotsInProgress.ShardState.FAILED)
+                .map(e -> new SnapshotShardFailure(e.getValue().nodeId(), e.getKey(), e.getValue().reason()))
+                .collect(Collectors.toList()),
             entry.includeGlobalState(),
             entry.userMetadata(),
             SnapshotState.IN_PROGRESS,

@@ -427,6 +427,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         List<SnapshotInfo> snapshotInfoList = response1.getSnapshots();
         assertEquals(1, snapshotInfoList.size());
         assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
+        assertEquals(snapshotInfoList.get(0).totalShards(), 1);
+        assertEquals(snapshotInfoList.get(0).successfulShards(), 1);
 
         String notExistedSnapshotName = "snapshot_not_exist";
         GetSnapshotsResponse response2 = client().admin()
@@ -452,6 +454,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         unblockAllDataNodes("test-repo");
 
         assertSuccessful(createSnapshotResponseActionFuture);
+        SnapshotInfo snapshotInfo = createSnapshotResponseActionFuture.get().getSnapshotInfo();
+        assertThat(snapshotInfo.totalShards(), equalTo(1));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
     }
 
     public void testSnapshotStatusOnFailedSnapshot() throws Exception {

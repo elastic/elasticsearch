@@ -1,0 +1,30 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+include ':custom-settings'
+include ':custom-significance-heuristic'
+include ':custom-suggester'
+include ':painless-whitelist'
+include ':rescore'
+include ':rest-handler'
+include ':script-expert-scoring'
+include ':security-authorization-engine'
+
+gradle.projectsEvaluated {
+  if (gradle.includedBuilds) {
+    gradle.allprojects {
+      configurations.all {
+        resolutionStrategy.dependencySubstitution {
+          // When using compositle builds we need to tell Gradle to use the project names since we rename the published artifacts
+          substitute module('org.elasticsearch:elasticsearch') with module("org.elasticsearch:server:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.client:elasticsearch-rest-client') with module("org.elasticsearch.client:rest:${elasticsearchVersion}")
+        }
+      }
+    }
+  }
+}

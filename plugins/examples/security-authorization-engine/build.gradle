@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
@@ -10,17 +10,24 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
-  // let the javaRestTest see the classpath of main
-  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+sourceSets {
+  javaRestTest {
+    // let the javaRestTest see the classpath of main
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
 }
-//no unit tests
-tasks.named("test").configure { enabled = false }
+
+dependencies {
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
+}
+
 tasks.named("javaRestTest").configure {
-  dependsOn "buildZip"
   systemProperty 'tests.security.manager', 'false'
 }
 

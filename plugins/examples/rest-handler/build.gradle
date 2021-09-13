@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,9 +5,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'rest-handler'
@@ -17,19 +14,4 @@ esplugin {
   classname 'org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
   licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
-}
-
-// No unit tests in this example
-tasks.named("test").configure { enabled = false }
-
-def fixture = tasks.register("exampleFixture", org.elasticsearch.gradle.internal.test.AntFixture) {
-  dependsOn sourceSets.javaRestTest.runtimeClasspath
-  env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
-}
-
-tasks.named("javaRestTest").configure {
-  dependsOn fixture
-  nonInputProperties.systemProperty 'external.address', "${-> fixture.get().addressAndPort}"
 }

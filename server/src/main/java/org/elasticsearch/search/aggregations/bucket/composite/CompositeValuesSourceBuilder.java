@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,6 +37,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private Script script = null;
     private ValueType userValueTypeHint = null;
     private boolean missingBucket = false;
+    private MissingOrder missingOrder = MissingOrder.DEFAULT;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
@@ -53,6 +55,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
+        // TODO: use V_7_16_0 once PR is backported to 7.x
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.missingOrder = MissingOrder.readFromStream(in);
+        }
         this.order = SortOrder.readFromStream(in);
         this.format = in.readOptionalString();
     }
@@ -72,6 +78,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
+        // TODO: use V_7_16_0 once PR is backported to 7.x
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            missingOrder.writeTo(out);
+        }
         order.writeTo(out);
         out.writeOptionalString(format);
         innerWriteTo(out);
@@ -91,6 +101,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             builder.field("script", script);
         }
         builder.field("missing_bucket", missingBucket);
+        if (missingOrder != MissingOrder.DEFAULT) {
+            builder.field("missing_order", missingOrder.toString());
+        }
         if (userValueTypeHint != null) {
             builder.field("value_type", userValueTypeHint.getPreferredName());
         }
@@ -105,7 +118,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, missingBucket, script, userValueTypeHint, order, format);
+        return Objects.hash(field, missingBucket, missingOrder, script, userValueTypeHint, order, format);
     }
 
     @Override
@@ -119,6 +132,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             && Objects.equals(script, that.script())
             && Objects.equals(userValueTypeHint, that.userValuetypeHint())
             && Objects.equals(missingBucket, that.missingBucket())
+            && Objects.equals(missingOrder, that.missingOrder())
             && Objects.equals(order, that.order())
             && Objects.equals(format, that.format());
     }
@@ -204,6 +218,34 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
+     * Sets the {@link MissingOrder} policy to use for ordering missing values.
+     *
+     * @param missingOrder One of "first", "last" or "default".
+     */
+    public AB missingOrder(String missingOrder) {
+        return missingOrder(MissingOrder.fromString(missingOrder));
+    }
+
+    /**
+     * Sets the {@link MissingOrder} policy to use for ordering missing values.
+     */
+    @SuppressWarnings("unchecked")
+    public AB missingOrder(MissingOrder missingOrder) {
+        if (missingOrder == null) {
+            throw new IllegalArgumentException("[missingOrder] must not be null");
+        }
+        this.missingOrder = missingOrder;
+        return (AB) this;
+    }
+
+    /**
+     * The {@link MissingOrder} policy used for ordering missing values.
+     */
+    public MissingOrder missingOrder() {
+        return missingOrder;
+    }
+
+    /**
      * Sets the {@link SortOrder} to use to sort values produced this source
      */
     @SuppressWarnings("unchecked")
@@ -261,6 +303,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected abstract ValuesSourceType getDefaultValuesSourceType();
 
     public final CompositeValuesSourceConfig build(AggregationContext context) throws IOException {
+        if (missingBucket == false && missingOrder != MissingOrder.DEFAULT) {
+            throw new IllegalArgumentException("missingOrder can only be set if missingBucket is true");
+        }
+
         ValuesSourceConfig config = ValuesSourceConfig.resolve(
             context,
             userValueTypeHint,

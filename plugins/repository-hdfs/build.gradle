@@ -35,9 +35,8 @@ final int maxTestedHadopoVersion = 3;
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
-configurations {
-  hdfs2Fixture
-  hdfs3Fixture
+for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+  configurations.create("hdfs" + hadoopVersion + "Fixture")
 }
 
 dependencies {
@@ -65,9 +64,6 @@ dependencies {
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-
-  hdfs2Fixture project(':test:fixtures:hdfs2-fixture')
-  hdfs3Fixture project(':test:fixtures:hdfs3-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
@@ -75,6 +71,9 @@ dependencies {
       builtBy ":test:fixtures:krb5kdc-fixture:preProcessFixture"
     }
   }
+}
+for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+  dependencies.add("hdfs" + hadoopVersion + "Fixture", project(':test:fixtures:hdfs' + hadoopVersion + '-fixture'))
 }
 
 restResources {
@@ -110,52 +109,47 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
-for (String fixtureName : ['hdfs' + hadoopVersion + 'Fixture', 'haHdfs' + hadoopVersion + 'Fixture', 'secureHdfs' + hadoopVersion + 'Fixture', 'secureHaHdfs' + hadoopVersion + 'Fixture']) {
-  final int hadoopVer = hadoopVersion
-  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
-    executable = "${BuildParams.runtimeJavaHome}/bin/java"
-    if (hadoopVer == 2) {
-      dependsOn project.configurations.hdfs2Fixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
-      env 'CLASSPATH', "${-> project.configurations.hdfs2Fixture.asPath}"
-    } else if (hadoopVer == 3) {
-      dependsOn project.configurations.hdfs3Fixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
-      env 'CLASSPATH', "${-> project.configurations.hdfs3Fixture.asPath}"
-    }
+  for (String fixtureName : ['hdfs' + hadoopVersion + 'Fixture', 'haHdfs' + hadoopVersion + 'Fixture', 'secureHdfs' + hadoopVersion + 'Fixture', 'secureHaHdfs' + hadoopVersion + 'Fixture']) {
+    final int hadoopVer = hadoopVersion
+    project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
+      executable = "${BuildParams.runtimeJavaHome}/bin/java"
+      dependsOn project.configurations.getByName("hdfs" + hadoopVer + "Fixture"), project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
+      env 'CLASSPATH', "${-> project.configurations.getByName("hdfs" + hadoopVer + "Fixture").asPath}"
 
-    maxWaitInSeconds 60
-    onlyIf { BuildParams.inFipsJvm == false }
-    waitCondition = { fixture, ant ->
-      // the hdfs.MiniHDFS fixture writes the ports file when
-      // it's ready, so we can just wait for the file to exist
-      return fixture.portsFile.exists()
-    }
-    final List<String> miniHDFSArgs = []
+      maxWaitInSeconds 60
+      onlyIf { BuildParams.inFipsJvm == false }
+      waitCondition = { fixture, ant ->
+        // the hdfs.MiniHDFS fixture writes the ports file when
+        // it's ready, so we can just wait for the file to exist
+        return fixture.portsFile.exists()
+      }
+      final List<String> miniHDFSArgs = []
 
-    // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
-    if (name.startsWith('secure')) {
-      miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
-      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
-    }
-    // If it's an HA fixture, set a nameservice to use in the JVM options
-    if (name.startsWith('haHdfs') || name.startsWith('secureHaHdfs')) {
-      miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
-    }
+      // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
+      if (name.startsWith('secure')) {
+        miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
+        miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
+      }
+      // If it's an HA fixture, set a nameservice to use in the JVM options
+      if (name.startsWith('haHdfs') || name.startsWith('secureHaHdfs')) {
+        miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
+      }
 
-    // Common options
-    miniHDFSArgs.add('hdfs.MiniHDFS')
-    miniHDFSArgs.add(baseDir)
+      // Common options
+      miniHDFSArgs.add('hdfs.MiniHDFS')
+      miniHDFSArgs.add(baseDir)
 
-    // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
-    if (name.startsWith('secure')) {
-      miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
-      miniHDFSArgs.add(
-        project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
-      )
+      // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
+      if (name.startsWith('secure')) {
+        miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+        miniHDFSArgs.add(
+          project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+        )
+      }
+
+      args miniHDFSArgs.toArray()
     }
-
-    args miniHDFSArgs.toArray()
   }
-}
 }
 
 Set disabledIntegTestTaskNames = []

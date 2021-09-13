@@ -305,7 +305,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(
             settings,
             setting,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-basic-license-feature-enabled"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#breaking_78_settings_changes"
         );
     }
 

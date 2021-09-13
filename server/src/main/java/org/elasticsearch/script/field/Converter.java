@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.script.field;
 
 /**
  * Converts between one scripting {@link Field} type and another, {@code FC}, with a different underlying

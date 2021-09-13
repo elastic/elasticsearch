@@ -218,14 +218,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                 for (Object module: (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
-                    System.out.println("IOANNIS   "  + moduleName);
                     if (moduleName.startsWith("x-pack")) {
                         hasXPack = true;
                     }
                     if (moduleName.equals("x-pack-ilm")) {
                         hasIlm = true;
                     }
-                    if (moduleName.equals("x-pack-rollups")) {
+                    if (moduleName.equals("x-pack-rollup")) {
                         hasRollups = true;
                     }
                     if (moduleName.equals("x-pack-ccr")) {

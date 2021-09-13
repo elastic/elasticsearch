@@ -467,7 +467,7 @@ public class Cache<K, V> {
                     replaced = true;
                 }
             }
-            promoteNoLock(tuple.v1(), now);
+            promote(tuple.v1(), now);
         }
         if (replaced) {
             removalListener.onRemoval(new RemovalNotification<>(tuple.v2().key, tuple.v2().value,
@@ -734,27 +734,22 @@ public class Cache<K, V> {
     }
 
     private void promote(Entry<K, V> entry, long now) {
-        try (ReleasableLock ignored = lruLock.acquire()) {
-            promoteNoLock(entry, now);
-        }
-    }
-
-    private void promoteNoLock(Entry<K, V> entry, long now) {
-        assert lruLock.isHeldByCurrentThread();
         boolean promoted = true;
-        switch (entry.state) {
-            case DELETED:
-                promoted = false;
-                break;
-            case EXISTING:
-                relinkAtHead(entry);
-                break;
-            case NEW:
-                linkAtHead(entry);
-                break;
-        }
-        if (promoted) {
-            evict(now);
+        try (ReleasableLock ignored = lruLock.acquire()) {
+            switch (entry.state) {
+                case DELETED:
+                    promoted = false;
+                    break;
+                case EXISTING:
+                    relinkAtHead(entry);
+                    break;
+                case NEW:
+                    linkAtHead(entry);
+                    break;
+            }
+            if (promoted) {
+                evict(now);
+            }
         }
     }
 

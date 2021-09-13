@@ -36,7 +36,7 @@ class FieldsOptionSourceAdapter {
     private final SearchSourceBuilder adaptedSource;
     private FieldFetcher fieldFetcher;
 
-    public FieldsOptionSourceAdapter(SearchRequest request) {
+    FieldsOptionSourceAdapter(SearchRequest request) {
         originalSource = request.source() != null ? request.source() : new SearchSourceBuilder();
         List<FieldAndFormat> fetchFields =  originalSource.fetchFields();
         requestShouldBeAdapted = request.isFieldsOptionEmulationEnabled() && fetchFields != null && fetchFields.isEmpty() == false;

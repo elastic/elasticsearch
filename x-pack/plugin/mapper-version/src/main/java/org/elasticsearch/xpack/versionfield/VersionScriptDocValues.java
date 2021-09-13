@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.Field;
+import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
 

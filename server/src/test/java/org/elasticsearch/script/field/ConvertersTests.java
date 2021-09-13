@@ -6,9 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.script.field;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;

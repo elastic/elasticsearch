@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.elasticsearch.script.Converter;
-import org.elasticsearch.script.Converters;
-import org.elasticsearch.script.Field;
-import org.elasticsearch.script.FieldValues;
-import org.elasticsearch.script.InvalidConversion;
+import org.elasticsearch.script.field.Converter;
+import org.elasticsearch.script.field.Converters;
+import org.elasticsearch.script.field.Field;
+import org.elasticsearch.script.field.FieldValues;
+import org.elasticsearch.script.field.InvalidConversion;
 
 import java.math.BigInteger;
 import java.util.List;

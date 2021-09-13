@@ -76,14 +76,15 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             case UPGRADED:
                 if (FIRST_MIXED_ROUND) {
                     String upgradedNodeId = getUpgradedNodeId();
-                    assertThat(upgradedNodeId, is(notNullValue()));
 
-                    updateIndexSettings(
-                        indexName,
-                        Settings.builder()
-                            .put("index.routing.allocation.exclude._id", upgradedNodeId)
-                            .build()
-                    );
+                    if (upgradedNodeId != null) {
+                        updateIndexSettings(
+                            indexName,
+                            Settings.builder()
+                                .put("index.routing.allocation.exclude._id", upgradedNodeId)
+                                .build()
+                        );
+                    }
 
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                     Version primaryNodeVersion = getNodeVersion(primaryNodeId);

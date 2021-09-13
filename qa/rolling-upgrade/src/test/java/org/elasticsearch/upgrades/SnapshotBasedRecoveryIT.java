@@ -146,7 +146,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
         Map<String, Map<String, Object>> nodes = extractValue(responseMap, "nodes");
         for (Map.Entry<String, Map<String, Object>> nodeInfoEntry : nodes.entrySet()) {
             Version nodeVersion = Version.fromString(extractValue(nodeInfoEntry.getValue(), "version"));
-            if (nodeVersion.onOrAfter(UPGRADE_FROM_VERSION)) {
+            if (nodeVersion.after(UPGRADE_FROM_VERSION)) {
                 return nodeInfoEntry.getKey();
             }
         }

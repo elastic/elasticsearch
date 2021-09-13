@@ -120,7 +120,7 @@ public class IpFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
+                    DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
                         nullValue.getValue() + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;
                 }
@@ -144,11 +144,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(ContentPath contentPath) {
+        public IpFieldMapper build(MapperBuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+                new IpFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue(), dimension.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
     }
@@ -357,8 +357,8 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             @Override
-            public org.elasticsearch.script.Field<String> toField(String fieldName) {
-                return new org.elasticsearch.script.Field.IpField(fieldName, this);
+            public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
+                return new org.elasticsearch.script.field.Field.IpField(fieldName, this);
             }
         }
 

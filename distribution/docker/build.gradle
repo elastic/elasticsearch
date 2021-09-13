@@ -221,6 +221,10 @@ tasks.named("composePull").configure {
   enabled = false
 }
 
+tasks.named("composeUp").configure {
+  dependsOn tasks.named("preProcessFixture")
+}
+
 void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''

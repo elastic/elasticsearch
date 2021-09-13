@@ -361,6 +361,27 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup} and return a reference to the Shell.Result from
+     * starting elasticsearch
+     */
+    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
+        awaitElasticsearchStartupWithResult(result, 0);
+        return result;
+    }
+
+    /**
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} milliseconds more before
+     * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
+     */
+    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
+        awaitElasticsearchStartup(result);
+        if (additionalDelay > 0) {
+            Thread.sleep(additionalDelay);
+        }
+        return result;
+    }
+
+    /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
      * the start command, use {@link #runElasticsearchStartCommand(String, boolean, boolean)}.
      * @throws Exception if Elasticsearch can't start

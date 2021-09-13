@@ -116,3 +116,39 @@ teardown:
                     query:
                       match_all: {}
                     inner_hits: {}
+
+---
+profile fetch:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          query:
+            has_parent:
+              parent_type: question
+              query:
+                match_all: {}
+              inner_hits: {}
+
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 2 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }

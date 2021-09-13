@@ -94,11 +94,11 @@ public final class Grok {
         this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE,
             message -> logCallBack.accept(message));
 
-        List<GrokCaptureConfig> captureConfig = new ArrayList<>();
+        List<GrokCaptureConfig> grokCaptureConfigs = new ArrayList<>();
         for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
-            captureConfig.add(new GrokCaptureConfig(entry.next()));
+            grokCaptureConfigs.add(new GrokCaptureConfig(entry.next()));
         }
-        this.captureConfig = unmodifiableList(captureConfig);
+        this.captureConfig = unmodifiableList(grokCaptureConfigs);
     }
 
     /**

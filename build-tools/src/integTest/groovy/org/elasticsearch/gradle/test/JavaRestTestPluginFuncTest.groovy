@@ -27,7 +27,7 @@ class JavaRestTestPluginFuncTest extends AbstractGradleFuncTest {
         def output = normalized(result.output)
         then:
         output.contains(normalized("""
-yamlRestTestImplementation - Implementation only dependencies for source set 'yaml rest test'. (n)
+javaRestTestImplementation - Implementation only dependencies for source set 'java rest test'. (n)
 /--- org.elasticsearch.test:framework:${VersionProperties.elasticsearch} (n)"""))
     }
 
@@ -50,8 +50,8 @@ yamlRestTestImplementation - Implementation only dependencies for source set 'ya
         when:
         def result = gradleRunner("javaRestTest").build()
         then:
-        result.task(':compileYamlRestTestJava').outcome == TaskOutcome.NO_SOURCE
-        result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE
+        result.task(':compileJavaRestTestJava').outcome == TaskOutcome.NO_SOURCE
+        result.task(':javaRestTest').outcome == TaskOutcome.NO_SOURCE
     }
 
 }

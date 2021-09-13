@@ -12,8 +12,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
@@ -71,8 +75,14 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
 
+        // generate a snapshot repository with the expected name
+        RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
+
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+            .metadata(Metadata.builder()
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                .build()).build();
 
         ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 

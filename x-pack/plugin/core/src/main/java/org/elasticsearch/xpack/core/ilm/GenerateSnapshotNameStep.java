@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Nullable;
@@ -63,6 +64,14 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
         String policy = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+
+        // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
+        // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected
+        // and everything will pass on the subsequent retry
+        if (clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(snapshotRepository) == null) {
+            throw new IllegalStateException("repository [" + snapshotRepository + "] is missing. [" + policy + "] policy for " +
+                "index [" + index.getName() + "] cannot continue until the repository is created or the policy is changed");
+        }
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setSnapshotIndexName(index.getName());

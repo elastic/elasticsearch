@@ -312,7 +312,7 @@ public class QueryStringIT extends ESIntegTestCase {
         doAssertOneHitForQueryString("field_A0:foo");
         // expanding to the limit should work
         doAssertOneHitForQueryString("field_A\\*:foo");
-        
+
         // adding a non-existing field on top shouldn't overshoot the limit
         doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
 

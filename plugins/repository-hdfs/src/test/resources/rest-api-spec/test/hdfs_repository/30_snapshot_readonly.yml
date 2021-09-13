@@ -11,7 +11,7 @@
         body:
           type: hdfs
           settings:
-            uri: "hdfs://localhost:%hdfs_port%"
+            uri: "hdfs://localhost:@hdfs_port@"
             path: "/user/elasticsearch/existing/readonly-repository"
             readonly: true
 

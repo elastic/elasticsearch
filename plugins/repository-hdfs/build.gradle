@@ -161,9 +161,9 @@ for (String fixtureName : ['hdfs' + hadoopVersion + 'Fixture', 'haHdfs' + hadoop
 Set disabledIntegTestTaskNames = []
 
 for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+  final int hadoopVer = hadoopVersion
   for (String integTestTaskName : ['integTest' + hadoopVersion, 'integTestHa' + hadoopVersion, 'integTestSecure' + hadoopVersion,
                                    'integTestSecureHa' + hadoopVersion]) {
-    final int hadoopVer = hadoopVersion
     def testTask = tasks.register(integTestTaskName, RestIntegTestTask) {
       description = "Runs rest tests against an elasticsearch cluster with HDFS" + hadoopVer
       dependsOn("bundlePlugin")
@@ -231,17 +231,29 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
       }
     }
   }
+
+  def processHadoopTestResources = tasks.register("processHadoop" + hadoopVer + "TestResources", Copy)
+  processHadoopTestResources.configure {
+    Map<String, Object> expansions = [
+      'hdfs_port': 10003 - (2 * hadoopVer),
+      'secure_hdfs_port': 10002 - (2 * hadoopVer),
+    ]
+    inputs.properties(expansions)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v
+      .toString()]} /* must be a map of strings */, ReplaceTokens.class)
+    it.into("build/resources/test/rest-api-spec/test")
+    it.into("hdfs_repository_" + hadoopVer) {
+      from "src/test/resources/rest-api-spec/test/hdfs_repository"
+    }
+    it.into("secure_hdfs_repository_" + hadoopVer) {
+      from "src/test/resources/rest-api-spec/test/secure_hdfs_repository"
+    }
+  }
+  tasks.named("processTestResources").configure {
+    dependsOn (processHadoopTestResources)
+  }
 }
-// The following doesn't actuallyw work b/c it only happens once
-tasks.named("processTestResources").configure {
-//  Map<String, Object> expansions = [
-//    'hdfs_port': 10003 - (2 * hadoopVer),
-//    'secure_hdfs_port': 10002 - (2 * hadoopVer),
-//  ]
-//  inputs.properties(expansions)
-//  filter("tokens" : expansions.collectEntries {k, v -> [k, v
-//    .toString()]} /* must be a map of strings */, ReplaceTokens.class)
-}
+
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -287,7 +299,7 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
       dependsOn "hdfs" + hadoopVer + "Fixture"
 
       // The normal test runner only runs the standard hdfs rest tests
-      systemProperty 'tests.rest.suite', 'hdfs_repository'
+      systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer
     }
     tasks.named("integTestHa" + hadoopVer).configure {
       dependsOn "haHdfs" + hadoopVer + "Fixture"
@@ -305,7 +317,7 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
 
     // The normal integration test runner will just test that the plugin loads
     tasks.named("integTest" + hadoopVer).configure {
-      systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
+      systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer + '/10_basic'
     }
     // HA fixture is unsupported. Don't run them.
     tasks.named("integTestHa" + hadoopVer).configure {
@@ -319,7 +331,7 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
 
 // Run just the secure hdfs rest test suite.
   tasks.named("integTestSecure" + hadoopVer).configure {
-    systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
+    systemProperty 'tests.rest.suite', 'secure_hdfs_repository_' + hadoopVer
     // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
     exclude('**/Ha*TestSuiteIT.class')
   }
@@ -328,6 +340,7 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
     setIncludes(['**/Ha*TestSuiteIT.class'])
   }
 }
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(

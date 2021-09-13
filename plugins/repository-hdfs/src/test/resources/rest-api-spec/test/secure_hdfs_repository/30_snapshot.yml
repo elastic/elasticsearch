@@ -11,7 +11,7 @@
         body:
           type: hdfs
           settings:
-            uri: "hdfs://localhost:%secure_hdfs_port%"
+            uri: "hdfs://localhost:@secure_hdfs_port@"
             path: "/user/elasticsearch/test/snapshot"
             security:
               principal: "elasticsearch@BUILD.ELASTIC.CO"

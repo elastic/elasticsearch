@@ -10,7 +10,7 @@
           body:
             type: hdfs
             settings:
-              uri: "hdfs://localhost:%secure_hdfs_port%"
+              uri: "hdfs://localhost:@secure_hdfs_port@"
               path: "/user/elasticsearch/foo/bar"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"
@@ -41,7 +41,7 @@
           body:
             type: hdfs
             settings:
-              uri: "hdfs://localhost:%secure_hdfs_port%"
+              uri: "hdfs://localhost:@secure_hdfs_port@"
               path: "/user/elasticsearch/foo/bar"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"

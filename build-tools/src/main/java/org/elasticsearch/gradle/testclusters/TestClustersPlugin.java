@@ -121,7 +121,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             );
         });
         project.getExtensions().add(EXTENSION_NAME, container);
-        container.forEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
+        container.configureEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         return container;
     }
 

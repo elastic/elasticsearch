@@ -85,8 +85,10 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
                 .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
                 .build()).build();
 
-        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
+        ClusterState newClusterState;
 
+        // the snapshot index name, snapshot repository, and snapshot name are generated as expected
+        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
         assertThat(executionState.getSnapshotIndexName(), is(indexName));
         assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
@@ -94,6 +96,13 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
         assertThat(executionState.getSnapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
         assertThat(executionState.getSnapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
+
+        // re-running this step results in no change to the important outputs
+        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newClusterState);
+        LifecycleExecutionState repeatedState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        assertThat(repeatedState.getSnapshotIndexName(), is(executionState.getSnapshotIndexName()));
+        assertThat(repeatedState.getSnapshotRepository(), is(executionState.getSnapshotRepository()));
+        assertThat(repeatedState.getSnapshotName(), is(executionState.getSnapshotName()));
     }
 
     public void testPerformActionRejectsNonexistentRepository() {

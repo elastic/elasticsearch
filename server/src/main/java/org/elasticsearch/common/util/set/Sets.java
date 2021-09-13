@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.util.set;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -47,11 +48,7 @@ public final class Sets {
     @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
-        // HashSet requires a bit more capacity in order to be able to insert all the elements without resizing.
-        // 0.75 is the default load factor in HashSet, based on which we need can calculate the capacity.
-        HashSet<T> set = new HashSet<>((int) (elements.length / 0.75f + 1.0f));
-        Collections.addAll(set, elements);
-        return set;
+        return new HashSet<>(Arrays.asList(elements));
     }
 
     public static <T> Set<T> newConcurrentHashSet() {

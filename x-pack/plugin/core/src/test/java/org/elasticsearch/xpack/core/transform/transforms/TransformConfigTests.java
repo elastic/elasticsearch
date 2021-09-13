@@ -735,7 +735,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             equalTo(
                 List.of(
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] is too old",
                         "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
                         "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",

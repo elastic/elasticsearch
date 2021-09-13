@@ -240,8 +240,7 @@ testing with your own data and queries].
 
 A cluster's nodes need good, reliable connections to each other. To provide
 better connections, you typically co-locate the nodes in the same data center or
-nearby data centers. Balancing shards across nodes that are far away or not well
-connected simply takes too long. However, to maintain high availability, you
+nearby data centers. However, to maintain high availability, you
 also need to avoid any single point of failure. In the event of a major outage
 in one location, servers in another location need to be able to take over. The
 answer? {ccr-cap} (CCR).

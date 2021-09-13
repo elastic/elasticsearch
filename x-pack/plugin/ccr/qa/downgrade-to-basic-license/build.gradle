@@ -10,23 +10,20 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+def leaderCluster = testClusters.register("leader-cluster") {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
 
-testClusters {
-  "leader-cluster" {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-  }
-
-  "follow-cluster" {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-    setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\""
-    }
+def followCluster = testClusters.register("follow-cluster") {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'cluster.remote.leader_cluster.seeds', { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\""
   }
 }
 
@@ -53,11 +50,11 @@ tasks.register("writeJavaPolicy") {
 
 tasks.register("follow-cluster", RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
-    useCluster testClusters."leader-cluster"
+    useCluster leaderCluster.get()
     systemProperty 'java.security.policy', "file://${policyFile}"
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"
+    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'log', "${-> followCluster.get().getFirstNode().getServerLog()}"
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

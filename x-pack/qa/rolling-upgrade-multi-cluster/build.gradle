@@ -13,24 +13,23 @@ dependencies {
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
 
-  testClusters {
-    def baseLeaderCluster = register("${baseName}-leader") {
+  def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
-    }
-    def baseFollowerCluster = register("${baseName}-follower") {
-      numberOfNodes = 3
-    }
-    matching { it.name.startsWith("${baseName}-") }.configureEach {
-      testDistribution = "DEFAULT"
-      versions = [bwcVersion.toString(), project.version]
-
-      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'xpack.security.enabled', 'false'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
-      setting 'xpack.license.self_generated.type', 'trial'
-    }
   }
+  def baseFollowerCluster = testClusters.register("${baseName}-follower") {
+    numberOfNodes = 3
+  }
+  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
+    testDistribution = "DEFAULT"
+    versions = [bwcVersion.toString(), project.version]
+
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
     useCluster baseLeaderCluster.get()
     useCluster baseFollowerCluster.get()

@@ -8,32 +8,30 @@ dependencies {
   testImplementation project(path: xpackModule('eql:qa:common'))
 }
 
-testClusters {
-  def remoteClusterReg = register('remote-cluster') {
-    testDistribution = 'DEFAULT'
-    numberOfNodes = 2
-    setting 'node.roles', '[data,ingest,master]'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.autoconfiguration.enabled', 'false'
+def remoteClusterReg = testClusters.register('remote-cluster')  {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+  setting 'node.roles', '[data,ingest,master]'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
-    user username: "test_user", password: "x-pack-test-password"
+  user username: "test_user", password: "x-pack-test-password"
+}
+
+def integTestClusterReg = testClusters.register('integTest')  {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'cluster.remote.my_remote_cluster.seeds', {
+    remoteClusterReg.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }
+  setting 'cluster.remote.connections_per_cluster', "1"
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
-  register('integTest') {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'cluster.remote.my_remote_cluster.seeds', {
-      remoteClusterReg.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-    }
-    setting 'cluster.remote.connections_per_cluster', "1"
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.autoconfiguration.enabled', 'false'
-
-    user username: "test_user", password: "x-pack-test-password"
-  }
+  user username: "test_user", password: "x-pack-test-password"
 }
 
 tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {

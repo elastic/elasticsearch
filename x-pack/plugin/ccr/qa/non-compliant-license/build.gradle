@@ -9,21 +9,19 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa:')
 }
 
-testClusters {
-  'leader-cluster' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-  }
+def leaderCluster = testClusters.register('leader-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
 
-  'follow-cluster' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-    setting 'cluster.remote.leader_cluster.seeds',
-            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
-  }
+def followerCluster =  testClusters.register('follow-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'cluster.remote.leader_cluster.seeds',
+          { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
 }
 
 tasks.register('leader-cluster', RestIntegTestTask) {
@@ -33,10 +31,10 @@ tasks.register('leader-cluster', RestIntegTestTask) {
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  useCluster testClusters.'leader-cluster'
+  useCluster leaderCluster.get()
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'tests.leader_host',
-    { "${testClusters.'follow-cluster'.getAllHttpSocketURI().get(0)}" }
+    { "${followerCluster.get().getAllHttpSocketURI().get(0)}" }
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

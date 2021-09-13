@@ -24,44 +24,42 @@ tasks.register('remote-cluster', RestIntegTestTask) {
 // randomise between sniff and proxy modes
 boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
-testClusters {
-  'remote-cluster' {
-    testDistribution = 'DEFAULT'
-    numberOfNodes = 2
-    setting 'node.roles', '[data,ingest,master]'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
+def remoteCluster = testClusters.register('remote-cluster') {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+  setting 'node.roles', '[data,ingest,master]'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
 
-    user username: "test_user", password: "x-pack-test-password"
-  }
+  user username: "test_user", password: "x-pack-test-password"
+}
 
-  'mixed-cluster' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    if (proxyMode) {
-      setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
-      setting 'cluster.remote.my_remote_cluster.proxy_address', {
-        "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\""
-      }
-    } else {
-      setting 'cluster.remote.my_remote_cluster.seeds', {
-        testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
-      }
+def mixedCluster = testClusters.register('mixed-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', {
+      "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\""
     }
-    setting 'cluster.remote.connections_per_cluster', "1"
-
-    user username: "test_user", password: "x-pack-test-password"
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      remoteCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    }
   }
+  setting 'cluster.remote.connections_per_cluster', "1"
+
+  user username: "test_user", password: "x-pack-test-password"
 }
 
 tasks.register('mixed-cluster', RestIntegTestTask) {
   dependsOn 'remote-cluster'
-  useCluster testClusters.'remote-cluster'
+  useCluster remoteCluster.get()
   systemProperty 'tests.rest.suite', 'multi_cluster'
   if (proxyMode) {
     systemProperty 'tests.rest.blacklist', [

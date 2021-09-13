@@ -9,22 +9,21 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-testClusters {
-  'leader-cluster' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-    setting 'path.repo', "${buildDir}/cluster/shared/repo/leader-cluster"
-  }
-  'middle-cluster' {
+def leaderCluster = testClusters.register('leader-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo/leader-cluster"
+}
+
+def middleCluster = testClusters.register('middle-cluster') {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.leader_cluster.seeds',
-            { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
-  }
+            { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
 }
 
 tasks.register("leader-cluster", RestIntegTestTask) {
@@ -39,32 +38,32 @@ tasks.register("middle-cluster", RestIntegTestTask) {
   systemProperty 'tests.target_cluster', 'middle'
   systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
   nonInputProperties.systemProperty 'tests.leader_host',
-    "${-> testClusters.named('leader-cluster').get().getAllHttpSocketURI().get(0)}"
+    "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
 }
 
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn "leader-cluster", "middle-cluster"
-    useCluster testClusters."leader-cluster"
-    useCluster testClusters."middle-cluster"
+    useCluster leaderCluster.get()
+    useCluster middleCluster.get()
     systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
     nonInputProperties.systemProperty 'tests.leader_host',
-      "${-> testClusters.named('leader-cluster').get().getAllHttpSocketURI().get(0)}"
+      "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'tests.middle_host',
-      "${-> testClusters.named('middle-cluster').get().getAllHttpSocketURI().get(0)}"
+      "${-> middleCluster.get().getAllHttpSocketURI().get(0)}"
 }
 
-testClusters.matching { it.name == "follow-cluster" }.configureEach {
+testClusters.matching {it.name == "follow-cluster" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
   setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
+    { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
   setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${testClusters.named('middle-cluster').get().getAllTransportPortURI().join(",")}\"" }
+    { "\"${middleCluster.get().getAllTransportPortURI().join(",")}\"" }
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

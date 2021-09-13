@@ -20,8 +20,8 @@ dependencies {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
-  String bwcVersionStr = "${bwcVersion}"
+  String bwcVersionStr = bwcVersion.toString()
+  String baseName = "v" + bwcVersionStr
 
   /**
    * We execute tests 3 times.

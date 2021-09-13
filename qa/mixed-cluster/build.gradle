@@ -28,12 +28,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     continue;
   }
 
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersionString
 
   /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
   def baseCluster = testClusters.register(baseName) {
-    versions = [bwcVersion.toString(), project.version]
+    versions = [bwcVersionString, project.version]
     numberOfNodes = 4
 
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"

@@ -88,26 +88,26 @@ public class NamedXContentRegistry {
             return emptyMap();
         }
 
-        Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> registry = new HashMap<>();
+        Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> newRegistry = new HashMap<>();
         for (Entry entry : entries) {
             for (String name : entry.name.getAllNamesIncludedDeprecated()) {
                 if (RestApiVersion.minimumSupported().matches(entry.restApiCompatibility)) {
-                    registerParsers(registry, entry, name, RestApiVersion.minimumSupported());
+                    registerParsers(newRegistry, entry, name, RestApiVersion.minimumSupported());
                 }
                 if (RestApiVersion.current().matches(entry.restApiCompatibility)) {
-                    registerParsers(registry, entry, name, RestApiVersion.current());
+                    registerParsers(newRegistry, entry, name, RestApiVersion.current());
                 }
             }
         }
-        return registry;
+        return newRegistry;
     }
 
-    private void registerParsers(Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> registry,
+    private void registerParsers(Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry,
                                  Entry entry,
                                  String name,
                                  RestApiVersion restApiVersion) {
         final Map<Class<?>, Map<String, Entry>> classRegistry =
-            registry.computeIfAbsent(restApiVersion, (v) -> new HashMap<>());
+            newRegistry.computeIfAbsent(restApiVersion, (v) -> new HashMap<>());
         final Map<String, Entry> parsers =
             classRegistry.computeIfAbsent(entry.categoryClass, (v) -> new HashMap<>());
         Object old = parsers.put(name, entry);

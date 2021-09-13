@@ -95,9 +95,9 @@ public class MiniHDFS {
             builder.nameNodePort(Integer.parseInt(explicitPort));
         } else {
             if (secure) {
-                builder.nameNodePort(9996);
+                builder.nameNodePort(9998);
             } else {
-                builder.nameNodePort(9997);
+                builder.nameNodePort(9999);
             }
         }
 

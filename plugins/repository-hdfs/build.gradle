@@ -129,6 +129,9 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
       if (name.startsWith('secure')) {
         miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
         miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
+        miniHDFSArgs.add("-Dhdfs.config.port=" + getSecureNamenodePortForVersion(hadoopVer))
+      } else {
+        miniHDFSArgs.add("-Dhdfs.config.port=" + getNonSecureNamenodePortForVersion(hadoopVer))
       }
       // If it's an HA fixture, set a nameservice to use in the JVM options
       if (name.startsWith('haHdfs') || name.startsWith('secureHaHdfs')) {
@@ -150,6 +153,14 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
       args miniHDFSArgs.toArray()
     }
   }
+}
+
+def getSecureNamenodePortForVersion(hadoopVersion) {
+  return 10002 - (2 * hadoopVersion)
+}
+
+def getNonSecureNamenodePortForVersion(hadoopVersion) {
+  return 10003 - (2 * hadoopVersion)
 }
 
 Set disabledIntegTestTaskNames = []
@@ -229,8 +240,8 @@ for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadop
   def processHadoopTestResources = tasks.register("processHadoop" + hadoopVer + "TestResources", Copy)
   processHadoopTestResources.configure {
     Map<String, Object> expansions = [
-      'hdfs_port': 10003 - (2 * hadoopVer),
-      'secure_hdfs_port': 10002 - (2 * hadoopVer),
+      'hdfs_port': getNonSecureNamenodePortForVersion(hadoopVer),
+      'secure_hdfs_port': getSecureNamenodePortForVersion(hadoopVer),
     ]
     inputs.properties(expansions)
     filter("tokens" : expansions.collectEntries {k, v -> [k, v

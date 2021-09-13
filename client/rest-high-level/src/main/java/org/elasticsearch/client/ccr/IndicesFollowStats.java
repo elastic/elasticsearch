@@ -9,17 +9,16 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public final class IndicesFollowStats {
 
@@ -50,8 +49,7 @@ public final class IndicesFollowStats {
         args -> {
             @SuppressWarnings("unchecked")
             List<Tuple<String, List<ShardFollowStats>>> entries = (List<Tuple<String, List<ShardFollowStats>>>) args[0];
-            Map<String, List<ShardFollowStats>> shardFollowStats = entries.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-            return new IndicesFollowStats(new TreeMap<>(shardFollowStats));
+            return new IndicesFollowStats(entries.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2)));
         });
 
     static {
@@ -107,42 +105,41 @@ public final class IndicesFollowStats {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<ShardFollowStats, Void> PARSER =
-                new ConstructingObjectParser<>(
-                        "shard-follow-stats",
-                        true,
-                        args -> new ShardFollowStats(
-                                (String) args[0],
-                                (String) args[1],
-                                (String) args[2],
-                                (int) args[3],
-                                (long) args[4],
-                                (long) args[5],
-                                (long) args[6],
-                                (long) args[7],
-                                (long) args[8],
-                                (int) args[9],
-                                (int) args[10],
-                                (int) args[11],
-                                (long) args[12],
-                                (long) args[13],
-                                (long) args[14],
-                                (long) args[15],
-                                (long) args[16],
-                                (long) args[17],
-                                (long) args[18],
-                                (long) args[19],
-                                (long) args[20],
-                                (long) args[21],
-                                (long) args[22],
-                                (long) args[23],
-                                (long) args[24],
-                                (long) args[25],
-                                (long) args[26],
-                                new TreeMap<>(
-                                        ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
-                                                .stream()
-                                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                                (ElasticsearchException) args[28]));
+            new ConstructingObjectParser<>(
+                "shard-follow-stats",
+                true,
+                args -> new ShardFollowStats(
+                    (String) args[0],
+                    (String) args[1],
+                    (String) args[2],
+                    (int) args[3],
+                    (long) args[4],
+                    (long) args[5],
+                    (long) args[6],
+                    (long) args[7],
+                    (long) args[8],
+                    (int) args[9],
+                    (int) args[10],
+                    (int) args[11],
+                    (long) args[12],
+                    (long) args[13],
+                    (long) args[14],
+                    (long) args[15],
+                    (long) args[16],
+                    (long) args[17],
+                    (long) args[18],
+                    (long) args[19],
+                    (long) args[20],
+                    (long) args[21],
+                    (long) args[22],
+                    (long) args[23],
+                    (long) args[24],
+                    (long) args[25],
+                    (long) args[26],
+                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
+                        .stream()
+                        .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
+                    (ElasticsearchException) args[28]));
 
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(

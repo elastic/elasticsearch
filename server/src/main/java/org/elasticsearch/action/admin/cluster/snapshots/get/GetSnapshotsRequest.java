@@ -36,7 +36,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> {
 
-    public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;

@@ -122,8 +122,6 @@ public class MockNioTransport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
-
-            super.doStart();
             success = true;
         } catch (IOException e) {
             throw new ElasticsearchException(e);

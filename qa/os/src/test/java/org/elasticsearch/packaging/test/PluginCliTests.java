@@ -86,7 +86,7 @@ public class PluginCliTests extends PackagingTestCase {
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
                 final String settingsResponse = makeRequest(
-                    Request.Get("http://localhost:9200/" + settingsPath),
+                    Request.Get("https://localhost:9200/" + settingsPath),
                     superuser,
                     superuserPassword,
                     ServerUtils.getCaCert(installation)

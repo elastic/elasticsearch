@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'

@@ -86,24 +86,25 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        protected final Map<String, Mapper> buildMappers(ContentPath contentPath) {
-            contentPath.add(name);
+        protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
+            if (root == false) {
+                context = context.createChildContext(name);
+            }
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(contentPath);
+                Mapper mapper = builder.build(context);
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
-            contentPath.remove();
             return mappers;
         }
 
         @Override
-        public ObjectMapper build(ContentPath contentPath) {
-            return new ObjectMapper(name, contentPath.pathAsText(name), enabled, dynamic, buildMappers(contentPath));
+        public ObjectMapper build(MapperBuilderContext context) {
+            return new ObjectMapper(name, context.buildFullName(name), enabled, dynamic, buildMappers(false, context));
         }
     }
 

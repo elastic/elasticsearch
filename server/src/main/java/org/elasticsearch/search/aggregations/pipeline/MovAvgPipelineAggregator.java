@@ -39,8 +39,17 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     private final int predict;
     private final boolean minimize;
 
-    MovAvgPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, GapPolicy gapPolicy,
-                             int window, int predict, MovAvgModel model, boolean minimize, Map<String, Object> metadata) {
+    MovAvgPipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        DocValueFormat formatter,
+        GapPolicy gapPolicy,
+        int window,
+        int predict,
+        MovAvgModel model,
+        boolean minimize,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
@@ -81,9 +90,11 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
         @SuppressWarnings("rawtypes")
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-                histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-                InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<
+            ? extends InternalMultiBucketAggregation,
+            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
+                ? extends InternalMultiBucketAggregation,
+                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -103,7 +114,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
-            // Default is to reuse existing bucket.  Simplifies the rest of the logic,
+            // Default is to reuse existing bucket. Simplifies the rest of the logic,
             // since we only change newBucket if we can add to it
             Bucket newBucket = bucket;
 
@@ -170,8 +181,11 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         return factory.createAggregation(newBuckets);
     }
 
-    private MovAvgModel minimize(List<? extends InternalMultiBucketAggregation.InternalBucket> buckets,
-                                 MultiBucketsAggregation histo, MovAvgModel model) {
+    private MovAvgModel minimize(
+        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets,
+        MultiBucketsAggregation histo,
+        MovAvgModel model
+    ) {
 
         int counter = 0;
         EvictingQueue<Double> values = new EvictingQueue<>(this.window);
@@ -196,8 +210,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             return model;
         }
 
-        //And do it again, for the train set.  Unfortunately we have to fill an array and then
-        //fill an evicting queue backwards :(
+        // And do it again, for the train set. Unfortunately we have to fill an array and then
+        // fill an evicting queue backwards :(
 
         counter = 0;
         double[] train = new double[window];

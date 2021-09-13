@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
 import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
+import org.elasticsearch.xpack.enrich.action.InternalExecutePolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichReindexAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
@@ -126,17 +127,21 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
+    public static final Setting<Long> CACHE_SIZE = Setting.longSetting("enrich.cache_size", 1000, 0, Setting.Property.NodeScope);
+
     private final Settings settings;
     private final boolean transportClientMode;
+    private final EnrichCache enrichCache;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
+        this.enrichCache = new EnrichCache(CACHE_SIZE.get(settings));
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService, enrichCache);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Collections.singletonMap(EnrichProcessorFactory.TYPE, factory);
     }
@@ -155,7 +160,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             new ActionHandler<>(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
             new ActionHandler<>(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
             new ActionHandler<>(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class),
-            new ActionHandler<>(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class)
+            new ActionHandler<>(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class),
+            new ActionHandler<>(InternalExecutePolicyAction.INSTANCE, InternalExecutePolicyAction.Transport.class)
         );
     }
 
@@ -196,6 +202,15 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         }
 
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
+        EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(
+            settings,
+            clusterService,
+            client,
+            threadPool,
+            expressionResolver,
+            enrichPolicyLocks,
+            System::currentTimeMillis
+        );
         EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(
             settings,
             client,
@@ -207,7 +222,9 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return Arrays.asList(
             enrichPolicyLocks,
             new EnrichCoordinatorProxyAction.Coordinator(client, settings),
-            enrichPolicyMaintenanceService
+            enrichPolicyMaintenanceService,
+            enrichPolicyExecutor,
+            enrichCache
         );
     }
 
@@ -247,7 +264,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS,
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
-            ENRICH_MAX_FORCE_MERGE_ATTEMPTS
+            ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
+            CACHE_SIZE
         );
     }
 

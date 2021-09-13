@@ -23,8 +23,7 @@ import java.util.List;
 public class AggregationPhase {
 
     @Inject
-    public AggregationPhase() {
-    }
+    public AggregationPhase() {}
 
     public void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
@@ -33,10 +32,7 @@ public class AggregationPhase {
         BucketCollector bucketCollector;
         try {
             context.aggregations().aggregators(context.aggregations().factories().createTopLevelAggregators());
-            bucketCollector = MultiBucketCollector.wrap(
-                true,
-                org.elasticsearch.core.List.of(context.aggregations().aggregators())
-            );
+            bucketCollector = MultiBucketCollector.wrap(true, org.elasticsearch.core.List.of(context.aggregations().aggregators()));
             bucketCollector.preCollection();
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
@@ -73,8 +69,8 @@ public class AggregationPhase {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations,
-                context.request().source().aggregations()::buildPipelineTree));
+        context.queryResult()
+            .aggregations(new InternalAggregations(aggregations, context.request().source().aggregations()::buildPipelineTree));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

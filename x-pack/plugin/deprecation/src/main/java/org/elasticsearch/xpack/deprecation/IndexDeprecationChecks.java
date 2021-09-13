@@ -14,11 +14,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +33,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 
 
 /**
@@ -316,5 +323,83 @@ public class IndexDeprecationChecks {
                     "as it offers superior or equivalent performance to [simplefs].", false, null);
         }
         return null;
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings,
+                                                final Setting<?> removedSetting,
+                                                final String url,
+                                                DeprecationIssue.Level deprecationLevel) {
+        if (removedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String removedSettingKey = removedSetting.getKey();
+        final String value = removedSetting.get(settings).toString();
+        final String message =
+            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
+        final String details =
+            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            INDEX_ROUTING_REQUIRE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            INDEX_ROUTING_INCLUDE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            INDEX_ROUTING_EXCLUDE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    protected static boolean isGeoShapeFieldWithDeprecatedParam(Map<?, ?> property) {
+        return LegacyGeoShapeFieldMapper.CONTENT_TYPE.equals(property.get("type")) &&
+            LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream().anyMatch(deprecatedParameter ->
+                property.containsKey(deprecatedParameter)
+            );
+    }
+
+    protected static String formatDeprecatedGeoShapeParamMessage(String type, Map.Entry<?, ?> entry) {
+        String fieldName = entry.getKey().toString();
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        return LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream()
+            .filter(deprecatedParameter -> value.containsKey(deprecatedParameter))
+            .map(deprecatedParameter -> String.format(Locale.ROOT, "parameter [%s] in field [%s]", deprecatedParameter, fieldName))
+            .collect(Collectors.joining("; "));
+    }
+
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkGeoShapeMappings(IndexMetadata indexMetadata) {
+        if (indexMetadata == null || indexMetadata.mapping() == null) {
+            return null;
+        }
+        Map<String, Object> sourceAsMap = indexMetadata.mapping().getSourceAsMap();
+        List<String> messages = findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE, sourceAsMap,
+            IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
+            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+        if (messages.isEmpty()) {
+            return null;
+        } else {
+            String message = String.format(Locale.ROOT,"mappings for index %s contains deprecated geo_shape properties that must be " +
+                "removed", indexMetadata.getIndex().getName());
+            String details = String.format(Locale.ROOT,
+                "The following geo_shape parameters must be removed from %s: [%s]", indexMetadata.getIndex().getName(),
+                messages.stream().collect(Collectors.joining("; ")));
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
     }
 }

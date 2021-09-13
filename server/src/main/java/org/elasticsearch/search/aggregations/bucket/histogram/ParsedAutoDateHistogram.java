@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -41,14 +41,18 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return buckets;
     }
 
-    private static final ObjectParser<ParsedAutoDateHistogram, Void> PARSER =
-            new ObjectParser<>(ParsedAutoDateHistogram.class.getSimpleName(), true, ParsedAutoDateHistogram::new);
+    private static final ObjectParser<ParsedAutoDateHistogram, Void> PARSER = new ObjectParser<>(
+        ParsedAutoDateHistogram.class.getSimpleName(),
+        true,
+        ParsedAutoDateHistogram::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
-        PARSER.declareString((parsed, value) -> parsed.interval = value,
-            new ParseField("interval"));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
+        PARSER.declareString((parsed, value) -> parsed.interval = value, new ParseField("interval"));
     }
 
     public static ParsedAutoDateHistogram fromXContent(XContentParser parser, String name) throws IOException {
@@ -63,7 +67,6 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         builder.field("interval", getInterval());
         return builder;
     }
-
 
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 

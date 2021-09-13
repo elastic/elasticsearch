@@ -72,7 +72,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final Parameter<Double> scalingFactor = new Parameter<>("scaling_factor", false, () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o), m -> toType(m).scalingFactor)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v == null) {
                     throw new IllegalArgumentException("Field [scaling_factor] is required");
                 }
@@ -113,10 +113,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ScaledFloatFieldMapper build(ContentPath contentPath) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+        public ScaledFloatFieldMapper build(MapperBuilderContext context) {
+            ScaledFloatFieldType type = new ScaledFloatFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                 hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue(), nullValue.getValue());
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -247,15 +247,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoTimeZone(timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
-            } else {
-                return new DocValueFormat.Decimal(format);
             }
+            return new DocValueFormat.Decimal(format);
         }
 
         /**

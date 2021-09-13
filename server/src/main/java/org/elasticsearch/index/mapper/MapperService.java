@@ -549,6 +549,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Check that the resolved type can be used for indexing or deletions
+     */
+    public void validateType(String type) {
+        if (mapper == null) {
+            return;
+        }
+        if (type.equals(mapper.type()) == false) {
+            throw new IllegalArgumentException("Invalid type: expecting [" + mapper.type() + "] but got [" + type + "]");
+        }
+    }
+
+    /**
      * Returns {@code true} if the given {@code mappingSource} includes a type
      * as a top-level object.
      */

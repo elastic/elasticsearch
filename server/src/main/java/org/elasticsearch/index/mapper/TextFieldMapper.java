@@ -106,10 +106,6 @@ public class TextFieldMapper extends FieldMapper {
         public static final int POSITION_INCREMENT_GAP = 100;
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((TextFieldMapper) in).builder;
-    }
-
     private static final class PrefixConfig implements ToXContent {
         final int minChars;
         final int maxChars;
@@ -229,27 +225,26 @@ public class TextFieldMapper extends FieldMapper {
 
         private final Version indexCreatedVersion;
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.getValue(), true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
+        private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, false);
 
-        final Parameter<SimilarityProvider> similarity
-            = TextParams.similarity(m -> builder(m).similarity.getValue());
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.getValue());
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
-        final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
+        final Parameter<String> indexOptions = TextParams.indexOptions(m -> ((TextFieldMapper) m).indexOptions);
+        final Parameter<Boolean> norms = TextParams.norms(true, m -> ((TextFieldMapper) m).norms);
+        final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
         final Parameter<Boolean> fieldData
-            = Parameter.boolParam("fielddata", true, m -> builder(m).fieldData.getValue(), false);
+            = Parameter.boolParam("fielddata", true, m -> ((TextFieldMapper) m).fieldData, false);
         final Parameter<FielddataFrequencyFilter> freqFilter = new Parameter<>("fielddata_frequency_filter", true,
-            () -> DEFAULT_FILTER, TextFieldMapper::parseFrequencyFilter, m -> builder(m).freqFilter.getValue());
+            () -> DEFAULT_FILTER, TextFieldMapper::parseFrequencyFilter, m -> ((TextFieldMapper) m).freqFilter);
         final Parameter<Boolean> eagerGlobalOrdinals
-            = Parameter.boolParam("eager_global_ordinals", true, m -> builder(m).eagerGlobalOrdinals.getValue(), false);
+            = Parameter.boolParam("eager_global_ordinals", true, m -> ((TextFieldMapper) m).eagerGlobalOrdinals, false);
 
         final Parameter<Boolean> indexPhrases
-            = Parameter.boolParam("index_phrases", false, m -> builder(m).indexPhrases.getValue(), false);
+            = Parameter.boolParam("index_phrases", false, m -> ((TextFieldMapper) m).indexPhrases, false);
         final Parameter<PrefixConfig> indexPrefixes = new Parameter<>("index_prefixes", false,
-            () -> null, TextFieldMapper::parsePrefixConfig, m -> builder(m).indexPrefixes.getValue()).acceptsNull();
+            () -> null, TextFieldMapper::parsePrefixConfig, m -> ((TextFieldMapper) m).indexPrefixes).acceptsNull();
 
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -263,7 +258,11 @@ public class TextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(
+                    indexAnalyzers,
+                    m -> ((TextFieldMapper) m).indexAnalyzer,
+                    m -> (((TextFieldMapper) m).positionIncrementGap)
+            );
         }
 
         public Builder index(boolean index) {
@@ -301,7 +300,7 @@ public class TextFieldMapper extends FieldMapper {
                 boost, meta);
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
+        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             if (analyzers.positionIncrementGap.isConfigured()) {
@@ -311,7 +310,8 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
-            TextFieldType ft = new TextFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), tsi, meta.getValue());
+            TextFieldType ft = new TextFieldType(
+                context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
             ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
             ft.setBoost(boost.getValue());
             if (fieldData.getValue()) {
@@ -320,7 +320,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private SubFieldInfo buildPrefixInfo(ContentPath contentPath, FieldType fieldType, TextFieldType tft) {
+        private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -334,7 +334,7 @@ public class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : buildFullName(contentPath);
+            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : context.buildFullName(name);
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -393,12 +393,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TextFieldMapper build(ContentPath contentPath) {
+        public TextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            TextFieldType tft = buildFieldType(fieldType, contentPath);
+            TextFieldType tft = buildFieldType(fieldType, context);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
-            SubFieldInfo prefixFieldInfo = buildPrefixInfo(contentPath, fieldType, tft);
-            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
@@ -825,7 +825,21 @@ public class TextFieldMapper extends FieldMapper {
 
     }
 
-    private final Builder builder;
+    private final Version indexCreatedVersion;
+    private final boolean index;
+    private final boolean store;
+    private final String indexOptions;
+    private final boolean norms;
+    private final String termVectors;
+    private final SimilarityProvider similarity;
+    private final NamedAnalyzer indexAnalyzer;
+    private final IndexAnalyzers indexAnalyzers;
+    private final int positionIncrementGap;
+    private final boolean eagerGlobalOrdinals;
+    private final PrefixConfig indexPrefixes;
+    private final FielddataFrequencyFilter freqFilter;
+    private final boolean fieldData;
+    private final boolean indexPhrases;
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
@@ -845,12 +859,26 @@ public class TextFieldMapper extends FieldMapper {
         this.fieldType = fieldType;
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
-        this.builder = builder;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
+        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
+        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
+        this.index = builder.index.getValue();
+        this.store = builder.store.getValue();
+        this.similarity = builder.similarity.getValue();
+        this.indexOptions = builder.indexOptions.getValue();
+        this.norms = builder.norms.getValue();
+        this.termVectors = builder.termVectors.getValue();
+        this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
+        this.indexPrefixes = builder.indexPrefixes.getValue();
+        this.freqFilter = builder.freqFilter.getValue();
+        this.fieldData = builder.fieldData.get();
+        this.indexPhrases = builder.indexPhrases.getValue();
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers).init(this);
     }
 
     @Override
@@ -1008,24 +1036,26 @@ public class TextFieldMapper extends FieldMapper {
         // this is a pain, but we have to do this to maintain BWC
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.field("type", contentType());
-        this.builder.boost.toXContent(builder, includeDefaults);
-        this.builder.index.toXContent(builder, includeDefaults);
-        this.builder.store.toXContent(builder, includeDefaults);
+
+        final Builder b = (Builder) getMergeBuilder();
+        b.boost.toXContent(builder, includeDefaults);
+        b.index.toXContent(builder, includeDefaults);
+        b.store.toXContent(builder, includeDefaults);
         this.multiFields.toXContent(builder, params);
         this.copyTo.toXContent(builder, params);
-        this.builder.meta.toXContent(builder, includeDefaults);
-        this.builder.indexOptions.toXContent(builder, includeDefaults);
-        this.builder.termVectors.toXContent(builder, includeDefaults);
-        this.builder.norms.toXContent(builder, includeDefaults);
-        this.builder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.similarity.toXContent(builder, includeDefaults);
-        this.builder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-        this.builder.analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
-        this.builder.fieldData.toXContent(builder, includeDefaults);
-        this.builder.freqFilter.toXContent(builder, includeDefaults);
-        this.builder.indexPrefixes.toXContent(builder, includeDefaults);
-        this.builder.indexPhrases.toXContent(builder, includeDefaults);
+        b.meta.toXContent(builder, includeDefaults);
+        b.indexOptions.toXContent(builder, includeDefaults);
+        b.termVectors.toXContent(builder, includeDefaults);
+        b.norms.toXContent(builder, includeDefaults);
+        b.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+        b.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+        b.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+        b.similarity.toXContent(builder, includeDefaults);
+        b.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+        b.analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
+        b.fieldData.toXContent(builder, includeDefaults);
+        b.freqFilter.toXContent(builder, includeDefaults);
+        b.indexPrefixes.toXContent(builder, includeDefaults);
+        b.indexPhrases.toXContent(builder, includeDefaults);
     }
 }

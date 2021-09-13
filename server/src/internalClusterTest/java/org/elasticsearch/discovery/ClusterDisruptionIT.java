@@ -64,6 +64,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
@@ -503,7 +505,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testRejoinWhileBeingRemoved() {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
+            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .build());
         final String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
             .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
             .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")

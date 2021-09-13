@@ -84,7 +84,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         ServerUtils.enableSecurityAutoConfiguration(installation);
-        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 10000);
         Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
         assertThat(usersAndPasswords.size(), equalTo(2));
         assertThat(usersAndPasswords.containsKey("elastic"), is(true));

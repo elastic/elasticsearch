@@ -357,8 +357,8 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             @Override
-            public org.elasticsearch.script.Field<String> toField(String fieldName) {
-                return new org.elasticsearch.script.Field.IpField(fieldName, this);
+            public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
+                return new org.elasticsearch.script.field.Field.IpField(fieldName, this);
             }
         }
 

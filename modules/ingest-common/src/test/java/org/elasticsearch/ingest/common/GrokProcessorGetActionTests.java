@@ -57,7 +57,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     }
 
     public void testResponseSorting() {
-        List<String> sortedKeys = new ArrayList<>(LEGACY_TEST_PATTERNS.keySet());
+        List<String> sortedKeys = new ArrayList<>(ECS_TEST_PATTERNS.keySet());
         Collections.sort(sortedKeys);
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
             mock(TransportService.class),

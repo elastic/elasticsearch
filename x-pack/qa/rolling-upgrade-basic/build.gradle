@@ -11,11 +11,12 @@ dependencies {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersionString
 
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
-    versions = [bwcVersion.toString(), project.version]
+    versions = [bwcVersionString, project.version]
     numberOfNodes = 3
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
@@ -34,7 +35,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
   }
 
-  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
+  String oldVersion = bwcVersionString.replace('-SNAPSHOT', '')
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster baseCluster.get()

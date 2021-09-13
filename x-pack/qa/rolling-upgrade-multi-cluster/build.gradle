@@ -11,7 +11,8 @@ dependencies {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersionString
 
   def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
@@ -21,7 +22,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
   testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
-    versions = [bwcVersion.toString(), project.version]
+    versions = [bwcVersionString, project.version]
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'xpack.security.enabled', 'false'
@@ -33,7 +34,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
     useCluster baseLeaderCluster.get()
     useCluster baseFollowerCluster.get()
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', bwcVersionString.replace('-SNAPSHOT', '')
 
     doFirst {
       def baseCluster = testClusters.named("${baseName}-${kindExt}").get()

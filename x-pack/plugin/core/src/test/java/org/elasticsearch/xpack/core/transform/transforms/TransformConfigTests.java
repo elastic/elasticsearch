@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
@@ -31,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +92,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static TransformConfig randomTransformConfig() {
         return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
+    }
+
+    public static TransformConfig randomTransformConfigWithDeprecatedFields(String id) {
+        return randomTransformConfig(id, PivotConfigTests.randomPivotConfigWithDeprecatedFields(), null);
     }
 
     public static TransformConfig randomTransformConfig(String id) {
@@ -496,10 +503,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
-        TransformConfig explicitFalseAfter715 = new TransformConfig.Builder(transformConfig)
-            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setAlignCheckpoints(false).build())
-            .setVersion(Version.V_7_15_0)
-            .build();
+        TransformConfig explicitFalseAfter715 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setAlignCheckpoints(false).build()
+        ).setVersion(Version.V_7_15_0).build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitFalseAfter715);
 
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
@@ -570,20 +576,18 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
-        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig)
-            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build())
-            .setVersion(Version.V_7_11_0)
-            .build();
+        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
+        ).setVersion(Version.V_7_11_0).build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         // The config is still being rewritten due to "settings.align_checkpoints".
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
-        TransformConfig explicitTrueAfter715 = new TransformConfig.Builder(transformConfig)
-            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build())
-            .setVersion(Version.V_7_15_0)
-            .build();
+        TransformConfig explicitTrueAfter715 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
+        ).setVersion(Version.V_7_15_0).build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter715);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
@@ -688,6 +692,34 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             List<String> parsedGroups = new ArrayList<>(parsed.getPivotConfig().getGroupConfig().getGroups().keySet());
             assertThat(parsedGroups, equalTo(originalGroups));
         }
+    }
+
+    public void testCheckForDeprecations() {
+        assertThat(createTestInstance().checkForDeprecations(xContentRegistry()), is(empty()));
+
+        String id = randomAlphaOfLengthBetween(1, 10);
+
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id);
+
+        // check _and_ clear warnings
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                Collections.singletonList(
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        false,
+                        null
+                    )
+                )
+            )
+        );
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

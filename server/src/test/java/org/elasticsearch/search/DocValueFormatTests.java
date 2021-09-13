@@ -357,7 +357,6 @@ public class DocValueFormatTests extends ESTestCase {
         long expected = 1628719200000L;
         ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
         assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
-        //assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
         long actualMillis = parsesZone.parseLong(
             "2021-08-12T00:00:00.000000000+02:00",
             false,

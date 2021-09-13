@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
@@ -26,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -390,10 +390,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    private static String[] matchAllPattern() {
-        return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
-    }
-
     private List<SnapshotInfo> getAllByPatterns(String[] repos, String[] snapshots) {
         return clusterAdmin().prepareGetSnapshots(repos)
             .setSnapshots(snapshots)
@@ -449,6 +445,189 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .getSnapshots();
         assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName), is(allSnapshots));
         assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"), is(allSnapshots));
+    }
+
+    public void testSortAfterStartTime() {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final SnapshotInfo snapshot1 = createFullSnapshot(repoName, "snapshot-1");
+        final SnapshotInfo snapshot2 = createFullSnapshot(repoName, "snapshot-2");
+        final SnapshotInfo snapshot3 = createFullSnapshot(repoName, "snapshot-3");
+
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
+
+        final long startTime1 = snapshot1.startTime();
+        final long startTime2 = snapshot2.startTime();
+        final long startTime3 = snapshot3.startTime();
+
+        assertThat(allAfterStartTimeAscending(startTime1 - 1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime1), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+
+        assertThat(allBeforeStartTimeDescending(startTime3 + 1), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime3), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1), empty());
+    }
+
+    private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .setAfterValue(Long.toString(timestamp))
+            .get()
+            .getSnapshots();
+    }
+
+    private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .setAfterValue(Long.toString(timestamp))
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+    }
+
+    public void testSortAfterName() {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final SnapshotInfo snapshot1 = createFullSnapshot(repoName, "snapshot-1");
+        final SnapshotInfo snapshot2 = createFullSnapshot(repoName, "snapshot-2");
+        final SnapshotInfo snapshot3 = createFullSnapshot(repoName, "snapshot-3");
+
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
+
+        final String name1 = snapshot1.snapshotId().getName();
+        final String name2 = snapshot2.snapshotId().getName();
+        final String name3 = snapshot3.snapshotId().getName();
+
+        assertThat(allAfterNameAscending("a"), is(allSnapshotInfo));
+        assertThat(allAfterNameAscending(name1), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterNameAscending(name2), is(List.of(snapshot3)));
+        assertThat(allAfterNameAscending(name3), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+
+        assertThat(allBeforeNameDescending("z"), is(allSnapshotInfoDesc));
+        assertThat(allBeforeNameDescending(name3), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeNameDescending(name2), is(List.of(snapshot1)));
+        assertThat(allBeforeNameDescending(name1), empty());
+    }
+
+    private List<SnapshotInfo> allAfterNameAscending(String name) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setAfterValue(name)
+            .get()
+            .getSnapshots();
+    }
+
+    private List<SnapshotInfo> allBeforeNameDescending(String name) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setAfterValue(name)
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+    }
+
+    public void testSortAfterDuration() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final SnapshotInfo snapshot1 = createFullSnapshot(repoName, "snapshot-1");
+
+        createIndexWithContent("index-1");
+        blockAllDataNodes(repoName);
+        final ActionFuture<CreateSnapshotResponse> snapshot2Future = startFullSnapshot(repoName, "snapshot-2");
+        awaitNumberOfSnapshotsInProgress(1);
+        TimeUnit.MILLISECONDS.sleep(snapshot1.endTime() - snapshot1.startTime() + 1);
+        unblockAllDataNodes(repoName);
+        final SnapshotInfo snapshot2 = assertSuccessful(snapshot2Future);
+
+        createIndexWithContent("index-2");
+        blockAllDataNodes(repoName);
+        final ActionFuture<CreateSnapshotResponse> snapshot3Future = startFullSnapshot(repoName, "snapshot-3");
+        awaitNumberOfSnapshotsInProgress(1);
+        TimeUnit.MILLISECONDS.sleep(snapshot2.endTime() - snapshot2.startTime() + 2);
+        unblockAllDataNodes(repoName);
+        final SnapshotInfo snapshot3 = assertSuccessful(snapshot3Future);
+
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.DURATION)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
+
+        final long duration1 = snapshot1.endTime() - snapshot1.startTime();
+        final long duration2 = snapshot2.endTime() - snapshot2.startTime();
+        final long duration3 = snapshot3.endTime() - snapshot3.startTime();
+
+        assertThat(allAfterDurationAscending(duration1 - 1), is(allSnapshotInfo));
+        assertThat(allAfterDurationAscending(duration1), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterDurationAscending(duration2), is(List.of(snapshot3)));
+        assertThat(allAfterDurationAscending(duration3), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.DURATION)
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+
+        assertThat(allBeforeDurationDescending(duration3 + 1), is(allSnapshotInfoDesc));
+        assertThat(allBeforeDurationDescending(duration3), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeDurationDescending(duration2), is(List.of(snapshot1)));
+        assertThat(allBeforeDurationDescending(duration1), empty());
+    }
+
+    private List<SnapshotInfo> allAfterDurationAscending(long duration) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.DURATION)
+            .setAfterValue(Long.toString(duration))
+            .get()
+            .getSnapshots();
+    }
+
+    private List<SnapshotInfo> allBeforeDurationDescending(long duration) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.DURATION)
+            .setAfterValue(Long.toString(duration))
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {

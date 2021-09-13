@@ -122,6 +122,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.size(),
             request.order(),
             request.policies(),
+            request.afterValue(),
             listener
         );
     }
@@ -140,6 +141,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         SortOrder order,
         String[] slmPolicies,
+        @Nullable String afterValue,
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -159,7 +161,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                final SnapshotsInRepo snInfos = sortAndFilterSnapshots(allSnapshots, sortBy, after, offset, size, order, slmPolicies);
+                final SnapshotsInRepo snInfos = sortAndFilterSnapshots(
+                    allSnapshots,
+                    sortBy,
+                    after,
+                    offset,
+                    size,
+                    order,
+                    slmPolicies,
+                    afterValue
+                );
                 final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
                 final int remaining = snInfos.remaining + responses.stream()
                     .map(Tuple::v2)
@@ -184,6 +195,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 repoName,
                 snapshots,
                 slmPolicies,
+                afterValue,
                 ignoreUnavailable,
                 verbose,
                 cancellableTask,
@@ -206,6 +218,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         String repo,
         String[] snapshots,
         String[] slmPolicies,
+        @Nullable String afterValue,
         boolean ignoreUnavailable,
         boolean verbose,
         CancellableTask task,
@@ -244,6 +257,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 after,
                 order,
                 slmPolicies,
+                afterValue,
                 listener
             ),
             listener::onFailure
@@ -284,6 +298,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         @Nullable final GetSnapshotsRequest.After after,
         SortOrder order,
         String[] slmPolicies,
+        @Nullable String afterValue,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
@@ -356,6 +371,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 after,
                 order,
                 slmPolicies,
+                afterValue,
                 listener
             );
         } else {
@@ -399,6 +415,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         @Nullable GetSnapshotsRequest.After after,
         SortOrder order,
         String[] slmPolicies,
+        @Nullable String afterValue,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
@@ -427,7 +444,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortAndFilterSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, slmPolicies));
+            listener.onResponse(
+                sortAndFilterSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, slmPolicies, afterValue)
+            );
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);
@@ -533,13 +552,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final int offset,
         final int size,
         final SortOrder order,
-        final String[] slmPolicies
+        final String[] slmPolicies,
+        final @Nullable String afterValue
     ) {
+        Predicate<SnapshotInfo> predicate = null;
+        if (slmPolicies.length > 0) {
+            predicate = filterBySLMPolicies(slmPolicies);
+        }
+        if (afterValue != null) {
+            final Predicate<SnapshotInfo> afterValuePredicate = buildAfterPredicate(sortBy, afterValue, order, null, null);
+            if (predicate == null) {
+                predicate = afterValuePredicate;
+            } else {
+                predicate = afterValuePredicate.and(predicate);
+            }
+        }
         final List<SnapshotInfo> filteredSnapshotInfos;
-        if (slmPolicies.length == 0) {
+        if (predicate == null) {
             filteredSnapshotInfos = snapshotInfos;
         } else {
-            filteredSnapshotInfos = filterBySLMPolicies(snapshotInfos, slmPolicies);
+            filteredSnapshotInfos = snapshotInfos.stream().filter(predicate).collect(Collectors.toUnmodifiableList());
         }
         return sortSnapshots(filteredSnapshotInfos, sortBy, after, offset, size, order);
     }
@@ -583,57 +615,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         if (after != null) {
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-            final Predicate<SnapshotInfo> isAfter;
-            final String snapshotName = after.snapshotName();
-            final String repoName = after.repoName();
-            switch (sortBy) {
-                case START_TIME:
-                    isAfter = filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after.value()), snapshotName, repoName, order);
-                    break;
-                case NAME:
-                    isAfter = order == SortOrder.ASC
-                        ? (info -> compareName(snapshotName, repoName, info) < 0)
-                        : (info -> compareName(snapshotName, repoName, info) > 0);
-                    break;
-                case DURATION:
-                    isAfter = filterByLongOffset(
-                        info -> info.endTime() - info.startTime(),
-                        Long.parseLong(after.value()),
-                        snapshotName,
-                        repoName,
-                        order
-                    );
-                    break;
-                case INDICES:
-                    isAfter = filterByLongOffset(
-                        info -> info.indices().size(),
-                        Integer.parseInt(after.value()),
-                        snapshotName,
-                        repoName,
-                        order
-                    );
-                    break;
-                case SHARDS:
-                    isAfter = filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(after.value()), snapshotName, repoName, order);
-                    break;
-                case FAILED_SHARDS:
-                    isAfter = filterByLongOffset(
-                        SnapshotInfo::failedShards,
-                        Integer.parseInt(after.value()),
-                        snapshotName,
-                        repoName,
-                        order
-                    );
-                    break;
-                case REPOSITORY:
-                    isAfter = order == SortOrder.ASC
-                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
-                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-                    break;
-                default:
-                    throw new AssertionError("unexpected sort column [" + sortBy + "]");
-            }
-            infos = infos.filter(isAfter);
+            infos = infos.filter(buildAfterPredicate(sortBy, after.value(), order, after.snapshotName(), after.repoName()));
         }
         infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
         final List<SnapshotInfo> allSnapshots = infos.collect(Collectors.toUnmodifiableList());
@@ -649,7 +631,67 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
     }
 
-    private static List<SnapshotInfo> filterBySLMPolicies(List<SnapshotInfo> snapshotInfos, String[] slmPolicies) {
+    private static Predicate<SnapshotInfo> buildAfterPredicate(
+        GetSnapshotsRequest.SortBy sortBy,
+        String after,
+        SortOrder order,
+        @Nullable String snapshotName,
+        @Nullable String repoName
+    ) {
+        final Predicate<SnapshotInfo> isAfter;
+        switch (sortBy) {
+            case START_TIME:
+                isAfter = filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after), snapshotName, repoName, order);
+                break;
+            case NAME:
+                if (snapshotName == null) {
+                    assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
+                    isAfter = order == SortOrder.ASC
+                        ? snapshotInfo -> after.compareTo(snapshotInfo.snapshotId().getName()) < 0
+                        : snapshotInfo -> after.compareTo(snapshotInfo.snapshotId().getName()) > 0;
+                } else {
+                    isAfter = order == SortOrder.ASC
+                        ? (info -> compareName(snapshotName, repoName, info) < 0)
+                        : (info -> compareName(snapshotName, repoName, info) > 0);
+                }
+                break;
+            case DURATION:
+                isAfter = filterByLongOffset(
+                    info -> info.endTime() - info.startTime(),
+                    Long.parseLong(after),
+                    snapshotName,
+                    repoName,
+                    order
+                );
+                break;
+            case INDICES:
+                isAfter = filterByLongOffset(info -> info.indices().size(), Integer.parseInt(after), snapshotName, repoName, order);
+                break;
+            case SHARDS:
+                isAfter = filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(after), snapshotName, repoName, order);
+                break;
+            case FAILED_SHARDS:
+                isAfter = filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(after), snapshotName, repoName, order);
+                break;
+            case REPOSITORY:
+                if (snapshotName == null) {
+                    assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
+                    isAfter = order == SortOrder.ASC
+                        ? snapshotInfo -> after.compareTo(snapshotInfo.repository()) < 0
+                        : snapshotInfo -> after.compareTo(snapshotInfo.repository()) > 0;
+                } else {
+                    isAfter = order == SortOrder.ASC
+                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
+                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
+                }
+                break;
+            default:
+                throw new AssertionError("unexpected sort column [" + sortBy + "]");
+        }
+        return isAfter;
+    }
+
+    private static Predicate<SnapshotInfo> filterBySLMPolicies(String[] slmPolicies) {
         final List<String> includePatterns = new ArrayList<>();
         final List<String> excludePatterns = new ArrayList<>();
         boolean seenWildcard = false;
@@ -669,7 +711,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
         final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
         final boolean matchWithoutPolicy = matchNoPolicy;
-        return snapshotInfos.stream().filter(snapshotInfo -> {
+        return snapshotInfo -> {
             final Map<String, Object> metadata = snapshotInfo.userMetadata();
             final String policy;
             if (metadata == null) {
@@ -685,16 +727,20 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return false;
             }
             return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
-        }).collect(Collectors.toUnmodifiableList());
+        };
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(
         ToLongFunction<SnapshotInfo> extractor,
         long after,
-        String snapshotName,
-        String repoName,
+        @Nullable String snapshotName,
+        @Nullable String repoName,
         SortOrder order
     ) {
+        if (snapshotName == null) {
+            assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
+            return order == SortOrder.ASC ? info -> after < extractor.applyAsLong(info) : info -> after > extractor.applyAsLong(info);
+        }
         return order == SortOrder.ASC ? info -> {
             final long val = extractor.applyAsLong(info);
 

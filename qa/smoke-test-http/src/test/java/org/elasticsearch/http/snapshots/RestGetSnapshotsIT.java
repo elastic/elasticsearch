@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
+import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.matchAllPattern;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -239,6 +240,60 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"),
                 is(allSnapshots)
         );
+    }
+
+    public void testSortAfterStartTime() throws IOException {
+        final String repoName = "test-repo";
+        AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
+        final SnapshotInfo snapshot1 = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, "snapshot-1");
+        final SnapshotInfo snapshot2 = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, "snapshot-2");
+        final SnapshotInfo snapshot3 = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, "snapshot-3");
+
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+                .setSnapshots(matchAllPattern())
+                .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+                .get()
+                .getSnapshots();
+        assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
+
+        final long startTime1 = snapshot1.startTime();
+        final long startTime2 = snapshot2.startTime();
+        final long startTime3 = snapshot3.startTime();
+
+        assertThat(allAfterStartTimeAscending(startTime1 - 1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime1), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+                .setSnapshots(matchAllPattern())
+                .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+                .setOrder(SortOrder.DESC)
+                .get()
+                .getSnapshots();
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+
+        assertThat(allBeforeStartTimeDescending(startTime3 + 1), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime3), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1), empty());
+    }
+
+    private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) throws IOException {
+        final Request request = baseGetSnapshotsRequest("*");
+        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
+        request.addParameter("after_value", String.valueOf(timestamp));
+        final Response response = getRestClient().performRequest(request);
+        return readSnapshotInfos(response).getSnapshots();
+    }
+
+    private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) throws IOException {
+        final Request request = baseGetSnapshotsRequest("*");
+        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
+        request.addParameter("after_value", String.valueOf(timestamp));
+        request.addParameter("order", SortOrder.DESC.toString());
+        final Response response = getRestClient().performRequest(request);
+        return readSnapshotInfos(response).getSnapshots();
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) throws IOException {

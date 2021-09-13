@@ -117,6 +117,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder setAfterValue(@Nullable String afterValue) {
+        request.afterValue(afterValue);
+        return this;
+    }
+
     public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
         request.sort(sort);
         return this;

@@ -80,7 +80,7 @@ Use any of the following repository types with searchable snapshots:
 * {plugins}/repository-azure.html[Azure Blob Storage]
 * {plugins}/repository-hdfs.html[Hadoop Distributed File Store (HDFS)]
 * <<snapshots-filesystem-repository,Shared filesystems>> such as NFS
-* <<snapshots-read-only-repository,URL repositories>>
+* <<snapshots-read-only-repository,Read-only HTTP and HTTPS repositories>>
 
 You can also use alternative implementations of these repository types, for
 instance

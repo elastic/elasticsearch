@@ -704,6 +704,13 @@ public final class IndexSettings {
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
+     * "Mode" that controls which behaviors and settings an index supports.
+     */
+    public IndexMode getMode() {
+        return mode;
+    }
+
+    /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
      * index settings and the node settings where node settings are overwritten by index settings.
      */

@@ -41,7 +41,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             profileResult = in.readOptionalWriteable(ProfileResult::new);
         } else {
             profileResult = null;
@@ -52,7 +52,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalWriteable(profileResult);
         }
     }

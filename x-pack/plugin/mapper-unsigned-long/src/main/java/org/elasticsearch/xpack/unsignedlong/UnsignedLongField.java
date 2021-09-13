@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import org.elasticsearch.script.field.BigIntegerField;
 import org.elasticsearch.script.field.Converter;
 import org.elasticsearch.script.field.Converters;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.script.field.FieldValues;
 import org.elasticsearch.script.field.InvalidConversion;
+import org.elasticsearch.script.field.LongField;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -19,7 +21,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongField extends Field.LongField {
+public class UnsignedLongField extends LongField {
     public static final Converter<Long, UnsignedLongField> UnsignedLong = new Converter<Long, UnsignedLongField>() {
         @Override
         public UnsignedLongField convert(Field<?> sourceField) {

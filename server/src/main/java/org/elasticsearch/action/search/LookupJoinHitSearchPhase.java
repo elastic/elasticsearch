@@ -10,26 +10,17 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.JoinHitLookupBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -180,72 +171,19 @@ public final class LookupJoinHitSearchPhase extends FetchSearchPhase.ExtendedPha
             if (rightResponse.getFailure() != null) {
                 joinHit = new SearchHit.JoinHit(lookupRequest.matchId, rightResponse.getFailure().getFailure());
             } else {
-                joinHit = joinHitFromGetResult(lookupRequest, rightResponse.getResponse().getResult());
+                final GetResult getResult = rightResponse.getResponse().getResult();
+                if (getResult.isExists()) {
+                    assert Objects.equals(lookupRequest.getMatchId(), getResult.getId()) :
+                        lookupRequest.getMatchId() + " != " + getResult.getId();
+                    joinHit = new SearchHit.JoinHit(getResult.getId(), getResult.getDocumentFields(), getResult.internalSourceRef());
+                } else {
+                    joinHit = new SearchHit.JoinHit(lookupRequest.getMatchId(),
+                        new ResourceNotFoundException("join hit for id [" + lookupRequest.getMatchId() + "] " +
+                            "on index [" + lookupRequest.getIndex() + "] doesn't exist"));
+                }
             }
             for (SearchHit leftHit : lookupRequest.getLeftHits()) {
                 leftHit.addJoinHit(lookupRequest.query.getName(), joinHit);
-            }
-        }
-    }
-
-    static SearchHit.JoinHit joinHitFromGetResult(LookupRequest request, GetResult getResult) {
-        if (getResult.isExists()) {
-            assert Objects.equals(request.getMatchId(), getResult.getId()) : request.getMatchId() + " != " + getResult.getId();
-            return new SearchHit.JoinHit(getResult.getId(), getResult.getDocumentFields(), getResult.internalSourceRef());
-        } else {
-            return new SearchHit.JoinHit(request.getMatchId(),
-                new ResourceNotFoundException(
-                    "join hit for id [" + request.getMatchId() + "] on index [" + request.getIndex() + "] doesn't exist"));
-        }
-    }
-
-    /**
-     * An optimization of {@link org.elasticsearch.action.search.LookupJoinHitSearchPhase} that tries to lookup join hits from shards
-     * that are allocated on this node to avoid network requests if these lookup requests are executed on the coordinating node.
-     */
-    public static void tryLookupJoinHitsLocally(SearchContext searchContext, SearchHits searchHits) {
-        // We can't fetch join hits on the remote cluster
-        if (searchContext.request().getClusterAlias() != null) {
-            return;
-        }
-        if (searchContext.request().source() == null || searchContext.request().source().lookupJoinHitBuilders().isEmpty()) {
-            return;
-        }
-        final ClusterState clusterState = searchContext.clusterService().state();
-        final IndexNameExpressionResolver indexNameExpressionResolver = searchContext.indicesService().getIndexNameExpressionResolver();
-        final List<LookupJoinHitSearchPhase.LookupRequest> lookupRequests =
-            LookupJoinHitSearchPhase.getLookupRequests(searchContext.request().source().lookupJoinHitBuilders(), searchHits);
-        for (LookupJoinHitSearchPhase.LookupRequest lookupRequest : lookupRequests) {
-            final SearchHit.JoinHit joinHit;
-            try {
-                final IndicesRequest indicesRequest = new IndicesRequest() {
-                    @Override
-                    public String[] indices() {
-                        return new String[]{lookupRequest.getIndex()};
-                    }
-
-                    @Override
-                    public IndicesOptions indicesOptions() {
-                        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-                    }
-                };
-                final String indexName = indexNameExpressionResolver.concreteSingleIndex(clusterState, indicesRequest).getName();
-                final ShardId shardId = searchContext.clusterService().operationRouting().shardId(
-                    clusterState, indexName, lookupRequest.getMatchId(), null);
-                final IndexShard indexShard = searchContext.indicesService().getShardOrNull(shardId);
-                if (indexShard == null) {
-                    continue;
-                }
-                final GetResult getResult = indexShard.getService().get(lookupRequest.getMatchId(),
-                    lookupRequest.getQuery().getStoredFields(), true, Versions.MATCH_ANY, VersionType.INTERNAL,
-                    lookupRequest.getQuery().getFetchSourceContext());
-                joinHit = LookupJoinHitSearchPhase.joinHitFromGetResult(lookupRequest, getResult);
-            } catch (Exception ignored) {
-                // Ok, we will try to lookup join hits again on the coordinating node
-                continue;
-            }
-            for (SearchHit leftHit : lookupRequest.getLeftHits()) {
-                leftHit.addJoinHit(lookupRequest.getName(), joinHit);
             }
         }
     }

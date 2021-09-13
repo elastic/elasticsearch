@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.LookupJoinHitSearchPhase;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -154,8 +153,8 @@ public class FetchPhase {
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();
+        // TODO: Add an optimization that tries to lookup join hit locally to minimize network messages.
         final SearchHits searchHits = new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
-        LookupJoinHitSearchPhase.tryLookupJoinHitsLocally(fetchContext.getSearchContext(), searchHits);
         context.fetchResult().hits(searchHits);
     }
 
@@ -428,6 +427,6 @@ public class FetchPhase {
      * stored sequentially (Dn = Dn-1 + 1).
      */
     static boolean hasSequentialDocs(DocIdToIndex[] docs) {
-        return docs.length > 0 && docs[docs.length - 1].docId - docs[0].docId == docs.length - 1;
+        return docs.length > 0 && docs[docs.length-1].docId - docs[0].docId == docs.length - 1;
     }
 }

@@ -1689,10 +1689,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return allowExpensiveQueries;
     }
 
-    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return indexNameExpressionResolver;
-    }
-
     // visible for testing
     public boolean allPendingDanglingIndicesWritten() {
         return nodeWriteDanglingIndicesInfo == false ||

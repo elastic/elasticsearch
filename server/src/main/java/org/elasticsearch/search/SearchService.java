@@ -812,7 +812,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try {
             SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 reader.indexShard().shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-            searchContext = new DefaultSearchContext(clusterService, indicesService, reader, request, shardTarget,
+            searchContext = new DefaultSearchContext(reader, request, shardTarget,
                 threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

@@ -46,7 +46,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
 
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster testClusters."${baseName}-local"
+    useCluster localCluster.get()
     useCluster remoteCluster.get()
     systemProperty 'tests.upgrade_from_version', bwcVersionStr.replace('-SNAPSHOT', '')
 

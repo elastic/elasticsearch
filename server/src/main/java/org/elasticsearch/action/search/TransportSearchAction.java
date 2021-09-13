@@ -344,7 +344,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         SearchSourceBuilder source = searchRequest.source();
-        if (searchRequest.isFieldsOptionEmulationEnabled() && source.fetchFields() != null && source.fetchFields().isEmpty() == false) {
+        if (searchRequest.isFieldsOptionEmulationEnabled()
+            && source != null
+            && source.fetchFields() != null
+            && source.fetchFields().isEmpty() == false) {
             // we don't support minimize_roundstrip for cases where we might need fields API emulation
             return false;
         }

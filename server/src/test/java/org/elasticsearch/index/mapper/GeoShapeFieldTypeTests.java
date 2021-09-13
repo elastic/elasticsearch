@@ -18,8 +18,9 @@ import java.util.Map;
 public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper
-            = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
+        MappedFieldType mapper = new GeoShapeFieldMapper.Builder("field", true, true)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, Object> jsonLineString = org.elasticsearch.core.Map.of(
             "type", "LineString",

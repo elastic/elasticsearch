@@ -7,6 +7,9 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'enrich'
   }
+  restTests {
+    includeXpack 'enrich'
+  }
 }
 
 dependencies {

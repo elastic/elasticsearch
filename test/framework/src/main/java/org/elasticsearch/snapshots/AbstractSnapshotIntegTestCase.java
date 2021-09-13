@@ -411,9 +411,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public static SnapshotInfo createFullSnapshot(Logger logger, String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
-                .setIncludeGlobalState(true)
-                .setWaitForCompletion(true)
-                .get();
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));

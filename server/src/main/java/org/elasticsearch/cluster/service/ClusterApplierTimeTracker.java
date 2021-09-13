@@ -5,20 +5,18 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -27,11 +25,11 @@ public final class ClusterApplierTimeTracker {
 
     // Most listeners are added when the node is initialized, however a few
     // are added during the lifetime of a node and for these cases we need ConcurrentHashMap
-    private final Map<String, CounterMetric> timeSpentPerApplier = new ConcurrentHashMap<>();
-    private final Map<String, CounterMetric> timeSpentPerListener = new ConcurrentHashMap<>();
+    private final Map<String, MeanMetric> timeSpentPerApplier = new ConcurrentHashMap<>();
+    private final Map<String, MeanMetric> timeSpentPerListener = new ConcurrentHashMap<>();
 
     void addApplier(String name) {
-        timeSpentPerApplier.put(name, new CounterMetric());
+        timeSpentPerApplier.put(name, new MeanMetric());
     }
 
     void removeApplier(String name) {
@@ -39,7 +37,7 @@ public final class ClusterApplierTimeTracker {
     }
 
     void addListener(String name) {
-        timeSpentPerListener.put(name, new CounterMetric());
+        timeSpentPerListener.put(name, new MeanMetric());
     }
 
     void removeListener(String name) {
@@ -54,7 +52,7 @@ public final class ClusterApplierTimeTracker {
         increment(timeSpentPerListener.get(name), took);
     }
 
-    private static void increment(CounterMetric counter, TimeValue took) {
+    private static void increment(MeanMetric counter, TimeValue took) {
 //        assert counter != null : "no counter for [" + name + "]";
         if (counter != null) {
             // Listeners/appliers may get removed while executing.
@@ -64,23 +62,25 @@ public final class ClusterApplierTimeTracker {
 
     Stats getStats() {
         return new Stats(
-            timeSpentPerApplier.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().count())),
-            timeSpentPerListener.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().count()))
+            timeSpentPerApplier.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new Stats.Stat(e.getValue().count(), e.getValue().sum()))),
+            timeSpentPerListener.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new Stats.Stat(e.getValue().count(), e.getValue().sum())))
         );
     }
 
     public static class Stats implements Writeable, ToXContentFragment {
 
-        private final Map<String, Long> timeSpentPerApplier;
-        private final Map<String, Long> timeSpentPerListener;
+        private final Map<String, Stat> timeSpentPerApplier;
+        private final Map<String, Stat> timeSpentPerListener;
 
-        public Stats(Map<String, Long> timeSpentPerApplier, Map<String, Long> timeSpentPerListener) {
+        public Stats(Map<String, Stat> timeSpentPerApplier, Map<String, Stat> timeSpentPerListener) {
             this.timeSpentPerApplier = timeSpentPerApplier;
             this.timeSpentPerListener = timeSpentPerListener;
         }
 
         public Stats(StreamInput in) throws IOException {
-            this(in.readMap(StreamInput::readString, StreamInput::readVLong), in.readMap(StreamInput::readString, StreamInput::readVLong));
+            this(in.readMap(StreamInput::readString, Stat::new), in.readMap(StreamInput::readString, Stat::new));
         }
 
         @Override
@@ -94,16 +94,16 @@ public final class ClusterApplierTimeTracker {
             return builder;
         }
 
-        private static void toXContentTimeSpent(XContentBuilder builder, Map<String, Long> timeSpentPerListener) throws IOException {
+        private static void toXContentTimeSpent(XContentBuilder builder, Map<String, Stat> timeSpentPerListener) throws IOException {
             timeSpentPerListener.entrySet().stream()
-                .sorted(Map.Entry.comparingByValue())
-                .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+                .sorted((o1, o2) -> -Long.compare(o1.getValue().sum, o2.getValue().sum))
                 .forEach(entry -> {
                     try {
                         builder.startObject();
                         builder.field("name", entry.getKey());
                         String name = "cumulative_execution";
-                        builder.humanReadableField(name + "_time_millis", name + "_time", TimeValue.timeValueMillis(entry.getValue()));
+                        builder.field(name + "_count", entry.getValue().count);
+                        builder.humanReadableField(name + "_time_millis", name + "_time", TimeValue.timeValueMillis(entry.getValue().sum));
                         builder.endObject();
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -114,8 +114,29 @@ public final class ClusterApplierTimeTracker {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(timeSpentPerApplier, StreamOutput::writeString, StreamOutput::writeVLong);
-            out.writeMap(timeSpentPerListener, StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeMap(timeSpentPerApplier, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(timeSpentPerListener, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        }
+
+        public static class Stat implements Writeable {
+
+            private final long count;
+            private final long sum;
+
+            public Stat(long count, long sum) {
+                this.count = count;
+                this.sum = sum;
+            }
+
+            public Stat(StreamInput in) throws IOException {
+                this(in.readVLong(), in.readVLong());
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeVLong(count);
+                out.writeVLong(sum);
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierTimeTracker;
+import org.elasticsearch.cluster.service.ClusterApplierTimeTracker.Stats.Stat;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -569,8 +570,8 @@ public class NodeStatsTests extends ESTestCase {
         ClusterApplierTimeTracker.Stats timeTrackerStats;
         if (randomBoolean()) {
             timeTrackerStats = new ClusterApplierTimeTracker.Stats(
-                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), randomNonNegativeLong())),
-                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), randomNonNegativeLong()))
+                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), new Stat(randomNonNegativeLong(), randomNonNegativeLong()))),
+                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), new Stat(randomNonNegativeLong(), randomNonNegativeLong())))
             );
         } else {
             timeTrackerStats = null;

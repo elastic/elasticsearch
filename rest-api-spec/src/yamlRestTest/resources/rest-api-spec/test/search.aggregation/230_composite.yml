@@ -1305,8 +1305,7 @@ setup:
 ---
 "Simple Composite aggregation with missing_order":
   - skip:
-      # TODO: replace with 7.15.99 once PR is backported to 7.16
-      version: " - 7.99.0"
+      version: " - 7.15.99"
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       search:
@@ -1333,8 +1332,7 @@ setup:
 ---
 "missing_order with missing_bucket = false":
   - skip:
-      # TODO: replace with 7.15.99 once PR is backported to 7.16
-      version: " - 7.99.0"
+      version: " - 7.15.99"
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       catch: /missingOrder can only be set if missingBucket is true/
@@ -1358,8 +1356,7 @@ setup:
 ---
 "missing_order without missing_bucket":
   - skip:
-      # TODO: replace with 7.15.99 once PR is backported to 7.16
-      version: " - 7.99.0"
+      version: " - 7.15.99"
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       catch: /missingOrder can only be set if missingBucket is true/
@@ -1382,8 +1379,7 @@ setup:
 ---
 "Nested Composite aggregation with missing_order":
   - skip:
-      # TODO: replace with 7.15.99 once PR is backported to 7.16
-      version: " - 7.99.0"
+      version: " - 7.15.99"
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       search:

@@ -218,6 +218,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 for (Object module: (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
+                    System.out.println("IOANNIS   "  + moduleName);
                     if (moduleName.startsWith("x-pack")) {
                         hasXPack = true;
                     }
@@ -383,6 +384,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             hasXPack = null;
+            hasRollups = null;
+            hasCcr = null;
+            hasShutdown = null;
+            hasIlm = null;
             nodeVersions = null;
         }
     }

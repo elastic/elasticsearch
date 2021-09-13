@@ -252,7 +252,7 @@
       "min_compatible_shard_node":{
         "type":"string",
         "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
-      }      
+      }
     },
     "body":{
       "description":"The search definition using the Query DSL"

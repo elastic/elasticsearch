@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class FieldsOptionSourceAdapter {
+class FieldsOptionSourceAdapter {
 
     static String FIELDS_EMULATION_ERROR_MSG = "Cannot specify both 'fields' and '_source' 'includes' or 'excludes' in"
         + "a search request that is targeting pre version 7.10 nodes.";

@@ -27,6 +27,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -61,10 +62,10 @@ public class FetchSourcePhaseBenchmark {
                 sourceBytes = read300BytesExample();
                 break;
             case "one_4k_field":
-                sourceBytes = buildBigExample("huge".repeat(1024));
+                sourceBytes = buildBigExample(String.join("", Collections.nCopies(1024, "huge")));
                 break;
             case "one_4m_field":
-                sourceBytes = buildBigExample("huge".repeat(1024 * 1024));
+                sourceBytes = buildBigExample(String.join("", Collections.nCopies(1024 * 1024, "huge")));
                 break;
             default:
                 throw new IllegalArgumentException("Unknown source [" + source + "]");
@@ -74,10 +75,10 @@ public class FetchSourcePhaseBenchmark {
             Strings.splitStringByCommaToArray(includes),
             Strings.splitStringByCommaToArray(excludes)
         );
-        includesSet = Set.of(fetchContext.includes());
-        excludesSet = Set.of(fetchContext.excludes());
-        includesFilters = FilterPath.compile(Set.of(fetchContext.includes()));
-        excludesFilters = FilterPath.compile(Set.of(fetchContext.excludes()));
+        includesSet = org.elasticsearch.core.Set.of(fetchContext.includes());
+        excludesSet = org.elasticsearch.core.Set.of(fetchContext.excludes());
+        includesFilters = FilterPath.compile(includesSet);
+        excludesFilters = FilterPath.compile(excludesSet);
     }
 
     private BytesReference read300BytesExample() throws IOException {
@@ -120,13 +121,7 @@ public class FetchSourcePhaseBenchmark {
     @Benchmark
     public BytesReference filterXContentOnBuilder() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
-        XContentBuilder builder = new XContentBuilder(
-            XContentType.JSON.xContent(),
-            streamOutput,
-            includesSet,
-            excludesSet,
-            XContentType.JSON.toParsedMediaType()
-        );
+        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput, includesSet, excludesSet);
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, sourceBytes.streamInput())

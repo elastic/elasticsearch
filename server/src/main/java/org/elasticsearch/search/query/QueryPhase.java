@@ -302,7 +302,6 @@ public class QueryPhase {
     }
 
 
-    // TODO: remove this after Lucene 9.0, as sort optimization is enabled by default there
     private static void optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
         if (searchContext.sort() == null) return;
         // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
@@ -310,8 +309,6 @@ public class QueryPhase {
 
         SortField sortField = searchContext.sort().sort.getSort()[0];
         SortField.Type sortType = IndexSortConfig.getSortFieldType(sortField);
-        //if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;
-
         if (sortType != SortField.Type.LONG) return; // for now restrict sort optimization only to long sort
         String fieldName = sortField.getField();
         if (fieldName == null) return; // happens when _score or _doc is the 1st sort field

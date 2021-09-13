@@ -30,6 +30,7 @@ public class CompositeValuesSourceParserHelper {
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
         objectParser.declareField(VB::field, XContentParser::text, new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
+        objectParser.declareString(VB::missingOrder, new ParseField("missing_order"));
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());

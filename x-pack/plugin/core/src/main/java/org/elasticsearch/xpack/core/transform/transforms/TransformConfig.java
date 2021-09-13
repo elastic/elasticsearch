@@ -375,7 +375,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (getVersion() == null || getVersion().before(Version.V_7_15_0)) {
             deprecations.add(
                 new DeprecationIssue(
-                    Level.WARNING,
+                    Level.CRITICAL, // change to WARNING for 7.x
                     "Transform [" + id + "] is too old",
                     TransformDeprecations.BREAKING_CHANGES_BASE_URL,
                     "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",

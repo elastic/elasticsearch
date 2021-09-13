@@ -55,6 +55,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
+    private Runnable deliverBlackholedRequests;
+
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> disconnectedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedRequestLinks;
@@ -141,6 +143,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(fut1.isDone());
         assertTrue(fut2.isDone());
+
+        deliverBlackholedRequests = () -> transports.forEach(DisruptableMockTransport::deliverBlackholedRequests);
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {
@@ -293,6 +297,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
         deterministicTaskQueue.runAllTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllTasks();
+
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
@@ -310,6 +317,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(new Exception());
         deterministicTaskQueue.runAllTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllTasks();
+
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 

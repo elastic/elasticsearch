@@ -163,7 +163,37 @@ The API returns the following result:
             ]
           }
         ],
-        "aggregations": []
+        "aggregations": [],
+        "fetch": {
+          "type": "fetch",
+          "description": "",
+          "time_in_nanos": 660555,
+          "breakdown": {
+            "next_reader": 7292,
+            "next_reader_count": 1,
+            "load_stored_fields": 299325,
+            "load_stored_fields_count": 5
+          },
+          "debug": {
+            "stored_fields": ["_id", "_routing", "_source"]
+          },
+          "children": [
+            {
+              "type": "FetchSourcePhase",
+              "description": "",
+              "time_in_nanos": 20443,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 19698,
+                "process_count": 5
+              },
+              "debug": {
+                "fast_path": 5
+              }
+            }
+          ]
+        }
       }
     ]
   }
@@ -196,7 +226,8 @@ The overall structure of the profile response is as follows:
                     "collector": [...]          <4>
                  }
               ],
-              "aggregations": [...]             <5>
+              "aggregations": [...],            <5>
+              "fetch": {...}                    <6>
            }
         ]
      }
@@ -208,15 +239,14 @@ The overall structure of the profile response is as follows:
 // TESTRESPONSE[s/"query": \[...\]/"query": $body.$_path/]
 // TESTRESPONSE[s/"collector": \[...\]/"collector": $body.$_path/]
 // TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
+// TESTRESPONSE[s/"fetch": \{...\}/"fetch": $body.$_path/]
 <1> A profile is returned for each shard that participated in the response, and 
 is identified by a unique ID.
-<2> Each profile contains a section which holds details about the query 
-execution.
-<3> Each profile has a single time representing the cumulative rewrite time.
-<4> Each profile also contains a section about the Lucene Collectors which run 
-the search.
-<5> Each profile contains a section which holds the details about the 
-aggregation execution.
+<2> Query timings and other debugging information.
+<3> The cumulative rewrite time.
+<4> Names and invocation timings for each collector.
+<5> Aggregation timings, invocation counts, and debug information.
+<6> Fetch timing and debug information.
 
 Because a search request may be executed against one or more shards in an index, 
 and a search may cover one or more indices, the top level element in the profile 
@@ -295,7 +325,7 @@ Using our previous `match` query example, let's analyze the `query` section:
 ]
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n/]
-// TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"breakdown": \{...\}/"breakdown": $body.$_path/]
 <1> The breakdown timings are omitted for simplicity.
@@ -347,7 +377,7 @@ Lucene execution:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
-// TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All 
@@ -448,7 +478,7 @@ Looking at the previous example:
 ]
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
-// TESTRESPONSE[s/]$/]}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/]$/]}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 
@@ -569,7 +599,7 @@ GET /my-index-000001/_search
 }
 --------------------------------------------------
 // TEST[setup:my_index]
-// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations/]
+// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch/]
 
 
 This example has:
@@ -673,13 +703,15 @@ The API returns the following result:
             ]
           }
         ],
-        "aggregations": [...] <1>
+        "aggregations": [...], <1>
+        "fetch": {...}
       }
     ]
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": $body.$_path/]
+// TESTRESPONSE[s/"fetch": \{\.\.\.\}/"fetch": $body.$_path/]
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
@@ -918,6 +950,99 @@ to give you a feel for A) what machinery in {es} is actually eating time, and B)
 the magnitude of differences in times between the various components. Like the 
 overall time, the breakdown is inclusive of all children times.
 
+[[profiling-fetch]]
+===== Profiling Fetch
+
+
+All shards the fetched documents will have a `fetch` section in the profile.
+Let's execute a small search and have a look a the fetch profile:
+
+[source,console]
+----
+GET /my-index-000001/_search?filter_path=profile.shards.fetch
+{
+  "profile": true,
+  "query": {
+    "term": {
+      "user.id": {
+        "value": "elkbee"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+And here is the fetch profile:
+
+[source,console-result]
+----
+{
+  "profile": {
+    "shards": [
+      {
+        "fetch": {
+          "type": "fetch",
+          "description": "",
+          "time_in_nanos": 660555,
+          "breakdown": {
+            "next_reader": 7292,
+            "next_reader_count": 1,
+            "load_stored_fields": 299325,
+            "load_stored_fields_count": 5
+          },
+          "debug": {
+            "stored_fields": ["_id", "_routing", "_source"]
+          },
+          "children": [
+            {
+              "type": "FetchSourcePhase",
+              "description": "",
+              "time_in_nanos": 20443,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 19698,
+                "process_count": 5
+              },
+              "debug": {
+                "fast_path": 4
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+
+Since this is debugging information about the way that Elasticsearch executes
+the fetch it can change from request to request and version to version. Even
+patch versions may change the output here. That lack of consistency is what
+makes it useful for debugging.
+
+Anyway! `time_in_nanos` measures the time total time of the fetch phase.
+The `breakdown` counts and times the our
+per-link:{glossary}/terms.html#glossary-segment[segment] preparation in
+`next_reader` and the time taken loading stored fields in `load_stored_fields`.
+Debug contains miscellaneous non-timing information, specifically
+`stored_fields` lists the stored fields that fetch will have to load. If it is
+an empty list then fetch will entirely skip loading stored fields.
+
+The `children` section lists the sub-phases that do the actual fetching work
+and the `breakdown` has counts and timings for the
+per-link:{glossary}/terms.html#glossary-segment[segment] preparation in
+`next_reader` and the per document fetching in `process`.
+
+NOTE: We try hard to load all of the stored fields that we will need for the
+fetch up front. This tends to make the `_source` phase a couple of microseconds
+per hit. In that case the true cost of `_source` phase is hidden in the
+`load_stored_fields` component of the breakdown. It's possible to entirely skip
+loading stored fields by setting
+`"_source": false, "stored_fields": ["_none_"]`.
+
 [[profiling-considerations]]
 ===== Profiling Considerations
 
@@ -936,16 +1061,13 @@ have a drastic effect compared to other components in the profiled query.
 [[profile-limitations]]
 ===== Limitations
 
-- Profiling currently does not measure the search fetch phase nor the network 
-overhead.
+- Profiling currently does not measure the network overhead.
 - Profiling also does not account for time spent in the queue, merging shard 
 responses on the coordinating node, or additional work such as building global 
 ordinals (an internal data structure used to speed up search).
-- Profiling statistics are currently not available for suggestions, 
+- Profiling statistics are currently not available for suggestions,
 highlighting, `dfs_query_then_fetch`.
 - Profiling of the reduce phase of aggregation is currently not available.
-- The Profiler is still highly experimental. The Profiler is instrumenting parts 
-of Lucene that were never designed to be exposed in this manner, and so all 
-results should be viewed as a best effort to provide detailed diagnostics. We 
-hope to improve this over time. If you find obviously wrong numbers, strange 
-query structures, or other bugs, please report them!
+- The Profiler is instrumenting internals that can change from version to
+version. The resulting json should be considered mostly unstable, especially
+things in the `debug` section.

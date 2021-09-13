@@ -761,33 +761,47 @@ public class TransportService extends AbstractLifecycleComponent
             if (ThreadPool.Names.SAME.equals(executor)) {
                 reg.processMessageReceived(request, channel);
             } else {
-                threadPool.executor(executor).execute(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        reg.processMessageReceived(request, channel);
-                    }
-
-                    @Override
-                    public boolean isForceExecution() {
-                        return reg.isForceExecution();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception inner) {
-                            inner.addSuppressed(e);
-                            logger.warn(() -> new ParameterizedMessage(
-                                    "failed to notify channel of error message for action [{}]", action), inner);
+                boolean success = false;
+                request.incRef();
+                try {
+                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            reg.processMessageReceived(request, channel);
                         }
-                    }
 
-                    @Override
-                    public String toString() {
-                        return "processing of [" + requestId + "][" + action + "]: " + request;
+                        @Override
+                        public boolean isForceExecution() {
+                            return reg.isForceExecution();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(e);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn(() -> new ParameterizedMessage(
+                                    "failed to notify channel of error message for action [{}]", action), inner);
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "processing of [" + requestId + "][" + action + "]: " + request;
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            request.decRef();
+                        }
+                    });
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        request.decRef();
                     }
-                });
+                }
             }
 
         } catch (Exception e) {

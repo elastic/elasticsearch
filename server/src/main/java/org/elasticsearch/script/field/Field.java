@@ -9,10 +9,6 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-
 import java.math.BigInteger;
 import java.util.List;
 
@@ -125,72 +121,6 @@ public abstract class Field<T> {
             return values.getLongValue();
         } catch (RuntimeException err) {
             return defaultValue;
-        }
-    }
-
-    public static class BooleanField extends Field<Boolean> {
-        public BooleanField(String name, FieldValues<Boolean> values) {
-            super(name, values);
-        }
-    }
-
-    public static class DoubleField extends Field<Double> {
-        public DoubleField(String name, FieldValues<Double> values) {
-            super(name, values);
-        }
-    }
-
-    public static class LongField extends Field<Long> {
-        public LongField(String name, FieldValues<Long> values) {
-            super(name, values);
-        }
-    }
-
-    public static class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
-        public DateNanosField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
-            super(name, values);
-        }
-    }
-
-    public static class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
-        public DateMillisField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
-            super(name, values);
-        }
-    }
-
-    public static class GeoPointField extends Field<GeoPoint> {
-        public GeoPointField(String name, FieldValues<GeoPoint> values) {
-            super(name, values);
-        }
-    }
-
-    public static class StringField extends Field<String> {
-        public StringField(String name, FieldValues<String> values) {
-            super(name, values);
-        }
-    }
-
-    public static class BytesRefField extends Field<BytesRef> {
-        public BytesRefField(String name, FieldValues<BytesRef> values) {
-            super(name, values);
-        }
-    }
-
-    public static class BigIntegerField extends Field<BigInteger> {
-        public BigIntegerField(String name, FieldValues<BigInteger> values) {
-            super(name, values);
-        }
-    }
-
-    public static class VersionField extends Field<String> {
-        public VersionField(String name, FieldValues<String> values) {
-            super(name, values);
-        }
-    }
-
-    public static class IpField extends Field<String> {
-        public IpField(String name, FieldValues<String> values) {
-            super(name, values);
         }
     }
 }

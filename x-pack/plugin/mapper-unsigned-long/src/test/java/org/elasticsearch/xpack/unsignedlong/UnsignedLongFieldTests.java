@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.elasticsearch.script.Field;
-import org.elasticsearch.script.FieldValues;
+import org.elasticsearch.script.field.Field;
+import org.elasticsearch.script.field.FieldValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;

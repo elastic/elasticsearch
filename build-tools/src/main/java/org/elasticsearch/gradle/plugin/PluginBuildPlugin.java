@@ -117,15 +117,13 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        final var runCluster = testClusters.register("runTask");
-//        , cluster -> {
-//            if (GradleUtils.isModuleProject(project.getPath())) {
-//                cluster.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
-//            } else {
-//                cluster.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
-//            }
-//            throw new GradleException("boom");
-//        });
+        var runCluster = testClusters.register("runtTask", c -> {
+            if (GradleUtils.isModuleProject(project.getPath())) {
+                c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+            } else {
+                c.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+            }
+        });
 
         project.getTasks().register("run", RunTask.class, r -> {
             r.useCluster(runCluster.get());

@@ -63,8 +63,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             // skip missing value for BWC
             in.readGenericValue();
         }
-        // TODO: use V_7_16_0 once PR is backported to 7.x
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             this.missingOrder = MissingOrder.readFromStream(in);
         }
         this.order = SortOrder.readFromStream(in);
@@ -96,8 +95,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             // write missing value for BWC
             out.writeGenericValue(null);
         }
-        // TODO: use V_7_16_0 once PR is backported to 7.x
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             missingOrder.writeTo(out);
         }
         order.writeTo(out);

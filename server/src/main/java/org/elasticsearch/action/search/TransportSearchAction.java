@@ -357,8 +357,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                 RemoteClusterService remoteClusterService, ThreadPool threadPool, ActionListener<SearchResponse> listener,
                                 BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer) {
-
-        assert(false);
         if (localIndices == null && remoteIndices.size() == 1) {
             //if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             //and we directly perform final reduction in the remote cluster

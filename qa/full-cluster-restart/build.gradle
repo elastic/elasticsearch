@@ -17,10 +17,11 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-  String baseName = "v${bwcVersion}"
+  def bwcVersionString = bwcVersion.toString();
+  String baseName = "v" + bwcVersionString
 
   def baseCluster = testClusters.register(baseName) {
-      versions = [bwcVersion.toString(), project.version]
+      versions =  [bwcVersionString, project.version]
       numberOfNodes = 2
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '60m'
@@ -48,7 +49,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     systemProperty 'tests.is_old_cluster', 'false'
   }
 
-  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
+  String oldVersion = bwcVersionString.minus("-SNAPSHOT")
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', oldVersion
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"

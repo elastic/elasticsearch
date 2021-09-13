@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -164,8 +165,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             throw new IndexNotFoundException(request.concreteIndex());
         }
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        ShardIterator shardIterator = clusterService.operationRouting()
-            .indexShards(clusterState, request.concreteIndex(), indexRouting, request.id(), request.routing());
+        int shardId = indexRouting.updateShard(request.id(), request.routing());
+        ShardIterator shardIterator = RoutingTable.shardRoutingTable(clusterState.routingTable().index(request.concreteIndex()), shardId)
+            .shardsIt();
         ShardRouting shard;
         while ((shard = shardIterator.nextOrNull()) != null) {
             if (shard.primary()) {

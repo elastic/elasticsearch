@@ -328,6 +328,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Integer> INDEX_FORMAT_SETTING =
             Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
+    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.listSetting(
+        "index.routing_path",
+        List.of(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
@@ -350,6 +358,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingNumShards;
     private final int routingFactor;
     private final int routingPartitionSize;
+    private final List<String> routingPaths;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -414,6 +423,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final Version indexCreatedVersion,
             final int routingNumShards,
             final int routingPartitionSize,
+            final List<String> routingPaths,
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
@@ -446,6 +456,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
+        this.routingPaths = routingPaths;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
@@ -530,6 +541,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isRoutingPartitionedIndex() {
         return routingPartitionSize != 1;
+    }
+
+    public List<String> getRoutingPaths() {
+        return routingPaths;
     }
 
     public int getTotalNumberOfShards() {
@@ -624,6 +639,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public IndexLongFieldRange getTimestampRange() {
         return timestampRange;
     }
+
+    
 
     @Override
     public boolean equals(Object o) {
@@ -1282,6 +1299,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                                    "number of shard copies [" + (numberOfReplicas + 1) + "]");
             }
 
+            final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
+
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
             return new IndexMetadata(
@@ -1306,6 +1325,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     indexCreatedVersion,
                     getRoutingNumShards(),
                     routingPartitionSize,
+                    routingPaths,
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
@@ -1625,7 +1645,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
-     * {@link IndexRouting#shardId(String, String)} to route documents
+     * {@link IndexRouting#indexShard} to route documents
      * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
      * changes if and index is shrunk.
      */
@@ -1738,7 +1758,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Returns the routing factor for and shrunk index with the given number of target shards.
      * This factor is used in the hash function in
-     * {@link IndexRouting#shardId(String, String)} to guarantee consistent
+     * {@link IndexRouting#indexShard} to guarantee consistent
      * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
      *
      * @param sourceNumberOfShards the total number of shards in the source index

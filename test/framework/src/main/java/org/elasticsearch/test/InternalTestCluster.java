@@ -2174,14 +2174,10 @@ public final class InternalTestCluster extends TestCluster {
                 assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
                         greaterThan(shard));
                 ClusterState clusterState = clusterService.state();
-                OperationRouting operationRouting = clusterService.operationRouting();
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    final int targetShard = operationRouting
-                            .indexShards(clusterState, index.getName(), indexRouting, null, routing)
-                            .shardId().getId();
-                    if (shard == targetShard) {
+                    if (shard == indexRouting.indexShard(false, null, routing, null, null)) {
                         return routing;
                     }
                 }

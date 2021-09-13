@@ -25,7 +25,16 @@ import static java.util.stream.Collectors.toSet;
 public enum IndexMode {
     STANDARD {
         @Override
-        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            if (false == Objects.equals(
+                IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY),
+                settings.get(IndexMetadata.INDEX_ROUTING_PATH)
+            )) {
+                throw new IllegalArgumentException(
+                    "[" + IndexMetadata.INDEX_ROUTING_PATH.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]"
+                );
+            }
+        }
     },
     TIME_SERIES {
         @Override
@@ -37,6 +46,11 @@ public enum IndexMode {
                 if (false == Objects.equals(unsupported.getDefault(Settings.EMPTY), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
+            }
+            if (IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY).equals(settings.get(IndexMetadata.INDEX_ROUTING_PATH))) {
+                throw new IllegalArgumentException(
+                    "[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + IndexMetadata.INDEX_ROUTING_PATH.getKey() + "]"
+                );
             }
         }
 
@@ -53,7 +67,10 @@ public enum IndexMode {
     );
 
     static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
-        Stream.concat(Stream.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING), TIME_SERIES_UNSUPPORTED.stream()).collect(toSet())
+        Stream.concat(
+            Stream.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING, IndexMetadata.INDEX_ROUTING_PATH),
+            TIME_SERIES_UNSUPPORTED.stream()
+        ).collect(toSet())
     );
 
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);

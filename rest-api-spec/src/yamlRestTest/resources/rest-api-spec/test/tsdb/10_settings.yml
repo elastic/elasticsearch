@@ -10,6 +10,7 @@ enable:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -117,3 +118,34 @@ no partitioning:
                 mode: time_series
                 shards: 5
                 routing_partition_size: 2
+
+---
+routing_path required:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.mode=time_series\] requires \[index.routing_path\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                shards: 5
+
+---
+routing_path is not allowed in standard mode:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.routing_path\] requires \[index.mode=time_series\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                routing_path: foo

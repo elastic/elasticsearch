@@ -198,12 +198,12 @@ public class StoreRecoveryTests extends ESTestCase {
                 assertEquals(
                     "value has wrong shards: " + value,
                     targetShardId,
-                    IndexRouting.fromIndexMetadata(metadata).shardId(value, null)
+                    IndexRouting.fromIndexMetadata(metadata).getShard(value, null)
                 );
             }
             for (int i = 0; i < numDocs; i++) {
                 ref = new BytesRef(Integer.toString(i));
-                int shardId = IndexRouting.fromIndexMetadata(metadata).shardId(ref.utf8ToString(), null);
+                int shardId = IndexRouting.fromIndexMetadata(metadata).getShard(ref.utf8ToString(), null);
                 if (shardId == targetShardId) {
                     assertTrue(ref.utf8ToString() + " is missing", terms.iterator().seekExact(ref));
                 } else {

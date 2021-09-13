@@ -21,7 +21,7 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTest
 /**
  * Apply this plugin to run the Java based REST tests.
  */
-public class JavaRestTestPlugin implements Plugin<Project> {
+public class InternalJavaRestTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "javaRestTest";
 

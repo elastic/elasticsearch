@@ -17,10 +17,10 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.Converters;
-import org.elasticsearch.script.Field;
-import org.elasticsearch.script.FieldValues;
-import org.elasticsearch.script.InvalidConversion;
+import org.elasticsearch.script.field.Converters;
+import org.elasticsearch.script.field.Field;
+import org.elasticsearch.script.field.FieldValues;
+import org.elasticsearch.script.field.InvalidConversion;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;

@@ -279,8 +279,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Set the "human readable" flag. Once set, some types of values are written in a
      * format easier to read for a human.
      */
-    public XContentBuilder humanReadable(boolean humanReadable) {
-        this.humanReadable = humanReadable;
+    public XContentBuilder humanReadable(boolean isHumanReadable) {
+        this.humanReadable = isHumanReadable;
         return this;
     }
 

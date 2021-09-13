@@ -17,8 +17,8 @@ public abstract class TransportMessage implements Writeable, RefCounted {
 
     private TransportAddress remoteAddress;
 
-    public void remoteAddress(TransportAddress remoteAddress) {
-        this.remoteAddress = remoteAddress;
+    public void remoteAddress(TransportAddress address) {
+        this.remoteAddress = address;
     }
 
     public TransportAddress remoteAddress() {

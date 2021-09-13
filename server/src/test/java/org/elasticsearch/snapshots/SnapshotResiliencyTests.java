@@ -2152,6 +2152,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     node.getName(),
                     clusterService.getSettings(),
                     clusterService.getClusterSettings(),
+                    bigArrays,
                     transportService,
                     namedWriteableRegistry,
                     allocationService,

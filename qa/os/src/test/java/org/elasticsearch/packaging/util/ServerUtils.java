@@ -168,10 +168,14 @@ public class ServerUtils {
     }
 
     public static Path getCaCert(Installation installation) throws IOException {
+        return getCaCert(installation.config);
+    }
+
+    public static Path getCaCert(Path configPath) throws IOException {
         boolean enrollmentEnabled = false;
         boolean httpSslEnabled = false;
-        Path caCert = installation.config("certs/ca/ca.crt");
-        Path configFilePath = installation.config("elasticsearch.yml");
+        Path caCert = configPath.resolve("certs/ca/ca.crt");
+        Path configFilePath = configPath.resolve("elasticsearch.yml");
         if (Files.exists(configFilePath)) {
             // In docker we might not even have a file, and if we do it's not readable in the host's FS
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
@@ -180,7 +184,7 @@ public class ServerUtils {
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
-            Path autoConfigTlsDir = Files.list(installation.config)
+            Path autoConfigTlsDir = Files.list(configPath)
                 .filter(p -> p.getFileName().toString().startsWith("tls_auto_config_initial_node_"))
                 .findFirst()
                 .get();

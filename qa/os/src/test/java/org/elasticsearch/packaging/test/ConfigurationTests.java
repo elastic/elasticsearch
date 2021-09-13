@@ -9,18 +9,12 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,20 +43,7 @@ public class ConfigurationTests extends PackagingTestCase {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
-            Path yml = confPath.resolve("elasticsearch.yml");
-            List<String> lines;
-            try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-                lines = allLines.map(l -> {
-                    if (l.contains(installation.config.toString())) {
-                        return l.replace(installation.config.toString(), confPath.toString());
-                    }
-                    return l;
-                }).collect(Collectors.toList());
-            }
-            lines.add("node.name: ${HOSTNAME}");
-            Files.write(yml, lines, TRUNCATE_EXISTING);
-            logger.debug("TEMP_IOANNIS " + Files.readString(confPath.resolve("elasticsearch.yml")));
-            logger.debug("TEMP_IOANNIS" + Files.readString(ServerUtils.getCaCert(installation)));
+            FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}");
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
@@ -74,7 +55,7 @@ public class ConfigurationTests extends PackagingTestCase {
                     Request.Get(protocol + "://localhost:9200/_cat/nodes?h=name"),
                     superuser,
                     superuserPassword,
-                    ServerUtils.getCaCert(installation)
+                    ServerUtils.getCaCert(confPath)
                 ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });

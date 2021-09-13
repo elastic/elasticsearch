@@ -162,7 +162,7 @@ public final class Settings implements ToXContentFragment {
                     final String key = entry.getKey();
                     // check whether string may be an integer first (mostly its not) to avoid the slowness of parseInt throwing in a hot
                     // loop
-                    int index = Numbers.isPositiveNumeric(key) ? Integer.parseInt(key) : -1;
+                    int index = key != null && Numbers.isPositiveNumeric(key) ? Integer.parseInt(key) : -1;
                     if (index >= 0) {
                         maxIndex = Math.max(maxIndex, index);
                     } else {

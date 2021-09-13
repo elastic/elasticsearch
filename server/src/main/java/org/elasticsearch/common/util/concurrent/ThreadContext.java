@@ -680,15 +680,16 @@ public final class ThreadContext implements Writeable {
             return resultBuilder.toString();
         }
 
-        default void addLabelToThreadName(ThreadContextStruct context) {
-            if (context.hasTracingIdInHeaders()) {
-                String originalName = Thread.currentThread().getName();
-
-                assert (originalName.contains(ID_LABEL) == false) :
-                    "Encountered double labelling of a thread name : " + originalName;
-
+        default boolean addLabelToThreadName(ThreadContextStruct context) {
+            String originalName = Thread.currentThread().getName();
+            // The current thread may wrap Runnables multiple times.
+            // We return true or false to establish which call sets/restores the thread name.
+            if (context.hasTracingIdInHeaders() && originalName.contains(ID_LABEL) == false) {
                 Thread.currentThread().setName(originalName + ID_LABEL + tracingHeadersAsString(context));
+                return true;
             }
+
+            return false;
         }
 
         default void clearThreadNameLabel() {
@@ -714,12 +715,15 @@ public final class ThreadContext implements Writeable {
 
         @Override
         public void run() {
+            boolean labelledThread = false;
             try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
-                addLabelToThreadName(threadLocal.get());
+                labelledThread = addLabelToThreadName(threadLocal.get());
                 in.run();
             } finally {
-                clearThreadNameLabel();
+                if (labelledThread) {
+                    clearThreadNameLabel();
+                }
             }
         }
 
@@ -778,11 +782,13 @@ public final class ThreadContext implements Writeable {
         protected void doRun() throws Exception {
             threadsOriginalContext = stashContext();
             creatorsContext.restore();
+            boolean labelledThread = addLabelToThreadName(threadLocal.get());
             try {
-                addLabelToThreadName(threadLocal.get());
                 in.doRun();
             } finally {
-                clearThreadNameLabel();
+                if (labelledThread) {
+                    clearThreadNameLabel();
+                }
             }
         }
 

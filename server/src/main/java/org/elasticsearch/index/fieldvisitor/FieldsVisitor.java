@@ -36,9 +36,12 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
+    private static final String UID_FIELD_NAME = "_uid";
+
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
             IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME));
+            RoutingFieldMapper.NAME,
+            UID_FIELD_NAME));
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -106,12 +109,20 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
     }
 
+    public static final char DELIMITER = '#';
+
     @Override
     public void stringField(FieldInfo fieldInfo, byte[] bytes) {
         assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
         assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
         final String value = new String(bytes, StandardCharsets.UTF_8);
-        addValue(fieldInfo.name, value);
+        if (UID_FIELD_NAME.equals(fieldInfo.name)) {
+            int delimiterIndex = value.indexOf(DELIMITER);
+            id = value.substring(delimiterIndex + 1);
+            addValue(fieldInfo.name, new BytesRef(value));
+        } else {
+            addValue(fieldInfo.name, value);
+        }
     }
 
     @Override

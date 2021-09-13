@@ -16,10 +16,12 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class BWCCodecIT extends ESRestTestCase {
     private static final int DOCS = 5;
@@ -40,7 +42,7 @@ public class BWCCodecIT extends ESRestTestCase {
                 for (int i = 0; i < DOCS; i++) {
                     Request doc = new Request("PUT", "/test/doc/testdoc" + i);
                     doc.addParameter("refresh", "true");
-                    doc.setJsonEntity("{\"test\":\"test" + i + "\"}");
+                    doc.setJsonEntity("{\"test\":\"test" + i + "\", \"val\":" + i + "}");
                     oldEs.performRequest(doc);
                 }
 
@@ -83,19 +85,42 @@ public class BWCCodecIT extends ESRestTestCase {
                 logger.info(Streams.readFully(restoreSnapshotResponse.getEntity().getContent()).utf8ToString());
                 assertEquals(200, restoreSnapshotResponse.getStatusLine().getStatusCode());
 
+                Request getMapping = new Request("GET", "/test/_mapping");
+                getMapping.addParameter("pretty", "true");
+                Response getMappingResponse = client().performRequest(getMapping);
+                logger.info(Streams.readFully(getMappingResponse.getEntity().getContent()).utf8ToString());
+
                 // run a search against the restored index
                 Request search = new Request("POST", "/test/_search");
                 search.addParameter("pretty", "true");
-                //search.setJsonEntity("{\"stored_fields\": [\"_uid\", \"_source\"]}");
+                search.setJsonEntity("{\"stored_fields\": [\"_uid\", \"_source\"]}");
                 Response response = client().performRequest(search);
                 String result = EntityUtils.toString(response.getEntity());
+                logger.info(result);
                 for (int i = 0; i < DOCS; i++) {
                     // check that source_ is present
                     assertThat(result, containsString("\"test\" : \"test" + i + "\""));
                     // check that _id is present
-                    // TODO: _id is stored as _uid in older ES versions, not _id (can extract _type and _id from that)
-                    // assertThat(result, containsString("\"_id\" : \"testdoc" + i + "\""));
+                    assertThat(result, containsString("\"_id\" : \"testdoc" + i + "\""));
                 }
+
+                // run a search using runtime fields (auto-mapped from old mapping)
+                Request runtimeFieldsSearch = new Request("POST", "/test/_search");
+                runtimeFieldsSearch.addParameter("pretty", "true");
+                runtimeFieldsSearch.setJsonEntity("{\"query\":{\"match\":{\"val\":2}}}");
+                Response runtimeFieldsResponse = client().performRequest(runtimeFieldsSearch);
+                String runtimeFieldsSearchResult = EntityUtils.toString(runtimeFieldsResponse.getEntity());
+                logger.info(runtimeFieldsSearchResult);
+                for (int i = 0; i < DOCS; i++) {
+                    // check that source_ is present
+                    Matcher<String> matcher = containsString("\"test\" : \"test" + i + "\"");
+                    if (i != 2) {
+                        matcher = not(matcher);
+                    }
+                    assertThat(runtimeFieldsSearchResult, matcher);
+                }
+
+                //assertTrue(false);
 
             } finally {
                 oldEs.performRequest(new Request("DELETE", "/test"));

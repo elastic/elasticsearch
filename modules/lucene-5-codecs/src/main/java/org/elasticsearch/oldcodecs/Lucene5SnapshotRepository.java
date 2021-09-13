@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -68,6 +70,7 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -157,13 +160,16 @@ public class Lucene5SnapshotRepository extends FilterRepository {
                 if (KEY_MAPPINGS.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            assert false : "only called for newer ES versions";
                             builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
                         } else {
                             Map<String, Object> mapping = parser.mapOrdered();
-                            if (mapping.size() == 1) {
-                                String mappingType = mapping.keySet().iterator().next();
-                                builder.putMapping(new MappingMetadata(mappingType, mapping));
-                            }
+                            // TODO: add support for _id, _type
+                            Map<String, Object> newMapping = new LinkedHashMap<>();
+                            newMapping.put("_meta", Map.of("original_mapping", mapping));
+                            newMapping.put("runtime", createRuntimeFields(mapping));
+                            newMapping.put("properties", Map.of("_uid", Map.of("type", "keyword")));
+                            builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, newMapping));
                         }
                     }
                 } else {
@@ -186,6 +192,50 @@ public class Lucene5SnapshotRepository extends FilterRepository {
         return builder.build();
     }
 
+    private static Map<String, Object> createRuntimeFields(Map<String, Object> mapping) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Object perTypeMapping : mapping.values()) {
+            if (perTypeMapping instanceof Map) {
+                Map<String, Object> m = (Map<String, Object>) perTypeMapping;
+                MappingVisitor.visitMapping(m, (field, fieldMapping) -> {
+                    String type = null;
+                    Object typeO = fieldMapping.get("type");
+                    if (typeO != null) {
+                        type = typeO.toString();
+                    } else if (fieldMapping.containsKey("properties")) {
+                        type = "object";
+                    }
+                    String runtimeFieldType = null;
+                    if (type != null) {
+                        switch (type) {
+                            case "string": {
+                                runtimeFieldType = "keyword";
+                                break;
+                            }
+                            case "date": {
+                                runtimeFieldType = "date";
+                                break;
+                            }
+                            case "long": {
+                                runtimeFieldType = "long";
+                                break;
+                            }
+                            case "double": {
+                                runtimeFieldType = "double";
+                                break;
+                            }
+                            default: // ignore;
+                        }
+                    }
+                    if (runtimeFieldType != null) {
+                        result.put(field, Map.of("type", runtimeFieldType));
+                    }
+                });
+
+            }
+        }
+        return result;
+    }
 
 
     public static Repository.Factory newRepositoryFactory(ThreadPool threadPool) {
@@ -505,12 +555,16 @@ public class Lucene5SnapshotRepository extends FilterRepository {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, indexMetadata.getNumberOfShards())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
+                // mark index as read-only
+                .put("index.blocks.write", true)
                 .put(INDEX_STORE_TYPE_SETTING.getKey(), LUCENE5_STORE_TYPE)
             .build())
             // Reset mapping to avoid incompatibilities
             // TODO: perhaps put existing mapping into _meta section so that it is available for introspection
             // alternatively upgrade field definitions to runtime fields
-            .putMapping("{\"properties\": {}}");
+            // add support for types and add runtime fields
+            .putMapping(indexMetadata.mapping());
+        // create dummy in-sync allocation IDs (didn't exist before ES 5)
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             builder.putInSyncAllocationIds(i, Collections.singleton("UUID"));
         }

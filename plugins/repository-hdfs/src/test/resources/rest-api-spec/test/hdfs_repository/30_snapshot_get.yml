@@ -11,7 +11,7 @@
         body:
           type: hdfs
           settings:
-            uri: "hdfs://localhost:9999"
+            uri: "hdfs://localhost:%hdfs_port%"
             path: "test/snapshot_get"
 
   # Create index
@@ -59,7 +59,7 @@
   - match: { snapshots.0.snapshot : test_snapshot_get }
 
   # Remove our snapshot
-  - do: 
+  - do:
       snapshot.delete:
         repository: test_snapshot_get_repository
         snapshot: test_snapshot_get

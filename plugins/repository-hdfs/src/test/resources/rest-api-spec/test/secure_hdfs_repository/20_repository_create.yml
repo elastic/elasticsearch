@@ -10,7 +10,7 @@
           body:
             type: hdfs
             settings:
-              uri: "hdfs://localhost:9998"
+              uri: "hdfs://localhost:%secure_hdfs_port%"
               path: "/user/elasticsearch/test/repository_create"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"

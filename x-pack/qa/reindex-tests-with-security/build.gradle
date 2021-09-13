@@ -35,6 +35,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.http.ssl.key', 'http.key'
   setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
   setting 'reindex.ssl.certificate_authorities', 'ca.crt'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   // Workaround for JDK-8212885
   if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {

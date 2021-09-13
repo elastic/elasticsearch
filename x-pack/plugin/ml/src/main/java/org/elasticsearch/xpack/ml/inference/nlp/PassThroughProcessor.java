@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+
+import java.util.List;
 
 /**
  * A NLP processor that directly returns the PyTorch result
@@ -22,12 +24,12 @@ public class PassThroughProcessor implements NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
 
-    PassThroughProcessor(NlpTokenizer tokenizer, BertPassThroughConfig config) {
+    PassThroughProcessor(NlpTokenizer tokenizer, PassThroughConfig config) {
         this.requestBuilder = tokenizer.requestBuilder();
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // nothing to validate
     }
 
@@ -42,6 +44,7 @@ public class PassThroughProcessor implements NlpTask.Processor {
     }
 
     private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
+        // TODO - process all results in the batch
+        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult()[0]);
     }
 }

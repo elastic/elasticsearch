@@ -49,6 +49,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
+        assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
     }
 
@@ -216,7 +217,6 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         private final Releasable releasable;
 
         RefCountedReleasable(Releasable releasable) {
-            super("bytes-reference");
             this.releasable = releasable;
         }
 

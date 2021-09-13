@@ -309,6 +309,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("swedishminimalstem", SwedishMinimalStemFilterFactory::new);
         filters.put("synonym", requiresAnalysisSettings(SynonymTokenFilterFactory::new));
         filters.put("synonym_graph", requiresAnalysisSettings(SynonymGraphTokenFilterFactory::new));
+        filters.put("telugunormalization", TeluguNormalizationFilterFactory::new);
+        filters.put("telugustem", TeluguStemFilterFactory::new);
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));
         filters.put("unique", UniqueTokenFilterFactory::new);

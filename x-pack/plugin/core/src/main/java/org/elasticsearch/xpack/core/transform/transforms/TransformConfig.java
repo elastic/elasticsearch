@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -57,7 +59,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     /** Specifies all the possible transform functions. */
     public enum Function {
-        PIVOT, LATEST;
+        PIVOT,
+        LATEST;
 
         private final ParseField parseField;
 
@@ -69,6 +72,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return parseField;
         }
     }
+
     private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
@@ -128,6 +132,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 if ((args[7] == null) == (args[8] == null)) {
                     throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
                 }
+
             }
 
             @SuppressWarnings("unchecked")
@@ -330,9 +335,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
      */
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
-            SourceDestValidation validation =
-                new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                    FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION, "source.runtime_mappings field was set");
+            SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION,
+                "source.runtime_mappings field was set"
+            );
             return Collections.singletonList(validation);
         } else {
             return Collections.emptyList();
@@ -364,6 +370,21 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) {
 
         List<DeprecationIssue> deprecations = new ArrayList<>();
+
+        // V_8_0_0 deprecate beta transforms
+        if (getVersion() == null || getVersion().before(Version.V_7_15_0)) {
+            deprecations.add(
+                new DeprecationIssue(
+                    Level.WARNING,
+                    "Transform [" + id + "] is too old",
+                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
+                    "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",
+                    false,
+                    null
+                )
+            );
+        }
+
         source.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
         dest.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
         settings.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
@@ -578,7 +599,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getMaxPageSearchSize(),
                     builder.getSettings().getDocsPerSecond(),
                     true,
-                    builder.getSettings().getAlignCheckpoints())
+                    builder.getSettings().getAlignCheckpoints()
+                )
             );
         }
 
@@ -589,7 +611,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getMaxPageSearchSize(),
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
-                    false)
+                    false
+                )
             );
         }
 

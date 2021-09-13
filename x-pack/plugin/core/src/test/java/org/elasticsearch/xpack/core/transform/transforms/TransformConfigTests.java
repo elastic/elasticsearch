@@ -94,11 +94,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static TransformConfig randomTransformConfigWithDeprecatedFields(String id) {
-        return randomTransformConfig(id, PivotConfigTests.randomPivotConfigWithDeprecatedFields(), null);
+    public static TransformConfig randomTransformConfigWithDeprecatedFields(String id, Version version) {
+        return randomTransformConfig(id, version, PivotConfigTests.randomPivotConfigWithDeprecatedFields(), null);
     }
 
     public static TransformConfig randomTransformConfig(String id) {
+        return randomTransformConfig(id, randomBoolean() ? null : Version.CURRENT);
+    }
+
+    public static TransformConfig randomTransformConfig(String id, Version version) {
         PivotConfig pivotConfig;
         LatestConfig latestConfig;
         if (randomBoolean()) {
@@ -109,10 +113,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig = LatestConfigTests.randomLatestConfig();
         }
 
-        return randomTransformConfig(id, pivotConfig, latestConfig);
+        return randomTransformConfig(id, version, pivotConfig, latestConfig);
     }
 
-    public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
+    public static TransformConfig randomTransformConfig(String id, Version version, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -126,7 +130,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString()
+            version == null ? null : version.toString()
         );
     }
 
@@ -695,11 +699,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testCheckForDeprecations() {
-        assertThat(createTestInstance().checkForDeprecations(xContentRegistry()), is(empty()));
-
         String id = randomAlphaOfLengthBetween(1, 10);
+        assertThat(randomTransformConfig(id, Version.CURRENT).checkForDeprecations(xContentRegistry()), is(empty()));
 
-        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.CURRENT);
 
         // check _and_ clear warnings
         assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
@@ -720,6 +723,37 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+
+        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
+
+        // check _and_ clear warnings
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                List.of(
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] is too old",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",
+                        false,
+                        null
+                    ),
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

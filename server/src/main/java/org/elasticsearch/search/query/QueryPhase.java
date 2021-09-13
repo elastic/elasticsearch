@@ -43,8 +43,6 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
-import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -128,9 +126,7 @@ public class QueryPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            SearchProfileQueryPhaseResult shardResults = SearchProfileResults
-                .buildShardResults(searchContext.getProfilers());
-            searchContext.queryResult().profileResults(shardResults);
+            searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
         }
     }
 

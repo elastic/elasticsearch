@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -59,7 +58,6 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -346,17 +344,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         SearchSourceBuilder source = searchRequest.source();
+        if (searchRequest.isFieldsOptionEmulationEnabled() && source.fetchFields() != null && source.fetchFields().isEmpty() == false) {
+            // we don't support minimize_roundstrip for cases where we might need fields API emulation
+            return false;
+        }
         return source == null || source.collapse() == null || source.collapse().getInnerHits() == null ||
             source.collapse().getInnerHits().isEmpty();
-    }
-
-    private static Version getConnectionVersionFieldsEmulation(RemoteClusterService remoteClusterService, String clusterAlias) {
-        try {
-            return remoteClusterService.getConnection(clusterAlias).getVersion();
-        } catch (NoSuchRemoteClusterException ex) {
-            // if the cluster is not connected, use CURRENT so fields emulation will be skipped
-            return Version.CURRENT;
-        }
     }
 
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,
@@ -365,6 +358,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 RemoteClusterService remoteClusterService, ThreadPool threadPool, ActionListener<SearchResponse> listener,
                                 BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer) {
 
+        assert(false);
         if (localIndices == null && remoteIndices.size() == 1) {
             //if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             //and we directly perform final reduction in the remote cluster
@@ -375,15 +369,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
-            final FieldsOptionSourceAdapter adapter = new FieldsOptionSourceAdapter(searchRequest);
-            final Version connectionVersion = getConnectionVersionFieldsEmulation(remoteClusterService, clusterAlias);
-            adapter.adaptRequest(connectionVersion, ccsSearchRequest::source);
 
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    adapter.adaptResponse(connectionVersion, searchResponse.getHits().getHits());
                     Map<String, SearchProfileQueryPhaseResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
                         ? null : new SearchProfileResults(profileResults);
@@ -412,7 +402,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
-            FieldsOptionSourceAdapter adapter = new FieldsOptionSourceAdapter(searchRequest);
             for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
@@ -425,8 +414,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider.getAbsoluteStartMillis(),
                     false
                 );
-                final Version connectionVersion = getConnectionVersionFieldsEmulation(remoteClusterService, clusterAlias);
-                adapter.adaptRequest(connectionVersion, ccsSearchRequest::source);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
                     clusterAlias,
                     skipUnavailable,
@@ -435,9 +422,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
-                    listener,
-                    adapter,
-                    connectionVersion
+                    listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
@@ -451,9 +436,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
-                    listener,
-                    null,
-                    null
+                    listener
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
@@ -518,16 +501,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static ActionListener<SearchResponse> createCCSListener(String clusterAlias, boolean skipUnavailable, CountDown countDown,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
-                                                             ActionListener<SearchResponse> originalListener,
-                                                             FieldsOptionSourceAdapter adapter,
-                                                             Version connectionVersion) {
+                                                             ActionListener<SearchResponse> originalListener) {
         return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
             exceptions, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                if (adapter != null && connectionVersion != null) {
-                    adapter.adaptResponse(connectionVersion, searchResponse.getHits().getHits());
-                }
                 searchResponseMerger.add(searchResponse);
             }
 

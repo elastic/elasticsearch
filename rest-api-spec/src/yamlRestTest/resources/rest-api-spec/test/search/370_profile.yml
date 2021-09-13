@@ -22,8 +22,8 @@ setup:
 ---
 fetch fields:
   - skip:
-      version: ' - 7.99.99'
-      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
 
   - do:
       search:
@@ -81,8 +81,8 @@ fetch source:
 ---
 fetch nested source:
   - skip:
-      version: ' - 7.99.99'
-      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
 
   - do:
       indices.create:

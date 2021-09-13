@@ -125,7 +125,7 @@ values within the doc.
 |`doc['field_name'].lon` |The longitude of the geo point.
 |=======================================================================
 
-The following example computes distance in kilometers from Washington, DC:
+The following example computes distance in meters from Washington, DC:
 
 `haversin(38.9072, 77.0369, doc['field_name'].lat, doc['field_name'].lon)`
 

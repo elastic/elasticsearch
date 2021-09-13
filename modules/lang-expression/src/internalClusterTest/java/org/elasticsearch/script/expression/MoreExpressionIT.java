@@ -606,7 +606,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
         assertSearchResponse(rsp);
         assertEquals(1, rsp.getHits().getTotalHits().value);
-        assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
+        assertEquals(3169186D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
     }
 
     public void testBoolean() throws Exception {

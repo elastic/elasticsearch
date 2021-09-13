@@ -63,15 +63,17 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-
-        final IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+
         ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));

@@ -9,21 +9,21 @@
 # The whitelist for the fields api
 
 # API
-class org.elasticsearch.script.Field {
-  org.elasticsearch.script.Converter BigInteger
-  org.elasticsearch.script.Converter Long
+class org.elasticsearch.script.field.Field {
+  org.elasticsearch.script.field.Converter BigInteger
+  org.elasticsearch.script.field.Converter Long
   String getName()
   boolean isEmpty()
   List getValues()
   def getValue(def)
   double getDouble(double)
   long getLong(long)
-  org.elasticsearch.script.Field as(org.elasticsearch.script.Converter)
+  org.elasticsearch.script.field.Field as(org.elasticsearch.script.field.Converter)
 }
 
-class org.elasticsearch.script.Converter {
+class org.elasticsearch.script.field.Converter {
 }
 
 class org.elasticsearch.script.DocBasedScript {
-    org.elasticsearch.script.Field field(String)
+    org.elasticsearch.script.field.Field field(String)
 }

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 
 public class SearchProfileResultsBuilderTests extends ESTestCase {
     public void testFetchWithoutQuery() {
-        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(rarely() ? 0 : between(1, 2));
         FetchSearchResult fetchPhase = fetchResult(
             randomValueOtherThanMany(searchPhase::containsKey, SearchProfileResultsBuilderTests::randomTarget),
             null
@@ -40,7 +40,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
     }
 
     public void testQueryWithoutAnyFetch() {
-        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(between(1, 2));
         FetchSearchResult fetchPhase = fetchResult(searchPhase.keySet().iterator().next(), null);
         SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
         assertThat(
@@ -51,7 +51,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
     }
 
     public void testQueryAndFetch() {
-        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults();
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(between(1, 2));
         List<FetchSearchResult> fetchPhase = searchPhase.entrySet()
             .stream()
             .map(e -> fetchResult(e.getKey(), new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
@@ -67,8 +67,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
         );
     }
 
-    private static Map<SearchShardTarget, SearchProfileQueryPhaseResult> randomSearchPhaseResults() {
-        int size = rarely() ? 0 : randomIntBetween(1, 2);
+    private static Map<SearchShardTarget, SearchProfileQueryPhaseResult> randomSearchPhaseResults(int size) {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> results = new HashMap<>(size);
         while (results.size() < size) {
             results.put(randomTarget(), SearchProfileQueryPhaseResultTests.createTestItem());

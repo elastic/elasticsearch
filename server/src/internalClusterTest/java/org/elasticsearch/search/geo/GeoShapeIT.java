@@ -22,7 +22,7 @@ public class GeoShapeIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Version getVersion() {
+    protected Version randomSupportedVersion() {
         return VersionUtils.randomIndexCompatibleVersion(random());
     }
 

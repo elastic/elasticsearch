@@ -67,40 +67,32 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
 
-        project.afterEvaluate(p -> {
-            project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-                CompileOptions compileOptions = compileTask.getOptions();
-                /*
-                 * -path because gradle will send in paths that don't always exist.
-                 * -missing because we have tons of missing @returns and @param.
-                 * -serial because we don't use java serialization.
-                 */
-                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings.
-                // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
-                List<String> compilerArgs = compileOptions.getCompilerArgs();
-                compilerArgs.add("-Werror");
-                compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
-                compilerArgs.add("-Xdoclint:all");
-                compilerArgs.add("-Xdoclint:-missing");
-                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly
-                // defined
-                if (compilerArgs.contains("-processor") == false) {
-                    compilerArgs.add("-proc:none");
-                }
-
-                compileOptions.setEncoding("UTF-8");
-                compileOptions.setIncremental(true);
-                // workaround for https://github.com/gradle/gradle/issues/14141
-                compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
-                compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
-                compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
-            // also apply release flag to groovy, which is used in build-tools
-            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-                // TODO: this probably shouldn't apply to groovy at all?
-                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
+        project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+            CompileOptions compileOptions = compileTask.getOptions();
+            /*
+             * -path because gradle will send in paths that don't always exist.
+             * -missing because we have tons of missing @returns and @param.
+             * -serial because we don't use java serialization.
+             */
+            // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
+            // fail on all javac warnings.
+            // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
+            List<String> compilerArgs = compileOptions.getCompilerArgs();
+            compilerArgs.add("-Werror");
+            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
+            compilerArgs.add("-Xdoclint:all");
+            compilerArgs.add("-Xdoclint:-missing");
+            compileOptions.setEncoding("UTF-8");
+            compileOptions.setIncremental(true);
+            // workaround for https://github.com/gradle/gradle/issues/14141
+            compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
+            compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
+            compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+        });
+        // also apply release flag to groovy, which is used in build-tools
+        project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
+            // TODO: this probably shouldn't apply to groovy at all?
+            compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
         });
     }
 

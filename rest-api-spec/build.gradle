@@ -79,6 +79,9 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'indices.stats/20_translog/Translog retention without soft_deletes',
             'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
 
+            // field usage results will be different between lucene versions
+            'indices.stats/60_field_usage/*',
+
             // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
             'indices.upgrade/*/*',
 

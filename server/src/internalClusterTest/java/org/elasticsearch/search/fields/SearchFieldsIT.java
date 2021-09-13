@@ -62,6 +62,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -131,6 +132,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
             scripts.put("doc['md']", vars -> docScript(vars, "md"));
             scripts.put("doc['s']", vars -> docScript(vars, "s"));
             scripts.put("doc['ms']", vars -> docScript(vars, "ms"));
+
+            scripts.put("1L / doc['num1'].value", vars -> {
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+                ScriptDocValues.Longs num1 = (ScriptDocValues.Longs) doc.get("num1");
+                return 1L / num1.getValue();
+            });
 
             return scripts;
         }
@@ -337,6 +344,34 @@ public class SearchFieldsIT extends ESIntegTestCase {
         fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
         assertThat(fields, equalTo(singleton("sNum1")));
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(6.0));
+    }
+
+    public void testScriptFieldsIgnoreErrors() throws Exception {
+        createIndex("test");
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
+            .startObject("num1").field("type", "long").endObject()
+            .endObject().endObject().endObject());
+
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("num1", 1L).endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("num1", 0L).endObject()).get();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchRequestBuilder ignoreRequestBuilder = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addScriptField("sNum1",
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1L / doc['num1'].value", Collections.emptyMap()), true);
+
+        assertNoFailures(ignoreRequestBuilder.get());
+
+        SearchRequestBuilder failRequestBuilder = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addScriptField("sNum1",
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1L / doc['num1'].value", Collections.emptyMap()), false);
+
+        assertFailures(failRequestBuilder.get());
     }
 
     public void testScriptFieldWithNanos() throws Exception {

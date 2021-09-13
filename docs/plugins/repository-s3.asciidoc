@@ -467,7 +467,7 @@ uploaded.
 If a multi-part upload cannot be completed then it must be aborted in order to
 delete any parts that were successfully uploaded, preventing further storage
 charges from accumulating. {es} will automatically abort a multi-part upload on
-failure, but sometimes the abort request itself fails. For instance, if the
+failure, but sometimes the abort request itself fails. For example, if the
 repository becomes inaccessible or the instance on which {es} is running is
 terminated abruptly then {es} cannot complete or abort any ongoing uploads.
 

@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Standard test case for testing wire serialization. If the class being tested
  * extends {@link Writeable} then prefer extending {@link AbstractWireSerializingTestCase}.
@@ -83,8 +85,8 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
         assertNotSame(newInstance, expectedInstance);
-        assertEquals(expectedInstance, newInstance);
-        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 
     protected final T copyInstance(T instance) throws IOException {

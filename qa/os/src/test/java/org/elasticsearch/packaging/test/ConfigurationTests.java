@@ -61,6 +61,8 @@ public class ConfigurationTests extends PackagingTestCase {
             }
             lines.add("node.name: ${HOSTNAME}");
             Files.write(yml, lines, TRUNCATE_EXISTING);
+            logger.debug("TEMP_IOANNIS " + Files.readString(confPath.resolve("elasticsearch.yml")));
+            logger.debug("TEMP_IOANNIS" + Files.readString(ServerUtils.getCaCert(installation)));
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }

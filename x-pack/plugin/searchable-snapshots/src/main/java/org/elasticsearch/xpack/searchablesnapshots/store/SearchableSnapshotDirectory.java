@@ -704,15 +704,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public CachedBlob getCachedBlob(String name, ByteRange range) {
-        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, snapshotId, indexId, shardId, name, range);
-        if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
-            return cachedBlob;
-        } else if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
-            // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache is changed
-            // between versions or through the index setting. In this case we assume it is a cache miss to force the blob to be cached again
-            return CachedBlob.CACHE_MISS;
-        }
-        return cachedBlob;
+        return blobStoreCacheService.get(repository, snapshotId, indexId, shardId, name, range);
     }
 
     public void putCachedBlob(String name, ByteRange range, BytesReference content, ActionListener<Void> listener) {

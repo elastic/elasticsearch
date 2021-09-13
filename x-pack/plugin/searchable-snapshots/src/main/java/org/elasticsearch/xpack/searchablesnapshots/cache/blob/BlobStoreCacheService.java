@@ -176,7 +176,14 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
                     final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
                     assert assertDocId(response, repository, snapshotId, indexId, shardId, name, range);
-                    listener.onResponse(cachedBlob);
+                    if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
+                        // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache
+                        // is changed between versions or through the index setting. In this case we assume it is a cache miss to force the
+                        // blob to be cached again
+                        listener.onResponse(CachedBlob.CACHE_MISS);
+                    } else {
+                        listener.onResponse(cachedBlob);
+                    }
                 } else {
                     logger.debug("cache miss: [{}]", request.id());
                     listener.onResponse(CachedBlob.CACHE_MISS);

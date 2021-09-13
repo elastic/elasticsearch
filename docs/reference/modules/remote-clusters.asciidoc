@@ -1,26 +1,33 @@
 [[remote-clusters]]
 == Remote clusters
-
 You can connect a local cluster to other {es} clusters, known as _remote
-clusters_. To register a remote cluster,
+clusters_. Remote clusters can be located in different datacenters or 
+geographic regions, and contain indices or data streams that can be replicated
+or searched by a local cluster. You can use remote clusters in {ccr} and {ccs}.
+
+With <<xpack-ccr,{ccr}>>, you index data to a leader index, which is 
+replicated to one or more read-only follower indices on a remote cluster.
+Creating a multi-cluster architecture with {ccr} enables you to configure
+disaster recovery, bring data closer to your users, or establish a centralized 
+reporting cluster to process reports locally.
+
+<<modules-cross-cluster-search,{ccs-cap}>> enables you to run a search request 
+against one or more remote clusters. This capability provides each region
+with a global view of all clusters, allowing you to send a search request from
+a local cluster and return results from all connected remote clusters. 
+
+Connected remote clusters effectively form a single security domain, where users 
+with administrative privileges in one cluster have those privileges in _all_ 
+connected clusters. This behavior means that you can't restrict a user's access 
+to a specific remote cluster. To use {ccr} or {ccs} safely with remote clusters, 
+<<remote-clusters-security,enable security>> on all connected clusters and
+configure Transport Layer Security (TLS) on every node.
+
+To register a remote cluster,
 <<remote-clusters-connect,connect the local cluster>> to nodes in the
-remote cluster using <<sniff-mode,sniff mode>> (default) or
-<<proxy-mode,proxy mode>>. 
-
-Once connected, you can search remote clusters using
-<<modules-cross-cluster-search,{ccs}>>. You can also sync data between clusters
-using <<xpack-ccr,{ccr}>>.
-
-Your local cluster uses the <<modules-network,transport layer>> to establish
-communication with remote clusters. The coordinating nodes in the local cluster
-establish <<long-lived-connections,long-lived>> TCP connections with specific
-nodes in the remote cluster. {es} requires these connections to remain open,
-even if the connections are idle for an extended period.
-
-Use the <<cluster-remote-info, remote cluster info API>> to get information
-about registered remote clusters. If you're enabling and configuring
-security for {es}, refer to 
-<<remote-clusters-security,remote clusters and security>>.
+remote cluster using sniff mode (default) or proxy mode. After registering
+remote clusters, <<remote-clusters-privileges,configure privileges>> for {ccr} 
+and {ccs}.
 
 [[sniff-mode]]
 [discrete]
@@ -88,7 +95,7 @@ to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades,rolling upgrades>>.
 
+include::cluster/remote-clusters-security.asciidoc[]
 include::cluster/remote-clusters-connect.asciidoc[]
 include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[]
-include::cluster/remote-clusters-security.asciidoc[]
 include::cluster/remote-clusters-settings.asciidoc[]

@@ -1,13 +1,8 @@
 [[remote-clusters-settings]]
 === Remote cluster settings
-You can modify the following settings for remote clusters.
-
-[[remote-cluster-settings-global]]
-==== Global remote cluster settings
-
-These settings apply to both <<sniff-mode,sniff mode>> and
-<<proxy-mode,proxy mode>>. Sniff mode settings and proxy mode settings are 
-described separately.
+The following settings apply to both <<sniff-mode,sniff mode>> and
+<<proxy-mode,proxy mode>>. Settings that are specific to sniff mode and proxy
+mode are described separately.
 
 `cluster.remote.<cluster_alias>.mode`::
   The mode used for a remote cluster connection. The only supported modes are

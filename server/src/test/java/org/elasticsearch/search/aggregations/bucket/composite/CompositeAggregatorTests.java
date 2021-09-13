@@ -1316,8 +1316,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testMissingHistogramBucket() throws Exception {
         List<Map<String, List<Object>>> dataset = Arrays.asList(
-            createDocument("const", 1, "long", 1),
-            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "long", 1L),
+            createDocument("const", 1, "long", 2L),
             createDocument("const", 1, "keyword", "a")
         );
 
@@ -1462,8 +1462,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testMissingHistogramBucketAfterKey() throws Exception {
         List<Map<String, List<Object>>> dataset = Arrays.asList(
-            createDocument("const", 1, "long", 1),
-            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "long", 1L),
+            createDocument("const", 1, "long", 2L),
             createDocument("const", 1, "keyword", "a"),
             createDocument("const", 1, "keyword", "b")
         );

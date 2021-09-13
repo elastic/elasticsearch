@@ -359,7 +359,8 @@ public final class IndexSettings {
                 return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
             }
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.Final
     );
 
     private final Index index;

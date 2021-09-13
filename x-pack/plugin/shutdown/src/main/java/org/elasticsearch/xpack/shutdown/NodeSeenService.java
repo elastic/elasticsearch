@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,8 +46,10 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        if (event.nodesAdded() == false) {
-            // If there's no new nodes this cluster state update, nothing to do.
+        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && event.state().nodes().isLocalNodeElectedMaster();
+        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
+            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
             return;
         }
 

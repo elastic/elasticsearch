@@ -17,14 +17,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.script.field.Field.BigIntegerField;
-import static org.elasticsearch.script.field.Field.BooleanField;
-import static org.elasticsearch.script.field.Field.DateMillisField;
-import static org.elasticsearch.script.field.Field.DateNanosField;
-import static org.elasticsearch.script.field.Field.DoubleField;
-import static org.elasticsearch.script.field.Field.LongField;
-import static org.elasticsearch.script.field.Field.StringField;
-
 /**
  * {@link Converters} for scripting fields.  These constants are exposed as static fields on {@link Field} to
  * allow a user to convert via {@link Field#as(Converter)}.

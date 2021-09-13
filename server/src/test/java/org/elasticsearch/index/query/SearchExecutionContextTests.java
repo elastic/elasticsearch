@@ -521,7 +521,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
                                     @Override
                                     public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                                        return new org.elasticsearch.script.field.Field.StringField(fieldName, this);
+                                        return new org.elasticsearch.script.field.StringField(fieldName, this);
                                     }
                                 };
                             }

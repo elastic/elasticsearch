@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.IpField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -337,7 +338,7 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                return new org.elasticsearch.script.field.Field.IpField(fieldName, this);
+                return new IpField(fieldName, this);
             }
         }
 

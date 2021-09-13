@@ -27,7 +27,7 @@ public class ConvertersTests extends ESTestCase {
     public void testLongToBigIntegerToLong() {
         long[] raw = { randomLong(), Long.MIN_VALUE, Long.MAX_VALUE, ((long) Integer.MIN_VALUE - 1), ((long) Integer.MAX_VALUE + 1),
                        -1L, 0L, 1L };
-        Field<Long> src = new Field.LongField("", new FieldValues<Long>() {
+        Field<Long> src = new LongField("", new FieldValues<Long>() {
             @Override
             public boolean isEmpty() {
                 return false;
@@ -78,7 +78,7 @@ public class ConvertersTests extends ESTestCase {
     public void testDoubleTo() {
         double[] raw = { Double.MAX_VALUE, Double.MIN_VALUE, ((double) Float.MAX_VALUE) * 10d, ((double) Float.MIN_VALUE), 0.1d,
                          Long.MAX_VALUE, Long.MIN_VALUE };
-        Field<Double> src = new Field.DoubleField("", new FieldValues<Double>() {
+        Field<Double> src = new DoubleField("", new FieldValues<Double>() {
             @Override
             public boolean isEmpty() {
                 return false;
@@ -137,7 +137,7 @@ public class ConvertersTests extends ESTestCase {
     public void testStringToBigInteger() {
         List<String> raw = org.elasticsearch.core.List.of(Long.MAX_VALUE + "0", randomLong() + "", Long.MIN_VALUE + "0",
                                                           Double.MAX_VALUE + "", Double.MIN_VALUE + "");
-        Field<String> src = new Field.StringField("", new ListFieldValues<>(raw));
+        Field<String> src = new StringField("", new ListFieldValues<>(raw));
 
         Field<BigInteger> dst = src.as(Field.BigInteger);
         List<BigInteger> expected = org.elasticsearch.core.List.of(new BigInteger(raw.get(0)), new BigInteger(raw.get(1)),
@@ -151,7 +151,7 @@ public class ConvertersTests extends ESTestCase {
     public void testStringToLong() {
         long rand = randomLong();
         List<String> raw = org.elasticsearch.core.List.of(rand + "", Long.MAX_VALUE + "", Long.MIN_VALUE + "", "0", "100");
-        Field<String> src = new Field.StringField("", new ListFieldValues<>(raw));
+        Field<String> src = new StringField("", new ListFieldValues<>(raw));
 
         Field<Long> dst = src.as(Field.Long);
         assertEquals(org.elasticsearch.core.List.of(rand, Long.MAX_VALUE, Long.MIN_VALUE, 0L, 100L), dst.getValues());
@@ -162,7 +162,7 @@ public class ConvertersTests extends ESTestCase {
 
     public void testBooleanTo() {
         List<Boolean> raw = org.elasticsearch.core.List.of(Boolean.TRUE, Boolean.FALSE);
-        Field<Boolean> src = new Field.BooleanField("", new ListFieldValues<>(raw));
+        Field<Boolean> src = new BooleanField("", new ListFieldValues<>(raw));
 
         Field<BigInteger> dst = src.as(Field.BigInteger);
         assertEquals(org.elasticsearch.core.List.of(BigInteger.ONE, BigInteger.ZERO), dst.getValues());
@@ -177,7 +177,7 @@ public class ConvertersTests extends ESTestCase {
         assertEquals(1.0d, dstLong.getDouble(1234.0d), 0.1d);
 
         List<Boolean> rawRev = org.elasticsearch.core.List.of(Boolean.FALSE, Boolean.TRUE);
-        src = new Field.BooleanField("", new ListFieldValues<>(rawRev));
+        src = new BooleanField("", new ListFieldValues<>(rawRev));
         dst = src.as(Field.BigInteger);
 
         assertEquals(org.elasticsearch.core.List.of(BigInteger.ZERO, BigInteger.ONE), dst.getValues());
@@ -193,7 +193,7 @@ public class ConvertersTests extends ESTestCase {
     }
 
     public void testInvalidFieldConversion() {
-        Field<GeoPoint> src = new Field.GeoPointField("", new ListFieldValues<>(org.elasticsearch.core.List.of(new GeoPoint(0, 0))));
+        Field<GeoPoint> src = new GeoPointField("", new ListFieldValues<>(org.elasticsearch.core.List.of(new GeoPoint(0, 0))));
         InvalidConversion ic = expectThrows(InvalidConversion.class, () -> src.as(Field.BigInteger));
         assertEquals("Cannot convert from [GeoPointField] using converter [BigIntegerField]", ic.getMessage());
 
@@ -209,7 +209,7 @@ public class ConvertersTests extends ESTestCase {
             new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(rawMilli[2]), ZoneOffset.ofHours(0)),
             new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(rawMilli[3]), ZoneOffset.ofHours(-5))
         );
-        Field<JodaCompatibleZonedDateTime> src = new Field.DateMillisField("", new ListFieldValues<>(raw));
+        Field<JodaCompatibleZonedDateTime> src = new DateMillisField("", new ListFieldValues<>(raw));
 
         List<BigInteger> expectedBigInteger = LongStream.of(rawMilli).mapToObj(BigInteger::valueOf).collect(Collectors.toList());
         Field<BigInteger> dstBigInteger = src.as(Field.BigInteger);
@@ -234,7 +234,7 @@ public class ConvertersTests extends ESTestCase {
             new JodaCompatibleZonedDateTime(Instant.EPOCH.plusNanos(rawNanos[2]), ZoneOffset.ofHours(0)),
             new JodaCompatibleZonedDateTime(Instant.EPOCH.plusNanos(rawNanos[3]), ZoneOffset.ofHours(-5))
         );
-        Field<JodaCompatibleZonedDateTime> src = new Field.DateNanosField("", new ListFieldValues<>(raw));
+        Field<JodaCompatibleZonedDateTime> src = new DateNanosField("", new ListFieldValues<>(raw));
 
         List<BigInteger> expectedBigInteger = LongStream.of(rawNanos).mapToObj(BigInteger::valueOf).collect(Collectors.toList());
         Field<BigInteger> dstBigInteger = src.as(Field.BigInteger);

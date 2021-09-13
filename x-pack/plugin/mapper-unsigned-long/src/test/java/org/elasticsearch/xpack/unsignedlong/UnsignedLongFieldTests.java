@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.script.field.FieldValues;
+import org.elasticsearch.script.field.LongField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;
@@ -71,7 +72,7 @@ public class UnsignedLongFieldTests extends ESTestCase {
 
     public void testLongToUnsignedLong() {
         long[] raw = { Long.MIN_VALUE, Long.MAX_VALUE, ((long) Integer.MIN_VALUE - 1), ((long) Integer.MAX_VALUE + 1), -1L, 0L, 1L };
-        Field<Long> src = new Field.LongField("", new FieldValues<Long>() {
+        Field<Long> src = new LongField("", new FieldValues<Long>() {
             @Override
             public boolean isEmpty() {
                 return false;

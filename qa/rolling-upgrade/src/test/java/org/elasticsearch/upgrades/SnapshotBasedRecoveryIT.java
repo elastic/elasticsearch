@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -74,6 +75,16 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             case MIXED:
             case UPGRADED:
                 if (FIRST_MIXED_ROUND) {
+                    String upgradedNodeId = getUpgradedNodeId();
+                    assertThat(upgradedNodeId, is(notNullValue()));
+
+                    updateIndexSettings(
+                        indexName,
+                        Settings.builder()
+                            .put("index.routing.allocation.exclude._id", upgradedNodeId)
+                            .build()
+                    );
+
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                     Version primaryNodeVersion = getNodeVersion(primaryNodeId);
 
@@ -83,24 +94,18 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     // In that case we exclude the upgraded node from the shard allocation and cancel the shard to force moving
                     // the primary to a node in the old version, this allows adding replicas in the first mixed round.
                     if (primaryNodeVersion.after(UPGRADE_FROM_VERSION)) {
-                        updateIndexSettings(
-                            indexName,
-                            Settings.builder()
-                                .put("index.routing.allocation.exclude._id", primaryNodeId)
-                                .build()
-                        );
                         cancelShard(indexName, 0, primaryNodeId);
 
                         String currentPrimaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                         assertThat(getNodeVersion(currentPrimaryNodeId), is(equalTo(UPGRADE_FROM_VERSION)));
-
-                        updateIndexSettings(
-                            indexName,
-                            Settings.builder()
-                                .putNull("index.routing.allocation.exclude._id")
-                                .build()
-                        );
                     }
+                } else {
+                    updateIndexSettings(
+                        indexName,
+                        Settings.builder()
+                            .putNull("index.routing.allocation.exclude._id")
+                            .build()
+                    );
                 }
 
                 // Drop replicas
@@ -131,6 +136,21 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             request.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(request));
         }
+    }
+
+    @Nullable
+    private String getUpgradedNodeId() throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, "_nodes/_all");
+        Response response = client().performRequest(request);
+        Map<String, Object> responseMap = responseAsMap(response);
+        Map<String, Map<String, Object>> nodes = extractValue(responseMap, "nodes");
+        for (Map.Entry<String, Map<String, Object>> nodeInfoEntry : nodes.entrySet()) {
+            Version nodeVersion = Version.fromString(extractValue(nodeInfoEntry.getValue(), "version"));
+            if (nodeVersion.onOrAfter(UPGRADE_FROM_VERSION)) {
+                return nodeInfoEntry.getKey();
+            }
+        }
+        return null;
     }
 
     private Version getNodeVersion(String primaryNodeId) throws IOException {

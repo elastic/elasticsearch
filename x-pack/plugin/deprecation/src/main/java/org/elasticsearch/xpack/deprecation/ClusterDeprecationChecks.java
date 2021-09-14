@@ -272,7 +272,8 @@ public class ClusterDeprecationChecks {
         String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
-        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+            "#_deprecated_literal_geo_shape_literal_parameters";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
             String message = "component templates and index templates contain deprecated geo_shape properties that must be removed";
             String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;

@@ -398,7 +398,8 @@ public class IndexDeprecationChecks {
             String details = String.format(Locale.ROOT,
                 "The following geo_shape parameters must be removed from %s: [%s]", indexMetadata.getIndex().getName(),
                 messages.stream().collect(Collectors.joining("; ")));
-            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                "#_deprecated_literal_geo_shape_literal_parameters";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
     }

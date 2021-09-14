@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.script.field.BigIntegerField;
 import org.elasticsearch.script.field.Converter;
-import org.elasticsearch.script.field.Converters;
+import org.elasticsearch.script.field.DelegatingFieldValues;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.script.field.FieldValues;
 import org.elasticsearch.script.field.InvalidConversion;
@@ -48,7 +48,7 @@ public class UnsignedLongField extends LongField {
 
     static UnsignedLongField BigIntegerToUnsignedLong(BigIntegerField sourceField) {
         FieldValues<BigInteger> fv = sourceField.getFieldValues();
-        return new UnsignedLongField(sourceField.getName(), new Converters.DelegatingFieldValues<>(fv) {
+        return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
             public List<Long> getValues() {
                 return values.getValues().stream().map(java.math.BigInteger::longValue).collect(Collectors.toList());
@@ -73,7 +73,7 @@ public class UnsignedLongField extends LongField {
 
     public static UnsignedLongField LongToUnsignedLong(LongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
-        return new UnsignedLongField(sourceField.getName(), new Converters.DelegatingFieldValues<>(fv) {
+        return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
             public List<Long> getValues() {
                 // Takes longs in raw format
@@ -114,7 +114,7 @@ public class UnsignedLongField extends LongField {
 
     static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
-        return new BigIntegerField(sourceField.getName(), new Converters.DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
+        return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
             private BigInteger toBigInteger(long formatted) {
                 return java.math.BigInteger.valueOf(formatted).and(BIGINTEGER_2_64_MINUS_ONE);
             }

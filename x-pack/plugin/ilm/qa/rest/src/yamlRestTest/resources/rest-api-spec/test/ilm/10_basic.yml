@@ -9,16 +9,16 @@ setup:
   - do:
       catch: missing
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.delete_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
   - do:
       ilm.put_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -43,7 +43,7 @@ setup:
 
   - do:
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
   - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "10s" }
@@ -51,18 +51,18 @@ setup:
 
   - do:
       ilm.delete_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
 ---
 "Test Policy Update":
   - do:
       ilm.put_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -87,7 +87,7 @@ setup:
 
   - do:
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
   - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "10s" }
@@ -110,7 +110,7 @@ setup:
 
   - do:
       ilm.put_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -135,7 +135,7 @@ setup:
 
   - do:
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 2 }
   - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "300s" }
@@ -150,18 +150,18 @@ setup:
 
   - do:
       ilm.delete_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
 ---
 "Test Undeletable Policy In Use":
   - do:
       ilm.put_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -186,7 +186,7 @@ setup:
 
   - do:
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "10s" }
   - match: { my_timeseries_lifecycle.policy.phases.delete.min_age: "30s" }
 
@@ -200,7 +200,7 @@ setup:
   - do:
       catch: bad_request
       ilm.delete_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is in use by one or more indices: [my_timeseries_index]" }
 
@@ -210,19 +210,19 @@ setup:
 
   - do:
       ilm.delete_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        policy: "my_timeseries_lifecycle"
+        policy_name: "my_timeseries_lifecycle"
 
 ---
 "Test Invalid Policy":
   - do:
       catch: bad_request
       ilm.put_lifecycle:
-        policy: "my_invalid_lifecycle"
+        policy_name: "my_invalid_lifecycle"
         body: |
            {
              "policy": {
@@ -242,7 +242,7 @@ setup:
   - do:
       catch: bad_request
       ilm.put_lifecycle:
-        policy: "my_invalid_lifecycle"
+        policy_name: "my_invalid_lifecycle"
         body: |
            {
              "policy": {
@@ -262,7 +262,7 @@ setup:
   - do:
       catch: bad_request
       ilm.put_lifecycle:
-        policy: "my_invalid_lifecycle"
+        policy_name: "my_invalid_lifecycle"
         body: |
            {
              "policy": {
@@ -283,7 +283,7 @@ setup:
   - do:
       catch: /Your policy is configured to run the delete phase \(min_age\:\ 5s\) before the warm phase \(min_age\:\ 10s\). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold./
       ilm.put_lifecycle:
-        policy: "bad_policy"
+        policy_name: "bad_policy"
         body: |
            {
              "policy": {

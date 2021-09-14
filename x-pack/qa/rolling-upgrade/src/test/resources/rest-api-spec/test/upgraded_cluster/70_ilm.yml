@@ -2,7 +2,7 @@
 "Test Lifecycle Still There And Indices Are Still Managed":
   - do:
       ilm.get_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
   - match: { my_lifecycle.policy.phases.warm.min_age: "1000d" }
 
   - do:
@@ -18,4 +18,4 @@
 
   - do:
       ilm.delete_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"

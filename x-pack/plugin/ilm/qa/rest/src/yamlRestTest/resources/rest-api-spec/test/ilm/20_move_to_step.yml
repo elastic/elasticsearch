@@ -5,7 +5,7 @@ setup:
           wait_for_status: yellow
   - do:
       ilm.put_lifecycle:
-        policy: "my_moveable_timeseries_lifecycle"
+        policy_name: "my_moveable_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -28,7 +28,7 @@ setup:
 
   - do:
       ilm.get_lifecycle:
-        policy: "my_moveable_timeseries_lifecycle"
+        policy_name: "my_moveable_timeseries_lifecycle"
 
   - do:
       indices.create:
@@ -54,12 +54,12 @@ teardown:
 
   - do:
       ilm.delete_lifecycle:
-        policy: "my_moveable_timeseries_lifecycle"
+        policy_name: "my_moveable_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        policy: "my_moveable_timeseries_lifecycle"
+        policy_name: "my_moveable_timeseries_lifecycle"
 
 ---
 "Test Invalid Move To Step With Incorrect Current Step":

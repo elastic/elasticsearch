@@ -9,12 +9,12 @@ setup:
   - do:
       catch: missing
       slm.get_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
 
   - do:
       catch: missing
       slm.delete_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
 
   - do:
       snapshot.create_repository:
@@ -27,7 +27,7 @@ setup:
   - do:
       catch: /invalid schedule \[0 \* \* \* \* \?\][:] schedule would be too frequent, executing more than every \[15m\]/
       slm.put_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
         body: |
           {
             "schedule": "0 * * * * ?",
@@ -40,7 +40,7 @@ setup:
 
   - do:
       slm.put_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
         body: |
           {
             "schedule": "0 1 2 3 4 ?",
@@ -60,7 +60,7 @@ setup:
 
   - do:
       slm.get_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
   - match: { daily-snapshots.version: 1 }
   - match: { daily-snapshots.policy.name: "<production-snap-{now/d}>" }
   - is_true: daily-snapshots.next_execution_millis
@@ -69,7 +69,7 @@ setup:
 
   - do:
       slm.put_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
         body: |
           {
             "schedule": "1 1 1 1 1 ?",
@@ -90,11 +90,11 @@ setup:
   - do:
       catch: missing
       slm.get_lifecycle:
-        policy_id: "doesnt-exist"
+        policy_name: "doesnt-exist"
 
   - do:
       slm.get_lifecycle:
-        policy_id: "daily-snapshots"
+        policy_name: "daily-snapshots"
   - match: { daily-snapshots.version: 2 }
   - match: { daily-snapshots.policy.schedule: "1 1 1 1 1 ?" }
   - is_true: daily-snapshots.next_execution_millis

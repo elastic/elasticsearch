@@ -8,11 +8,11 @@ setup:
 "Test stack template installation":
   - do:
       ilm.get_lifecycle:
-        policy: "logs"
+        policy_name: "logs"
 
   - do:
       ilm.get_lifecycle:
-        policy: "metrics"
+        policy_name: "metrics"
 
   - do:
       cluster.get_component_template:

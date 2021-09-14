@@ -59,7 +59,7 @@
 
   - do:
       ilm.put_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
         body: |
           {
             "policy": {
@@ -164,7 +164,7 @@
 
   - do:
       ilm.put_lifecycle:
-        policy: "my_moveable_timeseries_lifecycle"
+        policy_name: "my_moveable_timeseries_lifecycle"
         body: |
           {
             "policy": {

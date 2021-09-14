@@ -2,7 +2,7 @@
 "Test Set Policy On Index":
   - do:
       ilm.get_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
   - match: { my_lifecycle.policy.phases.warm.min_age: "1000d" }
 
   - do:

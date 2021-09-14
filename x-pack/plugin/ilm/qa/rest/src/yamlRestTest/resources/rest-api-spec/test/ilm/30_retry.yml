@@ -6,7 +6,7 @@ setup:
 
   - do:
       ilm.put_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
         body: |
            {
              "policy": {
@@ -29,7 +29,7 @@ setup:
 
   - do:
       ilm.get_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
 
 ---
 teardown:
@@ -40,12 +40,12 @@ teardown:
 
   - do:
       ilm.delete_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        policy: "my_lifecycle"
+        policy_name: "my_lifecycle"
 
 ---
 "Test Invalid Retry With Non-errored Policy":

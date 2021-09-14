@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -32,13 +33,24 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String name;
+        private final long startTime;
 
         public Request(String name) {
             this.name = name;
+            this.startTime = System.currentTimeMillis();
+        }
+
+        public Request(String name, long startTime) {
+            this.name = name;
+            this.startTime = startTime;
         }
 
         public String getName() {
             return name;
+        }
+
+        public long getStartTime() {
+            return startTime;
         }
 
         @Override
@@ -53,12 +65,20 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.startTime = in.readVLong();
+            } else {
+                this.startTime = System.currentTimeMillis();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeVLong(startTime);
+            }
         }
 
         @Override
@@ -66,12 +86,13 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name);
+            return name.equals(request.name) &&
+                startTime == request.startTime;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Objects.hash(name, startTime);
         }
 
         @Override

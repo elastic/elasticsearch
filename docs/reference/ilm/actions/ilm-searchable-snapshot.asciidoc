@@ -30,10 +30,10 @@ in the hot phase will avoid this situation and the need for a manual rollover fo
 managed indices.
 
 IMPORTANT: Mounting and relocating the shards of {search-snap} indices involves
-copying data from the snapshot repository. This may incur different costs from
-the copying between nodes in your cluster that happens with regular indices.
-These costs are typically lower, but in some environments they may be higher.
-See <<searchable-snapshots-costs>> for more details.
+copying the shard contents from the snapshot repository. This may incur
+different costs from the copying between nodes in your cluster that happens
+with regular indices. These costs are typically lower, but in some environments
+they may be higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.

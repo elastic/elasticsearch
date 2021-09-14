@@ -188,7 +188,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit);
         } catch (EOFException eof) {
-            // TODO this should be caught by lucene - EOF is almost certainly an index corruption
+            //
+            //
+            //
+            //  this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
         } catch (IOException exception) {
             throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
@@ -953,11 +956,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * recovered in full. If all the nongenerational files are the same but any generational files are different then all the
          * generational files are considered to be different and will be recovered in full, but the nongenerational files are left alone.
          * Finally, if any file is different then all the per-commit files are recovered too.
-         */
-        /* Future work: the {@code *.si} file includes {@link SegmentInfo#getId()} which is a globally unique identifier for the
-         * nongenerational files in the segment so we could compare that instead of using the files lengths and checksums. We may also get a
-         * similar ID for the generational files in https://issues.apache.org/jira/browse/LUCENE-9324.
-         * TODO follow up once this Lucene discussion closes.
          */
         public RecoveryDiff recoveryDiff(final MetadataSnapshot targetSnapshot) {
             final List<StoreFileMetadata> perCommitSourceFiles = new ArrayList<>();

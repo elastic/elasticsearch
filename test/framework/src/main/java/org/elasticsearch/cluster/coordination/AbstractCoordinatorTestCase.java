@@ -564,6 +564,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                     assertThat(nodeId + " has no STATE_NOT_RECOVERED_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK), equalTo(false));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode) && isConnectedPair(otherNode, clusterNode)) {
+                            assertTrue(otherNode.getId() + " is connected to healthy node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
@@ -571,6 +578,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode)) {
+                            assertFalse(otherNode.getId() + " is not connected to removed node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 }
             }
 
@@ -1416,7 +1430,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
+            connectToNodesAsync(newClusterState, () -> {
+                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService take charge of
+                // these connections
+            });
         }
 
         @Override

@@ -8,8 +8,11 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.search.fetch.FetchProfiler;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.util.ArrayList;
@@ -20,18 +23,17 @@ import java.util.List;
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;
-    private final List<QueryProfiler> queryProfilers;
-    private final AggregationProfiler aggProfiler;
+    private final List<QueryProfiler> queryProfilers = new ArrayList<>();
+    private final AggregationProfiler aggProfiler = new AggregationProfiler();
 
-    /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
-        this.queryProfilers = new ArrayList<>();
-        this.aggProfiler = new AggregationProfiler();
         addQueryProfiler();
     }
 
-    /** Switch to a new profile. */
+    /**
+     * Begin profiling a new query.
+     */
     public QueryProfiler addQueryProfiler() {
         QueryProfiler profiler = new QueryProfiler();
         searcher.setProfiler(profiler);
@@ -39,19 +41,45 @@ public final class Profilers {
         return profiler;
     }
 
-    /** Get the current profiler. */
+    /**
+     * Get the profiler for the query we are currently processing.
+     */
     public QueryProfiler getCurrentQueryProfiler() {
         return queryProfilers.get(queryProfilers.size() - 1);
     }
 
-    /** Return the list of all created {@link QueryProfiler}s so far. */
+    /**
+     * The list of all {@link QueryProfiler}s created so far.
+     */
     public List<QueryProfiler> getQueryProfilers() {
         return Collections.unmodifiableList(queryProfilers);
     }
 
-    /** Return the {@link AggregationProfiler}. */
     public AggregationProfiler getAggregationProfiler() {
         return aggProfiler;
     }
 
+    /**
+     * Build a profiler for the fetch phase.
+     */
+    public FetchProfiler startProfilingFetchPhase() {
+        return new FetchProfiler();
+    }
+
+    /**
+     * Build the results for the query phase.
+     */
+    public SearchProfileQueryPhaseResult buildQueryPhaseResults() {
+        List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
+        for (QueryProfiler queryProfiler : queryProfilers) {
+            QueryProfileShardResult result = new QueryProfileShardResult(
+                queryProfiler.getTree(),
+                queryProfiler.getRewriteTime(),
+                queryProfiler.getCollector()
+            );
+            queryResults.add(result);
+        }
+        AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
+        return new SearchProfileQueryPhaseResult(queryResults, aggResults);
+    }
 }

@@ -5,6 +5,7 @@ setlocal enableextensions
 
 SET params='%*'
 SET checkpassword=Y
+SET enrolltocluster=N
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
@@ -31,6 +32,12 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 	IF "!current!" == "--version" (
 		SET checkpassword=N
+	)
+
+	IF "!current!" == "--enrollment-token" (
+        SHIFT
+        SET enrolltocluster=Y
+        SET enrollmenttoken=%~1
 	)
 
 	IF "!silent!" == "Y" (
@@ -68,6 +75,22 @@ IF "%checkpassword%"=="Y" (
   )
 )
 
+rem windows batch pipe will choke on special characters in strings
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
+
+IF "%enrolltocluster%"=="Y" ()
+  SET ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster
+  SET ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
+  SET ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
+  ECHO.!KEYSTORE_PASSWORD!|CALL "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
+  || GOTO EXIT
+)
+
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
 )
@@ -88,14 +111,6 @@ for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elastic
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
-
-rem windows batch pipe will choke on special characters in strings
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.script.field;
 
 import java.util.Collections;
 import java.util.List;

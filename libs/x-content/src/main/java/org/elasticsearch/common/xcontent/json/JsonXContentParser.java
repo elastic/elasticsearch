@@ -11,12 +11,16 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import org.elasticsearch.core.RestApiVersion;
+import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
+
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -37,6 +41,31 @@ public class JsonXContentParser extends AbstractXContentParser {
                               RestApiVersion restApiVersion) {
         super(xContentRegistry, deprecationHandler, restApiVersion);
         this.parser = parser;
+    }
+
+    public JsonXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        JsonParser parser,
+        RestApiVersion restApiVersion,
+        FilterPath[] include,
+        FilterPath[] exclude
+    ) {
+        super(xContentRegistry, deprecationHandler, restApiVersion);
+        JsonParser filtered = parser;
+        if (exclude != null) {
+            for (FilterPath e : exclude) {
+                if (e.hasDoubleWildcard()) {
+                    // Fixed in Jackson 2.13 - https://github.com/FasterXML/jackson-core/issues/700
+                    throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");
+                }
+            }
+            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(exclude, false), true, true);
+        }
+        if (include != null) {
+            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(include, true), true, true);
+        }
+        this.parser = filtered;
     }
 
     @Override

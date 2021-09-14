@@ -98,7 +98,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));
         } else {
             logger.debug("[{}] migration of index [{}] to tier [{}] (preference [{}]) complete",
-                getKey().getAction(), index, availableDestinationTier, preferredTierConfiguration);
+                getKey().getAction(), index, availableDestinationTier.orElse(""), preferredTierConfiguration);
             return new Result(true, null);
         }
     }

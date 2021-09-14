@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Releasable;
 
 import java.io.Closeable;
 import java.util.Set;
@@ -25,7 +26,7 @@ public interface ConnectionManager extends Closeable {
 
     void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                        ConnectionValidator connectionValidator,
-                       ActionListener<Void> listener) throws ConnectTransportException;
+                       ActionListener<Releasable> listener) throws ConnectTransportException;
 
     Transport.Connection getConnection(DiscoveryNode node);
 

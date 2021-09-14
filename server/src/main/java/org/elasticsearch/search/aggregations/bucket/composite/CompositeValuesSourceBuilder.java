@@ -55,8 +55,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
-        // TODO: use V_7_16_0 once PR is backported to 7.x
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             this.missingOrder = MissingOrder.readFromStream(in);
         }
         this.order = SortOrder.readFromStream(in);
@@ -78,8 +77,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
-        // TODO: use V_7_16_0 once PR is backported to 7.x
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             missingOrder.writeTo(out);
         }
         order.writeTo(out);

@@ -93,11 +93,11 @@ DELETE _data_stream/logs-my_app-default
 
 You can then restore the index or data stream from the snapshot.
 
-We recommend you only restore specific indices and data streams. If you use
-the <<restore-snapshot-api,restore snapshot API>>, specify the `indices`
-parameter with a value other than `*`. If you use `*` or the default `indices`
-value, the request attempts to restore all indices and data streams, including
-system indices. If your cluster contains any existing system indices, the
+We recommend you only restore specific indices and data streams. If you use the
+<<restore-snapshot-api,restore snapshot API>>, specify the `indices` parameter
+with a value other than `*`. If you use `*` or the default `indices` value, the
+request attempts to restore all indices and data streams, including system
+indices. If your cluster already contains any of these system indices, the
 request will return an error. To restore all indices and data streams except
 system indices, use `*,-.*`.
 

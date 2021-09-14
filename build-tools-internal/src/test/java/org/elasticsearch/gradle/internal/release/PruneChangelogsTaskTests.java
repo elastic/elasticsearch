@@ -16,10 +16,14 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findAndDeleteFiles;
+import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findPreviousVersion;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -180,8 +184,9 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
         when(deleteHelper.deleteFiles(any())).thenReturn(Set.of(new File("rootDir/docs/changelog/1234.yml")));
 
         // when:
-        GradleException e = expectThrows(GradleException.class, () ->
-            findAndDeleteFiles(
+        GradleException e = expectThrows(
+            GradleException.class,
+            () -> findAndDeleteFiles(
                 gitWrapper,
                 deleteHelper,
                 QualifiedVersion.of("7.16.0"),
@@ -192,8 +197,55 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
                 ),
                 true,
                 Path.of("rootDir")
-            ));
+            )
+        );
 
         assertThat(e.getMessage(), equalTo("Failed to delete some files:\n\n\tdocs/changelog/1234.yml\n"));
+    }
+
+    /**
+     * Check that when list versions and the current version is at the start of a major series, then the versions for
+     * the previous major series are returned.
+     */
+    @Test
+    public void findPreviousVersion_withStartOfMajorSeries_inspectsPriorMajorSeries() {
+        // given:
+        when(gitWrapper.listVersions("v7.*")).thenReturn(
+            Stream.of(QualifiedVersion.of("v7.0.0"), QualifiedVersion.of("v7.0.1"), QualifiedVersion.of("v7.1.0"))
+        );
+
+        // when:
+        final QualifiedVersion version = QualifiedVersion.of("8.0.0-SNAPSHOT");
+        final List<QualifiedVersion> versions = findPreviousVersion(gitWrapper, version).collect(Collectors.toList());
+
+        // then:
+        assertThat(versions, contains(QualifiedVersion.of("v7.0.0"), QualifiedVersion.of("v7.0.1"), QualifiedVersion.of("v7.1.0")));
+    }
+
+    /**
+     * Check that when list versions and the current version is at the start of a major series, then the versions for
+     * the previous major series are returned.
+     */
+    @Test
+    public void findPreviousVersion_afterStartOfMajorSeries_inspectsCurrentMajorSeries() {
+        // given:
+        when(gitWrapper.listVersions("v7.*")).thenReturn(
+            Stream.of(
+                QualifiedVersion.of("v7.0.0"),
+                QualifiedVersion.of("v7.1.0"),
+                QualifiedVersion.of("v7.2.0"),
+                // Include later version as well, to model the situation where a new major series has been
+                // started, but we're still maintaining the prior series.
+                QualifiedVersion.of("v7.3.0"),
+                QualifiedVersion.of("v8.0.0")
+            )
+        );
+
+        // when:
+        final QualifiedVersion version = QualifiedVersion.of("v7.2.0-SNAPSHOT");
+        final List<QualifiedVersion> versions = findPreviousVersion(gitWrapper, version).collect(Collectors.toList());
+
+        // then:
+        assertThat(versions, contains(QualifiedVersion.of("v7.0.0"), QualifiedVersion.of("v7.1.0")));
     }
 }

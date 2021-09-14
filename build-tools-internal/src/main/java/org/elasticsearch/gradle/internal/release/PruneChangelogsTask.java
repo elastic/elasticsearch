@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 
 /**
@@ -149,14 +150,28 @@ public class PruneChangelogsTask extends DefaultTask {
      * @return filenames for changelog files in previous releases, without any path
      */
     private static Set<String> findAllFilesInEarlierVersions(GitWrapper gitWrapper, QualifiedVersion version) {
+        return findPreviousVersion(gitWrapper, version)
+            .flatMap(earlierVersion -> gitWrapper.listFiles("v" + earlierVersion, "docs/changelog"))
+            .map(line -> Path.of(line).getFileName().toString())
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Find the releases prior to the supplied version. If the supplied version is the very first in a new
+     * major series, then the method will look tag in the previous major series. Otherwise, all git tags
+     * in the current major series will be inspected.
+     *
+     * @param gitWrapper used for git operations
+     * @param version the git tags are inspected relative to this version
+     * @return a stream of earlier versions
+     */
+    @VisibleForTesting
+    static Stream<QualifiedVersion> findPreviousVersion(GitWrapper gitWrapper, QualifiedVersion version) {
         final int majorSeries = version.getMinor() == 0 && version.getRevision() == 0 ? version.getMajor() - 1 : version.getMajor();
         final String tagPattern = "v" + majorSeries + ".*";
 
         return gitWrapper.listVersions(tagPattern)
-            .filter(v -> v.isBefore(version))
-            .flatMap(earlierVersion -> gitWrapper.listFiles("v" + earlierVersion, "docs/changelog"))
-            .map(line -> Path.of(line).getFileName().toString())
-            .collect(Collectors.toSet());
+            .filter(v -> v.isBefore(version));
     }
 
     /**

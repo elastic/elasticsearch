@@ -293,7 +293,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = {
+    libFiles =
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
@@ -310,7 +310,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsSecurityCli)
         }
       }
-    }
+
 
     modulesFiles = { platform ->
       copySpec {
@@ -390,7 +390,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          from(defaultBinFiles)
+          if (testDistro == false) {
+            from(defaultBinFiles)
+          } else {
+            from(defaultBinFiles)
+              include 'x-pack-env', 'x-pack-security-env'
+          }
           if (distributionType != 'zip') {
             exclude '*.bat'
           }

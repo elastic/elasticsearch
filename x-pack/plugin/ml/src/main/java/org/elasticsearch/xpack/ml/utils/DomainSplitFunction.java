@@ -157,7 +157,7 @@ public final class DomainSplitFunction {
     public static List<String> domainSplit(String host, Map<String, Object> params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecate(DeprecationCategory.API, "domainSplit",
+            deprecationLogger.critical(DeprecationCategory.API, "domainSplit",
                 "Method [domainSplit] taking params is deprecated. Remove the params argument.");
             return null;
         });

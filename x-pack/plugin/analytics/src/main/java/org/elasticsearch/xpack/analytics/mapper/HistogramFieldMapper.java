@@ -32,10 +32,10 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -89,11 +89,11 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public HistogramFieldMapper build(ContentPath contentPath) {
+        public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
                 name,
-                new HistogramFieldType(buildFullName(contentPath), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath),
+                new HistogramFieldType(context.buildFullName(name), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
             );

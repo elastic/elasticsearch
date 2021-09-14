@@ -180,7 +180,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 script, onScriptError, meta, dimension);
         }
 
-        private KeywordFieldType buildFieldType(ContentPath contentPath, FieldType fieldType) {
+        private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer quoteAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -199,17 +199,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(buildFullName(contentPath), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
+            return new KeywordFieldType(context.buildFullName(name), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
         }
 
         @Override
-        public KeywordFieldMapper build(ContentPath contentPath) {
+        public KeywordFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
-            return new KeywordFieldMapper(name, fieldtype, buildFieldType(contentPath, fieldtype),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new KeywordFieldMapper(name, fieldtype, buildFieldType(context, fieldtype),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 

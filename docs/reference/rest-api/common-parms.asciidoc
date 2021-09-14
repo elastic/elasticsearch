@@ -432,7 +432,7 @@ The amount of time spent indexing, in milliseconds.
 end::index-time-ms[]
 
 tag::index-total[]
-The number of indices created.
+The number of index operations.
 end::index-total[]
 
 tag::bulk-index[]
